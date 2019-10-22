@@ -426,9 +426,17 @@ PYBIND11_MODULE(rigid_body_tree, m) {
               return tree.transformQDotMappingToVelocityMapping(cache, Ap);
             },
             doc.RigidBodyTree.transformQDotMappingToVelocityMapping.doc)
+        .def("relativeRollPitchYawJacobian",
+            &RigidBodyTree<double>::relativeRollPitchYawJacobian<T>,
+            py::arg("cache"), py::arg("from_body_or_frame_ind"),
+            py::arg("to_body_or_frame_ind"), py::arg("in_terms_of_qdot"),
+            doc.RigidBodyTree.relativeRollPitchYawJacobian.doc)
+        .def("relativeRollPitchYawJacobianDotTimesV",
+            &RigidBodyTree<double>::relativeRollPitchYawJacobianDotTimesV<T>,
+            py::arg("cache"), py::arg("from_body_or_frame_ind"),
+            py::arg("to_body_or_frame_ind"),
+            doc.RigidBodyTree.relativeRollPitchYawJacobianDotTimesV.doc)
         // relativeQuaternionJacobian
-        // relativeRollPitchYawJacobian
-        // relativeRollPitchYawJacobianDotTimesV
         // relativeQuaternionJacobianDotTimesV
         // CheckCacheValidity
         .def("doKinematics",
