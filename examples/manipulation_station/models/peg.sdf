@@ -50,6 +50,7 @@
       </material>
     </collision>
 
+    <!--
     <collision name='point_collision1'>
       <pose>0.075 0.025 0 0 0 0</pose>
       <geometry>
@@ -104,7 +105,7 @@
       <geometry>
         <sphere><radius>1e-7</radius></sphere>
       </geometry>
-    </collision>
+    </collision>-->
 
    </link>
 </model>
