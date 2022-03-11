@@ -689,6 +689,7 @@ TamsiSolverResult TamsiSolver<T>::SolveWithGuess(
       // Update generalized forces and return.
       tau_f = Jt.transpose() * ft;
       tau = tau_f + Jn.transpose() * fn;
+
       return TamsiSolverResult::kSuccess;
     }
 
@@ -753,6 +754,57 @@ TamsiSolverResult TamsiSolver<T>::SolveWithGuess(
   // without converging to the specified tolerance.
   return TamsiSolverResult::kMaxIterationsReached;
 }
+
+// DEBUG
+template <typename T>
+void TamsiSolver<T>::ExtractGradient() {
+  using std::max;
+
+  // Get some relevant quantities for convienience
+  const auto M = problem_data_aliases_.M();        // mass matrix
+  const auto Jn = problem_data_aliases_.Jn();      // contact normal jacobian
+  auto vn = variable_size_workspace_.mutable_vn(); // contact normal velocities
+  auto& J = fixed_size_workspace_.mutable_J();     // Newton-Raphson Jacobian
+  
+  const auto& stiffness = problem_data_aliases_.stiffness();
+  const auto& dissipation = problem_data_aliases_.dissipation();
+  const int nc = nc_;  // Number of contact points.
+
+  auto fn = variable_size_workspace_.mutable_fn(); // contact forces
+
+  std::cout << fn(0) << std::endl;
+
+  const double dt = 1e-2; // DEBUG
+
+  // Partial v_{k+1} / Partial v_{k}
+  auto dv_dv =  J.inverse() * M;   // this breaks when out of contact
+  std::cout << "dv_dv" << std::endl;
+  std::cout << dv_dv << std::endl << std::endl;
+
+  // Partial v_{k+1} / Partial q_{k}
+  
+  VectorX<T> normal_force_scaling_factor(nc); // k*(1-d*vn)+
+  for (int ic = 0; ic < nc; ic++) {  // iterate over contact points
+    const T signed_damping_factor = 1.0 - dissipation(ic) * vn(ic);
+    normal_force_scaling_factor(ic) = stiffness(ic) * max(0.0, signed_damping_factor);
+    
+    if ( fn(ic) == 0 ) {
+      normal_force_scaling_factor(ic) = 0;
+    }
+  }
+
+  MatrixX<T> df_dphi = normal_force_scaling_factor.asDiagonal();
+  MatrixX<T> test = - dt * M.inverse() * Jn.transpose() * df_dphi * Jn;
+
+  std::cout << "dv_dq" << std::endl;
+  std::cout << test << std::endl << std::endl;
+
+  // Partial q_{k+1} / Partial q_{k}
+
+  // Partial q_{k+1} / Partial v_{k}
+  
+}
+
 
 template <typename T>
 T TamsiSolver<T>::RegularizedFriction(const T& s, const T& mu) {

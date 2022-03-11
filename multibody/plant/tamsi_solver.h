@@ -657,6 +657,10 @@ class TamsiSolver {
   TamsiSolverResult SolveWithGuess(
       double dt, const VectorX<T>& v_guess) const;
 
+  /// DEBUG: extract dynamics gradient data from the last
+  /// TAMSI solve. SolveWithGuess must be called first. 
+  void ExtractGradient();
+
   /// @anchor retrieving_the_solution
   /// @name Retrieving the solution
   /// This methods allow to retrieve the solution stored in the solver after
