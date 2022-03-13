@@ -763,18 +763,20 @@ void TamsiSolver<T>::ExtractGradient() {
   // Get some relevant quantities for convienience
   const auto M = problem_data_aliases_.M();        // mass matrix
   const auto Jn = problem_data_aliases_.Jn();      // contact normal jacobian
+  const auto Jt = problem_data_aliases_.Jt();      // contact normal jacobian
   auto vn = variable_size_workspace_.mutable_vn(); // contact normal velocities
   auto& J = fixed_size_workspace_.mutable_J();     // Newton-Raphson Jacobian
   
   const auto& stiffness = problem_data_aliases_.stiffness();
   const auto& dissipation = problem_data_aliases_.dissipation();
   const int nc = nc_;  // Number of contact points.
+  
+  auto mu_vt = variable_size_workspace_.mutable_mu();    // regularized friction coefficients
+  auto t_hat = variable_size_workspace_.mutable_t_hat(); // contact tangent directions
 
-  auto fn = variable_size_workspace_.mutable_fn(); // contact forces
+  auto fn = variable_size_workspace_.mutable_fn(); // contact force normals
 
-  std::cout << fn(0) << std::endl;
-
-  const double dt = 1e-2; // DEBUG
+  const double dt = 1e-5; // DEBUG
 
   // Partial v_{k+1} / Partial v_{k}
   auto dv_dv =  J.inverse() * M;   // this breaks when out of contact
@@ -782,22 +784,44 @@ void TamsiSolver<T>::ExtractGradient() {
   std::cout << dv_dv << std::endl << std::endl;
 
   // Partial v_{k+1} / Partial q_{k}
-  
-  VectorX<T> normal_force_scaling_factor(nc); // k*(1-d*vn)+
+
+  // First we consider contribution of normal forces
+  //    dfn_dphi = k*(1-d*vn)+   if phi < 0, 
+  //               0             otherwise
+  // Note that dfn_dphi is a diagonal matrix, since normal forces
+  // at each point depend only on penetration at that particular point.
+  MatrixX<T> dfn_dphi = MatrixX<T>::Zero(nc,nc);
   for (int ic = 0; ic < nc; ic++) {  // iterate over contact points
     const T signed_damping_factor = 1.0 - dissipation(ic) * vn(ic);
-    normal_force_scaling_factor(ic) = stiffness(ic) * max(0.0, signed_damping_factor);
+    dfn_dphi(ic,ic) = stiffness(ic) * max(0.0, signed_damping_factor);
     
-    if ( fn(ic) == 0 ) {
-      normal_force_scaling_factor(ic) = 0;
+    if ( fn(ic) == 0 ) { // this is a surrogate for checking if phi >= 0
+      dfn_dphi(ic,ic) = 0;
     }
   }
+  
+  // Then contribution of tangent/friction forces, where
+  //    ft = -mu * t_hat * fn,
+  // so
+  //    dft_dfn = -mu *t_hat,
+  //    dft_dphi = dft_dfn * dfn_dphi.
+  // Note that dft_dphi is a block diagonal matrix, since t_hat
+  // is the unit tangent vector in R2.
+  MatrixX<T> dft_dfn = MatrixX<T>::Zero(2*nc, nc);
+  for (int ic = 0; ic < nc; ++ic) {
+    const int ik = 2 * ic;
+    auto t_hat_ic = t_hat.template segment<2>(ik);
+    dft_dfn.block(ik,ic,2,1) = -mu_vt(ic) * t_hat_ic;
+  }
+  MatrixX<T> dft_dphi = dft_dfn * dfn_dphi;
 
-  MatrixX<T> df_dphi = normal_force_scaling_factor.asDiagonal();
-  MatrixX<T> test = - dt * M.inverse() * Jn.transpose() * df_dphi * Jn;
-
+  // Put together contributions of normal and tangent directions
+  MatrixX<T> ft_contrib = Jt.transpose() * dft_dfn * dfn_dphi * Jn;
+  MatrixX<T> fn_contrib = Jn.transpose() * dfn_dphi * Jn;
+  
+  MatrixX<T> dv_dq = - dt * M.inverse() * (fn_contrib + ft_contrib);
   std::cout << "dv_dq" << std::endl;
-  std::cout << test << std::endl << std::endl;
+  std::cout << dv_dq << std::endl << std::endl;
 
   // Partial q_{k+1} / Partial q_{k}
 

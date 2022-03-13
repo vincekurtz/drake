@@ -1928,6 +1928,9 @@ TamsiSolverResult MultibodyPlant<T>::SolveUsingSubStepping(
 
     info = tamsi_solver->SolveWithGuess(dt_substep, v0_substep);
 
+    // DEBUG
+    tamsi_solver->ExtractGradient();
+
     // Break the sub-stepping loop on failure and return the info result.
     if (info != TamsiSolverResult::kSuccess) break;
 
@@ -2746,11 +2749,11 @@ void MultibodyPlant<T>::DoCalcDiscreteVariableUpdates(
   auto x0 = context0.get_discrete_state(0).get_value();
   VectorX<T> q0 = x0.topRows(this->num_positions());
   VectorX<T> v0 = x0.bottomRows(this->num_velocities());
-
+    
   // For a discrete model this evaluates vdot = (v_next - v0)/time_step() and
   // includes contact forces.
   const VectorX<T>& vdot = this->EvalForwardDynamics(context0).get_vdot();
-
+  
   // TODO(amcastro-tri): Consider replacing this by:
   //   const VectorX<T>& v_next = solver_results.v_next;
   // to avoid additional vector operations.
@@ -2763,6 +2766,7 @@ void MultibodyPlant<T>::DoCalcDiscreteVariableUpdates(
   VectorX<T> x_next(this->num_multibody_states());
   x_next << q_next, v_next;
   updates->set_value(0, x_next);
+  
 }
 
 template<typename T>
