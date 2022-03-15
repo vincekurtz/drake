@@ -1928,9 +1928,6 @@ TamsiSolverResult MultibodyPlant<T>::SolveUsingSubStepping(
 
     info = tamsi_solver->SolveWithGuess(dt_substep, v0_substep);
 
-    // DEBUG
-    tamsi_solver->ExtractGradient();
-
     // Break the sub-stepping loop on failure and return the info result.
     if (info != TamsiSolverResult::kSuccess) break;
 
@@ -1952,6 +1949,47 @@ TamsiSolverResult MultibodyPlant<T>::SolveUsingSubStepping(
   }
 
   return info;
+}
+
+// DEBUG
+template <typename T>
+void MultibodyPlant<T>::DiscreteDynamicsWithApproximateGradients(
+    const drake::systems::Context<T>& context,
+    VectorX<T>* x_next_ptr,
+    MatrixX<T>* fx_ptr,
+    MatrixX<T>* fu_ptr) const {
+
+  // Run some argument checks
+  DRAKE_DEMAND( is_discrete() );
+  this->ValidateContext(context);
+  DRAKE_DEMAND( x_next_ptr->size() == this->num_multibody_states() );
+  DRAKE_DEMAND( fx_ptr->cols() == this->num_multibody_states() );
+  DRAKE_DEMAND( fx_ptr->rows() == this->num_multibody_states() );
+  DRAKE_DEMAND( fu_ptr->cols() == this->num_actuators() );
+  DRAKE_DEMAND( fu_ptr->rows() == this->num_actuators() );
+
+  // Extract main data for convienience
+  auto& x_next = *x_next_ptr;
+  auto& fx = *fx_ptr;
+  auto& fu = *fu_ptr;
+
+  // Get the current system state
+  auto x0 = context.get_discrete_state(0).get_value();
+  VectorX<T> q0 = x0.topRows(this->num_positions());
+  VectorX<T> v0 = x0.bottomRows(this->num_velocities());
+  
+  // Get generalized velocities at next timestep by solving
+  // TAMSI semi-implicit euler problem
+  const VectorX<T>& vdot = this->EvalForwardDynamics(context).get_vdot();
+  const VectorX<T>& v_next = v0 + time_step() * vdot;
+
+  // Get generalized positions at next timesteps accordingly
+  VectorX<T> qdot_next(this->num_positions());
+  MapVelocityToQDot(context, v_next, &qdot_next);
+  VectorX<T> q_next = q0 + time_step() * qdot_next;
+
+  // Update x_next
+  x_next << q_next, v_next;
 }
 
 template <typename T>
@@ -2457,6 +2495,9 @@ void MultibodyPlant<T>::CallTamsiSolver(
 
   // TODO(amcastro-tri): implement capability to dump solver statistics to a
   // file for analysis.
+    
+  // DEBUG
+  tamsi_solver->ExtractGradient();
 
   // Update the results.
   results->v_next = tamsi_solver->get_generalized_velocities();

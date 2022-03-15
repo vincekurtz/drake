@@ -1817,6 +1817,20 @@ class MultibodyPlant : public internal::MultibodyTreeSystem<T> {
       double v_stiction = MultibodyPlantConfig{}.stiction_tolerance) {
     friction_model_.set_stiction_tolerance(v_stiction);
   }
+
+  /// DEBUG
+  /// Compute the forward dynamics
+  ///     x_{t+1} = f(x_t, u_t)
+  /// along with (an approximation of) the dynamics gradients
+  ///     f_x, f_u,
+  /// where the structure of the TAMSI update is used to get
+  /// the dynamics gradients. 
+  void DiscreteDynamicsWithApproximateGradients(
+      const drake::systems::Context<T>& context,
+      VectorX<T>* x_next,
+      MatrixX<T>* fx,
+      MatrixX<T>* fu) const;
+
   /// @} <!-- Contact modeling -->
 
   /// @anchor mbp_state_accessors_and_mutators
