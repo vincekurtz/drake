@@ -2070,8 +2070,34 @@ void MultibodyPlant<T>::DiscreteDynamicsWithApproximateGradients(
   MapVelocityToQDot(context, v_next, &qdot_next);
   VectorX<T> q_next = q0 + time_step() * qdot_next;
 
-  // Update x_next
+  // Update x_next accordingly
   x_next << q_next, v_next;
+
+  // Get TAMSI solver data for approximating the dynamics gradient
+  //
+  // This includes:
+  //    dv_dv    (the partial derivative of v_next w.r.t v)
+  //    dfn_dphi (the partial derivative of contact normal forces
+  //              with respect to contact signed distances)
+  //    dft_dphi (the partial derivative of contact tangent forces
+  //              with respect to contact signed distances)
+  MatrixX<T> dv_dv(nv, nv);
+  MatrixX<T> dfn_dphi(num_contacts, num_contacts);
+  MatrixX<T> dft_dphi(2*num_contacts, num_contacts);
+  tamsi_solver.GetGradientData(&dv_dv, &dfn_dphi, &dft_dphi);
+
+  // Construct fx, the dynamics gradient with respect to state
+  
+  // dv_dq
+  MatrixX<T> ft_contrib = Jt.transpose() * dft_dphi;
+  MatrixX<T> fn_contrib = Jn.transpose() * dfn_dphi;
+
+  MatrixX<T> dv_dq = time_step() * M0.inverse() * (fn_contrib + ft_contrib) * Jn;
+
+  std::cout << dv_dq << std::endl;
+  
+  // Construct fu, the dynamics gradient with respect to input
+
 }
 
 template <typename T>
@@ -2578,9 +2604,6 @@ void MultibodyPlant<T>::CallTamsiSolver(
   // TODO(amcastro-tri): implement capability to dump solver statistics to a
   // file for analysis.
     
-  // DEBUG
-  tamsi_solver->ExtractGradient();
-
   // Update the results.
   results->v_next = tamsi_solver->get_generalized_velocities();
   results->fn = tamsi_solver->get_normal_forces();

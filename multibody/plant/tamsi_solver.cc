@@ -671,7 +671,7 @@ TamsiSolverResult TamsiSolver<T>::SolveWithGuess(
 
   // Initialize iteration with the guess provided.
   v = v_guess;
-
+    
   for (int iter = 0; iter < max_iterations; ++iter) {
     // Update normal and tangential velocities.
     vn = Jn * v;
@@ -721,7 +721,6 @@ TamsiSolverResult TamsiSolver<T>::SolveWithGuess(
       }
       Delta_v = J_ldlt.solve(-residual);
     }
-
     // Since we keep Jt constant we have that:
     // vₜᵏ⁺¹ = Jt vᵏ⁺¹ = Jt (vᵏ + α Δvᵏ)
     //                 = vₜᵏ + α Jt Δvᵏ
@@ -757,75 +756,94 @@ TamsiSolverResult TamsiSolver<T>::SolveWithGuess(
 
 // DEBUG
 template <typename T>
-void TamsiSolver<T>::ExtractGradient() {
+void TamsiSolver<T>::GetGradientData(
+      MatrixX<T>* partial_vnext_partial_v,
+      MatrixX<T>* partial_fn_partial_phi,
+      MatrixX<T>* partial_ft_partial_phi) const {
   using std::max;
 
-  // Get some relevant quantities for convienience
-  const auto M = problem_data_aliases_.M();        // mass matrix
-  const auto Jn = problem_data_aliases_.Jn();      // contact normal jacobian
-  const auto Jt = problem_data_aliases_.Jt();      // contact normal jacobian
-  auto vn = variable_size_workspace_.mutable_vn(); // contact normal velocities
-  auto& J = fixed_size_workspace_.mutable_J();     // Newton-Raphson Jacobian
+  // Check sizes
+  DRAKE_DEMAND( partial_vnext_partial_v->rows() == nv_ );
+  DRAKE_DEMAND( partial_vnext_partial_v->cols() == nv_ );
+  DRAKE_DEMAND( partial_fn_partial_phi->rows() == nc_ );
+  DRAKE_DEMAND( partial_fn_partial_phi->cols() == nc_ );
+  DRAKE_DEMAND( partial_ft_partial_phi->rows() == 2*nc_ );
+  DRAKE_DEMAND( partial_ft_partial_phi->cols() == nc_ );
+
+  // Compute (partial v_next)/(partial v), which is
+  // given by 
+  //
+  //    dv_dv = J^{-1} * M,
+  //
+  // where J is the Newton-Raphson jacobian.
+  auto& dv_dv = *partial_vnext_partial_v;
+  
+  auto& J_lu = fixed_size_workspace_.mutable_J_lu();  // Newton-Raphson jacobian
+  const auto M = problem_data_aliases_.M();           // Mass matrix
+
+  if (nc_ == 0) {
+    dv_dv.setIdentity();
+  } else {
+    dv_dv = J_lu.solve(M);
+  }
+
+  // Compute (partial fn)/(partial phi), where fn
+  // are the normal component of contact forces and 
+  // phi are signed contact distances
+  //
+  // This is given by
+  //
+  //    dfn_dphi = -k*(1-d*vn)+   if phi < 0, 
+  //                0             otherwise.
+  //
+  // Note that dfn_dphi is a diagonal matrix, since normal forces
+  // at each point depend only on penetration at that particular point.
+  auto& dfn_dphi = *partial_fn_partial_phi;
+  dfn_dphi.setZero();
   
   const auto& stiffness = problem_data_aliases_.stiffness();
   const auto& dissipation = problem_data_aliases_.dissipation();
-  const int nc = nc_;  // Number of contact points.
-  
-  auto mu_vt = variable_size_workspace_.mutable_mu();    // regularized friction coefficients
-  auto t_hat = variable_size_workspace_.mutable_t_hat(); // contact tangent directions
+  auto vn = variable_size_workspace_.mutable_vn();    // contact normal velocities
+  auto fn = variable_size_workspace_.mutable_fn();    // contact force normals
 
-  auto fn = variable_size_workspace_.mutable_fn(); // contact force normals
-
-  const double dt = 1e-5; // DEBUG
-
-  // Partial v_{k+1} / Partial v_{k}
-  auto dv_dv =  J.inverse() * M;   // this breaks when out of contact
-  std::cout << "dv_dv" << std::endl;
-  std::cout << dv_dv << std::endl << std::endl;
-
-  // Partial v_{k+1} / Partial q_{k}
-
-  // First we consider contribution of normal forces
-  //    dfn_dphi = k*(1-d*vn)+   if phi < 0, 
-  //               0             otherwise
-  // Note that dfn_dphi is a diagonal matrix, since normal forces
-  // at each point depend only on penetration at that particular point.
-  MatrixX<T> dfn_dphi = MatrixX<T>::Zero(nc,nc);
-  for (int ic = 0; ic < nc; ic++) {  // iterate over contact points
-    const T signed_damping_factor = 1.0 - dissipation(ic) * vn(ic);
-    dfn_dphi(ic,ic) = stiffness(ic) * max(0.0, signed_damping_factor);
+  for (int ic = 0; ic < nc_; ic++) {  // iterate over contact points
     
-    if ( fn(ic) == 0 ) { // this is a surrogate for checking if phi >= 0
+    if ( fn(ic) == 0 ) {  // this is a surrogate for checking if phi > 0
       dfn_dphi(ic,ic) = 0;
+    } else {
+      const T signed_damping_factor = 1.0 - dissipation(ic) * vn(ic);
+      dfn_dphi(ic,ic) = - stiffness(ic) * max(0.0, signed_damping_factor);
     }
   }
-  
-  // Then contribution of tangent/friction forces, where
+
+  // Compute (partial ft)/(partial phi), where ft
+  // are the tangent components of contact forces.
+  //
+  // These tangent forces are determined by regularized friction:
+  // 
   //    ft = -mu * t_hat * fn,
-  // so
-  //    dft_dfn = -mu *t_hat,
-  //    dft_dphi = dft_dfn * dfn_dphi.
-  // Note that dft_dphi is a block diagonal matrix, since t_hat
-  // is the unit tangent vector in R2.
-  MatrixX<T> dft_dfn = MatrixX<T>::Zero(2*nc, nc);
-  for (int ic = 0; ic < nc; ++ic) {
+  //
+  // where mu are velocity dependent coefficients, t_hat are unit
+  // vectors in the tangent direction, and fn are normal components,
+  // so we have
+  //
+  //    dft_dfn = -mu * t_hat,
+  //    dft_dphi = dft_dfn * dfn_dphi
+  //
+  // where dft_dfn is block diagonal.
+  auto& dft_dphi = *partial_ft_partial_phi;
+  MatrixX<T> dft_dfn(2*nc_, nc_);
+  dft_dfn.setZero();
+  
+  auto mu = variable_size_workspace_.mutable_mu();    // regularized friction coefficients
+  auto t_hat = variable_size_workspace_.mutable_t_hat(); // contact tangent directions
+  
+  for (int ic = 0; ic < nc_; ++ic) {
     const int ik = 2 * ic;
     auto t_hat_ic = t_hat.template segment<2>(ik);
-    dft_dfn.block(ik,ic,2,1) = -mu_vt(ic) * t_hat_ic;
+    dft_dfn.block(ik,ic,2,1) = -mu(ic) * t_hat_ic;
   }
-  MatrixX<T> dft_dphi = dft_dfn * dfn_dphi;
-
-  // Put together contributions of normal and tangent directions
-  MatrixX<T> ft_contrib = Jt.transpose() * dft_dfn * dfn_dphi * Jn;
-  MatrixX<T> fn_contrib = Jn.transpose() * dfn_dphi * Jn;
-  
-  MatrixX<T> dv_dq = - dt * M.inverse() * (fn_contrib + ft_contrib);
-  std::cout << "dv_dq" << std::endl;
-  std::cout << dv_dq << std::endl << std::endl;
-
-  // Partial q_{k+1} / Partial q_{k}
-
-  // Partial q_{k+1} / Partial v_{k}
+  dft_dphi = dft_dfn * dfn_dphi;
   
 }
 
