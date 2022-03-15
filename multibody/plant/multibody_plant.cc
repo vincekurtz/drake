@@ -1978,12 +1978,94 @@ void MultibodyPlant<T>::DiscreteDynamicsWithApproximateGradients(
   VectorX<T> q0 = x0.topRows(this->num_positions());
   VectorX<T> v0 = x0.bottomRows(this->num_velocities());
   
-  // Get generalized velocities at next timestep by solving
-  // TAMSI semi-implicit euler problem
-  const VectorX<T>& vdot = this->EvalForwardDynamics(context).get_vdot();
-  const VectorX<T>& v_next = v0 + time_step() * vdot;
+  // Get generalized velocities at next timestep by solving the
+  // TAMSI semi-implicit euler problem.
+  // This is essentially identical to calling EvalContactSolverResults.
+  contact_solvers::internal::ContactSolverResults<T> results;
+  const int nv = this->num_velocities();
 
-  // Get generalized positions at next timesteps accordingly
+  // Mass matrix.
+  MatrixX<T> M0(nv, nv);
+  internal_tree().CalcMassMatrix(context, &M0);
+
+  // Forces at the previous time step.
+  MultibodyForces<T> forces0(internal_tree());
+  CalcNonContactForces(context, true /* discrete */, &forces0);
+
+  // Workspace for inverse dynamics:
+  // Bodies' accelerations, ordered by BodyNodeIndex.
+  std::vector<SpatialAcceleration<T>> A_WB_array(num_bodies());
+  // Generalized accelerations.
+  VectorX<T> vdot = VectorX<T>::Zero(nv);
+  // Body forces (alias to forces0).
+  std::vector<SpatialForce<T>>& F_BBo_W_array = forces0.mutable_body_forces();
+
+  // With vdot = 0, this computes:
+  //   -tau = C(q, v)v - tau_app - ∑ J_WBᵀ(q) Fapp_Bo_W.
+  VectorX<T>& minus_tau = forces0.mutable_generalized_forces();
+  internal_tree().CalcInverseDynamics(
+      context, vdot, F_BBo_W_array, minus_tau, &A_WB_array,
+      &F_BBo_W_array, /* Note: these arrays get overwritten on output. */
+      &minus_tau);
+
+  // Compute all contact pairs, including both penetration pairs and quadrature
+  // pairs for discrete hydroelastic.
+  const std::vector<internal::DiscreteContactPair<T>>& contact_pairs =
+      EvalDiscreteContactPairs(context);
+  const int num_contacts = contact_pairs.size();
+
+  // Compute normal and tangential velocity Jacobians at t0.
+  const internal::ContactJacobians<T>& contact_jacobians =
+      EvalContactJacobians(context);
+  MatrixX<T> Jn = contact_jacobians.Jn;
+  MatrixX<T> Jt = contact_jacobians.Jt;
+
+  // Get friction coefficient into a single vector. Static friction is ignored
+  // by the time stepping scheme.
+  std::vector<CoulombFriction<double>> combined_friction_pairs =
+      CalcCombinedFrictionCoefficients(context, contact_pairs);
+  VectorX<T> mu(num_contacts);
+  std::transform(combined_friction_pairs.begin(), combined_friction_pairs.end(),
+                 mu.data(),
+                 [](const CoulombFriction<double>& coulomb_friction) {
+                   return coulomb_friction.dynamic_friction();
+                 });
+
+  // Fill in data as required by our discrete solver.
+  VectorX<T> fn0(num_contacts);
+  VectorX<T> stiffness(num_contacts);
+  VectorX<T> damping(num_contacts);
+  VectorX<T> phi0(num_contacts);
+  for (int i = 0; i < num_contacts; ++i) {
+    fn0[i] = contact_pairs[i].fn0;
+    stiffness[i] = contact_pairs[i].stiffness;
+    damping[i] = contact_pairs[i].damping;
+    phi0[i] = contact_pairs[i].phi0;
+  }
+
+  systems::CacheEntryValue& value =
+      this->get_cache_entry(cache_indexes_.contact_solver_scratch)
+      .get_mutable_cache_entry_value(context);
+  auto& tamsi_solver =
+      value.GetMutableValueOrThrow<TamsiSolver<T>>();
+  if (tamsi_solver.get_solver_parameters().stiction_tolerance !=
+      friction_model_.stiction_tolerance()) {
+    // Set the stiction tolerance according to the values set by users with
+    // set_stiction_tolerance().
+    TamsiSolverParameters solver_parameters;
+    solver_parameters.stiction_tolerance =
+        friction_model_.stiction_tolerance();
+    tamsi_solver.set_solver_parameters(solver_parameters);
+  }
+
+  CallTamsiSolver(&tamsi_solver, context.get_time(), v0,
+                  M0, minus_tau, fn0, Jn, Jt,
+                  stiffness, damping, mu, &results);
+
+  const VectorX<T>& v_next = results.v_next;
+
+  // Get generalized positions at next timestep via explicit
+  // update rule q_next = q0 + N(q0)*v_next
   VectorX<T> qdot_next(this->num_positions());
   MapVelocityToQDot(context, v_next, &qdot_next);
   VectorX<T> q_next = q0 + time_step() * qdot_next;

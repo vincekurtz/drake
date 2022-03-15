@@ -823,10 +823,6 @@ void TamsiSolver<T>::ExtractGradient() {
   std::cout << "dv_dq" << std::endl;
   std::cout << dv_dq << std::endl << std::endl;
 
-  // DEBUG
-  std::cout << "nc: " << nc << std::endl;
-  std::cout << vn << std::endl;
-
   // Partial q_{k+1} / Partial q_{k}
 
   // Partial q_{k+1} / Partial v_{k}
