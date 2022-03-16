@@ -5,6 +5,7 @@
 #include <memory>
 #include <utility>
 #include <vector>
+#include <chrono>  // DEBUG
 
 #include "drake/common/extract_double.h"
 
@@ -761,6 +762,10 @@ void TamsiSolver<T>::GetGradientData(
       MatrixX<T>* partial_fn_partial_phi,
       MatrixX<T>* partial_ft_partial_phi) const {
   using std::max;
+  
+  // DEBUG: TIMING timing variables
+  auto st = std::chrono::high_resolution_clock::now();
+  std::chrono::duration<float> elapsed;
 
   // Check sizes
   DRAKE_DEMAND( partial_vnext_partial_v->rows() == nv_ );
@@ -780,12 +785,22 @@ void TamsiSolver<T>::GetGradientData(
   
   auto& J_lu = fixed_size_workspace_.mutable_J_lu();  // Newton-Raphson jacobian
   const auto M = problem_data_aliases_.M();           // Mass matrix
+  
+  // TIMING
+  elapsed = std::chrono::high_resolution_clock::now() - st;
+  std::cout << "  get problem data: " << elapsed.count() << std::endl;
+  st = std::chrono::high_resolution_clock::now();
 
   if (nc_ == 0) {
     dv_dv.setIdentity();
   } else {
     dv_dv = J_lu.solve(M);
   }
+  
+  // TIMING
+  elapsed = std::chrono::high_resolution_clock::now() - st;
+  std::cout << "  dv_dv: " << elapsed.count() << std::endl;
+  st = std::chrono::high_resolution_clock::now();
 
   // Compute (partial fn)/(partial phi), where fn
   // are the normal component of contact forces and 
@@ -815,6 +830,11 @@ void TamsiSolver<T>::GetGradientData(
       dfn_dphi(ic,ic) = - stiffness(ic) * max(0.0, signed_damping_factor);
     }
   }
+  
+  // TIMING
+  elapsed = std::chrono::high_resolution_clock::now() - st;
+  std::cout << "  dfn_dphi: " << elapsed.count() << std::endl;
+  st = std::chrono::high_resolution_clock::now();
 
   // Compute (partial ft)/(partial phi), where ft
   // are the tangent components of contact forces.
@@ -831,7 +851,6 @@ void TamsiSolver<T>::GetGradientData(
   //    dft_dphi = dft_dfn * dfn_dphi
   //
   // where dft_dfn is block diagonal.
-  auto& dft_dphi = *partial_ft_partial_phi;
   MatrixX<T> dft_dfn(2*nc_, nc_);
   dft_dfn.setZero();
   
@@ -841,9 +860,42 @@ void TamsiSolver<T>::GetGradientData(
   for (int ic = 0; ic < nc_; ++ic) {
     const int ik = 2 * ic;
     auto t_hat_ic = t_hat.template segment<2>(ik);
-    dft_dfn.block(ik,ic,2,1) = -mu(ic) * t_hat_ic;
+    dft_dfn.block(ik,ic,2,1) = -mu(ic) * t_hat_ic * dfn_dphi(ic,ic);
   }
-  dft_dphi = dft_dfn * dfn_dphi;
+  
+  // TIMING
+  elapsed = std::chrono::high_resolution_clock::now() - st;
+  std::cout << "  dft_dfn: " << elapsed.count() << std::endl;
+  st = std::chrono::high_resolution_clock::now();
+
+  // Compute 
+  //
+  //     dft_dphi = dft_dfn * dfn_dphi
+  //
+  // using the known sparsity pattern. Direct matrix multiplication
+  // is a computational bottleneck when the number of contacts (nc_)
+  // is very large. 
+  auto& dft_dphi = *partial_ft_partial_phi;
+  dft_dphi.setZero();
+
+  for (int ic = 0; ic < nc_; ++ic) {
+    const int ik = 2 * ic;
+
+  }
+
+
+  //dft_dphi = dft_dfn * dfn_dphi;
+  
+  // TIMING
+  elapsed = std::chrono::high_resolution_clock::now() - st;
+  std::cout << "  dft_dphi: " << elapsed.count() << std::endl;
+  st = std::chrono::high_resolution_clock::now();
+
+  std::cout << dft_dfn << std::endl;
+  std::cout << std::endl;
+  std::cout << dfn_dphi << std::endl;
+  std::cout << std::endl;
+  std::cout << dft_dphi << std::endl;
   
 }
 

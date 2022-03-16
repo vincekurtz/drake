@@ -1959,6 +1959,10 @@ void MultibodyPlant<T>::DiscreteDynamicsWithApproximateGradients(
     MatrixX<T>* fx_ptr,
     MatrixX<T>* fu_ptr) const {
 
+  // DEBUG: TIMING timing variables
+  auto st = std::chrono::high_resolution_clock::now();
+  std::chrono::duration<float> elapsed;
+
   // Run some argument checks
   DRAKE_DEMAND( is_discrete() );
   this->ValidateContext(context);
@@ -1974,15 +1978,16 @@ void MultibodyPlant<T>::DiscreteDynamicsWithApproximateGradients(
   auto& fu = *fu_ptr;
 
   // Get the current system state
+  const int nq = this->num_positions();
+  const int nv = this->num_velocities();
   auto x0 = context.get_discrete_state(0).get_value();
-  VectorX<T> q0 = x0.topRows(this->num_positions());
-  VectorX<T> v0 = x0.bottomRows(this->num_velocities());
+  VectorX<T> q0 = x0.topRows(nq);
+  VectorX<T> v0 = x0.bottomRows(nv);
   
   // Get generalized velocities at next timestep by solving the
   // TAMSI semi-implicit euler problem.
   // This is essentially identical to calling EvalContactSolverResults.
   contact_solvers::internal::ContactSolverResults<T> results;
-  const int nv = this->num_velocities();
 
   // Mass matrix.
   MatrixX<T> M0(nv, nv);
@@ -2013,6 +2018,9 @@ void MultibodyPlant<T>::DiscreteDynamicsWithApproximateGradients(
   const std::vector<internal::DiscreteContactPair<T>>& contact_pairs =
       EvalDiscreteContactPairs(context);
   const int num_contacts = contact_pairs.size();
+
+  // DEBUG
+  std::cout << "nc: " << num_contacts << std::endl;
 
   // Compute normal and tangential velocity Jacobians at t0.
   const internal::ContactJacobians<T>& contact_jacobians =
@@ -2066,12 +2074,17 @@ void MultibodyPlant<T>::DiscreteDynamicsWithApproximateGradients(
 
   // Get generalized positions at next timestep via explicit
   // update rule q_next = q0 + N(q0)*v_next
-  VectorX<T> qdot_next(this->num_positions());
+  VectorX<T> qdot_next(nq);
   MapVelocityToQDot(context, v_next, &qdot_next);
   VectorX<T> q_next = q0 + time_step() * qdot_next;
 
   // Update x_next accordingly
   x_next << q_next, v_next;
+  
+  // TIMING
+  elapsed = std::chrono::high_resolution_clock::now() - st;
+  std::cout << "forward dynamics: " << elapsed.count() << std::endl;
+  st = std::chrono::high_resolution_clock::now();
 
   // Get TAMSI solver data for approximating the dynamics gradient
   //
@@ -2086,15 +2099,55 @@ void MultibodyPlant<T>::DiscreteDynamicsWithApproximateGradients(
   MatrixX<T> dft_dphi(2*num_contacts, num_contacts);
   tamsi_solver.GetGradientData(&dv_dv, &dfn_dphi, &dft_dphi);
 
+  // Compute the jacobian of signed contact distances with respect
+  // to configurations q. Note that this is very similar to the
+  // computation of Jn, except that we use JacobianWrtVariable::QDot
+  // instead of JacobianWrtVariable::kV
+  
+  // TIMING
+  elapsed = std::chrono::high_resolution_clock::now() - st;
+  std::cout <<  "GetGradientData: " << elapsed.count() << std::endl;
+  st = std::chrono::high_resolution_clock::now();
+
+  // Compute N(q) and Nbar(q), which map between generalized
+  // velocities (v) and time derivatives of generalized positions (qdot).
+  MatrixX<T> N(nq, nv);
+  MatrixX<T> Nbar(nv, nq);
+
+  VectorX<T> tmp_v(nv);
+  VectorX<T> tmp_q(nq);
+  for (int i=0; i<nv; i++) {
+    tmp_v.setZero();
+    tmp_v(i) = 1;
+    MapVelocityToQDot(context, tmp_v, &tmp_q);
+    N.col(i) = tmp_q;
+  }
+  for (int i=0; i<nq; i++) {
+    tmp_q.setZero();
+    tmp_q(i) = 1;
+    MapQDotToVelocity(context, tmp_q, &tmp_v);
+    Nbar.col(i) = tmp_v;
+  }
+
   // Construct fx, the dynamics gradient with respect to state
   
+  // TIMING
+  elapsed = std::chrono::high_resolution_clock::now() - st;
+  std::cout << "N(q) and Nbar(q): " <<  elapsed.count() << std::endl;
+  st = std::chrono::high_resolution_clock::now();
+  
   // dv_dq
-  MatrixX<T> ft_contrib = Jt.transpose() * dft_dphi;
-  MatrixX<T> fn_contrib = Jn.transpose() * dfn_dphi;
+  MatrixX<T> dphi_dq = Jn * Nbar;
+  MatrixX<T> ft_contrib = Jt.transpose() * dft_dphi * dphi_dq;
+  MatrixX<T> fn_contrib = Jn.transpose() * dfn_dphi * dphi_dq;
+  MatrixX<T> dv_dq = time_step() * M0.inverse() * (fn_contrib + ft_contrib);
 
-  MatrixX<T> dv_dq = time_step() * M0.inverse() * (fn_contrib + ft_contrib) * Jn;
-
+  // TIMING
+  elapsed = std::chrono::high_resolution_clock::now() - st;
+  std::cout << "dv_dq assembly: " <<  elapsed.count() << std::endl;
+  
   std::cout << dv_dq << std::endl;
+  
   
   // Construct fu, the dynamics gradient with respect to input
 
