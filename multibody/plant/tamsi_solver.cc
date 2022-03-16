@@ -850,9 +850,9 @@ void TamsiSolver<T>::GetGradientData(
   //    dft_dfn = -mu * t_hat,
   //    dft_dphi = dft_dfn * dfn_dphi
   //
-  // where dft_dfn is block diagonal.
-  MatrixX<T> dft_dfn(2*nc_, nc_);
-  dft_dfn.setZero();
+  // where dft_dfn and dft_dphi are block diagonal.
+  auto& dft_dphi = *partial_ft_partial_phi;
+  dft_dphi.setZero();
   
   auto mu = variable_size_workspace_.mutable_mu();    // regularized friction coefficients
   auto t_hat = variable_size_workspace_.mutable_t_hat(); // contact tangent directions
@@ -860,43 +860,14 @@ void TamsiSolver<T>::GetGradientData(
   for (int ic = 0; ic < nc_; ++ic) {
     const int ik = 2 * ic;
     auto t_hat_ic = t_hat.template segment<2>(ik);
-    dft_dfn.block(ik,ic,2,1) = -mu(ic) * t_hat_ic * dfn_dphi(ic,ic);
+    dft_dphi.block(ik,ic,2,1) = -mu(ic) * t_hat_ic * dfn_dphi(ic,ic);
   }
-  
-  // TIMING
-  elapsed = std::chrono::high_resolution_clock::now() - st;
-  std::cout << "  dft_dfn: " << elapsed.count() << std::endl;
-  st = std::chrono::high_resolution_clock::now();
-
-  // Compute 
-  //
-  //     dft_dphi = dft_dfn * dfn_dphi
-  //
-  // using the known sparsity pattern. Direct matrix multiplication
-  // is a computational bottleneck when the number of contacts (nc_)
-  // is very large. 
-  auto& dft_dphi = *partial_ft_partial_phi;
-  dft_dphi.setZero();
-
-  for (int ic = 0; ic < nc_; ++ic) {
-    const int ik = 2 * ic;
-
-  }
-
-
-  //dft_dphi = dft_dfn * dfn_dphi;
   
   // TIMING
   elapsed = std::chrono::high_resolution_clock::now() - st;
   std::cout << "  dft_dphi: " << elapsed.count() << std::endl;
   st = std::chrono::high_resolution_clock::now();
 
-  std::cout << dft_dfn << std::endl;
-  std::cout << std::endl;
-  std::cout << dfn_dphi << std::endl;
-  std::cout << std::endl;
-  std::cout << dft_dphi << std::endl;
-  
 }
 
 
