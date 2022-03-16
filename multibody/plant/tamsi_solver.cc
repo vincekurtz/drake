@@ -5,7 +5,6 @@
 #include <memory>
 #include <utility>
 #include <vector>
-#include <chrono>  // DEBUG
 
 #include "drake/common/extract_double.h"
 
@@ -763,10 +762,6 @@ void TamsiSolver<T>::GetGradientData(
       MatrixX<T>* partial_ft_partial_phi) const {
   using std::max;
   
-  // DEBUG: TIMING timing variables
-  auto st = std::chrono::high_resolution_clock::now();
-  std::chrono::duration<float> elapsed;
-
   // Check sizes
   DRAKE_DEMAND( partial_vnext_partial_v->rows() == nv_ );
   DRAKE_DEMAND( partial_vnext_partial_v->cols() == nv_ );
@@ -786,22 +781,12 @@ void TamsiSolver<T>::GetGradientData(
   auto& J_lu = fixed_size_workspace_.mutable_J_lu();  // Newton-Raphson jacobian
   const auto M = problem_data_aliases_.M();           // Mass matrix
   
-  // TIMING
-  elapsed = std::chrono::high_resolution_clock::now() - st;
-  std::cout << "  get problem data: " << elapsed.count() << std::endl;
-  st = std::chrono::high_resolution_clock::now();
-
   if (nc_ == 0) {
     dv_dv.setIdentity();
   } else {
     dv_dv = J_lu.solve(M);
   }
   
-  // TIMING
-  elapsed = std::chrono::high_resolution_clock::now() - st;
-  std::cout << "  dv_dv: " << elapsed.count() << std::endl;
-  st = std::chrono::high_resolution_clock::now();
-
   // Compute (partial fn)/(partial phi), where fn
   // are the normal component of contact forces and 
   // phi are signed contact distances
@@ -831,11 +816,6 @@ void TamsiSolver<T>::GetGradientData(
     }
   }
   
-  // TIMING
-  elapsed = std::chrono::high_resolution_clock::now() - st;
-  std::cout << "  dfn_dphi: " << elapsed.count() << std::endl;
-  st = std::chrono::high_resolution_clock::now();
-
   // Compute (partial ft)/(partial phi), where ft
   // are the tangent components of contact forces.
   //
@@ -862,11 +842,6 @@ void TamsiSolver<T>::GetGradientData(
     auto t_hat_ic = t_hat.template segment<2>(ik);
     dft_dphi.block(ik,ic,2,1) = -mu(ic) * t_hat_ic * dfn_dphi(ic,ic);
   }
-  
-  // TIMING
-  elapsed = std::chrono::high_resolution_clock::now() - st;
-  std::cout << "  dft_dphi: " << elapsed.count() << std::endl;
-  st = std::chrono::high_resolution_clock::now();
 
 }
 

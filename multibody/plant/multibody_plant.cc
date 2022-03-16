@@ -1959,10 +1959,6 @@ void MultibodyPlant<T>::DiscreteDynamicsWithApproximateGradients(
     MatrixX<T>* fx_ptr,
     MatrixX<T>* fu_ptr) const {
 
-  // DEBUG: TIMING timing variables
-  auto st = std::chrono::high_resolution_clock::now();
-  std::chrono::duration<float> elapsed;
-
   // Run some argument checks
   DRAKE_DEMAND( is_discrete() );
   this->ValidateContext(context);
@@ -2018,9 +2014,6 @@ void MultibodyPlant<T>::DiscreteDynamicsWithApproximateGradients(
   const std::vector<internal::DiscreteContactPair<T>>& contact_pairs =
       EvalDiscreteContactPairs(context);
   const int num_contacts = contact_pairs.size();
-
-  // DEBUG
-  std::cout << "nc: " << num_contacts << std::endl;
 
   // Compute normal and tangential velocity Jacobians at t0.
   const internal::ContactJacobians<T>& contact_jacobians =
@@ -2081,11 +2074,6 @@ void MultibodyPlant<T>::DiscreteDynamicsWithApproximateGradients(
   // Update x_next accordingly
   x_next << q_next, v_next;
   
-  // TIMING
-  elapsed = std::chrono::high_resolution_clock::now() - st;
-  std::cout << "forward dynamics: " << elapsed.count() << std::endl;
-  st = std::chrono::high_resolution_clock::now();
-
   // Get TAMSI solver data for approximating the dynamics gradient
   //
   // This includes:
@@ -2104,11 +2092,6 @@ void MultibodyPlant<T>::DiscreteDynamicsWithApproximateGradients(
   // computation of Jn, except that we use JacobianWrtVariable::QDot
   // instead of JacobianWrtVariable::kV
   
-  // TIMING
-  elapsed = std::chrono::high_resolution_clock::now() - st;
-  std::cout <<  "GetGradientData: " << elapsed.count() << std::endl;
-  st = std::chrono::high_resolution_clock::now();
-
   // Compute N(q) and Nbar(q), which map between generalized
   // velocities (v) and time derivatives of generalized positions (qdot).
   MatrixX<T> N(nq, nv);
@@ -2131,21 +2114,12 @@ void MultibodyPlant<T>::DiscreteDynamicsWithApproximateGradients(
 
   // Construct fx, the dynamics gradient with respect to state
   
-  // TIMING
-  elapsed = std::chrono::high_resolution_clock::now() - st;
-  std::cout << "N(q) and Nbar(q): " <<  elapsed.count() << std::endl;
-  st = std::chrono::high_resolution_clock::now();
-  
   // dv_dq
   MatrixX<T> dphi_dq = Jn * Nbar;
   MatrixX<T> ft_contrib = Jt.transpose() * dft_dphi * dphi_dq;
   MatrixX<T> fn_contrib = Jn.transpose() * dfn_dphi * dphi_dq;
   MatrixX<T> dv_dq = time_step() * M0.inverse() * (fn_contrib + ft_contrib);
 
-  // TIMING
-  elapsed = std::chrono::high_resolution_clock::now() - st;
-  std::cout << "dv_dq assembly: " <<  elapsed.count() << std::endl;
-  
   std::cout << dv_dq << std::endl;
   
   
