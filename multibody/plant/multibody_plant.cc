@@ -1963,10 +1963,10 @@ void MultibodyPlant<T>::DiscreteDynamicsWithApproximateGradients(
   DRAKE_DEMAND( is_discrete() );
   this->ValidateContext(context);
   DRAKE_DEMAND( x_next_ptr->size() == this->num_multibody_states() );
-  DRAKE_DEMAND( fx_ptr->cols() == this->num_multibody_states() );
   DRAKE_DEMAND( fx_ptr->rows() == this->num_multibody_states() );
+  DRAKE_DEMAND( fx_ptr->cols() == this->num_multibody_states() );
+  DRAKE_DEMAND( fu_ptr->rows() == this->num_multibody_states() );
   DRAKE_DEMAND( fu_ptr->cols() == this->num_actuators() );
-  DRAKE_DEMAND( fu_ptr->rows() == this->num_actuators() );
 
   // Extract main data for convienience
   auto& x_next = *x_next_ptr;
@@ -2112,18 +2112,37 @@ void MultibodyPlant<T>::DiscreteDynamicsWithApproximateGradients(
     Nbar.col(i) = tmp_v;
   }
 
+  // Invert the mass matrix
+  MatrixX<T> Minv = M0.inverse();
+
   // Construct fx, the dynamics gradient with respect to state
-  
+ 
   // dv_dq
   MatrixX<T> dphi_dq = Jn * Nbar;
   MatrixX<T> ft_contrib = Jt.transpose() * dft_dphi * dphi_dq;
   MatrixX<T> fn_contrib = Jn.transpose() * dfn_dphi * dphi_dq;
-  MatrixX<T> dv_dq = time_step() * M0.inverse() * (fn_contrib + ft_contrib);
+  MatrixX<T> dv_dq = time_step() * Minv * (fn_contrib + ft_contrib);
+  
+  // dv_dv is defined already from tamsi_solver.GetGradientData
 
-  std::cout << dv_dq << std::endl;
-  
-  
+  // dq_dq
+  MatrixX<T> dq_dq = MatrixX<T>::Identity(nq,nq) + time_step() * N * dv_dq;
+
+  // dq_dv
+  MatrixX<T> dq_dv = time_step() * N * dv_dv;
+
+  fx.topLeftCorner(nq,nq) = dq_dq;
+  fx.topRightCorner(nq,nv) = dq_dv;
+  fx.bottomLeftCorner(nv,nq) = dv_dq;
+  fx.bottomRightCorner(nv,nv) = dv_dv;
+ 
   // Construct fu, the dynamics gradient with respect to input
+  MatrixX<T> B = MakeActuationMatrix();
+  MatrixX<T> dv_du = time_step() * Minv * B;
+  MatrixX<T> dq_du = time_step() * N * dv_du;
+
+  fu.topRows(nq) = dq_du;
+  fu.bottomRows(nv) = dv_du;
 
 }
 

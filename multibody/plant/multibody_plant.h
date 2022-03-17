@@ -4674,17 +4674,6 @@ class MultibodyPlant : public internal::MultibodyTreeSystem<T> {
       MatrixX<T>* Jn, MatrixX<T>* Jt,
       std::vector<math::RotationMatrix<T>>* R_WC_set = nullptr) const;
 
-  // Compute normal velocities contact Jacobian Jn(q) with respect to 
-  // qdot, such that
-  //    vn = Jn(q) qdot.
-  // This is essentially identical to CalcNormalAndTangentContactJacobians,
-  // except we use JacobianWrtVariable::kQDot instead of kV.
-  // DEBUG
-  //void CalcNormalContactJacobiansWrtQDot(
-  //    const systems::Context<T>& context,
-  //    const std::vector<internal::DiscreteContactPair<T>>& contact_pairs,
-  //    MatrixX<T>* Jn) const;
-
   // Populates the ContactJacobians cache struct via EvalDiscreteContactPairs
   // and CalcNormalAndTangentContactJacobians.
   void CalcContactJacobiansCache(
