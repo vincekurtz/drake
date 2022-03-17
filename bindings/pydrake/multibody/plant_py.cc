@@ -543,6 +543,17 @@ void DoScalarDependentDefinitions(py::module m, T) {
             },
             py::arg("context"), cls_doc.CalcMassMatrix.doc)
         .def(
+            "DiscreteDynamicsWithApproximateGradients",
+            [](const Class* self, const systems::Context<T>& context) {
+              VectorX<T> x_next(self->num_multibody_states());
+              MatrixX<T> fx(self->num_multibody_states(), self->num_multibody_states());
+              MatrixX<T> fu(self->num_multibody_states(), self->num_actuators());
+              self->DiscreteDynamicsWithApproximateGradients(context, &x_next, &fx, &fu);
+              return py::make_tuple( x_next, fx, fu );
+            },
+            py::arg("context"), 
+            cls_doc.DiscreteDynamicsWithApproximateGradients.doc)
+        .def(
             "CalcBiasSpatialAcceleration",
             [](const Class* self, const systems::Context<T>& context,
                 JacobianWrtVariable with_respect_to, const Frame<T>& frame_B,
