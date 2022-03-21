@@ -15,7 +15,7 @@ build --host_cxxopt=-std=c++17
 #
 # When compiilng Drake as an external package, this rcfile is not loaded and we
 # won't promote warnings to errors by default.
-build --define=DRAKE_WERROR=ON
+build --define=DRAKE_WERROR=OFF
 
 ### Debug symbols on OS X. ###
 # See https://github.com/bazelbuild/bazel/issues/2537
