@@ -2122,6 +2122,20 @@ void MultibodyPlant<T>::DiscreteDynamicsWithApproximateGradients(
   MatrixX<T> ft_contrib = Jt.transpose() * dft_dphi * dphi_dq;
   MatrixX<T> fn_contrib = Jn.transpose() * dfn_dphi * dphi_dq;
   MatrixX<T> dv_dq = time_step() * Minv * (fn_contrib + ft_contrib);
+
+  // DEBUG: get gradient w.r.t. tau_g using autodiff
+  std::unique_ptr<MultibodyPlant<AutoDiffXd>> plant_ad = 
+    systems::System<T>::ToAutoDiffXd(*this);
+  auto context_ad = plant_ad->CreateDefaultContext();
+
+  context_ad->SetTimeStateAndParametersFrom(context);
+  auto q_ad = math::InitializeAutoDiff(this->GetPositions(context));
+  plant_ad->SetPositions(context_ad.get(), q_ad);
+
+  auto tau_g = plant_ad->CalcGravityGeneralizedForces(*context_ad);
+  std::cout << tau_g << std::endl;
+  std::cout << math::ExtractGradient(tau_g) << std::endl;
+  //
   
   // dv_dv is defined already from tamsi_solver.GetGradientData
 
@@ -2145,6 +2159,28 @@ void MultibodyPlant<T>::DiscreteDynamicsWithApproximateGradients(
   fu.bottomRows(nv) = dv_du;
 
 }
+
+// DEBUG: custom gradient computation only make sense with
+// double type, not Expression or AutoDiffXd
+template <>
+void MultibodyPlant<symbolic::Expression>::DiscreteDynamicsWithApproximateGradients(
+    const Context<symbolic::Expression>&,
+    VectorX<symbolic::Expression>*,
+    MatrixX<symbolic::Expression>*,
+    MatrixX<symbolic::Expression>*) const {
+  throw std::logic_error(
+      "This method doesn't support T = symbolic::Expression.");
+}
+template <>
+void MultibodyPlant<AutoDiffXd>::DiscreteDynamicsWithApproximateGradients(
+    const Context<AutoDiffXd>&,
+    VectorX<AutoDiffXd>*,
+    MatrixX<AutoDiffXd>*,
+    MatrixX<AutoDiffXd>*) const {
+  throw std::logic_error(
+      "This method doesn't support T = AutoDiffXd.");
+}
+
 
 template <typename T>
 void MultibodyPlant<T>::CalcContactSurfaces(

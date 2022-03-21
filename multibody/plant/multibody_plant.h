@@ -5149,6 +5149,21 @@ void MultibodyPlant<symbolic::Expression>::
     AppendContactResultsContinuousHydroelastic(
         const systems::Context<symbolic::Expression>&,
         ContactResults<symbolic::Expression>*) const;
+
+//DEBUG
+template <>
+void MultibodyPlant<symbolic::Expression>::DiscreteDynamicsWithApproximateGradients(
+    const systems::Context<symbolic::Expression>&,
+    VectorX<symbolic::Expression>*,
+    MatrixX<symbolic::Expression>*,
+    MatrixX<symbolic::Expression>*) const;
+template <>
+void MultibodyPlant<AutoDiffXd>::DiscreteDynamicsWithApproximateGradients(
+    const systems::Context<AutoDiffXd>&,
+    VectorX<AutoDiffXd>*,
+    MatrixX<AutoDiffXd>*,
+    MatrixX<AutoDiffXd>*) const;
+
 template <>
 void MultibodyPlant<symbolic::Expression>::CalcContactSurfaces(
     const systems::Context<symbolic::Expression>&,
