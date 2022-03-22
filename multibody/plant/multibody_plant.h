@@ -4895,6 +4895,11 @@ class MultibodyPlant : public internal::MultibodyTreeSystem<T> {
   // assertions in the cc file that enforce this.
   ContactModel contact_model_{ContactModel::kHydroelasticWithFallback};
 
+  // DEBUG
+  // Autodiff copy of this plant and context for gradient computations
+  std::unique_ptr<MultibodyPlant<AutoDiffXd>> plant_autodiff_;
+  std::unique_ptr<systems::Context<AutoDiffXd>> context_autodiff_;
+
   // User's choice of the representation of contact surfaces in discrete
   // systems. The default value is dependent on whether the system is
   // continuous or discrete, so the constructor will set it. See
