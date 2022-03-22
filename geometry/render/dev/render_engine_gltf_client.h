@@ -17,7 +17,7 @@ namespace render {
 /** A RenderClient that exports
  <a href="https://www.khronos.org/registry/glTF/specs/2.0/glTF-2.0.html">glTF
  </a> scenes to upload to a render server. */
-class RenderEngineGltfClient : public RenderEngineVtk, public RenderClient {
+class RenderEngineGltfClient : public RenderEngineVtk {
  public:
   /** @name Does not allow copy, move, or assignment  */
   //@{
@@ -37,7 +37,7 @@ class RenderEngineGltfClient : public RenderEngineVtk, public RenderClient {
   RenderEngineGltfClient(const RenderEngineGltfClientParams& parameters =
                              RenderEngineGltfClientParams());
 
-  // TODO(svenevs): remove this once vtkGLTFExporter is patched to invert.
+  // TODO(svenevs): remove when VTK is updated, see implementation for details.
   void UpdateViewpoint(const math::RigidTransformd& X_WC) override;
 
  protected:
@@ -78,6 +78,15 @@ class RenderEngineGltfClient : public RenderEngineVtk, public RenderClient {
    be called when `!no_cleanup()`. */
   void CleanupFrame(const std::string& scene_path,
                     const std::string& image_path) const;
+
+  /* Helper access method for testing UpdateViewpoint matrix inversion for the
+   specified image_type.  Only used for testing. */
+  Eigen::Matrix4d CameraModelViewTransformMatrix(
+      internal::ImageType image_type) const;
+
+ private:
+  friend class RenderEngineGltfClientTester;
+  std::unique_ptr<internal::RenderClient> render_client_;
 };
 
 }  // namespace render

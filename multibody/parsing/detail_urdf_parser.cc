@@ -19,6 +19,7 @@
 #include "drake/math/rotation_matrix.h"
 #include "drake/multibody/parsing/detail_path_utils.h"
 #include "drake/multibody/parsing/detail_tinyxml.h"
+#include "drake/multibody/parsing/detail_tinyxml2_diagnostic.h"
 #include "drake/multibody/parsing/detail_urdf_geometry.h"
 #include "drake/multibody/parsing/package_map.h"
 #include "drake/multibody/parsing/scoped_names.h"
@@ -35,8 +36,6 @@ namespace drake {
 namespace multibody {
 namespace internal {
 
-using drake::internal::DiagnosticDetail;
-using drake::internal::DiagnosticPolicy;
 using Eigen::Matrix3d;
 using Eigen::Vector3d;
 using Eigen::Vector4d;
@@ -47,49 +46,55 @@ using tinyxml2::XMLElement;
 
 namespace {
 
-// Helper class to format diagnostic messages for a TinyXML2 data source.
-class TinyXml2Diagnostic {
+// Helper class to share infrastructure among parsing methods.
+class UrdfParser {
  public:
-  // Both @p diagnostic and @p data_source are aliased; their lifetime must
-  // exceed that of this object.
-  // @pre diagnostic cannot be nullptr.
-  // @pre data_source cannot be nullptr.
-  TinyXml2Diagnostic(
-      const drake::internal::DiagnosticPolicy* diagnostic,
-      const DataSource* data_source)
-      : diagnostic_(diagnostic), data_source_(data_source) {
-    DRAKE_DEMAND(diagnostic != nullptr);
+  // Note that @p data_source, @p xml_doc, and @p w are aliased for the
+  // lifetime of this object. Their lifetimes must exceed that of the created
+  // object.
+  UrdfParser(
+      const DataSource* data_source,
+      const std::string& model_name,
+      const std::optional<std::string>& parent_model_name,
+      const std::string& root_dir,
+      XMLDocument* xml_doc,
+      const ParsingWorkspace& w)
+      : model_name_(model_name),
+        parent_model_name_(parent_model_name),
+        root_dir_(root_dir),
+        xml_doc_(xml_doc),
+        w_(w),
+        diagnostic_(&w.diagnostic, data_source) {
     DRAKE_DEMAND(data_source != nullptr);
+    DRAKE_DEMAND(xml_doc != nullptr);
   }
 
-  // Makes a diagnostic detail record based on an XMLNode.
-  // @pre location cannot be nullptr.
-  DiagnosticDetail MakeDetail(const XMLNode& location,
-                              const std::string& message) const {
-    DiagnosticDetail detail;
-    if (data_source_->IsFilename()) {
-      detail.filename = data_source_->GetAbsolutePath();
-    } else {
-      detail.filename = data_source_->GetStem() + ".urdf";
-    }
-    detail.line = location.GetLineNum();
-    detail.message = message;
-    return detail;
+  // @return a model instance index, if one was created during parsing.
+  // @throw std::exception on parse error.
+  // @note: see AddModelFromUrdf for a full account of diagnostics, error
+  // reporting, and return values.
+  std::optional<ModelInstanceIndex> Parse();
+  // TODO(rpoyner-tri): assimilate all the remaining file-private parsing
+  // functions in this file into methods of this class, to properly plumb the
+  // error/warning channels.
+
+  void Warning(const XMLNode& location, std::string message) const {
+    diagnostic_.Warning(location, std::move(message));
   }
 
-  // Issues a warning for an XMLNode.
-  void Warning(const XMLNode& location, const std::string& message) const {
-    diagnostic_->Warning(MakeDetail(location, message));
-  }
-
-  // Issues an error for an XMLNode.
-  void Error(const XMLNode& location, const std::string& message) const {
-    diagnostic_->Error(MakeDetail(location, message));
+  void Error(const XMLNode& location, std::string message) const {
+    diagnostic_.Error(location, std::move(message));
   }
 
  private:
-  const drake::internal::DiagnosticPolicy* diagnostic_{};
-  const DataSource* data_source_{};
+  const std::string model_name_;
+  const std::optional<std::string> parent_model_name_;
+  const std::string root_dir_;
+  XMLDocument* const xml_doc_;
+  const ParsingWorkspace& w_;
+  TinyXml2Diagnostic diagnostic_;
+
+  ModelInstanceIndex model_instance_{};
 };
 
 const char* kWorldName = "world";
@@ -688,9 +693,8 @@ void ParseBushing(ModelInstanceIndex model_instance,
   // Functor to read a child element with a string valued `name` attribute.
   // Throws an error if unable to find the tag of if the name attribute is
   // improperly formed.
-  auto read_frame = [model_instance,
-                     node,
-                     plant](const char* element_name) -> const Frame<double>& {
+  auto read_frame = [model_instance, node, plant]
+                    (const char* element_name) -> const Frame<double>* {
     XMLElement* value_node = node->FirstChildElement(element_name);
 
     if (value_node != nullptr) {
@@ -701,7 +705,7 @@ void ParseBushing(ModelInstanceIndex model_instance,
               "Frame: {} specified for <{}> does not exist in the model.",
               frame_name, element_name));
         }
-        return plant->GetFrameByName(frame_name, model_instance);
+        return &plant->GetFrameByName(frame_name, model_instance);
 
       } else {
         throw std::runtime_error(
@@ -720,27 +724,24 @@ void ParseBushing(ModelInstanceIndex model_instance,
   ParseLinearBushingRollPitchYaw(read_vector, read_frame, plant);
 }
 
-ModelInstanceIndex ParseUrdf(
-    const std::string& model_name_in,
-    const std::optional<std::string>& parent_model_name,
-    const multibody::PackageMap& package_map,
-    const std::string& root_dir,
-    XMLDocument* xml_doc,
-    MultibodyPlant<double>* plant) {
-
-  XMLElement* node = xml_doc->FirstChildElement("robot");
+std::optional<ModelInstanceIndex> UrdfParser::Parse() {
+  XMLElement* node = xml_doc_->FirstChildElement("robot");
   if (!node) {
-    throw std::runtime_error("ERROR: URDF does not contain a robot tag.");
+    Error(*xml_doc_, "URDF does not contain a robot tag.");
+    return {};
   }
 
-  std::string model_name = model_name_in;
+  std::string model_name = model_name_;
   if (model_name.empty() && !ParseStringAttribute(node, "name", &model_name)) {
-      throw std::runtime_error(
-          "ERROR: Your robot must have a name attribute or a model name "
+    Error(*node, "Your robot must have a name attribute or a model name "
           "must be specified.");
+    return {};
   }
 
-  model_name = parsing::PrefixName(parent_model_name.value_or(""), model_name);
+  model_name = parsing::PrefixName(
+      parent_model_name_.value_or(""), model_name);
+
+  model_instance_ = w_.plant->AddModelInstance(model_name);
 
   // Parses the model's material elements. Throws an exception if there's a
   // material name clash regardless of whether the associated RGBA values are
@@ -749,24 +750,21 @@ ModelInstanceIndex ParseUrdf(
   for (XMLElement* material_node = node->FirstChildElement("material");
        material_node;
        material_node = material_node->NextSiblingElement("material")) {
-    ParseMaterial(material_node, true /* name_required */, package_map,
-                  root_dir, &materials);
+    ParseMaterial(material_node, true /* name_required */,
+                  w_.package_map, root_dir_, &materials);
   }
-
-  const ModelInstanceIndex model_instance =
-      plant->AddModelInstance(model_name);
 
   // Parses the model's link elements.
   for (XMLElement* link_node = node->FirstChildElement("link");
        link_node;
        link_node = link_node->NextSiblingElement("link")) {
-    ParseBody(package_map, root_dir, model_instance, link_node,
-              &materials, plant);
+    ParseBody(w_.package_map, root_dir_, model_instance_, link_node,
+              &materials, w_.plant);
   }
 
   // Parses the collision filter groups only if the scene graph is registered.
-  if (plant->geometry_source_is_registered()) {
-    ParseCollisionFilterGroup(model_instance, node, plant);
+  if (w_.plant->geometry_source_is_registered()) {
+    ParseCollisionFilterGroup(model_instance_, node, w_.plant);
   }
 
   // Joint effort limits are stored with joints, but used when creating the
@@ -783,7 +781,7 @@ ModelInstanceIndex ParseUrdf(
        joint_node = joint_node->NextSiblingElement()) {
     const std::string node_name(joint_node->Name());
     if (node_name == "joint" || node_name == "drake:joint") {
-      ParseJoint(model_instance, &joint_effort_limits, joint_node, plant);
+      ParseJoint(model_instance_, &joint_effort_limits, joint_node, w_.plant);
     }
   }
 
@@ -792,19 +790,19 @@ ModelInstanceIndex ParseUrdf(
        transmission_node;
        transmission_node =
            transmission_node->NextSiblingElement("transmission")) {
-    ParseTransmission(model_instance, joint_effort_limits,
-                      transmission_node, plant);
+    ParseTransmission(model_instance_, joint_effort_limits,
+                      transmission_node, w_.plant);
   }
 
   if (node->FirstChildElement("loop_joint")) {
-    throw std::runtime_error(
-        "ERROR: loop joints are not supported in MultibodyPlant");
+    Error(*node, "loop joints are not supported in MultibodyPlant");
+    return model_instance_;
   }
 
   // Parses the model's Drake frame elements.
   for (XMLElement* frame_node = node->FirstChildElement("frame"); frame_node;
        frame_node = frame_node->NextSiblingElement("frame")) {
-    ParseFrame(model_instance, frame_node, plant);
+    ParseFrame(model_instance_, frame_node, w_.plant);
   }
 
   // Parses the model's custom Drake bushing tags.
@@ -812,10 +810,10 @@ ModelInstanceIndex ParseUrdf(
            node->FirstChildElement("drake:linear_bushing_rpy");
        bushing_node; bushing_node = bushing_node->NextSiblingElement(
                          "drake:linear_bushing_rpy")) {
-    ParseBushing(model_instance, bushing_node, plant);
+    ParseBushing(model_instance_, bushing_node, w_.plant);
   }
 
-  return model_instance;
+  return model_instance_;
 }
 
 }  // namespace
@@ -835,23 +833,22 @@ std::optional<ModelInstanceIndex> AddModelFromUrdf(
   if (data_source.IsFilename()) {
     xml_doc.LoadFile(data_source.filename().c_str());
     if (xml_doc.ErrorID()) {
-      diag.Error(xml_doc, fmt::format(
-                     "Failed to parse XML file: {}",
-                     xml_doc.ErrorName()));
+      diag.Error(xml_doc, fmt::format("Failed to parse XML file: {}",
+                                      xml_doc.ErrorName()));
       return std::nullopt;
     }
   } else {
     xml_doc.Parse(data_source.contents().c_str());
     if (xml_doc.ErrorID()) {
-      diag.Error(xml_doc, fmt::format(
-                     "Failed to parse XML string: {}",
-                     xml_doc.ErrorName()));
+      diag.Error(xml_doc, fmt::format("Failed to parse XML string: {}",
+                                      xml_doc.ErrorName()));
       return std::nullopt;
     }
   }
 
-  return ParseUrdf(model_name_in, parent_model_name, workspace.package_map,
-                   data_source.GetRootDir(), &xml_doc, plant);
+  UrdfParser parser(&data_source, model_name_in, parent_model_name,
+                    data_source.GetRootDir(), &xml_doc, workspace);
+  return parser.Parse();
 }
 
 }  // namespace internal

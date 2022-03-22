@@ -39,7 +39,6 @@ using std::numeric_limits;
 using std::ostringstream;
 using std::pair;
 using std::runtime_error;
-using std::set;
 using std::shared_ptr;
 using std::string;
 using std::unordered_map;
@@ -753,11 +752,6 @@ Binding<Constraint> MathematicalProgram::AddConstraint(
       internal::ParseConstraint(Flatten(v), Flatten(lb), Flatten(ub)));
 }
 
-Binding<Constraint> MathematicalProgram::AddConstraint(
-    const set<Formula>& formulas) {
-  return AddConstraint(internal::ParseConstraint(formulas));
-}
-
 Binding<Constraint> MathematicalProgram::AddConstraint(const Formula& f) {
   return AddConstraint(internal::ParseConstraint(f));
 }
@@ -811,6 +805,22 @@ Binding<LinearConstraint> MathematicalProgram::AddLinearConstraint(
   }
 }
 
+Binding<LinearConstraint> MathematicalProgram::AddLinearConstraint(
+    const Eigen::Ref<const Eigen::Array<
+        symbolic::Formula, Eigen::Dynamic, Eigen::Dynamic>>& formulas) {
+  Binding<Constraint> binding = internal::ParseConstraint(formulas);
+  Constraint* constraint = binding.evaluator().get();
+  if (dynamic_cast<LinearConstraint*>(constraint)) {
+    return AddConstraint(
+        internal::BindingDynamicCast<LinearConstraint>(binding));
+  } else {
+    std::stringstream oss;
+    oss << "Formulas are non-linear.";
+    throw std::runtime_error(
+        "AddLinearConstraint called but formulas are non-linear");
+  }
+}
+
 Binding<LinearConstraint> MathematicalProgram::AddConstraint(
     const Binding<LinearConstraint>& binding) {
   // Because the ParseConstraint methods can return instances of
@@ -857,11 +867,6 @@ Binding<LinearEqualityConstraint>
 MathematicalProgram::AddLinearEqualityConstraint(const Expression& e,
                                                  double b) {
   return AddConstraint(internal::ParseLinearEqualityConstraint(e, b));
-}
-
-Binding<LinearEqualityConstraint>
-MathematicalProgram::AddLinearEqualityConstraint(const set<Formula>& formulas) {
-  return AddConstraint(internal::ParseLinearEqualityConstraint(formulas));
 }
 
 Binding<LinearEqualityConstraint>
@@ -1760,6 +1765,28 @@ void MathematicalProgram::CheckVariableType(VarType var_type) {
           "MathematicalProgram does not support random exponential "
           "variables.");
   }
+}
+
+void MathematicalProgram::CheckIsDecisionVariable(
+    const VectorXDecisionVariable& vars) const {
+  for (int i = 0; i < vars.rows(); ++i) {
+    for (int j = 0; j < vars.cols(); ++j) {
+      if (decision_variable_index_.count(vars(i, j).get_id()) == 0) {
+        throw std::logic_error(fmt::format(
+            "{} is not a decision variable of the mathematical program.",
+            vars(i, j)));
+      }
+    }
+  }
+}
+
+template <typename C>
+void MathematicalProgram::CheckBinding(const Binding<C>& binding) const {
+  // TODO(eric.cousineau): In addition to identifiers, hash bindings by
+  // their constraints and their variables, to prevent duplicates.
+  // TODO(eric.cousineau): Once bindings have identifiers (perhaps
+  // retrofitting `description`), ensure that they have unique names.
+  CheckIsDecisionVariable(binding.variables());
 }
 
 std::ostream& operator<<(std::ostream& os, const MathematicalProgram& prog) {

@@ -50,6 +50,10 @@ void CheckWebsocketCommand(
   std::vector<std::string> argv;
   argv.push_back(FindResourceOrThrow(
       "drake/geometry/meshcat_websocket_client"));
+  // Even when this unit test is itself running under valgrind, we don't want to
+  // instrument the helper process. Our valgrind configuration recognizes this
+  // argument and skips instrumentation of the child process.
+  argv.push_back("--disable-drake-valgrind-tracing");
   argv.push_back(fmt::format("--ws_url={}", meshcat.ws_url()));
   if (send_json) {
     DRAKE_DEMAND(!send_json->empty());
@@ -217,13 +221,17 @@ GTEST_TEST(MeshcatTest, UnknownEventIgnored) {
   EXPECT_NO_THROW(dut.reset());
 }
 
+class MeshcatFaultTest : public testing::TestWithParam<int> {};
+
 // Checks that a problem with the worker thread eventually ends up as an
 // exception on the main thread.
-GTEST_TEST(MeshcatTest, WorkerThreadFaultHandling) {
+TEST_P(MeshcatFaultTest, WorkerThreadFault) {
+  const int fault_number = GetParam();
+
   auto dut = std::make_unique<Meshcat>();
 
   // Cause the websocket thread to fail.
-  EXPECT_NO_THROW(dut->InjectWebsocketThreadFault());
+  EXPECT_NO_THROW(dut->InjectWebsocketThreadFault(fault_number));
 
   // Keep checking an accessor function until the websocket fault is detected
   // and is converted into an exception on the main thread. Here we should be
@@ -231,9 +239,21 @@ GTEST_TEST(MeshcatTest, WorkerThreadFaultHandling) {
   // out of simplicity, and rely the impl() function in the cc file to prove
   // that every public function is preceded by a ThrowIfWebsocketThreadExited.
   auto checker = [&dut]() {
-    for (int i = 0; i < 1000; ++i) {
+    for (int i = 0; i < 10; ++i) {
+      // Send a syntactically well-formed UserInterfaceEvent to tickle the
+      // stack, but don't expect a reply.
+      const char* const message = R"""({
+        "type": "no_such_type",
+        "name": "no_such_name"
+      })""";
+      const bool expect_success = false;
+      CheckWebsocketCommand(*dut, message, {}, {}, expect_success);
+
+      // Poll the accessor function.
       dut->web_url();
-      std::this_thread::sleep_for(std::chrono::milliseconds(10));
+
+      // Pause to allow the websocket thread to run.
+      std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
   };
   DRAKE_EXPECT_THROWS_MESSAGE(checker(), ".*thread exited.*");
@@ -241,6 +261,9 @@ GTEST_TEST(MeshcatTest, WorkerThreadFaultHandling) {
   // The object can be destroyed with neither errors nor sanitizer leaks.
   EXPECT_NO_THROW(dut.reset());
 }
+
+INSTANTIATE_TEST_SUITE_P(AllFaults, MeshcatFaultTest,
+    testing::Range(0, Meshcat::kMaxFaultNumber + 1));
 
 GTEST_TEST(MeshcatTest, NumActive) {
   Meshcat meshcat;
@@ -539,30 +562,57 @@ GTEST_TEST(MeshcatTest, SetPropertyDouble) {
 GTEST_TEST(MeshcatTest, Buttons) {
   Meshcat meshcat;
 
+  // Asking for clicks prior to adding is an error.
   DRAKE_EXPECT_THROWS_MESSAGE(
-      meshcat.GetButtonClicks("button"),
-      "Meshcat does not have any button named button.");
+      meshcat.GetButtonClicks("alice"),
+      "Meshcat does not have any button named alice.");
 
-  meshcat.AddButton("button");
-  EXPECT_EQ(meshcat.GetButtonClicks("button"), 0);
+  // A new button starts out unclicked.
+  meshcat.AddButton("alice");
+  EXPECT_EQ(meshcat.GetButtonClicks("alice"), 0);
+
+  // Clicking the button increases the count.
+  CheckWebsocketCommand(meshcat, R"""({
+      "type": "button",
+      "name": "alice"
+    })""", {}, {});
+  EXPECT_EQ(meshcat.GetButtonClicks("alice"), 1);
+
+  // Adding using an existing button name resets its count.
+  meshcat.AddButton("alice");
+  EXPECT_EQ(meshcat.GetButtonClicks("alice"), 0);
+
+  // Clicking the button increases the count again.
+  CheckWebsocketCommand(meshcat, R"""({
+      "type": "button",
+      "name": "alice"
+    })""", {}, {});
+  EXPECT_EQ(meshcat.GetButtonClicks("alice"), 1);
+
+  // Removing the button then asking for clicks is an error.
+  meshcat.DeleteButton("alice");
   DRAKE_EXPECT_THROWS_MESSAGE(
-      meshcat.AddButton("button"),
-      "Meshcat already has a button named button.");
-  meshcat.DeleteButton("button");
+      meshcat.GetButtonClicks("alice"),
+      "Meshcat does not have any button named alice.");
 
+  // Removing a non-existent button is an error.
   DRAKE_EXPECT_THROWS_MESSAGE(
-      meshcat.GetButtonClicks("button"),
-      "Meshcat does not have any button named button.");
+      meshcat.DeleteButton("alice"),
+      "Meshcat does not have any button named alice.");
 
-  meshcat.AddButton("button1");
-  meshcat.AddButton("button2");
+  // Adding the button anew starts with a zero count again.
+  meshcat.AddButton("alice");
+  EXPECT_EQ(meshcat.GetButtonClicks("alice"), 0);
+
+  // Buttons are removed when deleting all controls.
+  meshcat.AddButton("bob");
   meshcat.DeleteAddedControls();
   DRAKE_EXPECT_THROWS_MESSAGE(
-      meshcat.GetButtonClicks("button1"),
-      "Meshcat does not have any button named button1.");
+      meshcat.GetButtonClicks("alice"),
+      "Meshcat does not have any button named alice.");
   DRAKE_EXPECT_THROWS_MESSAGE(
-      meshcat.GetButtonClicks("button2"),
-      "Meshcat does not have any button named button2.");
+      meshcat.GetButtonClicks("bob"),
+      "Meshcat does not have any button named bob.");
 }
 
 GTEST_TEST(MeshcatTest, Sliders) {
@@ -609,7 +659,8 @@ GTEST_TEST(MeshcatTest, DuplicateMixedControls) {
   meshcat.AddButton("button");
   meshcat.AddSlider("slider", 0.2, 1.5, 0.1, 0.5);
 
-  // We must reject adding controls with duplicated names.
+  // We cannot use AddButton nor AddSlider to change the type of an existing
+  // control by attempting to re-use its name.
   DRAKE_EXPECT_THROWS_MESSAGE(
       meshcat.AddButton("slider"),
       "Meshcat already has a slider named slider.");

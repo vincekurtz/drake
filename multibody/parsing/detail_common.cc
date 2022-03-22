@@ -7,6 +7,8 @@ namespace drake {
 namespace multibody {
 namespace internal {
 
+using drake::internal::DiagnosticPolicy;
+
 DataSource::DataSource(DataSourceType type, const std::string* data)
     : type_(type), data_(data) {
   DRAKE_DEMAND(IsFilename() != IsContents());
@@ -46,6 +48,7 @@ std::string DataSource::GetStem() const {
 }
 
 geometry::ProximityProperties ParseProximityProperties(
+    const DiagnosticPolicy& diagnostic,
     const std::function<std::optional<double>(const char*)>& read_double,
     bool is_rigid, bool is_compliant) {
   using HT = geometry::internal::HydroelasticType;
@@ -71,25 +74,13 @@ geometry::ProximityProperties ParseProximityProperties(
 
   std::optional<double> hydroelastic_modulus =
       read_double("drake:hydroelastic_modulus");
-  {
-    std::optional<double> elastic_modulus =
-        read_double("drake:elastic_modulus");
-    if (elastic_modulus.has_value()) {
-      static const logging::Warn log_once(
-          "The tag drake:elastic_modulus is deprecated, and will be removed on"
-          " or around 2022-02-01. Please use drake:hydroelastic_modulus"
-          " instead.");
-    }
-    if (!hydroelastic_modulus.has_value()) {
-      hydroelastic_modulus = elastic_modulus;
-    }
-  }
   if (hydroelastic_modulus) {
     if (is_rigid) {
-      static const logging::Warn log_once(
-        "Rigid geometries defined with the tag drake:rigid_hydroelastic should"
-        " not contain the tag drake:hydroelastic_modulus. Any values will be"
-        " ignored.");
+      diagnostic.Warning(fmt::format(
+          "Rigid geometries defined with the tag drake:rigid_hydroelastic"
+          " should not contain the tag drake:hydroelastic_modulus. The"
+          " specified value ({}) will be ignored.",
+          *hydroelastic_modulus));
     } else {
       properties.AddProperty(kHydroGroup, kElastic, *hydroelastic_modulus);
     }
@@ -119,12 +110,14 @@ geometry::ProximityProperties ParseProximityProperties(
   return properties;
 }
 
-const LinearBushingRollPitchYaw<double>& ParseLinearBushingRollPitchYaw(
+const LinearBushingRollPitchYaw<double>* ParseLinearBushingRollPitchYaw(
     const std::function<Eigen::Vector3d(const char*)>& read_vector,
-    const std::function<const Frame<double>&(const char*)>& read_frame,
+    const std::function<const Frame<double>*(const char*)>& read_frame,
     MultibodyPlant<double>* plant) {
-  const Frame<double>& frame_A = read_frame("drake:bushing_frameA");
-  const Frame<double>& frame_C = read_frame("drake:bushing_frameC");
+  const Frame<double>* frame_A = read_frame("drake:bushing_frameA");
+  if (!frame_A) { return {}; }
+  const Frame<double>* frame_C = read_frame("drake:bushing_frameC");
+  if (!frame_C) { return {}; }
 
   const Eigen::Vector3d bushing_torque_stiffness =
       read_vector("drake:bushing_torque_stiffness");
@@ -135,8 +128,8 @@ const LinearBushingRollPitchYaw<double>& ParseLinearBushingRollPitchYaw(
   const Eigen::Vector3d bushing_force_damping =
       read_vector("drake:bushing_force_damping");
 
-  return plant->AddForceElement<LinearBushingRollPitchYaw>(
-      frame_A, frame_C, bushing_torque_stiffness, bushing_torque_damping,
+  return &plant->AddForceElement<LinearBushingRollPitchYaw>(
+      *frame_A, *frame_C, bushing_torque_stiffness, bushing_torque_damping,
       bushing_force_stiffness, bushing_force_damping);
 }
 

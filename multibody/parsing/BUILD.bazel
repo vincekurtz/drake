@@ -61,8 +61,12 @@ drake_cc_library(
     visibility = [
         "//visibility:public",
     ],
+    interface_deps = [
+        "//common:essential",
+    ],
     deps = [
         "//common",
+        "//common:filesystem",
         "@tinyxml2",
     ],
 )
@@ -78,25 +82,30 @@ drake_cc_library(
         "detail_ignition.cc",
         "detail_path_utils.cc",
         "detail_tinyxml.cc",
+        "detail_tinyxml2_diagnostic.cc",
     ],
     hdrs = [
         "detail_common.h",
         "detail_ignition.h",
         "detail_path_utils.h",
         "detail_tinyxml.h",
+        "detail_tinyxml2_diagnostic.h",
     ],
     install_hdrs_exclude = [
         "detail_common.h",
         "detail_ignition.h",
         "detail_path_utils.h",
         "detail_tinyxml.h",
+        "detail_tinyxml2_diagnostic.h",
     ],
     visibility = [
         "//visibility:private",
     ],
     deps = [
         ":package_map",
+        "//common:diagnostic_policy",
         "//common:essential",
+        "//common:filesystem",
         "//geometry:proximity_properties",
         "//math:geometric_transform",
         "//multibody/plant",
@@ -122,6 +131,7 @@ drake_cc_library(
     deps = [
         ":detail_misc",
         ":package_map",
+        "//common:diagnostic_policy",
         "//geometry:geometry_instance",
         "//geometry:geometry_roles",
         "//geometry:shape_specification",
@@ -146,6 +156,7 @@ drake_cc_library(
     ],
     deps = [
         ":detail_misc",
+        ":detail_parsing_workspace",
         ":detail_sdf_geometry",
         ":detail_urdf_parser",
         ":scoped_names",
@@ -175,6 +186,7 @@ drake_cc_library(
         ":detail_misc",
         ":detail_parsing_workspace",
         ":scoped_names",
+        "//common:filesystem",
         "@fmt",
         "@tinyxml2",
     ],
@@ -232,11 +244,15 @@ drake_cc_library(
     visibility = [
         "//visibility:public",
     ],
+    interface_deps = [
+        ":package_map",
+        "//common:diagnostic_policy",
+        "//multibody/plant",
+    ],
     deps = [
         ":detail_parsing_workspace",
         ":detail_sdf_parser",
         ":detail_urdf_parser",
-        "//common:diagnostic_policy",
         "//common:filesystem",
     ],
 )
@@ -264,14 +280,16 @@ drake_cc_library(
     visibility = [
         "//visibility:public",
     ],
-    deps = [
+    interface_deps = [
         ":model_directives",
         ":parser",
+        "//multibody/plant",
+    ],
+    deps = [
         ":scoped_names",
         "//common:filesystem",
         "//common:find_resource",
         "//common/yaml",
-        "//multibody/plant",
     ],
 )
 
@@ -374,6 +392,8 @@ drake_cc_googletest(
     ],
     deps = [
         ":process_model_directives",
+        ":scoped_names",
+        "//common:filesystem",
         "//common/test_utilities:expect_throws_message",
     ],
 )
@@ -451,6 +471,7 @@ drake_cc_googletest(
     ],
     deps = [
         ":detail_sdf_geometry",
+        "//common:filesystem",
         "//common/test_utilities:eigen_matrix_compare",
         "//common/test_utilities:expect_throws_message",
         "//math:geometric_transform",
@@ -511,6 +532,13 @@ drake_cc_googletest(
     deps = [
         ":detail_misc",
         "//common/test_utilities:eigen_matrix_compare",
+    ],
+)
+
+drake_cc_googletest(
+    name = "detail_tinyxml2_diagnostic_test",
+    deps = [
+        ":detail_misc",
     ],
 )
 
