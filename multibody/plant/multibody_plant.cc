@@ -744,7 +744,8 @@ void MultibodyPlant<T>::Finalize() {
   FinalizePlantOnly();
 
   // DEBUG
-  // Set up autodiff copy 
+  // Set up autodiff copies of this plant and a corresponding
+  // context. Used in DiscreteDynamicsWithApproximateGradients.
   std::unique_ptr<MultibodyPlant<AutoDiffXd>> plant_ad = 
     systems::System<T>::ToAutoDiffXd(*this);
   plant_autodiff_ = std::move(plant_ad);
@@ -2125,13 +2126,13 @@ void MultibodyPlant<T>::DiscreteDynamicsWithApproximateGradients(
 
   // Construct fx, the dynamics gradient with respect to state
  
-  // dv_dq
+  // dv_dq includes a component due to contact forces ...
   MatrixX<T> dphi_dq = Jn * Nbar;
   MatrixX<T> ft_contrib = Jt.transpose() * dft_dphi * dphi_dq;
   MatrixX<T> fn_contrib = Jn.transpose() * dfn_dphi * dphi_dq;
   MatrixX<T> dv_dq = time_step() * Minv * (fn_contrib + ft_contrib);
   
-  // get gradient w.r.t. tau_g using autodiff
+  // ... as well as a component from tau_g, which we get with autodiff
   context_autodiff_->SetTimeStateAndParametersFrom(context);
   auto q_ad = math::InitializeAutoDiff(this->GetPositions(context));
   plant_autodiff_->SetPositions(context_autodiff_.get(), q_ad);
