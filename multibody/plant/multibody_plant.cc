@@ -7,6 +7,7 @@
 #include <set>
 #include <stdexcept>
 #include <vector>
+#include <chrono>  // DEBUG
 
 #include "drake/common/drake_throw.h"
 #include "drake/common/text_logging.h"
@@ -1968,6 +1969,10 @@ void MultibodyPlant<T>::DiscreteDynamicsWithApproximateGradients(
   DRAKE_DEMAND( fu_ptr->rows() == this->num_multibody_states() );
   DRAKE_DEMAND( fu_ptr->cols() == this->num_actuators() );
 
+  // DEBUG: some timing stuf
+  auto st = std::chrono::high_resolution_clock::now();
+  std::chrono::duration<float> elapsed;
+
   // Extract main data for convienience
   auto& x_next = *x_next_ptr;
   auto& fx = *fx_ptr;
@@ -2122,20 +2127,51 @@ void MultibodyPlant<T>::DiscreteDynamicsWithApproximateGradients(
   MatrixX<T> ft_contrib = Jt.transpose() * dft_dphi * dphi_dq;
   MatrixX<T> fn_contrib = Jn.transpose() * dfn_dphi * dphi_dq;
   MatrixX<T> dv_dq = time_step() * Minv * (fn_contrib + ft_contrib);
+  
+  elapsed = std::chrono::high_resolution_clock::now() - st;
+  std::cout << "pre autodiff: " << elapsed.count() << std::endl;
+  st = std::chrono::high_resolution_clock::now();
 
-  // DEBUG: get gradient w.r.t. tau_g using autodiff
+  // get gradient w.r.t. tau_g using autodiff
   std::unique_ptr<MultibodyPlant<AutoDiffXd>> plant_ad = 
     systems::System<T>::ToAutoDiffXd(*this);
   auto context_ad = plant_ad->CreateDefaultContext();
+  
+  elapsed = std::chrono::high_resolution_clock::now() - st;
+  std::cout << "autodiff setup" << elapsed.count() <<std::endl;
+  st = std::chrono::high_resolution_clock::now();
 
   context_ad->SetTimeStateAndParametersFrom(context);
+
+  elapsed = std::chrono::high_resolution_clock::now() - st;
+  std::cout << "set time state parameters: " << elapsed.count() << std::endl;
+  st = std::chrono::high_resolution_clock::now();
+
   auto q_ad = math::InitializeAutoDiff(this->GetPositions(context));
+  
+  elapsed = std::chrono::high_resolution_clock::now() - st;
+  std::cout << "initilize autodiff: " << elapsed.count() << std::endl;
+  st = std::chrono::high_resolution_clock::now();
+
   plant_ad->SetPositions(context_ad.get(), q_ad);
+  
+  elapsed = std::chrono::high_resolution_clock::now() - st;
+  std::cout << "set positions: " << elapsed.count() << std::endl;
+  st = std::chrono::high_resolution_clock::now();
 
   auto tau_g = plant_ad->CalcGravityGeneralizedForces(*context_ad);
-  std::cout << tau_g << std::endl;
-  std::cout << math::ExtractGradient(tau_g) << std::endl;
-  //
+  
+  elapsed = std::chrono::high_resolution_clock::now() - st;
+  std::cout << "calc tau_g: " << elapsed.count() << std::endl;
+  st = std::chrono::high_resolution_clock::now();
+
+  MatrixX<T> dg_dq = math::ExtractGradient(tau_g);
+  
+  elapsed = std::chrono::high_resolution_clock::now() - st;
+  std::cout << "extract gradient: " << elapsed.count() << std::endl;
+  st = std::chrono::high_resolution_clock::now();
+
+  dv_dq += time_step() * dg_dq;
   
   // dv_dv is defined already from tamsi_solver.GetGradientData
 
@@ -2157,6 +2193,9 @@ void MultibodyPlant<T>::DiscreteDynamicsWithApproximateGradients(
 
   fu.topRows(nq) = dq_du;
   fu.bottomRows(nv) = dv_du;
+
+  elapsed = std::chrono::high_resolution_clock::now() - st;
+  std::cout << "post autodiff: " << elapsed.count() << std::endl << std::endl;
 
 }
 
