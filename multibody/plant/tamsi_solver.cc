@@ -757,34 +757,29 @@ TamsiSolverResult TamsiSolver<T>::SolveWithGuess(
 // DEBUG
 template <typename T>
 void TamsiSolver<T>::GetGradientData(
-      MatrixX<T>* partial_vnext_partial_v,
-      MatrixX<T>* partial_fn_partial_phi,
-      MatrixX<T>* partial_ft_partial_phi) const {
+      Eigen::PartialPivLU<MatrixX<T>>* J_lu_ptr,
+      MatrixX<T>* partial_tauc_partial_phi) const {
   using std::max;
   
   // Check sizes
-  DRAKE_DEMAND( partial_vnext_partial_v->rows() == nv_ );
-  DRAKE_DEMAND( partial_vnext_partial_v->cols() == nv_ );
-  DRAKE_DEMAND( partial_fn_partial_phi->rows() == nc_ );
-  DRAKE_DEMAND( partial_fn_partial_phi->cols() == nc_ );
-  DRAKE_DEMAND( partial_ft_partial_phi->rows() == 2*nc_ );
-  DRAKE_DEMAND( partial_ft_partial_phi->cols() == nc_ );
+  DRAKE_DEMAND( J_lu_ptr->rows() == nv_ );
+  DRAKE_DEMAND( J_lu_ptr->cols() == nv_ );
+  DRAKE_DEMAND( partial_tauc_partial_phi->rows() == nv_ );
+  DRAKE_DEMAND( partial_tauc_partial_phi->cols() == nc_ );
 
-  // Compute (partial v_next)/(partial v), which is
-  // given by 
+  // Get the factorization of the Newton-Raphson jacobian (J)
+  // such that we can compute
   //
   //    dv_dv = J^{-1} * M,
   //
-  // where J is the Newton-Raphson jacobian.
-  auto& dv_dv = *partial_vnext_partial_v;
-  
-  auto& J_lu = fixed_size_workspace_.mutable_J_lu();  // Newton-Raphson jacobian
-  const auto M = problem_data_aliases_.M();           // Mass matrix
+  // for example.
+  auto& J_lu = *J_lu_ptr;
   
   if (nc_ == 0) {
-    dv_dv.setIdentity();
+    const auto M = problem_data_aliases_.M();
+    J_lu.compute(M);
   } else {
-    dv_dv = J_lu.solve(M);
+    J_lu = fixed_size_workspace_.mutable_J_lu();
   }
   
   // Compute (partial fn)/(partial phi), where fn
@@ -798,8 +793,7 @@ void TamsiSolver<T>::GetGradientData(
   //
   // Note that dfn_dphi is a diagonal matrix, since normal forces
   // at each point depend only on penetration at that particular point.
-  auto& dfn_dphi = *partial_fn_partial_phi;
-  dfn_dphi.setZero();
+  MatrixX<T> dfn_dphi = MatrixX<T>::Zero(nc_,nc_);
   
   const auto& stiffness = problem_data_aliases_.stiffness();
   const auto& dissipation = problem_data_aliases_.dissipation();
@@ -831,8 +825,7 @@ void TamsiSolver<T>::GetGradientData(
   //    dft_dphi = dft_dfn * dfn_dphi
   //
   // where dft_dfn and dft_dphi are block diagonal.
-  auto& dft_dphi = *partial_ft_partial_phi;
-  dft_dphi.setZero();
+  MatrixX<T> dft_dphi = MatrixX<T>::Zero(2*nc_,nc_);
   
   auto mu = variable_size_workspace_.mutable_mu();    // regularized friction coefficients
   auto t_hat = variable_size_workspace_.mutable_t_hat(); // contact tangent directions
@@ -842,6 +835,15 @@ void TamsiSolver<T>::GetGradientData(
     auto t_hat_ic = t_hat.template segment<2>(ik);
     dft_dphi.block(ik,ic,2,1) = -mu(ic) * t_hat_ic * dfn_dphi(ic,ic);
   }
+
+  // Compute (partial tau_c)/(partial phi), where tau_c
+  // are total generalized forces resulting from contacts
+  auto& dtauc_dphi = *partial_tauc_partial_phi;
+
+  const auto Jn = problem_data_aliases_.Jn();
+  const auto Jt = problem_data_aliases_.Jt();
+
+  dtauc_dphi = Jt.transpose() * dft_dphi + Jn.transpose() * dfn_dphi;
 
 }
 

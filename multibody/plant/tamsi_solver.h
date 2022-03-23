@@ -660,9 +660,8 @@ class TamsiSolver {
   /// DEBUG: extract dynamics gradient data from the last
   /// TAMSI solve. SolveWithGuess must be called first. 
   void GetGradientData(
-      MatrixX<T>* partial_vnext_partial_v,
-      MatrixX<T>* partial_fn_partial_phi,
-      MatrixX<T>* partial_ft_partial_phi) const;
+      Eigen::PartialPivLU<MatrixX<T>>* J_lu,
+      MatrixX<T>* partial_tauc_partial_phi) const;
 
   /// @anchor retrieving_the_solution
   /// @name Retrieving the solution

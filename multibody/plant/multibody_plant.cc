@@ -2086,15 +2086,12 @@ void MultibodyPlant<T>::DiscreteDynamicsWithApproximateGradients(
   // Get TAMSI solver data for approximating the dynamics gradient
   //
   // This includes:
-  //    dv_dv    (the partial derivative of v_next w.r.t v)
-  //    dfn_dphi (the partial derivative of contact normal forces
-  //              with respect to contact signed distances)
-  //    dft_dphi (the partial derivative of contact tangent forces
-  //              with respect to contact signed distances)
-  MatrixX<T> dv_dv(nv, nv);
-  MatrixX<T> dfn_dphi(num_contacts, num_contacts);
-  MatrixX<T> dft_dphi(2*num_contacts, num_contacts);
-  tamsi_solver.GetGradientData(&dv_dv, &dfn_dphi, &dft_dphi);
+  //    dv_dv      (the partial derivative of v_next w.r.t v)
+  //    dtauc_dphi (the partial derivative of generalized contact forces
+  //                with respect to contact signed distances)
+  Eigen::PartialPivLU<MatrixX<T>> J_lu(nv);
+  MatrixX<T> dtauc_dphi(nv, num_contacts);
+  tamsi_solver.GetGradientData(&J_lu, &dtauc_dphi);
 
   // Compute the jacobian of signed contact distances with respect
   // to configurations q. Note that this is very similar to the
@@ -2128,19 +2125,25 @@ void MultibodyPlant<T>::DiscreteDynamicsWithApproximateGradients(
  
   // dv_dq includes a component due to contact forces ...
   MatrixX<T> dphi_dq = Jn * Nbar;
-  MatrixX<T> ft_contrib = Jt.transpose() * dft_dphi * dphi_dq;
-  MatrixX<T> fn_contrib = Jn.transpose() * dfn_dphi * dphi_dq;
-  MatrixX<T> dv_dq = time_step() * Minv * (fn_contrib + ft_contrib);
+  MatrixX<T> dv_dq = time_step() * J_lu.solve(dtauc_dphi * dphi_dq);
   
   // ... as well as a component from tau_g, which we get with autodiff
   context_autodiff_->SetTimeStateAndParametersFrom(context);
   auto q_ad = math::InitializeAutoDiff(this->GetPositions(context));
   plant_autodiff_->SetPositions(context_autodiff_.get(), q_ad);
+  
   auto tau_g = plant_autodiff_->CalcGravityGeneralizedForces(*context_autodiff_);
   MatrixX<T> dg_dq = math::ExtractGradient(tau_g);
-  dv_dq += time_step() * dg_dq;
+  dv_dq += time_step() * J_lu.solve(dg_dq);
+
+  // ... and a component from C(q,v)v, which we also get with autodiff
+  VectorX<AutoDiffXd> Cv(nv);
+  plant_autodiff_->CalcBiasTerm(*context_autodiff_, &Cv);
+  MatrixX<T> dCv_dq = math::ExtractGradient(Cv);
+  dv_dq -= time_step() * J_lu.solve(dCv_dq);
   
-  // dv_dv is defined already from tamsi_solver.GetGradientData
+  // dv_dv
+  MatrixX<T> dv_dv = J_lu.solve(M0);
 
   // dq_dq
   MatrixX<T> dq_dq = MatrixX<T>::Identity(nq,nq) + time_step() * N * dv_dq;
