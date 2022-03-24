@@ -2086,17 +2086,12 @@ void MultibodyPlant<T>::DiscreteDynamicsWithApproximateGradients(
   // Get TAMSI solver data for approximating the dynamics gradient
   //
   // This includes:
-  //    dv_dv      (the partial derivative of v_next w.r.t v)
+  //    J_lu       (factorization of Newton-Raphson Jacobian)
   //    dtauc_dphi (the partial derivative of generalized contact forces
   //                with respect to contact signed distances)
   Eigen::PartialPivLU<MatrixX<T>> J_lu(nv);
   MatrixX<T> dtauc_dphi(nv, num_contacts);
   tamsi_solver.GetGradientData(&J_lu, &dtauc_dphi);
-
-  // Compute the jacobian of signed contact distances with respect
-  // to configurations q. Note that this is very similar to the
-  // computation of Jn, except that we use JacobianWrtVariable::QDot
-  // instead of JacobianWrtVariable::kV
   
   // Compute N(q) and Nbar(q), which map between generalized
   // velocities (v) and time derivatives of generalized positions (qdot).
@@ -2121,29 +2116,36 @@ void MultibodyPlant<T>::DiscreteDynamicsWithApproximateGradients(
   // Invert the mass matrix
   MatrixX<T> Minv = M0.inverse();
 
-  // Construct fx, the dynamics gradient with respect to state
+  // Construct fx, the dynamics gradient with respect to state.
+  //
+  // fx = [ dq_dq   dq_dv  ]
+  //      ] dv_dq   dv_dv  ]
  
   // dv_dq includes a component due to contact forces ...
   MatrixX<T> dphi_dq = Jn * Nbar;
   MatrixX<T> dv_dq = time_step() * J_lu.solve(dtauc_dphi * dphi_dq);
   
-  // ... as well as a component from tau_g, which we get with autodiff
+  // ... as well as a component from the nonlinear terms
+  //   C(q,v)v + tau_g(q)
+  // which we get with autodiff thru inverse dynamics
   context_autodiff_->SetTimeStateAndParametersFrom(context);
-  auto q_ad = math::InitializeAutoDiff(this->GetPositions(context));
-  plant_autodiff_->SetPositions(context_autodiff_.get(), q_ad);
-  
-  auto tau_g = plant_autodiff_->CalcGravityGeneralizedForces(*context_autodiff_);
-  MatrixX<T> dg_dq = math::ExtractGradient(tau_g);
-  dv_dq += time_step() * J_lu.solve(dg_dq);
+  auto x_ad = math::InitializeAutoDiff(this->GetPositionsAndVelocities(context));
+  plant_autodiff_->SetPositionsAndVelocities(context_autodiff_.get(), x_ad);
 
-  // ... and a component from C(q,v)v, which we also get with autodiff
-  VectorX<AutoDiffXd> Cv(nv);
-  plant_autodiff_->CalcBiasTerm(*context_autodiff_, &Cv);
-  MatrixX<T> dCv_dq = math::ExtractGradient(Cv);
-  dv_dq -= time_step() * J_lu.solve(dCv_dq);
-  
+  VectorX<AutoDiffXd> vdot_zero = VectorX<AutoDiffXd>::Zero(nv);
+  MultibodyForces<AutoDiffXd> f_ext(*plant_autodiff_);
+  plant_autodiff_->CalcForceElementsContribution(*context_autodiff_, &f_ext); // gravity
+  plant_autodiff_->AddJointLimitsPenaltyForces(*context_autodiff_, &f_ext);    // joint limits
+  VectorX<AutoDiffXd> tau_n = 
+    -plant_autodiff_->CalcInverseDynamics(*context_autodiff_, vdot_zero, f_ext);
+
+  MatrixX<T> dtau_dx = math::ExtractGradient(tau_n);
+  MatrixX<T> dtau_dq = dtau_dx.leftCols(nq);
+  MatrixX<T> dtau_dv = dtau_dx.rightCols(nv);
+  dv_dq += time_step() * J_lu.solve(dtau_dq);
+
   // dv_dv
-  MatrixX<T> dv_dv = J_lu.solve(M0);
+  MatrixX<T> dv_dv = J_lu.solve(M0 + time_step() * dtau_dv);
 
   // dq_dq
   MatrixX<T> dq_dq = MatrixX<T>::Identity(nq,nq) + time_step() * N * dv_dq;
@@ -2474,7 +2476,7 @@ void MultibodyPlant<T>::CalcContactSolverResults(
   MultibodyForces<T> forces0(internal_tree());
 
   CalcNonContactForces(context0, true /* discrete */, &forces0);
-
+  
   // Workspace for inverse dynamics:
   // Bodies' accelerations, ordered by BodyNodeIndex.
   std::vector<SpatialAcceleration<T>> A_WB_array(num_bodies());
@@ -2482,6 +2484,7 @@ void MultibodyPlant<T>::CalcContactSolverResults(
   VectorX<T> vdot = VectorX<T>::Zero(nv);
   // Body forces (alias to forces0).
   std::vector<SpatialForce<T>>& F_BBo_W_array = forces0.mutable_body_forces();
+  
 
   // With vdot = 0, this computes:
   //   -tau = C(q, v)v - tau_app - ∑ J_WBᵀ(q) Fapp_Bo_W.
@@ -2490,7 +2493,7 @@ void MultibodyPlant<T>::CalcContactSolverResults(
       context0, vdot, F_BBo_W_array, minus_tau, &A_WB_array,
       &F_BBo_W_array, /* Note: these arrays get overwritten on output. */
       &minus_tau);
-
+  
   // Compute all contact pairs, including both penetration pairs and quadrature
   // pairs for discrete hydroelastic.
   const std::vector<internal::DiscreteContactPair<T>>& contact_pairs =
@@ -2908,6 +2911,7 @@ void MultibodyPlant<T>::CalcNonContactForces(
       warning.clear();
     }
   }
+  
 }
 
 template <typename T>
