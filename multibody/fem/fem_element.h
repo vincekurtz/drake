@@ -71,6 +71,8 @@ struct FemElementTraits {};
 template <class DerivedElement>
 class FemElement {
  public:
+  DRAKE_DEFAULT_COPY_AND_MOVE_AND_ASSIGN(FemElement);
+
   using Traits = FemElementTraits<DerivedElement>;
   using T = typename Traits::T;
   using Data = typename Traits::Data;
@@ -84,8 +86,13 @@ class FemElement {
     return node_indices_;
   }
 
-  /* The FemElementIndex of this element within the model. */
-  FemElementIndex element_index() const { return element_index_; }
+  /* Increments the node indexes of all nodes in this element by the given
+   `offset`. */
+  void OffsetNodeIndex(FemNodeIndex offset) {
+    for (int a = 0; a < num_nodes; ++a) {
+      node_indices_[a] += offset;
+    }
+  }
 
   /* Computes the per-element, state-dependent data associated with this
    `DerivedElement` given the `state`. */
@@ -218,31 +225,18 @@ class FemElement {
   const Vector3<T>& gravity_vector() const { return gravity_; }
 
  protected:
-  /* Assignment and copy constructions are prohibited.
-   Move constructor is allowed so that FemElement can be stored in
-   `std::vector`. */
-  FemElement(const FemElement&) = delete;
-  FemElement(FemElement&&) = default;
-  const FemElement& operator=(const FemElement&) = delete;
-  FemElement&& operator=(const FemElement&&) = delete;
-
   /* Constructs a new FEM element. The constructor is made protected because
    FemElement should not be constructed directly. Use the constructor of the
    derived classes instead.
-   @param[in] element_index  The index of the new element within the model.
    @param[in] node_indices   The node indices of the nodes of this element
                              within the model.
-   @pre element_index is valid.
    @pre Entries in node_indices are valid. */
-  FemElement(FemElementIndex element_index,
-             const std::array<FemNodeIndex, num_nodes>& node_indices,
+  FemElement(const std::array<FemNodeIndex, num_nodes>& node_indices,
              ConstitutiveModel constitutive_model,
              DampingModel<T> damping_model)
-      : element_index_(element_index),
-        node_indices_(node_indices),
+      : node_indices_(node_indices),
         constitutive_model_(std::move(constitutive_model)),
         damping_model_(std::move(damping_model)) {
-    DRAKE_ASSERT(element_index.is_valid());
     for (int i = 0; i < num_nodes; ++i) {
       DRAKE_ASSERT(node_indices[i].is_valid());
     }
@@ -329,8 +323,6 @@ class FemElement {
                              std::string(source_method) + "().");
   }
 
-  /* The index of this element within the model. */
-  FemElementIndex element_index_;
   /* The node indices of this element within the model. */
   std::array<FemNodeIndex, num_nodes> node_indices_;
   /* The constitutive model that describes the stress-strain relationship

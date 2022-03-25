@@ -16,8 +16,8 @@
 #include "drake/common/test_utilities/expect_no_throw.h"
 #include "drake/common/test_utilities/expect_throws_message.h"
 #include "drake/geometry/render/dev/http_service.h"
-#include "drake/geometry/render/dev/test_utilities/test_png.h"
-#include "drake/geometry/render/dev/test_utilities/test_tiff.h"
+#include "drake/geometry/render/dev/test/test_png.h"
+#include "drake/geometry/render/dev/test/test_tiff.h"
 
 namespace drake {
 namespace geometry {
@@ -184,7 +184,7 @@ class FieldCheckService : public HttpService {
         mime_type_{mime_type},
         depth_range_{depth_range} {}
 
-  /* Check all of the <form> fields.  Always respond with failure (http 500). */
+  // Checks all of the <form> fields.  Always respond with failure (http 500).
   HttpResponse PostForm(const std::string& /* temp_directory */,
                         const std::string& url, int /* port */,
                         const std::string& endpoint,
