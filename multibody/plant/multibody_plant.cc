@@ -2132,17 +2132,30 @@ void MultibodyPlant<T>::DiscreteDynamicsWithApproximateGradients(
   auto x_ad = math::InitializeAutoDiff(this->GetPositionsAndVelocities(context));
   plant_autodiff_->SetPositionsAndVelocities(context_autodiff_.get(), x_ad);
 
-  VectorX<AutoDiffXd> vdot_zero = VectorX<AutoDiffXd>::Zero(nv);
   MultibodyForces<AutoDiffXd> f_ext(*plant_autodiff_);
   plant_autodiff_->CalcForceElementsContribution(*context_autodiff_, &f_ext); // gravity
-  plant_autodiff_->AddJointLimitsPenaltyForces(*context_autodiff_, &f_ext);    // joint limits
+  plant_autodiff_->AddJointLimitsPenaltyForces(*context_autodiff_, &f_ext);   // joint limits
+
+  VectorX<AutoDiffXd> vdot_zero = VectorX<AutoDiffXd>::Zero(nv);
   VectorX<AutoDiffXd> tau_n = 
     -plant_autodiff_->CalcInverseDynamics(*context_autodiff_, vdot_zero, f_ext);
 
   MatrixX<T> dtau_dx = math::ExtractGradient(tau_n);
   MatrixX<T> dtau_dq = dtau_dx.leftCols(nq);
   MatrixX<T> dtau_dv = dtau_dx.rightCols(nv);
-  dv_dq += time_step() * J_lu.solve(dtau_dq);
+  //dv_dq += time_step() * J_lu.solve(dtau_dq);
+
+  // ... and finally, a component from the mass matrix M(q),
+  // which we also get by autodiff-ing thru inverse dynamics
+  plant_autodiff_->SetVelocities(context_autodiff_.get(), VectorX<AutoDiffXd>::Zero(nv));
+  f_ext.SetZero();
+  VectorX<AutoDiffXd> vdot_dummy(v0-v_next);
+  VectorX<AutoDiffXd> M0v0_v = 
+    plant_autodiff_->CalcInverseDynamics(*context_autodiff_, vdot_dummy, f_ext);
+  MatrixX<T> dM0v0_v_dx = math::ExtractGradient(M0v0_v);
+  MatrixX<T> dM0v0_v_dq = dM0v0_v_dx.leftCols(nq);
+  
+  dv_dq += J_lu.solve( dM0v0_v_dq + time_step() * dtau_dq);
 
   // dv_dv
   MatrixX<T> dv_dv = J_lu.solve(M0 + time_step() * dtau_dv);
