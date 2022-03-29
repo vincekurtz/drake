@@ -758,14 +758,17 @@ TamsiSolverResult TamsiSolver<T>::SolveWithGuess(
 template <typename T>
 void TamsiSolver<T>::GetGradientData(
       Eigen::PartialPivLU<MatrixX<T>>* J_lu_ptr,
-      MatrixX<T>* partial_tauc_partial_phi) const {
+      MatrixX<T>* dfn_dphi_ptr,
+      MatrixX<T>* dft_dphi_ptr) const {
   using std::max;
   
   // Check sizes
   DRAKE_DEMAND( J_lu_ptr->rows() == nv_ );
   DRAKE_DEMAND( J_lu_ptr->cols() == nv_ );
-  DRAKE_DEMAND( partial_tauc_partial_phi->rows() == nv_ );
-  DRAKE_DEMAND( partial_tauc_partial_phi->cols() == nc_ );
+  DRAKE_DEMAND( dfn_dphi_ptr->rows() == nc_ );
+  DRAKE_DEMAND( dfn_dphi_ptr->cols() == nc_ );
+  DRAKE_DEMAND( dft_dphi_ptr->rows() == 2*nc_ );
+  DRAKE_DEMAND( dft_dphi_ptr->cols() == nc_ );
 
   // Get the factorization of the Newton-Raphson jacobian (J)
   // such that we can compute
@@ -793,7 +796,8 @@ void TamsiSolver<T>::GetGradientData(
   //
   // Note that dfn_dphi is a diagonal matrix, since normal forces
   // at each point depend only on penetration at that particular point.
-  MatrixX<T> dfn_dphi = MatrixX<T>::Zero(nc_,nc_);
+  auto& dfn_dphi = *dfn_dphi_ptr;
+  dfn_dphi.setZero(nc_,nc_);
   
   const auto& stiffness = problem_data_aliases_.stiffness();
   const auto& dissipation = problem_data_aliases_.dissipation();
@@ -825,7 +829,8 @@ void TamsiSolver<T>::GetGradientData(
   //    dft_dphi = dft_dfn * dfn_dphi
   //
   // where dft_dfn and dft_dphi are block diagonal.
-  MatrixX<T> dft_dphi = MatrixX<T>::Zero(2*nc_,nc_);
+  auto& dft_dphi = *dft_dphi_ptr;
+  dft_dphi.setZero(2*nc_,nc_);
   
   auto mu = variable_size_workspace_.mutable_mu();    // regularized friction coefficients
   auto t_hat = variable_size_workspace_.mutable_t_hat(); // contact tangent directions
@@ -835,15 +840,6 @@ void TamsiSolver<T>::GetGradientData(
     auto t_hat_ic = t_hat.template segment<2>(ik);
     dft_dphi.block(ik,ic,2,1) = -mu(ic) * t_hat_ic * dfn_dphi(ic,ic);
   }
-
-  // Compute (partial tau_c)/(partial phi), where tau_c
-  // are total generalized forces resulting from contacts
-  auto& dtauc_dphi = *partial_tauc_partial_phi;
-
-  const auto Jn = problem_data_aliases_.Jn();
-  const auto Jt = problem_data_aliases_.Jt();
-
-  dtauc_dphi = Jt.transpose() * dft_dphi + Jn.transpose() * dfn_dphi;
 
 }
 

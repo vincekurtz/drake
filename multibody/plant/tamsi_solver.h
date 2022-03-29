@@ -661,7 +661,8 @@ class TamsiSolver {
   /// TAMSI solve. SolveWithGuess must be called first. 
   void GetGradientData(
       Eigen::PartialPivLU<MatrixX<T>>* J_lu,
-      MatrixX<T>* partial_tauc_partial_phi) const;
+      MatrixX<T>* dfn_dphi,
+      MatrixX<T>* dft_dphi) const;
 
   /// @anchor retrieving_the_solution
   /// @name Retrieving the solution

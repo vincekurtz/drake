@@ -2087,11 +2087,14 @@ void MultibodyPlant<T>::DiscreteDynamicsWithApproximateGradients(
   //
   // This includes:
   //    J_lu       (factorization of Newton-Raphson Jacobian)
-  //    dtauc_dphi (the partial derivative of generalized contact forces
+  //    dfn_dphi   (the partial derivative of contact normal forces
+  //                with respect to contact signed distances)
+  //    dft_dphi   (the partial derivative of contact friction forces
   //                with respect to contact signed distances)
   Eigen::PartialPivLU<MatrixX<T>> J_lu(nv);
-  MatrixX<T> dtauc_dphi(nv, num_contacts);
-  tamsi_solver.GetGradientData(&J_lu, &dtauc_dphi);
+  MatrixX<T> dfn_dphi(num_contacts, num_contacts);
+  MatrixX<T> dft_dphi(2*num_contacts, num_contacts);
+  tamsi_solver.GetGradientData(&J_lu, &dfn_dphi, &dft_dphi);
   
   // Compute N(q) and Nbar(q), which map between generalized
   // velocities (v) and time derivatives of generalized positions (qdot).
@@ -2119,12 +2122,13 @@ void MultibodyPlant<T>::DiscreteDynamicsWithApproximateGradients(
   // Construct fx, the dynamics gradient with respect to state.
   //
   // fx = [ dq_dq   dq_dv  ]
-  //      ] dv_dq   dv_dv  ]
+  //      [ dv_dq   dv_dv  ]
  
   // dv_dq includes a component due to contact forces ...
   MatrixX<T> dphi_dq = Jn * Nbar;
+  MatrixX<T> dtauc_dphi = Jn.transpose() * dfn_dphi + Jt.transpose() * dft_dphi;
   MatrixX<T> dv_dq = time_step() * J_lu.solve(dtauc_dphi * dphi_dq);
-  
+
   // ... as well as a component from the nonlinear terms
   //   C(q,v)v + tau_g(q)
   // which we get with autodiff thru inverse dynamics
@@ -2143,7 +2147,6 @@ void MultibodyPlant<T>::DiscreteDynamicsWithApproximateGradients(
   MatrixX<T> dtau_dx = math::ExtractGradient(tau_n);
   MatrixX<T> dtau_dq = dtau_dx.leftCols(nq);
   MatrixX<T> dtau_dv = dtau_dx.rightCols(nv);
-  //dv_dq += time_step() * J_lu.solve(dtau_dq);
 
   // ... and finally, a component from the mass matrix M(q),
   // which we also get by autodiff-ing thru inverse dynamics
@@ -2156,6 +2159,47 @@ void MultibodyPlant<T>::DiscreteDynamicsWithApproximateGradients(
   MatrixX<T> dM0v0_v_dq = dM0v0_v_dx.leftCols(nq);
   
   dv_dq += J_lu.solve( dM0v0_v_dq + time_step() * dtau_dq);
+  
+  // DEBUG: consider contribution of J_c(q)
+  if ( num_contacts > 0 ) {
+
+    // Create an AutoDiffXd copy of contact pairs
+    std::vector<internal::DiscreteContactPair<AutoDiffXd>> contact_pairs_ad;
+    for (int i=0; i<num_contacts; ++i) {
+      const internal::DiscreteContactPair<double> pair = contact_pairs.at(i);
+      internal::DiscreteContactPair<AutoDiffXd> pair_ad;
+
+      pair_ad.id_A = pair.id_A;
+      pair_ad.id_B = pair.id_B;
+      pair_ad.p_WC = pair.p_WC;
+      pair_ad.nhat_BA_W = pair.nhat_BA_W;
+      pair_ad.phi0 = pair.phi0;
+      pair_ad.fn0 = pair.fn0;
+      pair_ad.stiffness = pair.stiffness;
+      pair_ad.damping = pair.damping;
+
+      contact_pairs_ad.push_back(pair_ad);
+    }
+
+    // Compute autodiff version of contact jacobians
+    MatrixX<AutoDiffXd> Jn_ad(num_contacts, nv);
+    MatrixX<AutoDiffXd> Jt_ad(2*num_contacts, nv);
+    plant_autodiff_->CalcNormalAndTangentContactJacobians(
+        *context_autodiff_, contact_pairs_ad, &Jn_ad, &Jt_ad, nullptr);
+
+    // Compute contribution to dtauc_dq due to variation in J(n):
+    //
+    //  dJn/dq * fn + dJt/dq * ft
+    //
+    VectorX<AutoDiffXd> fn = results.fn;
+    VectorX<AutoDiffXd> ft = results.ft;
+    VectorX<AutoDiffXd> Jc_contrib = Jn_ad.transpose() * fn + Jt_ad.transpose() * ft;
+    MatrixX<T> dJc_contrib_dx = math::ExtractGradient(Jc_contrib);
+    MatrixX<T> dJc_contrib_dq = dJc_contrib_dx.leftCols(nq);
+    
+    dv_dq += J_lu.solve( time_step() * dJc_contrib_dq );
+  }
+  
 
   // dv_dv
   MatrixX<T> dv_dv = J_lu.solve(M0 + time_step() * dtau_dv);
