@@ -2189,15 +2189,17 @@ void MultibodyPlant<T>::DiscreteDynamicsWithApproximateGradients(
 
     // Compute contribution to dtauc_dq due to variation in J(n):
     //
-    //  dJn/dq * fn + dJt/dq * ft
+    //  dJn'/dq * fn + dJt'/dq * ft
     //
     VectorX<AutoDiffXd> fn = results.fn;
     VectorX<AutoDiffXd> ft = results.ft;
     VectorX<AutoDiffXd> Jc_contrib = Jn_ad.transpose() * fn + Jt_ad.transpose() * ft;
     MatrixX<T> dJc_contrib_dx = math::ExtractGradient(Jc_contrib);
     MatrixX<T> dJc_contrib_dq = dJc_contrib_dx.leftCols(nq);
+
+    //std::cout << dJc_contrib_dq << std::endl;
     
-    dv_dq += J_lu.solve( time_step() * dJc_contrib_dq );
+    //dv_dq += J_lu.solve( dJc_contrib_dq );
   }
   
 
