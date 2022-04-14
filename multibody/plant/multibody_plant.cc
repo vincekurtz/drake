@@ -2170,46 +2170,45 @@ void MultibodyPlant<T>::DiscreteDynamicsWithApproximateGradients(
   dv_dq += J_lu.solve( dM0v0_v_dq + time_step() * dtau_dq);
   
   // DEBUG: consider contribution of J_c(q)
-  if ( num_contacts > 0 ) {
+  //if ( num_contacts > 0 ) {
 
-    // Create an AutoDiffXd copy of contact pairs
-    std::vector<internal::DiscreteContactPair<AutoDiffXd>> contact_pairs_ad;
-    for (int i=0; i<num_contacts; ++i) {
-      const internal::DiscreteContactPair<double> pair = contact_pairs.at(i);
-      internal::DiscreteContactPair<AutoDiffXd> pair_ad;
+  //  // Create an AutoDiffXd copy of contact pairs
+  //  std::vector<internal::DiscreteContactPair<AutoDiffXd>> contact_pairs_ad;
+  //  for (int i=0; i<num_contacts; ++i) {
+  //    const internal::DiscreteContactPair<double> pair = contact_pairs.at(i);
+  //    internal::DiscreteContactPair<AutoDiffXd> pair_ad;
 
-      pair_ad.id_A = pair.id_A;
-      pair_ad.id_B = pair.id_B;
-      pair_ad.p_WC = pair.p_WC;
-      pair_ad.nhat_BA_W = pair.nhat_BA_W;
-      pair_ad.phi0 = pair.phi0;
-      pair_ad.fn0 = pair.fn0;
-      pair_ad.stiffness = pair.stiffness;
-      pair_ad.damping = pair.damping;
+  //    pair_ad.id_A = pair.id_A;
+  //    pair_ad.id_B = pair.id_B;
+  //    pair_ad.p_WC = pair.p_WC;
+  //    pair_ad.nhat_BA_W = pair.nhat_BA_W;
+  //    pair_ad.phi0 = pair.phi0;
+  //    pair_ad.fn0 = pair.fn0;
+  //    pair_ad.stiffness = pair.stiffness;
+  //    pair_ad.damping = pair.damping;
 
-      contact_pairs_ad.push_back(pair_ad);
-    }
+  //    contact_pairs_ad.push_back(pair_ad);
+  //  }
 
-    // Compute autodiff version of contact jacobians
-    MatrixX<AutoDiffXd> Jn_ad(num_contacts, nv);
-    MatrixX<AutoDiffXd> Jt_ad(2*num_contacts, nv);
-    plant_autodiff_->CalcNormalAndTangentContactJacobians(
-        *context_autodiff_, contact_pairs_ad, &Jn_ad, &Jt_ad, nullptr);
+  //  // Compute autodiff version of contact jacobians
+  //  MatrixX<AutoDiffXd> Jn_ad(num_contacts, nv);
+  //  MatrixX<AutoDiffXd> Jt_ad(2*num_contacts, nv);
+  //  plant_autodiff_->CalcNormalAndTangentContactJacobians(
+  //      *context_autodiff_, contact_pairs_ad, &Jn_ad, &Jt_ad, nullptr);
 
-    // Compute contribution to dtauc_dq due to variation in J(n):
-    //
-    //  dJn'/dq * fn + dJt'/dq * ft
-    //
-    VectorX<AutoDiffXd> fn = results.fn;
-    VectorX<AutoDiffXd> ft = results.ft;
-    VectorX<AutoDiffXd> Jc_contrib = Jn_ad.transpose() * fn + Jt_ad.transpose() * ft;
-    MatrixX<T> dJc_contrib_dx = math::ExtractGradient(Jc_contrib);
-    MatrixX<T> dJc_contrib_dq = dJc_contrib_dx.leftCols(nq);
+  //  // Compute contribution to dtauc_dq due to variation in J(n):
+  //  //
+  //  //  dJn'/dq * fn + dJt'/dq * ft
+  //  //
+  //  VectorX<AutoDiffXd> fn = results.fn;
+  //  VectorX<AutoDiffXd> ft = results.ft;
+  //  VectorX<AutoDiffXd> Jc_contrib = Jn_ad.transpose() * fn + Jt_ad.transpose() * ft;
+  //  MatrixX<T> dJc_contrib_dx = math::ExtractGradient(Jc_contrib);
+  //  MatrixX<T> dJc_contrib_dq = dJc_contrib_dx.leftCols(nq);
 
-    //std::cout << dJc_contrib_dq << std::endl;
-    
-    //dv_dq += J_lu.solve( dJc_contrib_dq );
-  }
+  //  //std::cout << dJc_contrib_dq << std::endl;
+  //  //dv_dq += J_lu.solve( -time_step() * dJc_contrib_dq );
+  //}
   
 
   // dv_dv
