@@ -152,8 +152,13 @@ class VolumetricElement
     : public FemElement<VolumetricElement<
           IsoparametricElementType, QuadratureType, ConstitutiveModelType>> {
  public:
+  DRAKE_DEFAULT_COPY_AND_MOVE_AND_ASSIGN(VolumetricElement);
+
   using ElementType = VolumetricElement<IsoparametricElementType,
                                         QuadratureType, ConstitutiveModelType>;
+  using IsoparametricElement = IsoparametricElementType;
+  using Quadrature = QuadratureType;
+
   using Traits = FemElementTraits<ElementType>;
   using Data = typename Traits::Data;
   using T = typename Traits::T;
@@ -220,14 +225,6 @@ class VolumetricElement
     lumped_mass_ = mass_matrix_.rowwise().sum().eval();
   }
 
-  /* Assignment and copy constructions are prohibited. Move constructor is
-   allowed so that elasticity elements can be push_back/emplace_back into an
-   `std::vector`. */
-  VolumetricElement(const VolumetricElement&) = delete;
-  VolumetricElement(VolumetricElement&&) = default;
-  const VolumetricElement& operator=(const VolumetricElement&) = delete;
-  VolumetricElement&& operator=(const VolumetricElement&&) = delete;
-
   /* Calculates the elastic potential energy (in joules) stored in this element
    using the given `data`. */
   T CalcElasticEnergy(const Data& data) const {
@@ -236,6 +233,21 @@ class VolumetricElement
       elastic_energy += reference_volume_[q] * data.Psi[q];
     }
     return elastic_energy;
+  }
+
+  /* Computes the scaled gravity force on each node in the element using the
+   pre-calculated mass matrix with the given `gravity_vector`. */
+  void AddScaledGravityForce(const Data&, const T& scale,
+                             const Vector3<T>& gravity_vector,
+                             EigenPtr<Vector<T, num_dofs>> force) const {
+    constexpr int kDim = 3;
+    for (int a = 0; a < num_nodes; ++a) {
+      /* The following computation is equivalent to performing the matrix-vector
+       multiplication of the mass matrix and the stacked gravity vector. */
+      force->template segment<kDim>(kDim * a) +=
+          scale * lumped_mass_.template segment<kDim>(kDim * a).cwiseProduct(
+                      gravity_vector);
+    }
   }
 
  private:
@@ -357,16 +369,14 @@ class VolumetricElement
     }
   }
 
-  /* Implements FemElement::CalcResidual(). */
-  void DoCalcResidual(const Data& data,
-                      EigenPtr<Vector<T, num_dofs>> residual) const {
-    /* residual = Ma-fₑ(x)-fᵥ(x, v)-fₑₓₜ, where M is the mass matrix, fₑ(x) is
-     the elastic force, fᵥ(x, v) is the damping force and fₑₓₜ is the external
-     force. */
+  /* Implements FemElement::CalcInverseDynamics(). */
+  void DoCalcInverseDynamics(const Data& data,
+                              EigenPtr<Vector<T, num_dofs>> residual) const {
+    /* residual = Ma-fₑ(x)-fᵥ(x, v), where M is the mass matrix, fₑ(x) is
+     the elastic force, and fᵥ(x, v) is the damping force. */
     *residual += mass_matrix_ * data.element_a;
     this->AddNegativeElasticForce(data, residual);
     AddNegativeDampingForce(data, residual);
-    this->AddScaledExternalForce(data, -1.0, residual);
   }
 
   /* Implements FemElement::DoAddScaledStiffnessMatrix().
@@ -464,20 +474,6 @@ class VolumetricElement
       }
     }
     return mass_matrix;
-  }
-
-  /* Computes the gravity force on each node in the element using the stored
-   mass and gravity vector. */
-  void AddScaledGravityForce(const Data&, const T& scale,
-                             EigenPtr<Vector<T, num_dofs>> force) const {
-    constexpr int kDim = 3;
-    for (int a = 0; a < num_nodes; ++a) {
-      /* The following computation is equivalent to performing the matrix-vector
-       multiplication of the mass matrix and the stacked gravity vector. */
-      force->template segment<kDim>(kDim * a) +=
-          scale * lumped_mass_.template segment<kDim>(kDim * a).cwiseProduct(
-                      this->gravity_vector());
-    }
   }
 
   // TODO(xuchenhan-tri): Consider bumping this up into FemElement when new

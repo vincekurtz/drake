@@ -738,7 +738,7 @@ void MultibodyPlant<T>::Finalize() {
   // After finalizing the base class, tree is read-only.
   internal::MultibodyTreeSystem<T>::Finalize();
   if (geometry_source_is_registered()) {
-    FilterAdjacentBodies();
+    ApplyDefaultCollisionFilters();
     ExcludeCollisionsWithVisualGeometry();
   }
   FinalizePlantOnly();
@@ -914,7 +914,7 @@ const CoulombFriction<double>& MultibodyPlant<T>::GetCoulombFriction(
 }
 
 template <typename T>
-void MultibodyPlant<T>::FilterAdjacentBodies() {
+void MultibodyPlant<T>::ApplyDefaultCollisionFilters() {
   DRAKE_DEMAND(geometry_source_is_registered());
   // Disallow collisions between adjacent bodies. Adjacency is implied by the
   // existence of a joint between bodies.
@@ -933,12 +933,21 @@ void MultibodyPlant<T>::FilterAdjacentBodies() {
           geometry::GeometrySet(*parent_id)));
     }
   }
-  // We must explicitly exclude collisions between all geometries registered
-  // against the world.
-  // TODO(eric.cousineau): Do this in a better fashion (#11117).
-  auto g_world = CollectRegisteredGeometries(GetBodiesWeldedTo(world_body()));
-  scene_graph_->collision_filter_manager().Apply(
-      CollisionFilterDeclaration().ExcludeWithin(g_world));
+  // We explicitly exclude collisions within welded subgraphs.
+  std::vector<std::set<BodyIndex>> subgraphs =
+      multibody_graph_.FindSubgraphsOfWeldedBodies();
+  for (const auto& subgraph : subgraphs) {
+    // Only operate on non-trivial weld subgraphs.
+    if (subgraph.size() <= 1) { continue; }
+    // Map body indices to pointers.
+    std::vector<const Body<T>*> subgraph_bodies;
+    for (BodyIndex body_index : subgraph) {
+      subgraph_bodies.push_back(&get_body(body_index));
+    }
+    auto geometries = CollectRegisteredGeometries(subgraph_bodies);
+    scene_graph_->collision_filter_manager().Apply(
+        CollisionFilterDeclaration().ExcludeWithin(geometries));
+  }
 }
 
 template <typename T>
@@ -2663,37 +2672,32 @@ void MultibodyPlant<T>::CalcJointLockingIndices(
   auto& indices = *unlocked_velocity_indices;
   indices.resize(num_velocities());
 
-  int velocity_cursor = 0;
   int unlocked_cursor = 0;
   for (JointIndex joint_index(0); joint_index < num_joints(); ++joint_index) {
     const Joint<T>& joint = get_joint(joint_index);
-    if (joint.is_locked(context)) {
-      velocity_cursor += joint.num_velocities();
-    } else {
+    if (!joint.is_locked(context)) {
       for (int k = 0; k < joint.num_velocities(); ++k) {
-        indices[unlocked_cursor++] = velocity_cursor++;
+        indices[unlocked_cursor++] = joint.velocity_start() + k;
       }
     }
   }
 
   for (BodyIndex body_index(1); body_index < num_bodies(); ++body_index) {
     const Body<T>& body = get_body(body_index);
-    if (!body.is_floating()) {
-      continue;
-    }
-    if (body.is_locked(context)) {
-      velocity_cursor += 6;
-    } else {
+    if (body.is_floating() && !body.is_locked(context)) {
       for (int k = 0; k < 6; ++k) {
-        indices[unlocked_cursor++] = velocity_cursor++;
+        indices[unlocked_cursor++] =
+            body.floating_velocities_start() - num_positions() + k;
       }
     }
   }
-  DRAKE_ASSERT(velocity_cursor == num_velocities());
   DRAKE_ASSERT(unlocked_cursor <= num_velocities());
 
   // Use size to indicate exactly how many velocities are unlocked.
   indices.resize(unlocked_cursor);
+  // Sort the unlocked indices to keep the original DOF ordering established by
+  // the plant stable.
+  std::sort(indices.begin(), indices.end());
   DemandIndicesValid(indices, num_velocities());
   DRAKE_DEMAND(static_cast<int>(indices.size()) == unlocked_cursor);
 }

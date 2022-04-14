@@ -31,25 +31,45 @@ void FemModel<T>::CalcResidual(const FemState<T>& fem_state,
                                EigenPtr<VectorX<T>> residual) const {
   DRAKE_DEMAND(residual != nullptr);
   DRAKE_DEMAND(residual->size() == num_dofs());
-  ThrowIfModelDataIncompatible(__func__, fem_state);
+  ThrowIfModelStateIncompatible(__func__, fem_state);
   DoCalcResidual(fem_state, residual);
+  dirichlet_bc_.ApplyHomogeneousBoundaryCondition(residual);
 }
 
 template <typename T>
 void FemModel<T>::CalcTangentMatrix(
     const FemState<T>& fem_state, const Vector3<T>& weights,
     internal::PetscSymmetricBlockSparseMatrix* tangent_matrix) const {
-  DRAKE_DEMAND(tangent_matrix != nullptr);
-  DRAKE_DEMAND(tangent_matrix->rows() == num_dofs());
-  DRAKE_DEMAND(tangent_matrix->cols() == num_dofs());
-  ThrowIfModelDataIncompatible(__func__, fem_state);
-  DoCalcTangentMatrix(fem_state, weights, tangent_matrix);
+  if constexpr (std::is_same_v<T, double>) {
+    DRAKE_DEMAND(tangent_matrix != nullptr);
+    DRAKE_DEMAND(tangent_matrix->rows() == num_dofs());
+    DRAKE_DEMAND(tangent_matrix->cols() == num_dofs());
+    ThrowIfModelStateIncompatible(__func__, fem_state);
+    DoCalcTangentMatrix(fem_state, weights, tangent_matrix);
+    dirichlet_bc_.ApplyBoundaryConditionToTangentMatrix(tangent_matrix);
+  } else {
+    throw std::logic_error(
+        "FemModel::CalcTangentMatrix() only supports double at the moment.");
+  }
 }
 
 template <typename T>
 std::unique_ptr<internal::PetscSymmetricBlockSparseMatrix>
 FemModel<T>::MakePetscSymmetricBlockSparseTangentMatrix() const {
-  return DoMakePetscSymmetricBlockSparseTangentMatrix();
+  if constexpr (std::is_same_v<T, double>) {
+    return DoMakePetscSymmetricBlockSparseTangentMatrix();
+  } else {
+    throw std::logic_error(
+        "FemModel::MakePetscSymmetricBlockSparseTangentMatrix() only supports "
+        "double at the moment.");
+  }
+}
+
+template <typename T>
+void FemModel<T>::ApplyBoundaryCondition(FemState<T>* fem_state) const {
+  DRAKE_DEMAND(fem_state != nullptr);
+  ThrowIfModelStateIncompatible(__func__, *fem_state);
+  dirichlet_bc_.ApplyBoundaryConditionToState(fem_state);
 }
 
 template <typename T>
@@ -58,7 +78,7 @@ FemModel<T>::FemModel()
           VectorX<T>(0), VectorX<T>(0), VectorX<T>(0))) {}
 
 template <typename T>
-void FemModel<T>::ThrowIfModelDataIncompatible(
+void FemModel<T>::ThrowIfModelStateIncompatible(
     const char* func, const FemState<T>& fem_state) const {
   if (!fem_state.is_created_from_system(*fem_state_system_)) {
     throw std::logic_error(std::string(func) +
@@ -81,3 +101,4 @@ void FemModel<T>::UpdateFemStateSystem() {
 }  // namespace drake
 
 template class drake::multibody::fem::FemModel<double>;
+template class drake::multibody::fem::FemModel<drake::AutoDiffXd>;
