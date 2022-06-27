@@ -25,9 +25,7 @@ AcrobotPlant<T>::AcrobotPlant(double dt)
   this->DeclareNumericParameter(AcrobotParams<T>());
   this->DeclareVectorInputPort("elbow_torque", AcrobotInput<T>());
   this->DeclarePeriodicDiscreteUpdateEvent(time_step_, 0, &AcrobotPlant::DiscreteUpdate);
-  //auto state_index = this->DeclareDiscreteState(AcrobotState<T>());
-  //
-  auto state_index = this->DeclareContinuousState(AcrobotState<T>(), 2, 2, 0);
+  auto state_index = this->DeclareDiscreteState(AcrobotState<T>());
   this->DeclareStateOutputPort("acrobot_state", state_index);
 }
 
@@ -105,17 +103,17 @@ const {
 template <typename T>
 void AcrobotPlant<T>::DiscreteUpdate(
     const systems::Context<T>& context,
-    systems::DiscreteValues<T>*) const {
-  std::cout << "hello world " << context.get_time() << std::endl;
-}
+    systems::DiscreteValues<T>* new_state) const {
 
-template <typename T>
-void AcrobotPlant<T>::DoCalcTimeDerivatives(
-    const systems::Context<T>& context,
-    systems::ContinuousState<T>* derivatives) const {
+  // Compute current state
   const AcrobotState<T>& state = get_state(context);
-  const T& tau = get_tau(context);
+  Vector2<T> q0;   // is there a way to make q0 and v0 const?
+  q0 << state.theta1(), state.theta2();
+  Vector2<T> v0;
+  v0 << state.theta1dot(), state.theta2dot();
 
+  // Compute manipulator dynamics terms, M*v + bias = B*tau
+  const T& tau = get_tau(context);
   const Matrix2<T> M = MassMatrix(context);
   const Vector2<T> bias = DynamicsBiasTerm(context);
   const Vector2<T> B(0, 1);  // input matrix
@@ -123,29 +121,16 @@ void AcrobotPlant<T>::DoCalcTimeDerivatives(
   Vector4<T> xdot;
   xdot << state.theta1dot(), state.theta2dot(),
           M.inverse() * (B * tau - bias);
-  derivatives->SetFromVector(xdot);
-}
 
-template <typename T>
-void AcrobotPlant<T>::DoCalcImplicitTimeDerivativesResidual(
-    const systems::Context<T>& context,
-    const systems::ContinuousState<T>& proposed_derivatives,
-    EigenPtr<VectorX<T>> residual) const {
-  DRAKE_DEMAND(residual != nullptr);
-  const AcrobotState<T>& state = get_state(context);
-  const T& tau = get_tau(context);
+  // Compute next state using symplectic Euler
+  // TODO: avoid extra allocations
+  // TODO: use factorization instead of inverse
+  Vector2<T> v = M.inverse() * ( M * v0 + time_step() * (B * tau - bias) );
+  Vector2<T> q = q0 + time_step() * v;
+  Vector4<T> x;
+  x << q, v;
 
-  const Matrix2<T> M = MassMatrix(context);
-  const Vector2<T> bias = DynamicsBiasTerm(context);
-  const Vector2<T> B(0, 1);  // input matrix
-
-  const auto& proposed_qdot = proposed_derivatives.get_generalized_position();
-  const auto proposed_vdot =
-      proposed_derivatives.get_generalized_velocity().CopyToVector();
-
-  *residual << proposed_qdot[0] - state.theta1dot(),
-               proposed_qdot[1] - state.theta2dot(),
-               M * proposed_vdot - (B * tau - bias);
+  new_state->set_value(x);
 }
 
 }  // namespace acrobot

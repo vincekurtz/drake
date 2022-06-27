@@ -74,21 +74,21 @@ class AcrobotPlant : public systems::LeafSystem<T> {
   }
 
   static const AcrobotState<T>& get_state(
-      const systems::ContinuousState<T>& cstate) {
-    return dynamic_cast<const AcrobotState<T>&>(cstate.get_vector());
+      const systems::DiscreteValues<T>& dstate) {
+    return dynamic_cast<const AcrobotState<T>&>(dstate.get_vector());
   }
 
   static const AcrobotState<T>& get_state(const systems::Context<T>& context) {
-    return get_state(context.get_continuous_state());
+    return get_state(context.get_discrete_state());
   }
 
   static AcrobotState<T>& get_mutable_state(
-      systems::ContinuousState<T>* cstate) {
-    return dynamic_cast<AcrobotState<T>&>(cstate->get_mutable_vector());
+      systems::DiscreteValues<T>* dstate) {
+    return dynamic_cast<AcrobotState<T>&>(dstate->get_mutable_vector());
   }
 
   static AcrobotState<T>& get_mutable_state(systems::Context<T>* context) {
-    return get_mutable_state(&context->get_mutable_continuous_state());
+    return get_mutable_state(&context->get_mutable_discrete_state());
   }
 
   const AcrobotParams<T>& get_parameters(
@@ -111,14 +111,6 @@ class AcrobotPlant : public systems::LeafSystem<T> {
       const systems::Context<T>& context,
       systems::DiscreteValues<T>* next_state) const;
 
-  void DoCalcTimeDerivatives(
-      const systems::Context<T>& context,
-      systems::ContinuousState<T>* derivatives) const override;
-
-  void DoCalcImplicitTimeDerivativesResidual(
-    const systems::Context<T>& context,
-    const systems::ContinuousState<T>& proposed_derivatives,
-    EigenPtr<VectorX<T>> residual) const override;
 };
 
 }  // namespace acrobot
