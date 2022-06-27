@@ -44,7 +44,7 @@ class AcrobotPlant : public systems::LeafSystem<T> {
 
   /// Constructs the plant.  The parameters of the system are stored as
   /// Parameters in the Context (see acrobot_params_named_vector.yaml).
-  AcrobotPlant();
+  AcrobotPlant(double dt);
 
   /// Scalar-converting copy constructor.  See @ref system_scalar_conversion.
   template <typename U>
@@ -100,10 +100,16 @@ class AcrobotPlant : public systems::LeafSystem<T> {
     return this->template GetMutableNumericParameter<AcrobotParams>(context, 0);
   }
 
- private:
-  T DoCalcKineticEnergy(const systems::Context<T>& context) const override;
+  double time_step() const {
+    return time_step_;
+  }
 
-  T DoCalcPotentialEnergy(const systems::Context<T>& context) const override;
+ private:
+  double time_step_ = 0.1;
+
+  void DiscreteUpdate(
+      const systems::Context<T>& context,
+      systems::DiscreteValues<T>* next_state) const;
 
   void DoCalcTimeDerivatives(
       const systems::Context<T>& context,
@@ -114,41 +120,6 @@ class AcrobotPlant : public systems::LeafSystem<T> {
     const systems::ContinuousState<T>& proposed_derivatives,
     EigenPtr<VectorX<T>> residual) const override;
 };
-
-/// Constructs the Acrobot with (only) encoder outputs.
-///
-/// @system
-/// name: AcrobotWEncoder
-/// input_ports:
-/// - elbow_torque
-/// output_ports:
-/// - measured_joint_positions
-/// - <span style="color:gray">acrobot_state</span>
-/// @endsystem
-///
-/// The `acrobot_state` output port is present only if the construction
-/// parameter `acrobot_state_as_second_output` is true.
-///
-/// @ingroup acrobot_systems
-template <typename T>
-class AcrobotWEncoder : public systems::Diagram<T> {
- public:
-  explicit AcrobotWEncoder(bool acrobot_state_as_second_output = false);
-
-  const AcrobotPlant<T>* acrobot_plant() const { return acrobot_plant_; }
-
-  AcrobotState<T>& get_mutable_acrobot_state(
-      systems::Context<T>* context) const;
-
- private:
-  AcrobotPlant<T>* acrobot_plant_{nullptr};
-};
-
-/// Constructs the LQR controller for stabilizing the upright fixed point using
-/// default LQR cost matrices which have been tested for this system.
-/// @ingroup acrobot_systems
-std::unique_ptr<systems::AffineSystem<double>> BalancingLQRController(
-    const AcrobotPlant<double>& acrobot);
 
 }  // namespace acrobot
 }  // namespace examples

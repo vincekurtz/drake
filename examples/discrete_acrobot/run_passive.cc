@@ -23,10 +23,11 @@ DEFINE_double(simulation_sec, 10.0,
 DEFINE_double(realtime_factor, 1.0,
               "Playback speed.  See documentation for "
               "Simulator::set_target_realtime_rate() for details.");
+DEFINE_double(time_step, 1e-1, "Discrete simulation timestep.");
 
 int do_main() {
   systems::DiagramBuilder<double> builder;
-  auto acrobot = builder.AddSystem<AcrobotPlant>();
+  auto acrobot = builder.AddSystem<AcrobotPlant>(FLAGS_time_step);
   acrobot->set_name("acrobot");
   auto scene_graph = builder.AddSystem<geometry::SceneGraph>();
   AcrobotGeometry::AddToBuilder(

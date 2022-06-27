@@ -2,6 +2,7 @@
 
 #include <cmath>
 #include <vector>
+#include <iostream>
 
 #include "drake/common/default_scalars.h"
 #include "drake/common/drake_throw.h"
@@ -18,18 +19,21 @@ namespace examples {
 namespace acrobot {
 
 template <typename T>
-AcrobotPlant<T>::AcrobotPlant()
+AcrobotPlant<T>::AcrobotPlant(double dt)
     : systems::LeafSystem<T>(systems::SystemTypeTag<AcrobotPlant>{}) {
+  time_step_ = dt; 
   this->DeclareNumericParameter(AcrobotParams<T>());
   this->DeclareVectorInputPort("elbow_torque", AcrobotInput<T>());
-  auto state_index = this->DeclareContinuousState(
-      AcrobotState<T>(), 2 /* num_q */, 2 /* num_v */, 0 /* num_z */);
+  this->DeclarePeriodicDiscreteUpdateEvent(time_step_, 0, &AcrobotPlant::DiscreteUpdate);
+  //auto state_index = this->DeclareDiscreteState(AcrobotState<T>());
+  //
+  auto state_index = this->DeclareContinuousState(AcrobotState<T>(), 2, 2, 0);
   this->DeclareStateOutputPort("acrobot_state", state_index);
 }
 
 template <typename T>
 template <typename U>
-AcrobotPlant<T>::AcrobotPlant(const AcrobotPlant<U>&) : AcrobotPlant<T>() {}
+AcrobotPlant<T>::AcrobotPlant(const AcrobotPlant<U>& other) : AcrobotPlant<T>(other.time_step()) {}
 
 template <typename T>
 void AcrobotPlant<T>::SetMitAcrobotParameters(
@@ -99,6 +103,13 @@ const {
 
 // Compute the actual physics.
 template <typename T>
+void AcrobotPlant<T>::DiscreteUpdate(
+    const systems::Context<T>& context,
+    systems::DiscreteValues<T>*) const {
+  std::cout << "hello world " << context.get_time() << std::endl;
+}
+
+template <typename T>
 void AcrobotPlant<T>::DoCalcTimeDerivatives(
     const systems::Context<T>& context,
     systems::ContinuousState<T>* derivatives) const {
@@ -137,95 +148,9 @@ void AcrobotPlant<T>::DoCalcImplicitTimeDerivativesResidual(
                M * proposed_vdot - (B * tau - bias);
 }
 
-template <typename T>
-T AcrobotPlant<T>::DoCalcKineticEnergy(
-    const systems::Context<T>& context) const {
-  const AcrobotState<T>& state = dynamic_cast<const AcrobotState<T>&>(
-      context.get_continuous_state_vector());
-
-  Matrix2<T> M = MassMatrix(context);
-  Vector2<T> qdot(state.theta1dot(), state.theta2dot());
-
-  return 0.5 * qdot.transpose() * M * qdot;
-}
-
-template <typename T>
-T AcrobotPlant<T>::DoCalcPotentialEnergy(
-    const systems::Context<T>& context) const {
-  const AcrobotState<T>& state = get_state(context);
-  const AcrobotParams<T>& p = get_parameters(context);
-
-  using std::cos;
-  const T c1 = cos(state.theta1());
-  const T c12 = cos(state.theta1() + state.theta2());
-
-  return -p.m1() * p.gravity() * p.lc1() * c1 -
-         p.m2() * p.gravity() * (p.l1() * c1 + p.lc2() * c12);
-}
-
-template <typename T>
-AcrobotWEncoder<T>::AcrobotWEncoder(bool acrobot_state_as_second_output) {
-  systems::DiagramBuilder<T> builder;
-
-  acrobot_plant_ = builder.template AddSystem<AcrobotPlant<T>>();
-  acrobot_plant_->set_name("acrobot_plant");
-  auto encoder =
-      builder.template AddSystem<systems::sensors::RotaryEncoders<T>>(
-          4, std::vector<int>{0, 1});
-  encoder->set_name("encoder");
-  builder.Cascade(*acrobot_plant_, *encoder);
-  builder.ExportInput(acrobot_plant_->get_input_port(0), "elbow_torque");
-  builder.ExportOutput(encoder->get_output_port(), "measured_joint_positions");
-  if (acrobot_state_as_second_output)
-    builder.ExportOutput(acrobot_plant_->get_output_port(0), "acrobot_state");
-
-  builder.BuildInto(this);
-}
-
-template <typename T>
-AcrobotState<T>& AcrobotWEncoder<T>::get_mutable_acrobot_state(
-    systems::Context<T>* context) const {
-  AcrobotState<T>* x = dynamic_cast<AcrobotState<T>*>(
-      &this->GetMutableSubsystemContext(*acrobot_plant_, context)
-           .get_mutable_continuous_state_vector());
-  DRAKE_DEMAND(x != nullptr);
-  return *x;
-}
-
-std::unique_ptr<systems::AffineSystem<double>> BalancingLQRController(
-    const AcrobotPlant<double>& acrobot) {
-  auto context = acrobot.CreateDefaultContext();
-
-  // Set nominal torque to zero.
-  acrobot.GetInputPort("elbow_torque").FixValue(context.get(), 0.0);
-
-  // Set nominal state to the upright fixed point.
-  AcrobotState<double>* x = dynamic_cast<AcrobotState<double>*>(
-      &context->get_mutable_continuous_state_vector());
-  DRAKE_ASSERT(x != nullptr);
-  x->set_theta1(M_PI);
-  x->set_theta2(0.0);
-  x->set_theta1dot(0.0);
-  x->set_theta2dot(0.0);
-
-  // Setup LQR Cost matrices (penalize position error 10x more than velocity
-  // to roughly address difference in units, using sqrt(g/l) as the time
-  // constant.
-  Eigen::Matrix4d Q = Eigen::Matrix4d::Identity();
-  Q(0, 0) = 10;
-  Q(1, 1) = 10;
-  Vector1d R = Vector1d::Constant(1);
-
-  return systems::controllers::LinearQuadraticRegulator(acrobot, *context, Q,
-                                                        R);
-}
-
 }  // namespace acrobot
 }  // namespace examples
 }  // namespace drake
 
 DRAKE_DEFINE_CLASS_TEMPLATE_INSTANTIATIONS_ON_DEFAULT_SCALARS(
     class ::drake::examples::acrobot::AcrobotPlant)
-
-DRAKE_DEFINE_CLASS_TEMPLATE_INSTANTIATIONS_ON_DEFAULT_NONSYMBOLIC_SCALARS(
-    class ::drake::examples::acrobot::AcrobotWEncoder)
