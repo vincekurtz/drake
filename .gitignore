@@ -7,6 +7,7 @@
 *~
 .#*
 *.bak
+*.swp
 # - Directories (at top level)
 /xcode/
 /.cproject/
