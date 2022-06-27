@@ -8,7 +8,7 @@
 using namespace drake;
 
 /**
- * A normal function that computes y = f(x)
+ * A normal function that computes y = f(x).
  */
 template <typename T>
 void TestFunction(const MatrixX<double>& A, const VectorX<T>& x,
