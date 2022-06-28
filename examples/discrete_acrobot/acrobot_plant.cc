@@ -116,12 +116,14 @@ void AcrobotPlant<T>::DiscreteUpdate(
   const Vector2<T> bias = DynamicsBiasTerm(context);
   const Vector2<T> B(0, 1);  // input matrix
 
+  // Factorize the mass matrix
+  const Eigen::LDLT<Matrix2<T>> M_ldlt(M);
+
   // Compute next state using symplectic Euler
-  // TODO: use factorization instead of inverse
   auto x = new_state->get_mutable_value();
   auto q = x.template segment<2>(0);
   auto v = x.template segment<2>(2);
-  v = M.inverse() * ( M * v0 + time_step() * (B * tau - bias) );
+  v = M_ldlt.solve( M * v0 + time_step() * (B * tau - bias) );
   q = q0 + time_step() * v;
 }
 
