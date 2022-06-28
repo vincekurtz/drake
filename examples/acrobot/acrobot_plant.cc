@@ -18,18 +18,31 @@ namespace examples {
 namespace acrobot {
 
 template <typename T>
-AcrobotPlant<T>::AcrobotPlant()
+AcrobotPlant<T>::AcrobotPlant(double dt)
     : systems::LeafSystem<T>(systems::SystemTypeTag<AcrobotPlant>{}) {
+  DRAKE_DEMAND(dt >= 0);
+  time_step_ = dt;
+
+  if (time_step_ == 0) {
+    // Continuous time system
+    auto state_index = this->DeclareContinuousState(
+        AcrobotState<T>(), 2 /* num_q */, 2 /* num_v */, 0 /* num_z */);
+    this->DeclareStateOutputPort("acrobot_state", state_index);
+  } else {
+    // Discrete time system
+    auto state_index = this->DeclareDiscreteState(AcrobotState<T>());
+    this->DeclareStateOutputPort("acrobot_state", state_index);
+    this->DeclarePeriodicDiscreteUpdateEvent(
+      time_step_, 0, &AcrobotPlant::DiscreteUpdate);
+  }
   this->DeclareNumericParameter(AcrobotParams<T>());
   this->DeclareVectorInputPort("elbow_torque", AcrobotInput<T>());
-  auto state_index = this->DeclareContinuousState(
-      AcrobotState<T>(), 2 /* num_q */, 2 /* num_v */, 0 /* num_z */);
-  this->DeclareStateOutputPort("acrobot_state", state_index);
 }
 
 template <typename T>
 template <typename U>
-AcrobotPlant<T>::AcrobotPlant(const AcrobotPlant<U>&) : AcrobotPlant<T>() {}
+AcrobotPlant<T>::AcrobotPlant(const AcrobotPlant<U>& other) :
+  AcrobotPlant<T>(other.time_step()) {}
 
 template <typename T>
 void AcrobotPlant<T>::SetMitAcrobotParameters(
@@ -135,6 +148,33 @@ void AcrobotPlant<T>::DoCalcImplicitTimeDerivativesResidual(
   *residual << proposed_qdot[0] - state.theta1dot(),
                proposed_qdot[1] - state.theta2dot(),
                M * proposed_vdot - (B * tau - bias);
+}
+
+template <typename T>
+void AcrobotPlant<T>::DiscreteUpdate(
+    const systems::Context<T>& context,
+    systems::DiscreteValues<T>* new_state) const {
+
+  // Compute current state
+  const Vector4<T>& x0 = context.get_discrete_state_vector().value();
+  const auto q0 = x0.template segment<2>(0);
+  const auto v0 = x0.template segment<2>(2);
+
+  // Compute manipulator dynamics terms, M*v + bias = B*tau
+  const T& tau = get_tau(context);
+  const Matrix2<T> M = MassMatrix(context);
+  const Vector2<T> bias = DynamicsBiasTerm(context);
+  const Vector2<T> B(0, 1);  // input matrix
+
+  // Factorize the mass matrix
+  const Eigen::LDLT<Matrix2<T>> M_ldlt(M);
+
+  // Compute next state using symplectic Euler
+  Eigen::VectorBlock<VectorX<T>> x = new_state->get_mutable_value();
+  auto q = x.template segment<2>(0);
+  auto v = x.template segment<2>(2);
+  v = M_ldlt.solve(M * v0 + time_step() * (B * tau - bias));
+  q = q0 + time_step() * v;
 }
 
 template <typename T>

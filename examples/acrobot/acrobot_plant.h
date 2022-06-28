@@ -44,7 +44,7 @@ class AcrobotPlant : public systems::LeafSystem<T> {
 
   /// Constructs the plant.  The parameters of the system are stored as
   /// Parameters in the Context (see acrobot_params_named_vector.yaml).
-  AcrobotPlant();
+  explicit AcrobotPlant(double dt = 0);
 
   /// Scalar-converting copy constructor.  See @ref system_scalar_conversion.
   template <typename U>
@@ -78,8 +78,17 @@ class AcrobotPlant : public systems::LeafSystem<T> {
     return dynamic_cast<const AcrobotState<T>&>(cstate.get_vector());
   }
 
-  static const AcrobotState<T>& get_state(const systems::Context<T>& context) {
-    return get_state(context.get_continuous_state());
+  static const AcrobotState<T>& get_state(
+      const systems::DiscreteValues<T>& dstate) {
+    return dynamic_cast<const AcrobotState<T>&>(dstate.get_vector());
+  }
+
+  const AcrobotState<T>& get_state(const systems::Context<T>& context) const {
+    if ( time_step_ == 0 ) {
+      return get_state(context.get_continuous_state());
+    } else {
+      return get_state(context.get_discrete_state());
+    }
   }
 
   static AcrobotState<T>& get_mutable_state(
@@ -87,8 +96,17 @@ class AcrobotPlant : public systems::LeafSystem<T> {
     return dynamic_cast<AcrobotState<T>&>(cstate->get_mutable_vector());
   }
 
-  static AcrobotState<T>& get_mutable_state(systems::Context<T>* context) {
-    return get_mutable_state(&context->get_mutable_continuous_state());
+  static AcrobotState<T>& get_mutable_state(
+      systems::DiscreteValues<T>* dstate) {
+    return dynamic_cast<AcrobotState<T>&>(dstate->get_mutable_vector());
+  }
+
+  AcrobotState<T>& get_mutable_state(systems::Context<T>* context) {
+    if ( time_step_ == 0 ) {
+      return get_mutable_state(&context->get_mutable_continuous_state());
+    } else {
+      return get_mutable_state(&context->get_mutable_discrete_state());
+    }
   }
 
   const AcrobotParams<T>& get_parameters(
@@ -100,7 +118,13 @@ class AcrobotPlant : public systems::LeafSystem<T> {
     return this->template GetMutableNumericParameter<AcrobotParams>(context, 0);
   }
 
+  double time_step() const {
+    return time_step_;
+  }
+
  private:
+  double time_step_;
+
   T DoCalcKineticEnergy(const systems::Context<T>& context) const override;
 
   T DoCalcPotentialEnergy(const systems::Context<T>& context) const override;
@@ -113,6 +137,10 @@ class AcrobotPlant : public systems::LeafSystem<T> {
     const systems::Context<T>& context,
     const systems::ContinuousState<T>& proposed_derivatives,
     EigenPtr<VectorX<T>> residual) const override;
+
+  void DiscreteUpdate(
+    const systems::Context<T>& context,
+    systems::DiscreteValues<T>* next_state) const;
 };
 
 /// Constructs the Acrobot with (only) encoder outputs.
