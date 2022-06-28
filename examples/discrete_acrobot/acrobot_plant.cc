@@ -106,11 +106,9 @@ void AcrobotPlant<T>::DiscreteUpdate(
     systems::DiscreteValues<T>* new_state) const {
 
   // Compute current state
-  const AcrobotState<T>& state = get_state(context);
-  Vector2<T> q0;   // is there a way to make q0 and v0 const?
-  q0 << state.theta1(), state.theta2();
-  Vector2<T> v0;
-  v0 << state.theta1dot(), state.theta2dot();
+  const Vector4<T> x0 = context.get_discrete_state_vector().value();
+  const Vector2<T> q0 = x0.template segment<2>(0);
+  const Vector2<T> v0 = x0.template segment<2>(2);
 
   // Compute manipulator dynamics terms, M*v + bias = B*tau
   const T& tau = get_tau(context);
@@ -118,19 +116,13 @@ void AcrobotPlant<T>::DiscreteUpdate(
   const Vector2<T> bias = DynamicsBiasTerm(context);
   const Vector2<T> B(0, 1);  // input matrix
 
-  Vector4<T> xdot;
-  xdot << state.theta1dot(), state.theta2dot(),
-          M.inverse() * (B * tau - bias);
-
   // Compute next state using symplectic Euler
-  // TODO: avoid extra allocations
   // TODO: use factorization instead of inverse
-  Vector2<T> v = M.inverse() * ( M * v0 + time_step() * (B * tau - bias) );
-  Vector2<T> q = q0 + time_step() * v;
-  Vector4<T> x;
-  x << q, v;
-
-  new_state->set_value(x);
+  auto x = new_state->get_mutable_value();
+  auto q = x.template segment<2>(0);
+  auto v = x.template segment<2>(2);
+  v = M.inverse() * ( M * v0 + time_step() * (B * tau - bias) );
+  q = q0 + time_step() * v;
 }
 
 }  // namespace acrobot
