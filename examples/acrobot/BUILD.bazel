@@ -249,6 +249,16 @@ drake_cc_binary(
 )
 
 drake_cc_binary(
+    name = "autodiff_test",
+    srcs = ["autodiff_test.cc"],
+    deps = [
+        ":acrobot_geometry",
+        ":acrobot_plant",
+        "//systems/analysis:simulator",
+    ],
+)
+
+drake_cc_binary(
     name = "run_swing_up",
     srcs = [
         "run_swing_up.cc",
