@@ -4,6 +4,7 @@
 // drake::system classes.  It defines a very simple discrete time system,
 // simulates it from a given initial condition, and checks the result.
 
+#include <iostream>
 #include "drake/systems/analysis/simulator.h"
 #include "drake/systems/framework/leaf_system.h"
 
@@ -28,6 +29,7 @@ class SimpleDiscreteTimeSystem : public LeafSystem<double> {
   void Update(const Context<double>& context,
               DiscreteValues<double>* next_state) const {
     const double x_n = context.get_discrete_state()[0];
+    std::cout << "in update" << std::endl;  // debug
     (*next_state)[0] = std::pow(x_n, 3.0);
   }
 };
@@ -44,13 +46,16 @@ int main() {
       simulator.get_mutable_context().get_mutable_discrete_state();
   state[0] = 0.99;
 
-  // Simulate for 10 seconds.
-  simulator.AdvanceTo(10);
+  // Here I want to compute the next state x_{n+1}, but 
+  // SimpleDiscreteTimeSystem::Update is not being called.
+  std::cout << "Initial state: " << state.get_value() << std::endl;   // 0.99
+  system.CalcDiscreteVariableUpdates(simulator.get_mutable_context(), &state);
+  std::cout << "Next state: " << state.get_value() << std::endl;      // 0.99
 
-  // Make sure the simulation converges to the stable fixed point at x=0.
-  DRAKE_DEMAND(state[0] < 1.0e-4);
-
-  // TODO(russt): make a plot of the resulting trajectory.
+  // This version works
+  std::cout << "Initial state: " << state.get_value() << std::endl;  // 0.99
+  simulator.AdvanceTo(1);
+  std::cout << "Next state: " << state.get_value() << std::endl;     // 0.970299
 
   return 0;
 }
