@@ -18,16 +18,19 @@ namespace {
 class SimpleDiscreteTimeSystem : public LeafSystem<double> {
  public:
   SimpleDiscreteTimeSystem() {
-    DeclarePeriodicDiscreteUpdateEvent(1.0, 0.0,
-                                       &SimpleDiscreteTimeSystem::Update);
+    //DeclarePeriodicDiscreteUpdateEvent(1.0, 0.0,
+    //                                   &SimpleDiscreteTimeSystem::Update);
+    DeclarePeriodicDiscreteUpdate(1.0, 0.0);
     auto state_index = DeclareDiscreteState(1);  // One state variable.
     DeclareStateOutputPort("y", state_index);
   }
 
  private:
   // x_{n+1} = x_n³
-  void Update(const Context<double>& context,
-              DiscreteValues<double>* next_state) const {
+  void DoCalcDiscreteVariableUpdates(
+      const Context<double>& context,
+      const std::vector< const DiscreteUpdateEvent<double>*>&,
+      DiscreteValues<double>* next_state) const override {
     const double x_n = context.get_discrete_state()[0];
     std::cout << "in update" << std::endl;  // debug
     (*next_state)[0] = std::pow(x_n, 3.0);
@@ -38,24 +41,16 @@ int main() {
   // Create the simple system.
   SimpleDiscreteTimeSystem system;
 
-  // Create the simulator.
-  Simulator<double> simulator(system);
-
   // Set the initial conditions x₀.
-  DiscreteValues<double>& state =
-      simulator.get_mutable_context().get_mutable_discrete_state();
-  state[0] = 0.99;
+  std::unique_ptr<Context<double>> context = system.CreateDefaultContext();
+  context->get_mutable_discrete_state()[0] = 0.99;
 
-  // Here I want to compute the next state x_{n+1}, but 
-  // SimpleDiscreteTimeSystem::Update is not being called.
-  std::cout << "Initial state: " << state.get_value() << std::endl;   // 0.99
-  system.CalcDiscreteVariableUpdates(simulator.get_mutable_context(), &state);
-  std::cout << "Next state: " << state.get_value() << std::endl;      // 0.99
-
-  // This version works
-  std::cout << "Initial state: " << state.get_value() << std::endl;  // 0.99
-  simulator.AdvanceTo(1);
-  std::cout << "Next state: " << state.get_value() << std::endl;     // 0.970299
+  // Here I want to compute the next state x_{n+1}.
+  std::cout << "Initial state: " << context->get_discrete_state().get_value() << std::endl;
+  std::unique_ptr<DiscreteValues<double>> next_state =
+      system.AllocateDiscreteVariables();
+  system.CalcDiscreteVariableUpdates(*context, next_state.get());
+  std::cout << "Next state: " << next_state->get_value() << std::endl;
 
   return 0;
 }
