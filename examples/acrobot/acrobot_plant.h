@@ -44,7 +44,7 @@ class AcrobotPlant : public systems::LeafSystem<T> {
 
   /// Constructs the plant.  The parameters of the system are stored as
   /// Parameters in the Context (see acrobot_params_named_vector.yaml).
-  AcrobotPlant(double dt = 0);
+  explicit AcrobotPlant(double dt = 0);
 
   /// Scalar-converting copy constructor.  See @ref system_scalar_conversion.
   template <typename U>
@@ -77,15 +77,12 @@ class AcrobotPlant : public systems::LeafSystem<T> {
       const systems::ContinuousState<T>& cstate) {
     return dynamic_cast<const AcrobotState<T>&>(cstate.get_vector());
   }
-  
+
   static const AcrobotState<T>& get_state(
       const systems::DiscreteValues<T>& dstate) {
     return dynamic_cast<const AcrobotState<T>&>(dstate.get_vector());
   }
 
-  //static const AcrobotState<T>& get_state(const systems::Context<T>& context) {
-  //  return get_state(context.get_discrete_state());
-  //}
   const AcrobotState<T>& get_state(const systems::Context<T>& context) const {
     if ( time_step_ == 0 ) {
       return get_state(context.get_continuous_state());

@@ -32,7 +32,8 @@ AcrobotPlant<T>::AcrobotPlant(double dt)
     // Discrete time system
     auto state_index = this->DeclareDiscreteState(AcrobotState<T>());
     this->DeclareStateOutputPort("acrobot_state", state_index);
-    this->DeclarePeriodicDiscreteUpdateEvent(time_step_, 0, &AcrobotPlant::DiscreteUpdate);
+    this->DeclarePeriodicDiscreteUpdateEvent(
+      time_step_, 0, &AcrobotPlant::DiscreteUpdate);
   }
   this->DeclareNumericParameter(AcrobotParams<T>());
   this->DeclareVectorInputPort("elbow_torque", AcrobotInput<T>());
@@ -40,7 +41,8 @@ AcrobotPlant<T>::AcrobotPlant(double dt)
 
 template <typename T>
 template <typename U>
-AcrobotPlant<T>::AcrobotPlant(const AcrobotPlant<U>& other) : AcrobotPlant<T>(other.time_step()) {}
+AcrobotPlant<T>::AcrobotPlant(const AcrobotPlant<U>& other) :
+  AcrobotPlant<T>(other.time_step()) {}
 
 template <typename T>
 void AcrobotPlant<T>::SetMitAcrobotParameters(
@@ -171,7 +173,7 @@ void AcrobotPlant<T>::DiscreteUpdate(
   Eigen::VectorBlock<VectorX<T>> x = new_state->get_mutable_value();
   auto q = x.template segment<2>(0);
   auto v = x.template segment<2>(2);
-  v = M_ldlt.solve( M * v0 + time_step() * (B * tau - bias) );
+  v = M_ldlt.solve(M * v0 + time_step() * (B * tau - bias));
   q = q0 + time_step() * v;
 }
 

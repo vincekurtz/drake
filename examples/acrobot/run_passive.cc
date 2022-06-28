@@ -23,7 +23,7 @@ DEFINE_double(simulation_sec, 10.0,
 DEFINE_double(realtime_factor, 1.0,
               "Playback speed.  See documentation for "
               "Simulator::set_target_realtime_rate() for details.");
-DEFINE_double(time_step, 1e-2, 
+DEFINE_double(time_step, 1e-2,
               "Discrete simulation timestep. "
               "Continuous time if time_step=0.");
 
