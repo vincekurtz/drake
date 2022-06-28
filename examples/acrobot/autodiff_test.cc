@@ -31,9 +31,9 @@ int do_main() {
 
   // Simulate forward one timestep
   //systems::DiscreteValues<double>& x = context->get_mutable_discrete_state();
-  std::unique_ptr<systems::DiscreteValues<double>> x = acrobot.AllocateDiscreteVariables();
-  acrobot.CalcDiscreteVariableUpdates(*context, x.get());
-  std::cout << acrobot.get_state(*x) << std::endl;
+  //std::unique_ptr<systems::DiscreteValues<double>> x = acrobot.AllocateDiscreteVariables();
+  //acrobot.CalcDiscreteVariableUpdates(*context, x.get());
+  //std::cout << acrobot.get_state(*x) << std::endl;
 
   systems::Simulator<double> simulator(acrobot, std::move(context));
   simulator.Initialize();

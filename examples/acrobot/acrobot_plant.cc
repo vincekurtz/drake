@@ -2,7 +2,6 @@
 
 #include <cmath>
 #include <vector>
-#include <iostream>  // DEBUG
 
 #include "drake/common/default_scalars.h"
 #include "drake/common/drake_throw.h"
@@ -155,9 +154,6 @@ template <typename T>
 void AcrobotPlant<T>::DiscreteUpdate(
     const systems::Context<T>& context,
     systems::DiscreteValues<T>* new_state) const {
-
-  // DEBUG
-  std::cout << "in discrete update" << std::endl;
 
   // Compute current state
   const Vector4<T>& x0 = context.get_discrete_state_vector().value();
