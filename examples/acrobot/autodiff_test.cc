@@ -1,4 +1,5 @@
 #include <iostream>
+#include <chrono>
 #include "drake/examples/acrobot/acrobot_geometry.h"
 #include "drake/examples/acrobot/acrobot_plant.h"
 #include "drake/examples/acrobot/gen/acrobot_state.h"
@@ -17,6 +18,11 @@ int do_main() {
   // Define the simulation timestep
   const double dt = 1e-2;
 
+  // Set up some timers
+  auto st = std::chrono::high_resolution_clock::now();
+  std::chrono::duration<double> elapsed_normal;
+  //std::chrono::duration<double> elapsed_fancy;
+
   // Create the autodiff plant
   AcrobotPlant<AutoDiffXd> acrobot(dt);
   auto context = acrobot.CreateDefaultContext();
@@ -32,12 +38,15 @@ int do_main() {
   context->SetDiscreteState(x0);
 
   // Simulate forward one timestep
+  st = std::chrono::high_resolution_clock::now();
   std::unique_ptr<systems::DiscreteValues<AutoDiffXd>> state = acrobot.AllocateDiscreteVariables();
   acrobot.CalcDiscreteVariableUpdates(*context, state.get());
   VectorX<AutoDiffXd> x = state->value();
+  elapsed_normal = std::chrono::high_resolution_clock::now() - st;
 
   std::cout << math::ExtractValue(x) << std::endl;
   std::cout << math::ExtractGradient(x) << std::endl;
+  std::cout << elapsed_normal.count() << std::endl;
 
   return 0;
 }
