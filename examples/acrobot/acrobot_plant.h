@@ -14,6 +14,40 @@ namespace drake {
 namespace examples {
 namespace acrobot {
 
+/// A simple solver for the discrete-time acrobot. Solves 
+/// 
+///  M * (v - v0) = dt * bias
+/// 
+/// for v, and stores the factorization of M. 
+/// 
+/// M is the mass matrix, v0 is the velocity at
+/// the previous timestep, dt is the step size, and bias collects
+/// all nonlinear terms including external torques. 
+/// 
+/// This is meant to be a pale imitation of SapSolver.
+template <typename T>
+class DiscreteAcrobotSolver {
+ public:
+  // Solve M * (v - v0) = dt * bias for v
+  void SolveForwardDynamics(const MatrixX<T>& M, const VectorX<T>& bias,
+                       const VectorX<T>& v0, const double dt,
+                       EigenPtr<VectorX<T>> v) {
+    M_ldlt.compute(M);
+    *v = M_ldlt.solve(M * v0 + dt * bias);
+  }
+
+  // Solve M * dv_dtheta = - dr_dtheta for dv_dtheta using the factorization
+  // of M computed in SolveForwardDynamics.
+  void PropagateDerivatives(const MatrixX<T>& dr_dtheta,
+                       EigenPtr<MatrixX<T>> dv_dtheta) {
+    *dv_dtheta = M_ldlt.solve(-dr_dtheta);
+  }
+
+ private:
+  // Mass matrix factorization
+  Eigen::LDLT<MatrixX<T>> M_ldlt;
+};
+
 /// @defgroup acrobot_systems Acrobot
 /// @{
 /// @brief Systems related to the Acrobot example.
@@ -44,7 +78,7 @@ class AcrobotPlant : public systems::LeafSystem<T> {
 
   /// Constructs the plant.  The parameters of the system are stored as
   /// Parameters in the Context (see acrobot_params_named_vector.yaml).
-  explicit AcrobotPlant(double dt = 0);
+  explicit AcrobotPlant(double dt = 0, bool fancy_gradients=false);
 
   /// Scalar-converting copy constructor.  See @ref system_scalar_conversion.
   template <typename U>
@@ -125,6 +159,9 @@ class AcrobotPlant : public systems::LeafSystem<T> {
  private:
   double time_step_;
 
+  // Flag indicating whether we're overriding gradient computation for AutoDiffXd
+  bool fancy_gradients_;
+
   T DoCalcKineticEnergy(const systems::Context<T>& context) const override;
 
   T DoCalcPotentialEnergy(const systems::Context<T>& context) const override;
@@ -138,9 +175,18 @@ class AcrobotPlant : public systems::LeafSystem<T> {
     const systems::ContinuousState<T>& proposed_derivatives,
     EigenPtr<VectorX<T>> residual) const override;
 
-  void DiscreteUpdate(
-    const systems::Context<T>& context,
-    systems::DiscreteValues<T>* next_state) const;
+  void DoCalcDiscreteVariableUpdates(
+      const systems::Context<T>& context,
+      const std::vector<const systems::DiscreteUpdateEvent<T>*>& events,
+      systems::DiscreteValues<T>* next_state) const override;
+
+  // Helper function for computing discrete updates.
+  void DiscreteUpdate(const systems::Context<T>& context,
+                      systems::DiscreteValues<T>* next_state) const;
+
+  void CalcResidual(const Matrix2<T>& M, const Vector2<T>& bias,
+                    const Vector2<T>& v, const Vector2<T>& v0,
+                    EigenPtr<Vector2<T>> r) const;
 };
 
 /// Constructs the Acrobot with (only) encoder outputs.
