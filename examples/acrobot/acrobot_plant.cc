@@ -224,7 +224,7 @@ void AcrobotPlant<AutoDiffXd>::DoCalcDiscreteVariableUpdates(
     const Vector2<double> v0_double = math::ExtractValue(v0);
     const Vector2<double> q0_double = math::ExtractValue(q0);
 
-    Vector4<double> x_double;
+    VectorX<double> x_double(4);
     auto q_double = x_double.template segment<2>(0);
     auto v_double = x_double.template segment<2>(2);
     DiscreteAcrobotSolver<double> solver;
@@ -244,12 +244,9 @@ void AcrobotPlant<AutoDiffXd>::DoCalcDiscreteVariableUpdates(
     solver.PropagateDerivatives(dr_dtheta, &dv_dtheta);
     dq_dtheta = math::ExtractGradient(q0) + time_step() * dv_dtheta;
 
-    std::cout << x_double << std::endl;
-    std::cout << dx_dtheta << std::endl;
-
     // Load gradients and values back into the result
-    //auto new_x = new_state->get_mutable_value();
-    //new_x.noalias() = math::InitializeAutoDiff(x_double, dx_dtheta);
+    auto new_x = new_state->get_mutable_value();
+    math::InitializeAutoDiff(x_double, dx_dtheta, &new_x);
 
   } else {
     // Just do things normally with AutoDiffXd
