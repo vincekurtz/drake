@@ -240,14 +240,12 @@ void AcrobotPlant<AutoDiffXd>::DoCalcDiscreteVariableUpdates(
     const Vector2<double> v0_double = math::ExtractValue(v0);
     const Vector2<double> q0_double = math::ExtractValue(q0);
 
-    Vector2<double> v_double;              // TODO: replace with AcrobotSolver
-    Vector2<double> q_double;
+    Vector4<double> x_double;
+    auto q_double = x_double.template segment<2>(0);
+    auto v_double = x_double.template segment<2>(2);
     Eigen::LDLT<Matrix2<double>> M_ldlt;
     ForwardDynamics<double>(M_double, bias_double, v0_double, &M_ldlt, &v_double);
     q_double = q0_double + time_step() * v_double;
-
-    Vector4<double> x_double;
-    x_double << q_double, v_double;
 
     // Compute the gradient of the residual via autodiff
     Vector2<AutoDiffXd> r;
@@ -256,11 +254,11 @@ void AcrobotPlant<AutoDiffXd>::DoCalcDiscreteVariableUpdates(
     MatrixX<double> dr_dtheta = math::ExtractGradient(r);
 
     // Use implicit function theorem to compute gradients
-    MatrixX<double> dv_dtheta = M_ldlt.solve(-dr_dtheta);
-    MatrixX<double> dq_dtheta = math::ExtractGradient(q0) + time_step() * dv_dtheta;
-    MatrixX<double> dx_dtheta(dq_dtheta.rows()+dv_dtheta.rows(), dv_dtheta.cols());
-    dx_dtheta << dq_dtheta,
-                 dv_dtheta;
+    MatrixX<double> dx_dtheta(4, dr_dtheta.cols());
+    auto dq_dtheta = dx_dtheta.template topRows<2>();
+    auto dv_dtheta = dx_dtheta.template bottomRows<2>();
+    dv_dtheta = M_ldlt.solve(-dr_dtheta);
+    dq_dtheta = math::ExtractGradient(q0) + time_step() * dv_dtheta;
 
     std::cout << x_double << std::endl;
     std::cout << dx_dtheta << std::endl;
