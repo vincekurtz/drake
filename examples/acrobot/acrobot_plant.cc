@@ -175,25 +175,9 @@ void AcrobotPlant<T>::DiscreteUpdate(
   auto q = x.template segment<2>(0);
   auto v = x.template segment<2>(2);
 
-  Eigen::LDLT<Matrix2<T>> M_ldlt;
-  ForwardDynamics<T>(M, bias, v0, &M_ldlt, &v);
-
+  DiscreteAcrobotSolver<T> solver;
+  solver.SolveForwardDynamics(M, bias, v0, time_step_, &v);
   q = q0 + time_step() * v;
-}
-
-// Factorize the mass matrix and compute the next-step velocity. 
-// This is the "SAP eqivalent" step, which we want to avoid doing with AutoDiffXd.
-template <typename T>
-template <typename U>
-void AcrobotPlant<T>::ForwardDynamics(
-    const Matrix2<U>& M,             // mass matrix
-    const Vector2<U>& bias,          // all nonlinear terms
-    const Vector2<U>& v0,            // initial velocity
-    Eigen::LDLT<Matrix2<U>>* M_ldlt, // mass matrix factorization
-    EigenPtr<Vector2<U>> v           // final velocity
-  ) const {
-  M_ldlt->compute(M);
-  *v = M_ldlt->solve(M * v0 + time_step() * bias);
 }
 
 template <typename T>
@@ -243,8 +227,8 @@ void AcrobotPlant<AutoDiffXd>::DoCalcDiscreteVariableUpdates(
     Vector4<double> x_double;
     auto q_double = x_double.template segment<2>(0);
     auto v_double = x_double.template segment<2>(2);
-    Eigen::LDLT<Matrix2<double>> M_ldlt;
-    ForwardDynamics<double>(M_double, bias_double, v0_double, &M_ldlt, &v_double);
+    DiscreteAcrobotSolver<double> solver;
+    solver.SolveForwardDynamics(M_double, bias_double, v0_double, time_step_, &v_double);
     q_double = q0_double + time_step() * v_double;
 
     // Compute the gradient of the residual via autodiff
@@ -257,7 +241,7 @@ void AcrobotPlant<AutoDiffXd>::DoCalcDiscreteVariableUpdates(
     MatrixX<double> dx_dtheta(4, dr_dtheta.cols());
     auto dq_dtheta = dx_dtheta.template topRows<2>();
     auto dv_dtheta = dx_dtheta.template bottomRows<2>();
-    dv_dtheta = M_ldlt.solve(-dr_dtheta);
+    solver.PropagateDerivatives(dr_dtheta, &dv_dtheta);
     dq_dtheta = math::ExtractGradient(q0) + time_step() * dv_dtheta;
 
     std::cout << x_double << std::endl;

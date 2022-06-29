@@ -14,6 +14,40 @@ namespace drake {
 namespace examples {
 namespace acrobot {
 
+/// A simple solver for the discrete-time acrobot. Solves 
+/// 
+///  M * (v - v0) = dt * bias
+/// 
+/// for v, and stores the factorization of M. 
+/// 
+/// M is the mass matrix, v0 is the velocity at
+/// the previous timestep, dt is the step size, and bias collects
+/// all nonlinear terms including external torques. 
+/// 
+/// This is meant to be a pale imitation of SapSolver.
+template <typename T>
+class DiscreteAcrobotSolver {
+ public:
+  // Solve M * (v - v0) = dt * bias for v
+  void SolveForwardDynamics(const MatrixX<T>& M, const VectorX<T>& bias,
+                       const VectorX<T>& v0, const double dt,
+                       EigenPtr<VectorX<T>> v) {
+    M_ldlt.compute(M);
+    *v = M_ldlt.solve(M * v0 + dt * bias);
+  }
+
+  // Solve M * dv_dtheta = - dr_dtheta for dv_dtheta using the factorization
+  // of M computed in SolveForwardDynamics.
+  void PropagateDerivatives(const MatrixX<T>& dr_dtheta,
+                       EigenPtr<MatrixX<T>> dv_dtheta) {
+    *dv_dtheta = M_ldlt.solve(-dr_dtheta);
+  }
+
+ private:
+  // Mass matrix factorization
+  Eigen::LDLT<MatrixX<T>> M_ldlt;
+};
+
 /// @defgroup acrobot_systems Acrobot
 /// @{
 /// @brief Systems related to the Acrobot example.
@@ -149,11 +183,6 @@ class AcrobotPlant : public systems::LeafSystem<T> {
   // Helper function for computing discrete updates.
   void DiscreteUpdate(const systems::Context<T>& context,
                       systems::DiscreteValues<T>* next_state) const;
-
-  template <typename U>
-  void ForwardDynamics(const Matrix2<U>& M, const Vector2<U>& bias,
-                       const Vector2<U>& v0, Eigen::LDLT<Matrix2<U>>* M_ldlt,
-                       EigenPtr<Vector2<U>> v) const;
 
   void CalcResidual(const Matrix2<T>& M, const Vector2<T>& bias,
                     const Vector2<T>& v, const Vector2<T>& v0,
