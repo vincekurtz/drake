@@ -2,6 +2,7 @@
 
 #include <cmath>
 #include <vector>
+#include <iostream> // DEBUG
 
 #include "drake/common/default_scalars.h"
 #include "drake/common/drake_throw.h"
@@ -9,6 +10,8 @@
 #include "drake/systems/framework/diagram.h"
 #include "drake/systems/framework/diagram_builder.h"
 #include "drake/systems/sensors/rotary_encoders.h"
+#include "drake/common/autodiff.h"
+#include "drake/math/autodiff_gradient.h"
 
 using std::sin;
 using std::cos;
@@ -18,10 +21,11 @@ namespace examples {
 namespace acrobot {
 
 template <typename T>
-AcrobotPlant<T>::AcrobotPlant(double dt)
+AcrobotPlant<T>::AcrobotPlant(double dt, bool fancy_gradients)
     : systems::LeafSystem<T>(systems::SystemTypeTag<AcrobotPlant>{}) {
   DRAKE_DEMAND(dt >= 0);
   time_step_ = dt;
+  fancy_gradients_ = fancy_gradients;
 
   if (time_step_ == 0) {
     // Continuous time system
@@ -149,10 +153,10 @@ void AcrobotPlant<T>::DoCalcImplicitTimeDerivativesResidual(
                M * proposed_vdot - (B * tau - bias);
 }
 
+
 template <typename T>
-void AcrobotPlant<T>::DoCalcDiscreteVariableUpdates(
+void AcrobotPlant<T>::DiscreteUpdate(
     const systems::Context<T>& context,
-    const std::vector< const systems::DiscreteUpdateEvent<T>*>&,
     systems::DiscreteValues<T>* new_state) const {
 
   // Compute current state
@@ -163,19 +167,106 @@ void AcrobotPlant<T>::DoCalcDiscreteVariableUpdates(
   // Compute manipulator dynamics terms, M*v + bias = B*tau
   const T& tau = get_tau(context);
   const Matrix2<T> M = MassMatrix(context);
-  const Vector2<T> bias = DynamicsBiasTerm(context);
   const Vector2<T> B(0, 1);  // input matrix
-
-  // Factorize the mass matrix
-  const Eigen::LDLT<Matrix2<T>> M_ldlt(M);
+  const Vector2<T> bias = B * tau - DynamicsBiasTerm(context);
 
   // Compute next state using symplectic Euler
   Eigen::VectorBlock<VectorX<T>> x = new_state->get_mutable_value();
   auto q = x.template segment<2>(0);
   auto v = x.template segment<2>(2);
-  v = M_ldlt.solve(M * v0 + time_step() * (B * tau - bias));
+
+  Eigen::LDLT<Matrix2<T>> M_ldlt;
+  ForwardDynamics(M, bias, v0, &M_ldlt, &v);
+
   q = q0 + time_step() * v;
 }
+
+// Factorize the mass matrix and compute the next-step velocity. 
+// This is the "SAP eqivalent" step, which we want to avoid doing with AutoDiffXd.
+template <typename T>
+void AcrobotPlant<T>::ForwardDynamics(
+    const Matrix2<T>& M,             // mass matrix
+    const Vector2<T>& bias_tau,      // all nonlinear terms
+    const Vector2<T>& v0,            // initial velocity
+    Eigen::LDLT<Matrix2<T>>* M_ldlt,  // mass matrix factorization
+    EigenPtr<Vector2<T>> v           // final velocity
+  ) const {
+  M_ldlt->compute(M);
+  *v = M_ldlt->solve(M * v0 + time_step() * bias_tau);
+}
+
+//void AcrobotPlant<T>::InverseDynamics(double dt, const MatrixX<T>& M, v0, tau, v, r) {
+//  r = M*(v-v0) - dt * tau
+//}
+
+template <typename T>
+void AcrobotPlant<T>::DoCalcDiscreteVariableUpdates(
+    const systems::Context<T>& context,
+    const std::vector< const systems::DiscreteUpdateEvent<T>*>&,
+    systems::DiscreteValues<T>* new_state) const {
+  DiscreteUpdate(context, new_state);
+}
+
+// Discrete update override for T=AutoDiffXd
+template <>
+void AcrobotPlant<AutoDiffXd>::DoCalcDiscreteVariableUpdates(
+    const systems::Context<AutoDiffXd>& context,
+    const std::vector< const systems::DiscreteUpdateEvent<AutoDiffXd>*>&,
+    systems::DiscreteValues<AutoDiffXd>* new_state) const {
+
+  //if ( fancy_gradients_ ) {
+  //  const Eigen::LDLT<Matrix2<double>> M_ldlt = ForwardDynamics(dt, M_double, v0_double, tau_double, &v_double)
+
+  //  // Compute gradient stuff
+  //  r = InverseDynamics(dt, M, v0, tau, v, r);  // autodiff versions
+  //  dr_dx0 = math::ExtractGradients(r);
+
+  //  dv_dx0 = M_ldlt.solve(-dr);
+  //  
+  //} else {
+  //  ForwardDynamics(dt, M, v0, tau, &v);
+  //}
+  //if (fancy_gradients_) {
+  //  // Compute gradients manually via implicit function theorem
+
+  //  // Separate out the initial state and initial gradients
+  //  const Vector4<AutoDiffXd>& x0 = context.get_discrete_state_vector().value();
+  //  const Vector4<double>& x0_val = math::ExtractValue(x0);
+  //  const MatrixX<double>& x0_deriv = math::ExtractGradient(x0);
+
+  //  // Perform the state update with double arithmetic 
+  //  // TODO: consider calling DiscreteUpdate somehow for this
+  //  const auto q0_val = x0_val.template segment<2>(0);
+  //  const auto v0_val = x0_val.template segment<2>(2);
+
+  //  (void) q0_val;
+  //  (void) v0_val;
+
+  //  std::unique_ptr<AcrobotPlant<double>> double_plant = this->ToScalarType<double>();
+
+  //  //// Compute manipulator dynamics terms, M*v + bias = B*tau
+  //  //const double& tau = get_tau(context);
+  //  //const Matrix2<double> M = MassMatrix(context);
+  //  //const Vector2<double> bias = DynamicsBiasTerm(context);
+  //  //const Vector2<double> B(0, 1);  // input matrix
+
+  //  //// Factorize the mass matrix
+  //  //const Eigen::LDLT<Matrix2<double>> M_ldlt(M);
+
+  //  //// Compute next state using symplectic Euler
+  //  //Eigen::VectorBlock<VectorX<double>> x = new_state->get_mutable_value();
+  //  //auto q = x.template segment<2>(0);
+  //  //auto v = x.template segment<2>(2);
+  //  //v = M_ldlt.solve(M * v0 + time_step() * (B * tau - bias));
+  //  //q = q0 + time_step() * v;
+
+
+  //} else {
+    // Just do things normally with AutoDiffXd
+    DiscreteUpdate(context, new_state);
+  //}
+}
+
 
 template <typename T>
 T AcrobotPlant<T>::DoCalcKineticEnergy(

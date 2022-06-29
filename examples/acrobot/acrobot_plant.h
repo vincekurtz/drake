@@ -44,7 +44,7 @@ class AcrobotPlant : public systems::LeafSystem<T> {
 
   /// Constructs the plant.  The parameters of the system are stored as
   /// Parameters in the Context (see acrobot_params_named_vector.yaml).
-  explicit AcrobotPlant(double dt = 0);
+  explicit AcrobotPlant(double dt = 0, bool fancy_gradients=false);
 
   /// Scalar-converting copy constructor.  See @ref system_scalar_conversion.
   template <typename U>
@@ -125,6 +125,9 @@ class AcrobotPlant : public systems::LeafSystem<T> {
  private:
   double time_step_;
 
+  // Flag indicating whether we're overriding gradient computation for AutoDiffXd
+  bool fancy_gradients_;
+
   T DoCalcKineticEnergy(const systems::Context<T>& context) const override;
 
   T DoCalcPotentialEnergy(const systems::Context<T>& context) const override;
@@ -142,6 +145,19 @@ class AcrobotPlant : public systems::LeafSystem<T> {
       const systems::Context<T>& context,
       const std::vector<const systems::DiscreteUpdateEvent<T>*>& events,
       systems::DiscreteValues<T>* next_state) const override;
+
+  // Helper function for computing discrete updates.
+  void DiscreteUpdate(
+      const systems::Context<T>& context,
+      systems::DiscreteValues<T>* next_state) const;
+
+  void ForwardDynamics(
+    const Matrix2<T>& M,        // mass matrix
+    const Vector2<T>& bias_tau, // all nonlinear terms
+    const Vector2<T>& v0,       // initial velocity
+    Eigen::LDLT<Matrix2<T>>* M_ldlt,  // mass matrix factorization
+    EigenPtr<Vector2<T>> v      // final velocity
+  ) const;
 };
 
 /// Constructs the Acrobot with (only) encoder outputs.
