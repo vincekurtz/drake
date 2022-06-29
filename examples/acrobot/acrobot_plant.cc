@@ -32,8 +32,7 @@ AcrobotPlant<T>::AcrobotPlant(double dt)
     // Discrete time system
     auto state_index = this->DeclareDiscreteState(AcrobotState<T>());
     this->DeclareStateOutputPort("acrobot_state", state_index);
-    this->DeclarePeriodicDiscreteUpdateEvent(
-      time_step_, 0, &AcrobotPlant::DiscreteUpdate);
+    this->DeclarePeriodicDiscreteUpdate(time_step_, 0);
   }
   this->DeclareNumericParameter(AcrobotParams<T>());
   this->DeclareVectorInputPort("elbow_torque", AcrobotInput<T>());
@@ -151,8 +150,9 @@ void AcrobotPlant<T>::DoCalcImplicitTimeDerivativesResidual(
 }
 
 template <typename T>
-void AcrobotPlant<T>::DiscreteUpdate(
+void AcrobotPlant<T>::DoCalcDiscreteVariableUpdates(
     const systems::Context<T>& context,
+    const std::vector< const systems::DiscreteUpdateEvent<T>*>&,
     systems::DiscreteValues<T>* new_state) const {
 
   // Compute current state

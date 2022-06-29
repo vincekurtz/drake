@@ -138,9 +138,10 @@ class AcrobotPlant : public systems::LeafSystem<T> {
     const systems::ContinuousState<T>& proposed_derivatives,
     EigenPtr<VectorX<T>> residual) const override;
 
-  void DiscreteUpdate(
-    const systems::Context<T>& context,
-    systems::DiscreteValues<T>* next_state) const;
+  void DoCalcDiscreteVariableUpdates(
+      const systems::Context<T>& context,
+      const std::vector<const systems::DiscreteUpdateEvent<T>*>& events,
+      systems::DiscreteValues<T>* next_state) const override;
 };
 
 /// Constructs the Acrobot with (only) encoder outputs.

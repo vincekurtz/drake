@@ -254,6 +254,8 @@ drake_cc_binary(
     deps = [
         ":acrobot_geometry",
         ":acrobot_plant",
+        "//common:autodiff",
+        "//math:gradient",
         "//systems/analysis:simulator",
     ],
 )
