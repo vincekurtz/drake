@@ -23,7 +23,8 @@ namespace {
  *
  * Returns the compute time (in seconds).
  */
-double run_test(bool fancy_gradients) {
+std::tuple<double, VectorX<double>, MatrixX<double>> run_test(
+    bool fancy_gradients) {
   // Define the simulation timestep
   const double dt = 1e-2;
 
@@ -51,24 +52,26 @@ double run_test(bool fancy_gradients) {
       acrobot.AllocateDiscreteVariables();
   acrobot.CalcDiscreteVariableUpdates(*context, state.get());
   VectorX<AutoDiffXd> x = state->value();
+
   elapsed = std::chrono::high_resolution_clock::now() - st;
 
-  std::cout << math::ExtractValue(x) << std::endl;
-  std::cout << math::ExtractGradient(x) << std::endl;
-
-  return elapsed.count();
+  return {elapsed.count(), math::ExtractValue(x), math::ExtractGradient(x)};
 }
 
 // Simple example of computing dynamics gradients with autodiff
 int do_main() { 
-  std::cout << "Normal Autodiff:" << std::endl;
-  double normal_autodiff_time = run_test(false);
-  std::cout << "Compute time: " << normal_autodiff_time << " s" << std::endl;
+  // Compute gradients both ways
+  auto [normal_time, normal_val, normal_grad] = run_test(false);
+  auto [fancy_time, fancy_val, fancy_grad] = run_test(true);
+  std::cout << "Normal time : " << normal_time << " s" << std::endl;
+  std::cout << "Fancy time  : " << fancy_time << " s" << std::endl;
 
-  std::cout << std::endl;
-  std::cout << "Fancy Autodiff:" << std::endl;
-  double fancy_autodiff_time = run_test(true);
-  std::cout << "Compute time: " << fancy_autodiff_time << " s" << std::endl;
+  // Sanity checks
+  const VectorX<double> val_diff = normal_val - fancy_val;
+  const MatrixX<double> grad_diff = normal_grad - fancy_grad;
+
+  std::cout << fmt::format("Value error: {}\n", val_diff.norm());
+  std::cout << fmt::format("Gradient error: {}\n", grad_diff.norm());
 
   return 0; 
 }
