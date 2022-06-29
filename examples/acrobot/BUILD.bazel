@@ -84,6 +84,8 @@ drake_cc_library(
         "//systems/controllers:linear_quadratic_regulator",
         "//systems/framework",
         "//systems/sensors:rotary_encoders",
+        "//common:autodiff",
+        "//math:gradient",
     ],
 )
 
@@ -245,6 +247,18 @@ drake_cc_binary(
         "//systems/analysis:simulator",
         "//systems/framework:diagram",
         "@gflags",
+    ],
+)
+
+drake_cc_binary(
+    name = "autodiff_test",
+    srcs = ["autodiff_test.cc"],
+    deps = [
+        ":acrobot_geometry",
+        ":acrobot_plant",
+        "//common:autodiff",
+        "//math:gradient",
+        "//systems/analysis:simulator",
     ],
 )
 
