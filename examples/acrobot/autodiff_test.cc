@@ -24,7 +24,7 @@ namespace {
  * Returns the compute time (in seconds).
  */
 std::tuple<double, VectorX<double>, MatrixX<double>> run_test(
-    bool fancy_gradients) {
+    const bool fancy_gradients, const int num_steps) {
   // Define the simulation timestep
   const double dt = 1e-2;
 
@@ -46,12 +46,17 @@ std::tuple<double, VectorX<double>, MatrixX<double>> run_test(
   const VectorX<AutoDiffXd> x0 = math::InitializeAutoDiff(x0_val);
   context->SetDiscreteState(x0);
 
-  // Simulate forward one timestep
+  // Simulate forward a number of timesteps
   st = std::chrono::high_resolution_clock::now();
   std::unique_ptr<systems::DiscreteValues<AutoDiffXd>> state =
       acrobot.AllocateDiscreteVariables();
-  acrobot.CalcDiscreteVariableUpdates(*context, state.get());
-  VectorX<AutoDiffXd> x = state->value();
+  VectorX<AutoDiffXd> x;
+
+  for ( int i=0; i<num_steps; ++i ) {
+    acrobot.CalcDiscreteVariableUpdates(*context, state.get());
+    x = state->value();
+    context->SetDiscreteState(x);
+  }
 
   elapsed = std::chrono::high_resolution_clock::now() - st;
 
@@ -60,9 +65,12 @@ std::tuple<double, VectorX<double>, MatrixX<double>> run_test(
 
 // Simple example of computing dynamics gradients with autodiff
 int do_main() { 
+  // Number of timesteps to simulate
+  const int num_steps = 10000;
+
   // Compute gradients both ways
-  auto [normal_time, normal_val, normal_grad] = run_test(false);
-  auto [fancy_time, fancy_val, fancy_grad] = run_test(true);
+  auto [normal_time, normal_val, normal_grad] = run_test(false, num_steps);
+  auto [fancy_time, fancy_val, fancy_grad] = run_test(true, num_steps);
   std::cout << "Normal time : " << normal_time << " s" << std::endl;
   std::cout << "Fancy time  : " << fancy_time << " s" << std::endl;
 
