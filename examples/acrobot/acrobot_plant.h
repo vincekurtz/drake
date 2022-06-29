@@ -147,17 +147,17 @@ class AcrobotPlant : public systems::LeafSystem<T> {
       systems::DiscreteValues<T>* next_state) const override;
 
   // Helper function for computing discrete updates.
-  void DiscreteUpdate(
-      const systems::Context<T>& context,
-      systems::DiscreteValues<T>* next_state) const;
+  void DiscreteUpdate(const systems::Context<T>& context,
+                      systems::DiscreteValues<T>* next_state) const;
 
-  void ForwardDynamics(
-    const Matrix2<T>& M,        // mass matrix
-    const Vector2<T>& bias_tau, // all nonlinear terms
-    const Vector2<T>& v0,       // initial velocity
-    Eigen::LDLT<Matrix2<T>>* M_ldlt,  // mass matrix factorization
-    EigenPtr<Vector2<T>> v      // final velocity
-  ) const;
+  template <typename U>
+  void ForwardDynamics(const Matrix2<U>& M, const Vector2<U>& bias,
+                       const Vector2<U>& v0, Eigen::LDLT<Matrix2<U>>* M_ldlt,
+                       EigenPtr<Vector2<U>> v) const;
+
+  void CalcResidual(const Matrix2<T>& M, const Vector2<T>& bias,
+                    const Vector2<T>& v, const Vector2<T>& v0,
+                    EigenPtr<Vector2<T>> r) const;
 };
 
 /// Constructs the Acrobot with (only) encoder outputs.
