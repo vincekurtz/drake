@@ -137,12 +137,6 @@ class CompliantContactManager final
 
   ~CompliantContactManager() final;
 
-  template <typename U>
-  CompliantContactManager(const CompliantContactManager<U>& other)
-      : cache_indexes_(other.cache_indexes_),
-        sap_parameters_(other.sap_parameters_),
-        joint_damping_(other.joint_damping_) {}
-
   bool is_cloneable_to_double() const override { return true; }
   bool is_cloneable_to_autodiff() const override { return true; }
 
@@ -361,12 +355,12 @@ class CompliantContactManager final
 
   std::unique_ptr<DiscreteUpdateManager<double>> CloneToDouble()
       const override {
-    return std::make_unique<CompliantContactManager<double>>(*this);
+    return std::make_unique<CompliantContactManager<double>>();
   }
 
   std::unique_ptr<DiscreteUpdateManager<AutoDiffXd>> CloneToAutoDiffXd()
       const override {
-    return std::make_unique<CompliantContactManager<AutoDiffXd>>(*this);
+    return std::make_unique<CompliantContactManager<AutoDiffXd>>();
   }
 
   CacheIndexes cache_indexes_;
