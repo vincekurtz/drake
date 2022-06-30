@@ -12,9 +12,11 @@
 namespace drake {
 
 using multibody::AddMultibodyPlantSceneGraph;
+using multibody::MultibodyPlant;
 using multibody::Parser;
 using systems::Context;
 using systems::DiscreteValues;
+using systems::System;
 
 namespace examples {
 namespace multibody {
@@ -27,31 +29,35 @@ int do_main() {
 
   // Create a MultibodyPlant acrobot model via SDF parsing
   systems::DiagramBuilder<double> builder;
-  auto [plant, scene_graph] = AddMultibodyPlantSceneGraph(&builder, dt);
+  auto [plant_double, scene_graph_double] = AddMultibodyPlantSceneGraph(&builder, dt);
   const std::string file_name =
       FindResourceOrThrow("drake/multibody/benchmarks/acrobot/acrobot.sdf");
-  Parser parser(&plant, &scene_graph);
+  Parser parser(&plant_double, &scene_graph_double);
   parser.AddModelFromFile(file_name);
-  plant.Finalize();
+  plant_double.Finalize();
+
+  // Convert to autodiff after parsing
+  std::unique_ptr<MultibodyPlant<AutoDiffXd>> plant = System<double>::ToAutoDiffXd(plant_double);
+  std::unique_ptr<Context<AutoDiffXd>> context = plant->CreateDefaultContext();
 
   // Set initial conditions and input
-  std::unique_ptr<Context<double>> context = plant.CreateDefaultContext();
-  VectorX<double> x0(4);
-  x0 << 0.9, 1.1, 0.1, -0.2;
-  plant.SetPositionsAndVelocities(context.get(), x0);
+  VectorX<double> x0_val(4);
+  x0_val << 0.9, 1.1, 0.1, -0.2;
+  const VectorX<AutoDiffXd> x0 = math::InitializeAutoDiff(x0_val);
+  plant->SetPositionsAndVelocities(context.get(), x0);
   
-  const double u = 0;
-  plant.get_actuation_input_port().FixValue(context.get(), u);
+  const AutoDiffXd u = 0;
+  plant->get_actuation_input_port().FixValue(context.get(), u);
 
   // Simulate forward one timestep
-  std::unique_ptr<DiscreteValues<double>> state =
-      plant.AllocateDiscreteVariables();
-  plant.CalcDiscreteVariableUpdates(*context, state.get());
-  VectorX<double> x = state->value();
-
-  std::cout << x << std::endl;
+  std::unique_ptr<DiscreteValues<AutoDiffXd>> state =
+      plant->AllocateDiscreteVariables();
+  plant->CalcDiscreteVariableUpdates(*context, state.get());
+  VectorX<AutoDiffXd> x = state->value();
 
   // Get the gradients
+  std::cout << math::ExtractValue(x) << std::endl;
+  std::cout << math::ExtractGradient(x) << std::endl;
 
   return 0;
 }
