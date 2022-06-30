@@ -171,6 +171,8 @@ class SapContactProblem {
 
   const ContactProblemGraph& graph() const { return graph_; }
 
+   std::unique_ptr<SapContactProblem<double>> ExtractValues() const;
+
  private:
   int nv_{0};                    // Total number of generalized velocities.
   T time_step_{0.0};             // Discrete time step.
@@ -179,6 +181,7 @@ class SapContactProblem {
   ContactProblemGraph graph_;    // Contact graph for this problem.
   // Constraints owned by this problem.
   std::vector<std::unique_ptr<SapConstraint<T>>> constraints_;
+  // You'll need SapConstraint::ExtratValues().
 };
 
 }  // namespace internal
