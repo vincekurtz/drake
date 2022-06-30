@@ -24,19 +24,12 @@ namespace examples {
 namespace multibody {
 namespace acrobot {
 
-DEFINE_double(time_step, 1e-2, "Time step for discrete-time simulation");
-DEFINE_string(contact_solver, "tamsi",
-              "Contact solver. Options are: 'tamsi', 'sap'.");
-
-int do_main() {
+// Simulate a single step and use autodiff to compute gradients with respect to the initial state. 
+// Return the subsequent state and gradient matrix. 
+std::tuple<VectorX<double>, MatrixX<double>> take_autodiff_step(MultibodyPlantConfig plant_config) {
   // Create a MultibodyPlant acrobot model via SDF parsing
   systems::DiagramBuilder<double> builder;
-
-  MultibodyPlantConfig plant_config;
-  plant_config.time_step = FLAGS_time_step;
-  plant_config.contact_solver = FLAGS_contact_solver;
   auto [plant_double, scene_graph_double] = AddMultibodyPlant(plant_config, &builder);
-
   const std::string file_name =
       FindResourceOrThrow("drake/multibody/benchmarks/acrobot/acrobot.sdf");
   Parser(&plant_double).AddModelFromFile(file_name);
@@ -62,8 +55,47 @@ int do_main() {
   VectorX<AutoDiffXd> x = state->value();
 
   // Get the gradients
-  std::cout << math::ExtractValue(x) << std::endl;
-  std::cout << math::ExtractGradient(x) << std::endl;
+  return { math::ExtractValue(x), math::ExtractGradient(x) };
+
+}
+
+DEFINE_double(time_step, 1e-2, "Time step for discrete-time simulation");
+DEFINE_string(contact_solver, "tamsi",
+              "Contact solver. Options are: 'tamsi', 'sap'.");
+
+int do_main() {
+
+  if ( FLAGS_contact_solver == "sap" or FLAGS_contact_solver == "tamsi" ) {
+    // Simulate a step and print the next state and gradients
+
+    MultibodyPlantConfig plant_config;
+    plant_config.time_step = FLAGS_time_step;
+    plant_config.contact_solver = FLAGS_contact_solver;
+
+    // Simulate a step
+    auto [x, dx] = take_autodiff_step(plant_config);
+
+    // Get the gradients
+    std::cout << x << std::endl;
+    std::cout << dx << std::endl;
+  } else if ( FLAGS_contact_solver == "both" ) {
+    // Take a step with both contact solvers and compare the result
+
+    MultibodyPlantConfig plant_config;
+    plant_config.time_step = FLAGS_time_step;
+    plant_config.contact_solver = "tamsi";
+    auto [x_tamsi, dx_tamsi] = take_autodiff_step(plant_config);
+
+    plant_config.contact_solver = "sap";
+    auto [x_sap, dx_sap] = take_autodiff_step(plant_config);
+
+    const VectorX<double> val_diff = x_tamsi - x_sap;
+    const MatrixX<double> grad_diff = dx_tamsi - dx_sap;
+
+    std::cout << val_diff << std::endl;
+    std::cout << grad_diff << std::endl;
+
+  }
 
   return 0;
 }
