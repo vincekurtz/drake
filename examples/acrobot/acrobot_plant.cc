@@ -210,7 +210,6 @@ void AcrobotPlant<AutoDiffXd>::DoCalcDiscreteVariableUpdates(
     const Vector4<AutoDiffXd>& x0 = context.get_discrete_state_vector().value();
     const auto q0 = x0.template segment<2>(0);
     const auto v0 = x0.template segment<2>(2);
-
     // Compute dynamics terms with autodiff
     const Matrix2<AutoDiffXd> M = MassMatrix(context);
     const AutoDiffXd& tau = get_tau(context);
@@ -240,8 +239,18 @@ void AcrobotPlant<AutoDiffXd>::DoCalcDiscreteVariableUpdates(
     MatrixX<double> dx_dtheta(4, dr_dtheta.cols());
     auto dq_dtheta = dx_dtheta.template topRows<2>();
     auto dv_dtheta = dx_dtheta.template bottomRows<2>();
+
     solver.PropagateDerivatives(dr_dtheta, &dv_dtheta);
-    dq_dtheta = math::ExtractGradient(q0) + time_step() * dv_dtheta;
+    const MatrixX<double> dq0_dtheta = math::ExtractGradient(q0);
+    if ( dq0_dtheta.size() == 0 ) {
+      // If q0 does not depend on theta, then dq0_dtheta will be empty,
+      // for example if theta is some link masses.
+      dq_dtheta = time_step() * dv_dtheta;
+    } else {
+      // But other times q0 does depend on theta, for example when theta is the
+      // initial state. In those cases it is important to include it.
+      dq_dtheta = dq0_dtheta + time_step() * dv_dtheta;
+    }
 
     // Load gradients and values back into the result
     auto new_x = new_state->get_mutable_value();
