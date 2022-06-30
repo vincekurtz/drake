@@ -137,6 +137,15 @@ class CompliantContactManager final
 
   ~CompliantContactManager() final;
 
+  template <typename U>
+  CompliantContactManager(const CompliantContactManager<U>& other)
+      : cache_indexes_(other.cache_indexes_),
+        sap_parameters_(other.sap_parameters_),
+        joint_damping_(other.joint_damping_) {}
+
+  bool is_cloneable_to_double() const override { return true; }
+  bool is_cloneable_to_autodiff() const override { return true; }
+
   // Sets the parameters to be used by the SAP solver.
   void set_sap_solver_parameters(
       const contact_solvers::internal::SapSolverParameters& parameters) {
@@ -144,6 +153,11 @@ class CompliantContactManager final
   }
 
  private:
+  // Allow different specializations to access each other's private data for
+  // scalar conversion.
+  template <typename U>
+  friend class CompliantContactManager;
+
   // Struct used to conglomerate the indexes of cache entries declared by the
   // manager.
   struct CacheIndexes {
@@ -344,6 +358,16 @@ class CompliantContactManager final
       const contact_solvers::internal::SapSolverResults<T>& sap_results,
       contact_solvers::internal::ContactSolverResults<T>* contact_results)
       const;
+
+  std::unique_ptr<DiscreteUpdateManager<double>> CloneToDouble()
+      const override {
+    return std::make_unique<CompliantContactManager<double>>(*this);
+  }
+
+  std::unique_ptr<DiscreteUpdateManager<AutoDiffXd>> CloneToAutoDiffXd()
+      const override {
+    return std::make_unique<CompliantContactManager<AutoDiffXd>>(*this);
+  }
 
   CacheIndexes cache_indexes_;
   contact_solvers::internal::SapSolverParameters sap_parameters_;
