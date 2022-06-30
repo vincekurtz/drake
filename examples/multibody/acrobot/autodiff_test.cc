@@ -8,11 +8,13 @@
 #include "drake/geometry/scene_graph.h"
 #include "drake/multibody/parsing/parser.h"
 #include "drake/systems/framework/diagram_builder.h"
+#include "drake/multibody/plant/multibody_plant_config_functions.h"
 
 namespace drake {
 
-using multibody::AddMultibodyPlantSceneGraph;
+using multibody::AddMultibodyPlant;
 using multibody::MultibodyPlant;
+using multibody::MultibodyPlantConfig;
 using multibody::Parser;
 using systems::Context;
 using systems::DiscreteValues;
@@ -23,17 +25,21 @@ namespace multibody {
 namespace acrobot {
 
 DEFINE_double(time_step, 1e-2, "Time step for discrete-time simulation");
+DEFINE_string(contact_solver, "tamsi",
+              "Contact solver. Options are: 'tamsi', 'sap'.");
 
 int do_main() {
-  const double dt = FLAGS_time_step;
-
   // Create a MultibodyPlant acrobot model via SDF parsing
   systems::DiagramBuilder<double> builder;
-  auto [plant_double, scene_graph_double] = AddMultibodyPlantSceneGraph(&builder, dt);
+
+  MultibodyPlantConfig plant_config;
+  plant_config.time_step = FLAGS_time_step;
+  plant_config.contact_solver = FLAGS_contact_solver;
+  auto [plant_double, scene_graph_double] = AddMultibodyPlant(plant_config, &builder);
+
   const std::string file_name =
       FindResourceOrThrow("drake/multibody/benchmarks/acrobot/acrobot.sdf");
-  Parser parser(&plant_double, &scene_graph_double);
-  parser.AddModelFromFile(file_name);
+  Parser(&plant_double).AddModelFromFile(file_name);
   plant_double.Finalize();
 
   // Convert to autodiff after parsing
