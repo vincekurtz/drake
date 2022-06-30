@@ -46,7 +46,7 @@ class AcrobotSpongController : public systems::LeafSystem<T> {
 
     // Set nominal state to the upright fixed point.
     AcrobotState<T>& state =
-        AcrobotPlant<T>::get_mutable_state(acrobot_context_.get());
+        acrobot_.get_mutable_state(acrobot_context_.get());
     state.set_theta1(M_PI);
     state.set_theta2(0.0);
     state.set_theta1dot(0.0);
@@ -91,7 +91,7 @@ class AcrobotSpongController : public systems::LeafSystem<T> {
     acrobot_context_->get_mutable_continuous_state_vector().SetFromVector(
         this->EvalVectorInput(context, 0)->CopyToVector());
     const AcrobotState<T>& state =
-        AcrobotPlant<T>::get_state(*acrobot_context_);
+        acrobot_.get_state(*acrobot_context_);
     const AcrobotParams<T>& p = acrobot_.get_parameters(*acrobot_context_);
 
     const Vector4<T> x0(M_PI, 0, 0, 0);
