@@ -82,11 +82,21 @@ void SapSolver<T>::CalcStoppingCriteriaResidual(const Context<T>& context,
 }
 
 template <typename T>
-SapSolverStatus SapSolver<T>::SolveWithGuess(const SapContactProblem<T>&,
-                                             const VectorX<T>&,
-                                             SapSolverResults<T>*) {
+SapSolverStatus SapSolver<T>::SolveWithGuess(
+    const SapContactProblem<T>& problem, const VectorX<T>&,
+    SapSolverResults<T>* results) {
+  if (problem.num_constraints() == 0) {
+    // In the absence of constraints the solution is trivially v = v*.
+    results->Resize(problem.num_velocities(),
+                    problem.num_constraint_equations());
+    results->v = problem.v_star();
+    results->j.setZero();
+    return SapSolverStatus::kSuccess;
+  }
+
   throw std::logic_error(
-      "SapSolver::SolveWithGuess(): Only T = double is supported.");
+      "SapSolver::SolveWithGuess(): Only T = double is supported in problems "
+      "with non-zero number of constraints.");
 }
 
 template <>
