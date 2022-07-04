@@ -60,8 +60,8 @@ std::tuple<VectorX<double>, MatrixX<double>> take_autodiff_step(MultibodyPlantCo
 }
 
 DEFINE_double(time_step, 1e-2, "Time step for discrete-time simulation");
-DEFINE_string(contact_solver, "tamsi",
-              "Contact solver. Options are: 'tamsi', 'sap'.");
+DEFINE_string(contact_solver, "both",
+              "Contact solver. Options are: 'tamsi', 'sap', or 'both'.");
 
 int do_main() {
 
@@ -92,8 +92,8 @@ int do_main() {
     const VectorX<double> val_diff = x_tamsi - x_sap;
     const MatrixX<double> grad_diff = dx_tamsi - dx_sap;
 
-    std::cout << val_diff << std::endl;
-    std::cout << grad_diff << std::endl;
+    std::cout << "Value error: " << val_diff.norm() << std::endl;
+    std::cout << "Gradient error: " << grad_diff.norm() << std::endl;
 
   }
 
