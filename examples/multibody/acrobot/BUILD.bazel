@@ -54,4 +54,17 @@ drake_cc_binary(
     ],
 )
 
+drake_cc_binary(
+    name = "autodiff_test",
+    srcs = ["autodiff_test.cc"],
+    add_test_rule = 1,
+    data = ["//multibody/benchmarks/acrobot:models"],
+    deps = [
+        "//common:add_text_logging_gflags",
+        "//common:find_resource",
+        "//multibody/parsing",
+        "@gflags",
+    ],
+)
+
 add_lint_tests()
