@@ -298,7 +298,7 @@ GTEST_TEST(TestLqr, DiscreteDoubleIntegrator) {
 // Adds test coverage for calling LQR from a LeafSystem and from a
 // MultibodyPlant.
 GTEST_TEST(TestLqr, AcrobotTest) {
-  const examples::acrobot::AcrobotPlant<double> plant;
+  examples::acrobot::AcrobotPlant<double> plant(0);
   auto context = plant.CreateDefaultContext();
 
   // Set nominal state to the upright fixed point.

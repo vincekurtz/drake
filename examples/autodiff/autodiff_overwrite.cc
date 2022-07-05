@@ -7,7 +7,7 @@
 using namespace drake;
 
 /**
- * A normal function that computes y = f(x) using autodiff.
+ * A normal function that computes y = f(x).
  */
 template <typename T>
 void TestFunction(const MatrixX<double>& A, const VectorX<T>& x,
@@ -25,8 +25,8 @@ void TestFunctionOptimized(const MatrixX<double>& A, const VectorX<T>& x,
 }
 
 /**
- * Specialize `TestFunctionOptimized()` to T = AutoDiffXd so that calling code
- * does not need to worry about whether it works with <double> or AutoDiffXd.
+ * Specialize `TestFunctionOptimized()` for T = AutoDiffXd so that calling code
+ * does not need to worry about wether it works with <double> or AutoDiffXd.
  * This uses our special insights to compute dy/dx analytically. These are then
  * loaded back into the derivatives() of y.
  */
@@ -54,7 +54,7 @@ void TestFunctionOptimized(const MatrixX<double>& A,
 
 int main() {
   // Size of the vector x
-  int n = 300;
+  int n = 1000;
 
   // Define original vector
   VectorX<double> x(n);
@@ -90,7 +90,7 @@ int main() {
   std::cout << std::endl;
 
   // Sanity check
-  const MatrixX<double> value_diff =
+  const VectorX<double> value_diff =
       math::ExtractValue(y_normal) - math::ExtractValue(y_fancy);
   const MatrixX<double> deriv_diff =
       math::ExtractGradient(y_normal) - math::ExtractGradient(y_fancy);

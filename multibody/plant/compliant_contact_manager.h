@@ -137,6 +137,9 @@ class CompliantContactManager final
 
   ~CompliantContactManager() final;
 
+  bool is_cloneable_to_double() const override { return true; }
+  bool is_cloneable_to_autodiff() const override { return true; }
+
   // Sets the parameters to be used by the SAP solver.
   void set_sap_solver_parameters(
       const contact_solvers::internal::SapSolverParameters& parameters) {
@@ -144,6 +147,11 @@ class CompliantContactManager final
   }
 
  private:
+  // Allow different specializations to access each other's private data for
+  // scalar conversion.
+  template <typename U>
+  friend class CompliantContactManager;
+
   // Struct used to conglomerate the indexes of cache entries declared by the
   // manager.
   struct CacheIndexes {
@@ -163,21 +171,17 @@ class CompliantContactManager final
   // DiscreteUpdateManager for details.
   void ExtractModelInfo() final;
 
-  // TODO(amcastro-tri): Either implement in future PR or resolve with 16955.
-  void DoCalcAccelerationKinematicsCache(
-      const systems::Context<T>&,
-      multibody::internal::AccelerationKinematicsCache<T>*) const final {
-    throw std::runtime_error(
-        "CompliantContactManager::DoCalcAccelerationKinematicsCache() must be "
-        "implemented.");
-  }
-
   void DeclareCacheEntries() final;
+
+  // TODO(amcastro-tri): implement these APIs according to #16955.
   void DoCalcContactSolverResults(
       const systems::Context<T>&,
       contact_solvers::internal::ContactSolverResults<T>*) const final;
   void DoCalcDiscreteValues(const systems::Context<T>&,
                             systems::DiscreteValues<T>*) const final;
+  void DoCalcAccelerationKinematicsCache(
+      const systems::Context<T>&,
+      multibody::internal::AccelerationKinematicsCache<T>*) const final;
 
   // Returns the point contact stiffness stored in group
   // geometry::internal::kMaterialGroup with property
@@ -344,6 +348,16 @@ class CompliantContactManager final
       const contact_solvers::internal::SapSolverResults<T>& sap_results,
       contact_solvers::internal::ContactSolverResults<T>* contact_results)
       const;
+
+  std::unique_ptr<DiscreteUpdateManager<double>> CloneToDouble()
+      const override {
+    return std::make_unique<CompliantContactManager<double>>();
+  }
+
+  std::unique_ptr<DiscreteUpdateManager<AutoDiffXd>> CloneToAutoDiffXd()
+      const override {
+    return std::make_unique<CompliantContactManager<AutoDiffXd>>();
+  }
 
   CacheIndexes cache_indexes_;
   contact_solvers::internal::SapSolverParameters sap_parameters_;

@@ -23,10 +23,13 @@ DEFINE_double(simulation_sec, 10.0,
 DEFINE_double(realtime_factor, 1.0,
               "Playback speed.  See documentation for "
               "Simulator::set_target_realtime_rate() for details.");
+DEFINE_double(time_step, 1e-2,
+              "Discrete simulation timestep. "
+              "Continuous time if time_step=0.");
 
 int do_main() {
   systems::DiagramBuilder<double> builder;
-  auto acrobot = builder.AddSystem<AcrobotPlant>();
+  auto acrobot = builder.AddSystem<AcrobotPlant>(FLAGS_time_step);
   acrobot->set_name("acrobot");
   auto scene_graph = builder.AddSystem<geometry::SceneGraph>();
   AcrobotGeometry::AddToBuilder(
@@ -44,13 +47,11 @@ int do_main() {
 
   // Set an initial condition that is sufficiently far from the downright fixed
   // point.
-  AcrobotState<double>* x0 = dynamic_cast<AcrobotState<double>*>(
-      &acrobot_context.get_mutable_continuous_state_vector());
-  DRAKE_DEMAND(x0 != nullptr);
-  x0->set_theta1(1.0);
-  x0->set_theta2(1.0);
-  x0->set_theta1dot(0.0);
-  x0->set_theta2dot(0.0);
+  AcrobotState<double>& x0 = acrobot->get_mutable_state(&acrobot_context);
+  x0.set_theta1(1.0);
+  x0.set_theta2(1.0);
+  x0.set_theta1dot(0.0);
+  x0.set_theta2dot(0.0);
 
   simulator.set_target_realtime_rate(FLAGS_realtime_factor);
   simulator.Initialize();
