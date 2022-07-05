@@ -6,6 +6,7 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <iostream>
 
 #include "drake/common/eigen_types.h"
 #include "drake/common/scope_exit.h"
@@ -923,6 +924,34 @@ void CompliantContactManager<T>::DoCalcDiscreteValues(
   const VectorX<T> q_next = q0 + plant().time_step() * qdot_next;
 
   VectorX<T> x_next(plant().num_multibody_states());
+  x_next << q_next, v_next;
+  updates->set_value(this->multibody_state_index(), x_next);
+}
+
+template <>
+void CompliantContactManager<AutoDiffXd>::DoCalcDiscreteValues(
+    const drake::systems::Context<AutoDiffXd>& context,
+    drake::systems::DiscreteValues<AutoDiffXd>* updates) const {
+  const ContactSolverResults<AutoDiffXd>& results =
+      this->EvalContactSolverResults(context);
+
+  std::cout << "in specialized CalcDiscreteValues" << std::endl;
+
+  // Previous time step positions.
+  const int nq = plant().num_positions();
+  const VectorX<AutoDiffXd>& x0 =
+      context.get_discrete_state(this->multibody_state_index()).value();
+  const auto q0 = x0.topRows(nq);
+
+  // Retrieve the solution velocity for the next time step.
+  const VectorX<AutoDiffXd>& v_next = results.v_next;
+
+  // Update generalized positions.
+  VectorX<AutoDiffXd> qdot_next(plant().num_positions());
+  plant().MapVelocityToQDot(context, v_next, &qdot_next);
+  const VectorX<AutoDiffXd> q_next = q0 + plant().time_step() * qdot_next;
+
+  VectorX<AutoDiffXd> x_next(plant().num_multibody_states());
   x_next << q_next, v_next;
   updates->set_value(this->multibody_state_index(), x_next);
 }
