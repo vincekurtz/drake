@@ -674,47 +674,23 @@ void CompliantContactManager<AutoDiffXd>::DoCalcContactSolverResults(
   // computation with autodiff, then extracting the (double) values.
   const ContactProblemCache<AutoDiffXd>& contact_problem_cache =
       EvalContactProblemCache(context);
-  const SapContactProblem<AutoDiffXd>& sap_problem =
+  const SapContactProblem<AutoDiffXd>& sap_problem_autodiff =
       *contact_problem_cache.sap_problem;
-  std::unique_ptr<SapContactProblem<double>> sap_problem_double = sap_problem.ExtractValues(); 
+  std::unique_ptr<SapContactProblem<double>> sap_problem = sap_problem_autodiff.ExtractValues(); 
 
   // We use the velocity stored in the current context as initial guess.
   const VectorX<AutoDiffXd>& x0 =
       context.get_discrete_state(this->multibody_state_index()).value();
-  const auto v0 = x0.bottomRows(this->plant().num_velocities());
-  const auto v0_double = math::ExtractValue(v0);
+  const auto v0_autodiff = x0.bottomRows(this->plant().num_velocities());
+  const auto v0 = math::ExtractValue(v0_autodiff);
 
   // Solve contact problem using double. Save the factorization of H.
-  SapSolver<double> sap_double;
-  sap_double.set_parameters(sap_parameters_);
-  SapSolverResults<double> sap_results_double;
-  const SapSolverStatus status_double =
-      sap_double.SolveWithGuess(*sap_problem_double, v0_double, &sap_results_double);
-  if (status_double != SapSolverStatus::kSuccess) {
-    const std::string msg = fmt::format(
-        "The SAP solver failed to converge at simulation time = {:7.3g}. "
-        "Reasons for divergence and possible solutions include:\n"
-        "  1. Externally applied actuation values diverged due to external "
-        "     reasons to the solver. Revise your control logic.\n"
-        "  2. External force elements such as spring or bushing elements can "
-        "     lead to unstable temporal dynamics if too stiff. Revise your "
-        "     model and consider whether these forces can be better modeled "
-        "     using one of SAP's compliant constraints. E.g., use a distance "
-        "     constraint instead of a spring element.\n"
-        "  3. Numerical ill conditioning of the model caused by, for instance, "
-        "     extremely large mass ratios. Revise your model and consider "
-        "     whether very small objects can be removed or welded to larger "
-        "     objects in the model.",
-        context.get_time());
-    throw std::runtime_error(msg);
-  }
-
-  SapSolver<AutoDiffXd> sap;
+  SapSolver<double> sap;
   sap.set_parameters(sap_parameters_);
-  SapSolverResults<AutoDiffXd> sap_results;
+  SapSolverResults<double> sap_results;
   const SapSolverStatus status =
-      sap.SolveWithGuess(sap_problem, v0, &sap_results);
-  if (status != SapSolverStatus::kSuccess) {
+      sap.SolveWithGuess(*sap_problem, v0, &sap_results);
+  if (status!= SapSolverStatus::kSuccess) {
     const std::string msg = fmt::format(
         "The SAP solver failed to converge at simulation time = {:7.3g}. "
         "Reasons for divergence and possible solutions include:\n"
@@ -734,7 +710,7 @@ void CompliantContactManager<AutoDiffXd>::DoCalcContactSolverResults(
   }
 
   // Compute the gradient of the residual with autodiff
-  const VectorX<AutoDiffXd> vdot = (sap_results_double.v - v0)/plant().time_step();
+  const VectorX<AutoDiffXd> vdot = (sap_results.v - v0_autodiff)/plant().time_step();
   MultibodyForces<AutoDiffXd> f_ext(plant());  // TODO: include contact forces, computed with autodiff
                                                // in terms of v and q0.
   CalcNonContactForcesExcludingJointLimits(context, &f_ext);  // TODO: damping correction?
@@ -743,19 +719,17 @@ void CompliantContactManager<AutoDiffXd>::DoCalcContactSolverResults(
 
   // Compute dv_dtheta via implicit function theorem
   MatrixX<double> dv_dtheta;
-  sap_double.PropagateGradients(*sap_problem_double, dr_dtheta, &dv_dtheta);
+  sap.PropagateGradients(*sap_problem, dr_dtheta, &dv_dtheta);
 
-  // DEBUG
-  std::cout << "v: \n" << sap_results_double.v << "\n\n";
-  std::cout << "M: \n" << sap_problem_double->dynamics_matrix()[0] << "\n\n";
-  std::cout << "dr_dtheta: \n" << dr_dtheta << "\n\n";
-  std::cout << "dv_dtheta: \n" << dv_dtheta << "\n\n";
+  // Load back into the derivatives and return
+  SapSolverResults<AutoDiffXd> sap_results_autodiff;
+  math::InitializeAutoDiff(sap_results.v, dv_dtheta, &sap_results_autodiff.v);
 
   const std::vector<DiscreteContactPair<AutoDiffXd>>& discrete_pairs =
       EvalDiscreteContactPairs(context);
   const int num_contacts = discrete_pairs.size();
 
-  PackContactSolverResults(sap_problem, num_contacts, sap_results,
+  PackContactSolverResults(sap_problem_autodiff, num_contacts, sap_results_autodiff,
                            contact_results);
 }
 
@@ -1003,32 +977,6 @@ void CompliantContactManager<T>::DoCalcDiscreteValues(
   const VectorX<T> q_next = q0 + plant().time_step() * qdot_next;
 
   VectorX<T> x_next(plant().num_multibody_states());
-  x_next << q_next, v_next;
-  updates->set_value(this->multibody_state_index(), x_next);
-}
-
-template <>
-void CompliantContactManager<AutoDiffXd>::DoCalcDiscreteValues(
-    const drake::systems::Context<AutoDiffXd>& context,
-    drake::systems::DiscreteValues<AutoDiffXd>* updates) const {
-  const ContactSolverResults<AutoDiffXd>& results =
-      this->EvalContactSolverResults(context);
-
-  // Previous time step positions.
-  const int nq = plant().num_positions();
-  const VectorX<AutoDiffXd>& x0 =
-      context.get_discrete_state(this->multibody_state_index()).value();
-  const auto q0 = x0.topRows(nq);
-
-  // Retrieve the solution velocity for the next time step.
-  const VectorX<AutoDiffXd>& v_next = results.v_next;
-
-  // Update generalized positions.
-  VectorX<AutoDiffXd> qdot_next(plant().num_positions());
-  plant().MapVelocityToQDot(context, v_next, &qdot_next);
-  const VectorX<AutoDiffXd> q_next = q0 + plant().time_step() * qdot_next;
-
-  VectorX<AutoDiffXd> x_next(plant().num_multibody_states());
   x_next << q_next, v_next;
   updates->set_value(this->multibody_state_index(), x_next);
 }
