@@ -6,6 +6,9 @@
 #include "drake/common/drake_throw.h"
 #include "drake/common/eigen_types.h"
 #include "drake/multibody/contact_solvers/sap/contact_problem_graph.h"
+#include "drake/common/autodiff.h"
+#include "drake/math/autodiff.h"
+#include "drake/math/autodiff_gradient.h"
 
 namespace drake {
 namespace multibody {
@@ -58,6 +61,25 @@ std::unique_ptr<SapContactProblem<T>> SapContactProblem<T>::Clone() const {
     const SapConstraint<T>& c = get_constraint(i);
     clone->AddConstraint(c.Clone());
   }
+  return clone;
+}
+
+template <>
+std::unique_ptr<SapContactProblem<double>>
+SapContactProblem<AutoDiffXd>::ExtractValues() const {
+  // Conversion to double currently just works with
+  // unconstrained problems.
+  DRAKE_THROW_UNLESS(num_constraints() == 0);
+
+  double new_time_step = time_step_.value();
+  std::vector<MatrixX<double>> new_A;
+  for (MatrixX<AutoDiffXd> Ai : A_) {
+    new_A.push_back(math::ExtractValue(Ai));
+  }
+  VectorX<double> new_v_star = math::ExtractValue(v_star_);
+  auto clone = std::make_unique<SapContactProblem<double>>(new_time_step, new_A,
+                                                           new_v_star);
+
   return clone;
 }
 

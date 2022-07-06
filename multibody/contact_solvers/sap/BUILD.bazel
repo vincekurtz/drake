@@ -82,6 +82,8 @@ drake_cc_library(
         ":sap_constraint",
         "//common:default_scalars",
         "//common:essential",
+        "//common:autodiff",
+        "//math:gradient",
     ],
 )
 

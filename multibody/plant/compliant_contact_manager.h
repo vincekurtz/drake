@@ -372,6 +372,11 @@ void CompliantContactManager<AutoDiffXd>::DoCalcDiscreteValues(
     const drake::systems::Context<AutoDiffXd>& context,
     drake::systems::DiscreteValues<AutoDiffXd>* updates) const;
 
+template <>
+void CompliantContactManager<AutoDiffXd>::DoCalcContactSolverResults(
+    const systems::Context<AutoDiffXd>& context,
+    contact_solvers::internal::ContactSolverResults<AutoDiffXd>* contact_results) const;
+
 }  // namespace internal
 }  // namespace multibody
 }  // namespace drake
