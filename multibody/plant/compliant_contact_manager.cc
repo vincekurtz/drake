@@ -734,15 +734,22 @@ void CompliantContactManager<AutoDiffXd>::DoCalcContactSolverResults(
   }
 
   // Compute the gradient of the residual with autodiff
-  const VectorX<AutoDiffXd> vdot = (sap_results_double.v - v0_double)/plant().time_step();
-  const MultibodyForces<AutoDiffXd> f_ext(plant());  // TODO: include contact forces, computed with autodiff
-                                                     // in terms of v and q0.
+  const VectorX<AutoDiffXd> vdot = (sap_results_double.v - v0)/plant().time_step();
+  MultibodyForces<AutoDiffXd> f_ext(plant());  // TODO: include contact forces, computed with autodiff
+                                               // in terms of v and q0.
+  CalcNonContactForcesExcludingJointLimits(context, &f_ext);  // TODO: damping correction?
   VectorX<AutoDiffXd> r = plant().time_step() * plant().CalcInverseDynamics(context, vdot, f_ext);
   MatrixX<double> dr_dtheta = math::ExtractGradient(r);
 
   // Compute dv_dtheta via implicit function theorem
-  MatrixX<double> dv_dtheta = sap_double.PropagateGradients(dr_dtheta);
-  //v.derivatives = dv_dtheta;
+  MatrixX<double> dv_dtheta;
+  sap_double.PropagateGradients(*sap_problem_double, dr_dtheta, &dv_dtheta);
+
+  // DEBUG
+  std::cout << "v: \n" << sap_results_double.v << "\n\n";
+  std::cout << "M: \n" << sap_problem_double->dynamics_matrix()[0] << "\n\n";
+  std::cout << "dr_dtheta: \n" << dr_dtheta << "\n\n";
+  std::cout << "dv_dtheta: \n" << dv_dtheta << "\n\n";
 
   const std::vector<DiscreteContactPair<AutoDiffXd>>& discrete_pairs =
       EvalDiscreteContactPairs(context);

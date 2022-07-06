@@ -316,6 +316,12 @@ SparsityData GetEliminationOrdering(
   SolverData& data = clique_data.data;
 
   size_t n = num_jacobian_row_blocks;
+
+  // Early exit
+  if ( n == 0 ) {
+    return clique_data;
+  }
+
   vector<int> order(n);
   vector<vector<int>> supernodes(n);
   vector<vector<int>> separators(n);
