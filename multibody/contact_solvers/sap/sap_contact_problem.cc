@@ -2,13 +2,13 @@
 
 #include <utility>
 
+#include "drake/common/autodiff.h"
 #include "drake/common/default_scalars.h"
 #include "drake/common/drake_throw.h"
 #include "drake/common/eigen_types.h"
-#include "drake/multibody/contact_solvers/sap/contact_problem_graph.h"
-#include "drake/common/autodiff.h"
 #include "drake/math/autodiff.h"
 #include "drake/math/autodiff_gradient.h"
+#include "drake/multibody/contact_solvers/sap/contact_problem_graph.h"
 
 namespace drake {
 namespace multibody {

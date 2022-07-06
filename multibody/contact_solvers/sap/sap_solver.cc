@@ -82,6 +82,22 @@ void SapSolver<T>::CalcStoppingCriteriaResidual(const Context<T>& context,
 }
 
 template <typename T>
+MatrixX<T> SapSolver<T>::PropagateGradients(const MatrixX<T>&) {
+  throw std::logic_error(
+      "SapSolver::PropagateGradients(): Only T = double is supported for "
+      "gradient propagation.");
+}
+
+template <>
+MatrixX<double> SapSolver<double>::PropagateGradients(
+    const MatrixX<double>& dr_dtheta) {
+  // DRAKE_DEMAND(!parameters_.use_dense_algebra && (supernodal_solver !=
+  // nullptr) ); MatrixX<double> dv_dtheta =
+  // supernodal_solver->Solve(-dr_dtheta);
+  return dr_dtheta;
+}
+
+template <typename T>
 SapSolverStatus SapSolver<T>::SolveWithGuess(
     const SapContactProblem<T>& problem, const VectorX<T>&,
     SapSolverResults<T>* results) {

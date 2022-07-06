@@ -80,9 +80,9 @@ drake_cc_library(
     deps = [
         ":contact_problem_graph",
         ":sap_constraint",
+        "//common:autodiff",
         "//common:default_scalars",
         "//common:essential",
-        "//common:autodiff",
         "//math:gradient",
     ],
 )

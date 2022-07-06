@@ -682,14 +682,36 @@ void CompliantContactManager<AutoDiffXd>::DoCalcContactSolverResults(
   const VectorX<AutoDiffXd>& x0 =
       context.get_discrete_state(this->multibody_state_index()).value();
   const auto v0 = x0.bottomRows(this->plant().num_velocities());
+  const auto v0_double = math::ExtractValue(v0);
 
   // Solve contact problem using double. Save the factorization of H.
+  SapSolver<double> sap_double;
+  sap_double.set_parameters(sap_parameters_);
+  SapSolverResults<double> sap_results_double;
+  const SapSolverStatus status_double =
+      sap_double.SolveWithGuess(*sap_problem_double, v0_double, &sap_results_double);
+  if (status_double != SapSolverStatus::kSuccess) {
+    const std::string msg = fmt::format(
+        "The SAP solver failed to converge at simulation time = {:7.3g}. "
+        "Reasons for divergence and possible solutions include:\n"
+        "  1. Externally applied actuation values diverged due to external "
+        "     reasons to the solver. Revise your control logic.\n"
+        "  2. External force elements such as spring or bushing elements can "
+        "     lead to unstable temporal dynamics if too stiff. Revise your "
+        "     model and consider whether these forces can be better modeled "
+        "     using one of SAP's compliant constraints. E.g., use a distance "
+        "     constraint instead of a spring element.\n"
+        "  3. Numerical ill conditioning of the model caused by, for instance, "
+        "     extremely large mass ratios. Revise your model and consider "
+        "     whether very small objects can be removed or welded to larger "
+        "     objects in the model.",
+        context.get_time());
+    throw std::runtime_error(msg);
+  }
+
   SapSolver<AutoDiffXd> sap;
   sap.set_parameters(sap_parameters_);
   SapSolverResults<AutoDiffXd> sap_results;
-  //SapSolver<double> sap;
-  //sap.set_parameters(sap_parameters_);
-  //SapSolverResults<double> sap_results;
   const SapSolverStatus status =
       sap.SolveWithGuess(sap_problem, v0, &sap_results);
   if (status != SapSolverStatus::kSuccess) {
@@ -712,11 +734,14 @@ void CompliantContactManager<AutoDiffXd>::DoCalcContactSolverResults(
   }
 
   // Compute the gradient of the residual with autodiff
-  //vdot = (sap_results.v_next - v0_double)/plant().time_step();
-  //dr_dtheta = plant().time_step() * CalcInverseDynamics(vdot, context);
+  const VectorX<AutoDiffXd> vdot = (sap_results_double.v - v0_double)/plant().time_step();
+  const MultibodyForces<AutoDiffXd> f_ext(plant());  // TODO: include contact forces, computed with autodiff
+                                                     // in terms of v and q0.
+  VectorX<AutoDiffXd> r = plant().time_step() * plant().CalcInverseDynamics(context, vdot, f_ext);
+  MatrixX<double> dr_dtheta = math::ExtractGradient(r);
 
   // Compute dv_dtheta via implicit function theorem
-  //dv_dtheta = sap.PropagateGradients(dr_theta);
+  MatrixX<double> dv_dtheta = sap_double.PropagateGradients(dr_dtheta);
   //v.derivatives = dv_dtheta;
 
   const std::vector<DiscreteContactPair<AutoDiffXd>>& discrete_pairs =

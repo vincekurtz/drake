@@ -223,6 +223,15 @@ class SapSolver {
   // SolveWithGuess().
   const SolverStats& get_statistics() const;
 
+  // Propagate velocity gradients using the implicit function theorem:
+  //
+  //    H * dv/dtheta = - dr/dtheta
+  //
+  // where H is the (already factorized) Hessian, v are the next-step
+  // velocities, r(v) = A(v-v0) - dt*k0 - J'*gamma(v,q0) is the residual, and
+  // theta are the variables we are differentiating with respect to.
+  MatrixX<T> PropagateGradients(const MatrixX<T>& dr_dtheta);
+
  private:
   friend class SapSolverTester;
 
@@ -351,6 +360,9 @@ template <>
 SapSolverStatus SapSolver<double>::SolveWithGuess(
     const SapContactProblem<double>&, const VectorX<double>&,
     SapSolverResults<double>*);
+
+template <>
+MatrixX<double> SapSolver<double>::PropagateGradients(const MatrixX<double>&);
 
 }  // namespace internal
 }  // namespace contact_solvers
