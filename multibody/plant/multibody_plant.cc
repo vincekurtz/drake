@@ -365,8 +365,8 @@ MultibodyPlant<T>::MultibodyPlant(double time_step)
   DRAKE_DEMAND(contact_model_ == ContactModel::kHydroelasticWithFallback);
   DRAKE_DEMAND(MultibodyPlantConfig{}.contact_model ==
                "hydroelastic_with_fallback");
-  DRAKE_DEMAND(solver_type_ == ContactSolver::kTamsi);
-  DRAKE_DEMAND(MultibodyPlantConfig{}.contact_solver == "tamsi");
+  DRAKE_DEMAND(solver_type_ == DiscreteContactSolverType::kTamsi);
+  DRAKE_DEMAND(MultibodyPlantConfig{}.discrete_contact_solver_type == "tamsi");
 }
 
 template <typename T>
@@ -493,13 +493,15 @@ void MultibodyPlant<T>::set_contact_model(ContactModel model) {
 }
 
 template <typename T>
-void MultibodyPlant<T>::set_contact_solver(ContactSolver solver_type) {
+void MultibodyPlant<T>::set_discrete_contact_solver_type(
+    DiscreteContactSolverType solver_type) {
   DRAKE_MBP_THROW_IF_FINALIZED();
   solver_type_ = solver_type;
 }
 
 template <typename T>
-ContactSolver MultibodyPlant<T>::get_contact_solver() const {
+DiscreteContactSolverType MultibodyPlant<T>::get_discrete_contact_solver_type()
+    const {
   return solver_type_;
 }
 
@@ -821,17 +823,24 @@ void MultibodyPlant<T>::Finalize() {
   }
   FinalizePlantOnly();
 
-  // Set discrete update manger. Currently, CompliantContactManager does not
+  // Set discrete update manager. Currently, CompliantContactManager does not
   // support T = symbolic::Expression.
-  if constexpr (!std::is_same_v<T, symbolic::Expression>) {
-    if (solver_type_ == ContactSolver::kSap) {
-      SetDiscreteUpdateManager(
-          std::make_unique<internal::CompliantContactManager<T>>());
-    }
-  } else {
-    if (solver_type_ == ContactSolver::kSap) {
-      throw std::runtime_error(
-        "SAP solver not supported for scalar type T = symbolic::Expression.");
+  // N.B. Unlike SAP, currently the TAMSI solver is incorporated directly into
+  // MultibodyPlant's source, rather than in CompliantContactManager. The plan
+  // is to move TAMSI, as well as the entirety of the discrete handling of
+  // contact, into CompliantContactManager.
+  if (is_discrete()) {
+    if constexpr (!std::is_same_v<T, symbolic::Expression>) {
+      if (solver_type_ == DiscreteContactSolverType::kSap) {
+        SetDiscreteUpdateManager(
+            std::make_unique<internal::CompliantContactManager<T>>());
+      }
+    } else {
+      if (solver_type_ == DiscreteContactSolverType::kSap) {
+        throw std::runtime_error(
+            "SAP solver not supported for scalar type T = "
+            "symbolic::Expression.");
+      }
     }
   }
 }
@@ -1221,6 +1230,7 @@ void MultibodyPlant<T>::SetDiscreteUpdateManager(
   // least to build the contact problem. However, here we play safe and demand
   // finalization right here.
   DRAKE_MBP_THROW_IF_NOT_FINALIZED();
+  DRAKE_DEMAND(is_discrete());
   DRAKE_DEMAND(manager != nullptr);
   manager->SetOwningMultibodyPlant(this);
   discrete_update_manager_ = std::move(manager);

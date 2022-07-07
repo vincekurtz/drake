@@ -19,8 +19,9 @@ AddResult AddMultibodyPlant(
   result.plant.set_stiction_tolerance(config.stiction_tolerance);
   result.plant.set_contact_model(
       internal::GetContactModelFromString(config.contact_model));
-  result.plant.set_contact_solver(
-      internal::GetContactSolverFromString(config.contact_solver));
+  result.plant.set_discrete_contact_solver_type(
+      internal::GetDiscreteContactSolverTypeFromString(
+          config.discrete_contact_solver_type));
   result.plant.set_contact_surface_representation(
       internal::GetContactSurfaceRepresentationFromString(
           config.contact_surface_representation));
@@ -55,25 +56,28 @@ constexpr std::array<std::pair<ContactModel, const char*>, 3> kContactModels{{
 }};
 
 // Use a switch() statement here, to ensure the compiler sends us a reminder
-// when somebody add a new value to the enum. New values must be listed here
-// as well as in the list of kContactSolvers below.
-constexpr const char* ContactSolverToChars(ContactSolver contact_solver) {
-  switch (contact_solver) {
-    case ContactSolver::kTamsi:
+// when somebody adds a new value to the enum. New values must be listed here
+// as well as in the list of kDiscreteContactSolverTypes below.
+constexpr const char* DiscreteContactSolverTypeToChars(
+    DiscreteContactSolverType type) {
+  switch (type) {
+    case DiscreteContactSolverType::kTamsi:
       return "tamsi";
-    case ContactSolver::kSap:
+    case DiscreteContactSolverType::kSap:
       return "sap";
   }
 }
 
-constexpr auto MakeContactSolverPair(ContactSolver value) {
-  return std::pair(value, ContactSolverToChars(value));
+constexpr auto MakeDiscreteContactSolverTypePair(
+    DiscreteContactSolverType value) {
+  return std::pair(value, DiscreteContactSolverTypeToChars(value));
 }
 
-constexpr std::array<std::pair<ContactSolver, const char*>, 3> kContactSolvers{{
-  MakeContactSolverPair(ContactSolver::kTamsi),
-  MakeContactSolverPair(ContactSolver::kSap),
-}};
+constexpr std::array<std::pair<DiscreteContactSolverType, const char*>, 2>
+    kDiscreteContactSolverTypes{{
+        MakeDiscreteContactSolverTypePair(DiscreteContactSolverType::kTamsi),
+        MakeDiscreteContactSolverTypePair(DiscreteContactSolverType::kSap),
+    }};
 
 // Take an alias to limit verbosity, especially in the constexpr boilerplate.
 using ContactRep = geometry::HydroelasticContactRepresentation;
@@ -120,18 +124,21 @@ std::string GetStringFromContactModel(ContactModel contact_model) {
   DRAKE_UNREACHABLE();
 }
 
-ContactSolver GetContactSolverFromString(std::string_view contact_solver) {
-  for (const auto& [value, name] : kContactSolvers) {
-    if (name == contact_solver) {
+DiscreteContactSolverType GetDiscreteContactSolverTypeFromString(
+    std::string_view discrete_contact_solver_type) {
+  for (const auto& [value, name] : kDiscreteContactSolverTypes) {
+    if (name == discrete_contact_solver_type) {
       return value;
     }
   }
   throw std::logic_error(
-      fmt::format("Unknown contact_solver: '{}'", contact_solver));
+      fmt::format("Unknown discrete_contact_solver_type: '{}'",
+                  discrete_contact_solver_type));
 }
 
-std::string GetStringFromContactSolver(ContactSolver contact_solver) {
-  for (const auto& [value, name] : kContactSolvers) {
+std::string GetStringFromDiscreteContactSolverType(
+    DiscreteContactSolverType contact_solver) {
+  for (const auto& [value, name] : kDiscreteContactSolverTypes) {
     if (value == contact_solver) {
       return name;
     }
