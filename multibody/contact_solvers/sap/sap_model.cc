@@ -2,7 +2,6 @@
 
 #include <memory>
 #include <utility>
-#include <iostream>
 
 #include "drake/common/default_scalars.h"
 #include "drake/math/linear_solve.h"
@@ -289,12 +288,6 @@ PartialPermutation SapModel<T>::MakeParticipatingVelocitiesPermutation(
 
   const int num_participating_cliques =
       cliques_permutation.permuted_domain_size();
-
-  // Early exit if there are no participating cliques
-  if ( num_participating_cliques == 0 ) {
-    return PartialPermutation(problem.num_velocities());
-  }
-
   // Compute v_participating_start such that
   // v_participating_start[participating_clique] stores the index to the first
   // participating velocity for participating_clique in `this` SapModel.

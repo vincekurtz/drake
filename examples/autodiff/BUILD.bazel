@@ -13,7 +13,7 @@ drake_cc_binary(
                 "//math:autodiff",
                 "//math:gradient",
                 ],
-        )
+)
 
 add_lint_tests()
 
