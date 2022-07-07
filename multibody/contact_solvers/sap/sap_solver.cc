@@ -103,7 +103,7 @@ void SapSolver<double>::PropagateGradients(
     // TODO: apply to arbitrary numbers of cliques
     DRAKE_DEMAND( problem.num_cliques() == 1 );  // Assuming one clique for now
 
-    // TODO: reuse this factorization from somewhere else
+    // TODO: reuse the factorization from SapModel::CalcDelassusDiagonalApproximation
     const MatrixX<double>& A = problem.dynamics_matrix()[0];
     Eigen::LDLT<MatrixX<double>> A_ldlt(A);
 
@@ -147,6 +147,8 @@ SapSolverStatus SapSolver<double>::SolveWithGuess(
   using std::max;
 
   // Make model for the given contact problem.
+  // N.B. we make the model before early exit so we can use the model to
+  // propagate gradients.
   model_ = std::make_unique<SapModel<double>>(&problem);
   const int nv = model_->num_velocities();
   const int nk = model_->num_constraint_equations();

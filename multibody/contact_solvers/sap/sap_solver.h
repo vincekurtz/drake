@@ -225,11 +225,11 @@ class SapSolver {
 
   // Propagate velocity gradients using the implicit function theorem:
   //
-  //    H * dv/dtheta = - dr/dtheta
+  //    H * dv/dθ = - dr/θ
   //
   // where H is the (already factorized) Hessian, v are the next-step
-  // velocities, r(v) = A(v-v0) - dt*k0 - J'*gamma(v,q0) is the residual, and
-  // theta are the variables we are differentiating with respect to.
+  // velocities, r(v;θ) = A(θ)⋅(v−v*(θ)) − J(q₀;θ)ᵀ⋅γ(v; q₀, θ) is the residual, and
+  // θ are the variables we are differentiating with respect to.
   void PropagateGradients(const SapContactProblem<T>& problem,
                           const MatrixX<T>& dr_dtheta, 
                           MatrixX<T>* dv_dtheta);

@@ -617,7 +617,7 @@ class DummyModelTest : public ::testing::Test {
 TEST_F(DummyModelTest, VerifyData) {
     auto problem = MakeContactProblemWithNoConstraints();
     auto sap_model = std::make_unique<SapModel<double>>(sap_problem_.get());
-    //auto context = sap_model_->MakeContext();
+    EXPECT_EQ(sap_model->num_velocities(), 0);
 }
 
 // Verifies model data.

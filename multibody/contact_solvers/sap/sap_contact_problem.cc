@@ -83,6 +83,12 @@ SapContactProblem<AutoDiffXd>::ExtractValues() const {
   return clone;
 }
 
+template <>
+std::unique_ptr<SapContactProblem<double>>
+SapContactProblem<double>::ExtractValues() const {
+  return this->Clone();
+}
+
 template <typename T>
 int SapContactProblem<T>::AddConstraint(std::unique_ptr<SapConstraint<T>> c) {
   if (c->first_clique() >= num_cliques()) {
