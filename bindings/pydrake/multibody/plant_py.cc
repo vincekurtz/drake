@@ -873,10 +873,6 @@ void DoScalarDependentDefinitions(py::module m, T) {
             cls_doc.set_contact_model.doc)
         .def("get_contact_model", &Class::get_contact_model,
             cls_doc.get_contact_model.doc)
-        .def("get_contact_solver", &Class::get_contact_solver,  // DEBUG
-            cls_doc.get_contact_solver.doc)
-        .def("set_contact_solver", &Class::set_contact_solver, py::arg("solver"),
-            cls_doc.set_contact_solver.doc)
         .def_static("GetDefaultContactSurfaceRepresentation",
             &Class::GetDefaultContactSurfaceRepresentation,
             py::arg("time_step"),
@@ -1273,14 +1269,6 @@ PYBIND11_MODULE(plant, m) {
         // Legacy alias. TODO(jwnimmer-tri) Deprecate this constant.
         .value("kPointContactOnly", Class::kPointContactOnly,
             cls_doc.kPointContactOnly.doc);
-  }
-
-  { // DEBUG
-    using Class = ContactSolver;
-    constexpr auto& cls_doc = doc.ContactSolver;
-    py::enum_<Class>(m, "ContactSolver", cls_doc.doc)
-        .value("kTamsi", Class::kTamsi, cls_doc.kTamsi.doc)
-        .value("kSap", Class::kSap, cls_doc.kSap.doc);
   }
 
   {
