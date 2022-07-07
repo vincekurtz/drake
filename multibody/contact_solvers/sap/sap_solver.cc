@@ -154,7 +154,7 @@ SapSolverStatus SapSolver<double>::SolveWithGuess(
     results->j.setZero();
     return SapSolverStatus::kSuccess;
   }
-  
+
   // Make model for the given contact problem.
   model_ = std::make_unique<SapModel<double>>(&problem);
   const int nv = model_->num_velocities();
