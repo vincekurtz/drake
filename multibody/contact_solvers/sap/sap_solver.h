@@ -268,11 +268,10 @@ class SapSolver {
   //    H * dv/dθ = - dr/θ
   //
   // where H is the (already factorized) Hessian, v are the next-step
-  // velocities, r(v;θ) = A(θ)⋅(v−v*(θ)) − J(q₀;θ)ᵀ⋅γ(v; q₀, θ) is the residual, and
-  // θ are the variables we are differentiating with respect to.
+  // velocities, r(v;θ) = A(θ)⋅(v−v*(θ)) − J(q₀;θ)ᵀ⋅γ(v; q₀, θ) is the residual,
+  // and θ are the variables we are differentiating with respect to.
   void PropagateGradients(const SapContactProblem<T>& problem,
-                          const MatrixX<T>& dr_dtheta, 
-                          MatrixX<T>* dv_dtheta);
+                          const MatrixX<T>& dr_dtheta, MatrixX<T>* dv_dtheta);
 
  private:
   friend class SapSolverTester;

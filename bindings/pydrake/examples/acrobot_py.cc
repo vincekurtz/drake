@@ -44,12 +44,14 @@ PYBIND11_MODULE(acrobot, m) {
       .def("MassMatrix", &AcrobotPlant<T>::MassMatrix,
           doc.AcrobotPlant.MassMatrix.doc)
       .def("get_state",
-          pydrake::overload_cast_explicit<const AcrobotState<T>&, const Context<T>&>(&AcrobotPlant<T>::get_state),
+          pydrake::overload_cast_explicit<const AcrobotState<T>&,
+              const Context<T>&>(&AcrobotPlant<T>::get_state),
           py::arg("context"),
           // Keey alive, ownership: `return` keeps `context` alive
           py::keep_alive<0, 2>(), doc.AcrobotPlant.get_state.doc)
       .def("get_mutable_state",
-          pydrake::overload_cast_explicit<AcrobotState<T>&, Context<T>*>(&AcrobotPlant<T>::get_mutable_state),
+          pydrake::overload_cast_explicit<AcrobotState<T>&, Context<T>*>(
+              &AcrobotPlant<T>::get_mutable_state),
           py::arg("context"),
           // Keep alive, ownership: `return` keeps `context` alive
           py::keep_alive<0, 2>(), doc.AcrobotPlant.get_mutable_state.doc)

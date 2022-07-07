@@ -4,7 +4,9 @@
 #include <drake/math/autodiff.h>
 #include <drake/math/autodiff_gradient.h>
 
-using namespace drake;
+namespace drake {
+namespace examples {
+namespace autodiff {
 
 /**
  * A normal function that computes y = f(x).
@@ -52,7 +54,7 @@ void TestFunctionOptimized(const MatrixX<double>& A,
   math::InitializeAutoDiff(res, deriv, y);
 }
 
-int main() {
+int do_main() {
   // Size of the vector x
   int n = 1000;
 
@@ -99,4 +101,12 @@ int main() {
   std::cout << fmt::format("Gradients error: {}\n", deriv_diff.norm());
 
   return 0;
+}
+
+}  // namespace autodiff
+}  // namespace examples
+}  // namespace drake
+
+int main() {
+  return drake::examples::autodiff::do_main();
 }

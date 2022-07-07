@@ -2,19 +2,18 @@
 
 #include <cmath>
 #include <vector>
-#include <iostream> // DEBUG
 
+#include "drake/common/autodiff.h"
 #include "drake/common/default_scalars.h"
 #include "drake/common/drake_throw.h"
+#include "drake/math/autodiff_gradient.h"
 #include "drake/systems/controllers/linear_quadratic_regulator.h"
 #include "drake/systems/framework/diagram.h"
 #include "drake/systems/framework/diagram_builder.h"
 #include "drake/systems/sensors/rotary_encoders.h"
-#include "drake/common/autodiff.h"
-#include "drake/math/autodiff_gradient.h"
 
-using std::sin;
 using std::cos;
+using std::sin;
 
 namespace drake {
 namespace examples {
@@ -23,7 +22,8 @@ namespace acrobot {
 template <typename T>
 AcrobotPlant<T>::AcrobotPlant(double dt, bool fancy_gradients)
     : systems::LeafSystem<T>(systems::SystemTypeTag<AcrobotPlant>{}),
-     time_step_(dt), fancy_gradients_(fancy_gradients) {
+      time_step_(dt),
+      fancy_gradients_(fancy_gradients) {
   DRAKE_DEMAND(dt >= 0);
 
   if (time_step_ == 0) {
@@ -43,8 +43,8 @@ AcrobotPlant<T>::AcrobotPlant(double dt, bool fancy_gradients)
 
 template <typename T>
 template <typename U>
-AcrobotPlant<T>::AcrobotPlant(const AcrobotPlant<U>& other) :
-  AcrobotPlant<T>(other.time_step()) {}
+AcrobotPlant<T>::AcrobotPlant(const AcrobotPlant<U>& other)
+    : AcrobotPlant<T>(other.time_step()) {}
 
 template <typename T>
 void AcrobotPlant<T>::SetMitAcrobotParameters(
@@ -68,7 +68,7 @@ void AcrobotPlant<T>::SetMitAcrobotParameters(
 
 template <typename T>
 Matrix2<T> AcrobotPlant<T>::MassMatrix(
-    const systems::Context<T> &context) const {
+    const systems::Context<T>& context) const {
   const AcrobotState<T>& state = get_state(context);
   const AcrobotParams<T>& p = get_parameters(context);
   const T c2 = cos(state.theta2());
@@ -78,15 +78,13 @@ Matrix2<T> AcrobotPlant<T>::MassMatrix(
 
   const T m12 = I2 + m2l1lc2 * c2;
   Matrix2<T> M;
-  M << I1 + I2 + p.m2() * p.l1() * p.l1() + 2 * m2l1lc2 * c2, m12, m12,
-      I2;
+  M << I1 + I2 + p.m2() * p.l1() * p.l1() + 2 * m2l1lc2 * c2, m12, m12, I2;
   return M;
 }
 
 template <typename T>
-Vector2<T> AcrobotPlant<T>::DynamicsBiasTerm(const systems::Context<T> &
-context)
-const {
+Vector2<T> AcrobotPlant<T>::DynamicsBiasTerm(
+    const systems::Context<T>& context) const {
   const AcrobotState<T>& state = get_state(context);
   const AcrobotParams<T>& p = get_parameters(context);
 
@@ -97,12 +95,12 @@ const {
   Vector2<T> bias;
   // C(q,v)*v terms.
   bias << -2 * m2l1lc2 * s2 * state.theta2dot() * state.theta1dot() +
-           -m2l1lc2 * s2 * state.theta2dot() * state.theta2dot(),
+              -m2l1lc2 * s2 * state.theta2dot() * state.theta2dot(),
       m2l1lc2 * s2 * state.theta1dot() * state.theta1dot();
 
   // -τ_g(q) terms.
   bias(0) += p.gravity() * p.m1() * p.lc1() * s1 +
-          p.gravity() * p.m2() * (p.l1() * s1 + p.lc2() * s12);
+             p.gravity() * p.m2() * (p.l1() * s1 + p.lc2() * s12);
   bias(1) += p.gravity() * p.m2() * p.lc2() * s12;
 
   // Damping terms.
@@ -125,8 +123,7 @@ void AcrobotPlant<T>::DoCalcTimeDerivatives(
   const Vector2<T> B(0, 1);  // input matrix
 
   Vector4<T> xdot;
-  xdot << state.theta1dot(), state.theta2dot(),
-          M.inverse() * (B * tau - bias);
+  xdot << state.theta1dot(), state.theta2dot(), M.inverse() * (B * tau - bias);
   derivatives->SetFromVector(xdot);
 }
 
@@ -148,16 +145,14 @@ void AcrobotPlant<T>::DoCalcImplicitTimeDerivativesResidual(
       proposed_derivatives.get_generalized_velocity().CopyToVector();
 
   *residual << proposed_qdot[0] - state.theta1dot(),
-               proposed_qdot[1] - state.theta2dot(),
-               M * proposed_vdot - (B * tau - bias);
+      proposed_qdot[1] - state.theta2dot(),
+      M * proposed_vdot - (B * tau - bias);
 }
-
 
 template <typename T>
 void AcrobotPlant<T>::DiscreteUpdate(
     const systems::Context<T>& context,
     systems::DiscreteValues<T>* new_state) const {
-
   // Compute current state
   const Vector4<T>& x0 = context.get_discrete_state_vector().value();
   const auto q0 = x0.template segment<2>(0);
@@ -180,20 +175,16 @@ void AcrobotPlant<T>::DiscreteUpdate(
 }
 
 template <typename T>
-void AcrobotPlant<T>::CalcResidual(
-    const Matrix2<T>& M,
-    const Vector2<T>& bias,
-    const Vector2<T>& v,
-    const Vector2<T>& v0,
-    EigenPtr<Vector2<T>> r
-) const {
+void AcrobotPlant<T>::CalcResidual(const Matrix2<T>& M, const Vector2<T>& bias,
+                                   const Vector2<T>& v, const Vector2<T>& v0,
+                                   EigenPtr<Vector2<T>> r) const {
   *r = M * (v - v0) - time_step() * bias;
 }
 
 template <typename T>
 void AcrobotPlant<T>::DoCalcDiscreteVariableUpdates(
     const systems::Context<T>& context,
-    const std::vector< const systems::DiscreteUpdateEvent<T>*>&,
+    const std::vector<const systems::DiscreteUpdateEvent<T>*>&,
     systems::DiscreteValues<T>* new_state) const {
   DiscreteUpdate(context, new_state);
 }
@@ -202,10 +193,9 @@ void AcrobotPlant<T>::DoCalcDiscreteVariableUpdates(
 template <>
 void AcrobotPlant<AutoDiffXd>::DoCalcDiscreteVariableUpdates(
     const systems::Context<AutoDiffXd>& context,
-    const std::vector< const systems::DiscreteUpdateEvent<AutoDiffXd>*>&,
+    const std::vector<const systems::DiscreteUpdateEvent<AutoDiffXd>*>&,
     systems::DiscreteValues<AutoDiffXd>* new_state) const {
-
-  if ( fancy_gradients_ ) {
+  if (fancy_gradients_) {
     // Compute current state
     const Vector4<AutoDiffXd>& x0 = context.get_discrete_state_vector().value();
     const auto q0 = x0.template segment<2>(0);
@@ -215,7 +205,7 @@ void AcrobotPlant<AutoDiffXd>::DoCalcDiscreteVariableUpdates(
     const AutoDiffXd& tau = get_tau(context);
     const Vector2<AutoDiffXd> B(0, 1);  // input matrix
     const Vector2<AutoDiffXd> bias = B * tau - DynamicsBiasTerm(context);
-    
+
     // Compute forward dynamics and factorization with double
     const Matrix2<double> M_double = math::ExtractValue(M);
     const Vector2<double> bias_double = math::ExtractValue(bias);
@@ -226,7 +216,8 @@ void AcrobotPlant<AutoDiffXd>::DoCalcDiscreteVariableUpdates(
     auto q_double = x_double.template segment<2>(0);
     auto v_double = x_double.template segment<2>(2);
     DiscreteAcrobotSolver<double> solver;
-    solver.SolveForwardDynamics(M_double, bias_double, v0_double, time_step_, &v_double);
+    solver.SolveForwardDynamics(M_double, bias_double, v0_double, time_step_,
+                                &v_double);
     q_double = q0_double + time_step() * v_double;
 
     // Compute the gradient of the residual via autodiff
@@ -242,7 +233,7 @@ void AcrobotPlant<AutoDiffXd>::DoCalcDiscreteVariableUpdates(
 
     solver.PropagateDerivatives(dr_dtheta, &dv_dtheta);
     const MatrixX<double> dq0_dtheta = math::ExtractGradient(q0);
-    if ( dq0_dtheta.size() == 0 ) {
+    if (dq0_dtheta.size() == 0) {
       // If q0 does not depend on theta, then dq0_dtheta will be empty,
       // for example if theta is some link masses.
       dq_dtheta = time_step() * dv_dtheta;
@@ -261,7 +252,6 @@ void AcrobotPlant<AutoDiffXd>::DoCalcDiscreteVariableUpdates(
     DiscreteUpdate(context, new_state);
   }
 }
-
 
 template <typename T>
 T AcrobotPlant<T>::DoCalcKineticEnergy(

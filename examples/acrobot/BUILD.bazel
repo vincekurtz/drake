@@ -80,12 +80,12 @@ drake_cc_library(
         ":acrobot_input",
         ":acrobot_params",
         ":acrobot_state",
+        "//common:autodiff",
         "//common:default_scalars",
+        "//math:gradient",
         "//systems/controllers:linear_quadratic_regulator",
         "//systems/framework",
         "//systems/sensors:rotary_encoders",
-        "//common:autodiff",
-        "//math:gradient",
     ],
 )
 

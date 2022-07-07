@@ -370,7 +370,8 @@ class CompliantContactManager final
 template <>
 void CompliantContactManager<AutoDiffXd>::DoCalcContactSolverResults(
     const systems::Context<AutoDiffXd>& context,
-    contact_solvers::internal::ContactSolverResults<AutoDiffXd>* contact_results) const;
+    contact_solvers::internal::ContactSolverResults<AutoDiffXd>*
+        contact_results) const;
 
 }  // namespace internal
 }  // namespace multibody

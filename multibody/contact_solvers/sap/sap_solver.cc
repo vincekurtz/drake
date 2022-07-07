@@ -1,11 +1,11 @@
 #include "drake/multibody/contact_solvers/sap/sap_solver.h"
 
 #include <algorithm>
+#include <iostream>
 #include <limits>
 #include <type_traits>
 #include <utility>
 #include <vector>
-#include <iostream>
 
 #include "drake/common/default_scalars.h"
 #include "drake/common/extract_double.h"
@@ -85,8 +85,7 @@ void SapSolver<T>::CalcStoppingCriteriaResidual(const Context<T>& context,
 
 template <typename T>
 void SapSolver<T>::PropagateGradients(const SapContactProblem<T>&,
-                                      const MatrixX<T>&,
-                                      MatrixX<T>*) {
+                                      const MatrixX<T>&, MatrixX<T>*) {
   throw std::logic_error(
       "SapSolver::PropagateGradients(): Only T = double is supported for "
       "gradient propagation.");
@@ -94,17 +93,17 @@ void SapSolver<T>::PropagateGradients(const SapContactProblem<T>&,
 
 template <>
 void SapSolver<double>::PropagateGradients(
-    const SapContactProblem<double>& problem,
-    const MatrixX<double>& dr_dtheta,
+    const SapContactProblem<double>& problem, const MatrixX<double>& dr_dtheta,
     MatrixX<double>* dv_dtheta) {
   if (problem.num_constraints() == 0) {
     // For an unconstrained problem we have v = v_star, and
     // SapSolver::SolveWithGuess does essentially nothing.
 
-    // TODO: apply to arbitrary numbers of cliques
-    DRAKE_DEMAND( problem.num_cliques() == 1 );  // Assuming one clique for now
+    // TODO(vincekurtz): apply to arbitrary numbers of cliques
+    DRAKE_DEMAND(problem.num_cliques() == 1);  // Assuming one clique for now
 
-    // TODO: reuse the factorization from SapModel::CalcDelassusDiagonalApproximation
+    // TODO(vincekurtz): reuse the factorization from
+    // SapModel::CalcDelassusDiagonalApproximation
     const MatrixX<double>& A = problem.dynamics_matrix()[0];
     Eigen::LDLT<MatrixX<double>> A_ldlt(A);
 
@@ -582,8 +581,8 @@ std::pair<double, int> SapSolver<double>::PerformExactLineSearch(
     double dell_dalpha;
     double d2ell_dalpha2;
     data.solver.CalcCostAlongLine(data.context0, data.search_direction_data, x,
-                                   &data.scratch, &dell_dalpha, &d2ell_dalpha2,
-                                   &data.vec_scratch);
+                                  &data.scratch, &dell_dalpha, &d2ell_dalpha2,
+                                  &data.vec_scratch);
     return std::make_pair(dell_dalpha / data.dell_scale,
                           d2ell_dalpha2 / data.dell_scale);
   };

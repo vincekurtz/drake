@@ -19,7 +19,7 @@ namespace {
  * Compute several discrete-time steps for the acrobot using autodiff
  * to calculate the gradients with respect to the initial state.
  *
- * Returns the compute time (in seconds), final state, and gradients. 
+ * Returns the compute time (in seconds), final state, and gradients.
  */
 std::tuple<double, VectorX<double>, MatrixX<double>> step_test(
     const bool fancy_gradients, const int num_steps) {
@@ -50,7 +50,7 @@ std::tuple<double, VectorX<double>, MatrixX<double>> step_test(
       acrobot.AllocateDiscreteVariables();
   VectorX<AutoDiffXd> x;
 
-  for ( int i=0; i<num_steps; ++i ) {
+  for (int i = 0; i < num_steps; ++i) {
     acrobot.CalcDiscreteVariableUpdates(*context, state.get());
     x = state->value();
     context->SetDiscreteState(x);
@@ -65,7 +65,7 @@ std::tuple<double, VectorX<double>, MatrixX<double>> step_test(
  * Compute several discrete-time steps for the acrobot using autodiff
  * to calculate the gradients with respect to one of the link masses.
  *
- * Returns the compute time (in seconds), final state, and gradients. 
+ * Returns the compute time (in seconds), final state, and gradients.
  */
 std::tuple<double, VectorX<double>, MatrixX<double>> mass_test(
     const bool fancy_gradients, const int num_steps) {
@@ -103,7 +103,7 @@ std::tuple<double, VectorX<double>, MatrixX<double>> mass_test(
       acrobot.AllocateDiscreteVariables();
   VectorX<AutoDiffXd> x;
 
-  for ( int i=0; i<num_steps; ++i ) {
+  for (int i = 0; i < num_steps; ++i) {
     acrobot.CalcDiscreteVariableUpdates(*context, state.get());
     x = state->value();
     context->SetDiscreteState(x);
@@ -115,8 +115,8 @@ std::tuple<double, VectorX<double>, MatrixX<double>> mass_test(
 }
 
 /**
- * Run the given test with both normal and fancy gradients for the given 
- * number of steps. Print out a comparison of run times, values, and gradients. 
+ * Run the given test with both normal and fancy gradients for the given
+ * number of steps. Print out a comparison of run times, values, and gradients.
  */
 void run_a_test(const int num_steps,
                 std::tuple<double, VectorX<double>, MatrixX<double>> (*func)(
@@ -136,7 +136,7 @@ void run_a_test(const int num_steps,
 }
 
 // Simple example of computing dynamics gradients with autodiff
-int do_main() { 
+int do_main() {
   const int num_steps = 1000;
 
   std::cout << "Testing gradients w.r.t. initial state:\n\n";
@@ -147,7 +147,7 @@ int do_main() {
   std::cout << "Testing gradients w.r.t. link masses:\n\n";
   run_a_test(num_steps, *mass_test);
 
-  return 0; 
+  return 0;
 }
 
 }  // namespace
