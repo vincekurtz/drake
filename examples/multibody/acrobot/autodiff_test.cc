@@ -46,10 +46,10 @@ std::tuple<double, VectorX<double>, MatrixX<double>> take_autodiff_steps(
   auto manager = std::make_unique<CompliantContactManager<double>>();
   SapSolverParameters sap_params;
   sap_params.use_dense_algebra = dense_algebra;
-  // manager->set_sap_solver_parameters(sap_params);
-  // plant_double.SetDiscreteUpdateManager(std::move(manager));
+  manager->set_sap_solver_parameters(sap_params);
+  plant_double.SetDiscreteUpdateManager(std::move(manager));
 
-  // Convert to autodiff after parsing
+  // Convert to autodiff
   std::unique_ptr<MultibodyPlant<AutoDiffXd>> plant =
       System<double>::ToAutoDiffXd(plant_double);
   std::unique_ptr<Context<AutoDiffXd>> context = plant->CreateDefaultContext();

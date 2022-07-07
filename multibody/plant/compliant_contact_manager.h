@@ -183,6 +183,13 @@ class CompliantContactManager final
       const systems::Context<T>&,
       multibody::internal::AccelerationKinematicsCache<T>*) const final;
 
+  // Helper function for DoCalcContactSolverResults which uses the implicit
+  // function theorem to compute gradients more efficiently. Only defined for
+  // T=AutoDiffXd.
+  void DoCalcContactSolverResultsWithImplicitFunctionTheorem(
+      const systems::Context<T>&,
+      contact_solvers::internal::ContactSolverResults<T>*) const;
+
   // Returns the point contact stiffness stored in group
   // geometry::internal::kMaterialGroup with property
   // geometry::internal::kPointStiffness for the specified geometry.
@@ -351,12 +358,16 @@ class CompliantContactManager final
 
   std::unique_ptr<DiscreteUpdateManager<double>> CloneToDouble()
       const override {
-    return std::make_unique<CompliantContactManager<double>>();
+    auto clone = std::make_unique<CompliantContactManager<double>>();
+    clone->set_sap_solver_parameters(sap_parameters_);
+    return clone;
   }
 
   std::unique_ptr<DiscreteUpdateManager<AutoDiffXd>> CloneToAutoDiffXd()
       const override {
-    return std::make_unique<CompliantContactManager<AutoDiffXd>>();
+    auto clone = std::make_unique<CompliantContactManager<AutoDiffXd>>();
+    clone->set_sap_solver_parameters(sap_parameters_);
+    return clone;
   }
 
   CacheIndexes cache_indexes_;
@@ -368,10 +379,10 @@ class CompliantContactManager final
 
 // Declare template specializations for AutoDiffXd
 template <>
-void CompliantContactManager<AutoDiffXd>::DoCalcContactSolverResults(
-    const systems::Context<AutoDiffXd>& context,
-    contact_solvers::internal::ContactSolverResults<AutoDiffXd>*
-        contact_results) const;
+void CompliantContactManager<AutoDiffXd>::
+    DoCalcContactSolverResultsWithImplicitFunctionTheorem(
+        const systems::Context<AutoDiffXd>&,
+        contact_solvers::internal::ContactSolverResults<AutoDiffXd>*) const;
 
 }  // namespace internal
 }  // namespace multibody

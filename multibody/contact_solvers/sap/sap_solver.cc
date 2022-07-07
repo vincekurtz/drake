@@ -146,13 +146,6 @@ SapSolverStatus SapSolver<double>::SolveWithGuess(
   using std::abs;
   using std::max;
 
-  // Make model for the given contact problem.
-  // N.B. we make the model before early exit so we can use the model to
-  // propagate gradients.
-  model_ = std::make_unique<SapModel<double>>(&problem);
-  const int nv = model_->num_velocities();
-  const int nk = model_->num_constraint_equations();
-
   if (problem.num_constraints() == 0) {
     // In the absence of constraints the solution is trivially v = v*.
     results->Resize(problem.num_velocities(),
@@ -161,6 +154,11 @@ SapSolverStatus SapSolver<double>::SolveWithGuess(
     results->j.setZero();
     return SapSolverStatus::kSuccess;
   }
+  
+  // Make model for the given contact problem.
+  model_ = std::make_unique<SapModel<double>>(&problem);
+  const int nv = model_->num_velocities();
+  const int nk = model_->num_constraint_equations();
 
   // Allocate the necessary memory to work with.
   auto context = model_->MakeContext();
