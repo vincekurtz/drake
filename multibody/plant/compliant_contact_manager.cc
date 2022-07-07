@@ -623,17 +623,25 @@ void CompliantContactManager<T>::DoCalcContactSolverResults(
     ContactSolverResults<T>* contact_results) const {
   const ContactProblemCache<T>& contact_problem_cache =
       EvalContactProblemCache(context);
+
+  // Compute problem data, including v_star, with double
   const SapContactProblem<T>& sap_problem = *contact_problem_cache.sap_problem;
+  //const SapContactProblem<double>& sap_problem = *contact_problem_cache.sap_problem;
+  // Workaround: Compute problem with AutoDiffXd and convert to double.
+  //sap_problem_double = sap_problem.ExtractValues();
 
   // We use the velocity stored in the current context as initial guess.
   const VectorX<T>& x0 =
       context.get_discrete_state(this->multibody_state_index()).value();
   const auto v0 = x0.bottomRows(this->plant().num_velocities());
 
-  // Solve contact problem.
+  // Solve contact problem using double. Save the factorization of H.
   SapSolver<T> sap;
   sap.set_parameters(sap_parameters_);
   SapSolverResults<T> sap_results;
+  //SapSolver<double> sap;
+  //sap.set_parameters(sap_parameters_);
+  //SapSolverResults<double> sap_results;
   const SapSolverStatus status =
       sap.SolveWithGuess(sap_problem, v0, &sap_results);
   if (status != SapSolverStatus::kSuccess) {
@@ -654,6 +662,14 @@ void CompliantContactManager<T>::DoCalcContactSolverResults(
         context.get_time());
     throw std::runtime_error(msg);
   }
+
+  // Compute the gradient of the residual with autodiff
+  //vdot = (sap_results.v_next - v0_double)/plant().time_step();
+  //dr_dtheta = plant().time_step() * CalcInverseDynamics(vdot, context);
+
+  // Compute dv_dtheta via implicit function theorem
+  //dv_dtheta = sap.PropagateGradients(dr_theta);
+  //v.derivatives = dv_dtheta;
 
   const std::vector<DiscreteContactPair<T>>& discrete_pairs =
       EvalDiscreteContactPairs(context);
