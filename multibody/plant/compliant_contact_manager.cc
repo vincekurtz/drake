@@ -6,6 +6,7 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <iostream>
 
 #include "drake/common/eigen_types.h"
 #include "drake/common/scope_exit.h"
@@ -623,25 +624,17 @@ void CompliantContactManager<T>::DoCalcContactSolverResults(
     ContactSolverResults<T>* contact_results) const {
   const ContactProblemCache<T>& contact_problem_cache =
       EvalContactProblemCache(context);
-
-  // Compute problem data, including v_star, with double
   const SapContactProblem<T>& sap_problem = *contact_problem_cache.sap_problem;
-  //const SapContactProblem<double>& sap_problem = *contact_problem_cache.sap_problem;
-  // Workaround: Compute problem with AutoDiffXd and convert to double.
-  //sap_problem_double = sap_problem.ExtractValues();
 
   // We use the velocity stored in the current context as initial guess.
   const VectorX<T>& x0 =
       context.get_discrete_state(this->multibody_state_index()).value();
   const auto v0 = x0.bottomRows(this->plant().num_velocities());
 
-  // Solve contact problem using double. Save the factorization of H.
+  // Solve contact problem.
   SapSolver<T> sap;
   sap.set_parameters(sap_parameters_);
   SapSolverResults<T> sap_results;
-  //SapSolver<double> sap;
-  //sap.set_parameters(sap_parameters_);
-  //SapSolverResults<double> sap_results;
   const SapSolverStatus status =
       sap.SolveWithGuess(sap_problem, v0, &sap_results);
   if (status != SapSolverStatus::kSuccess) {
@@ -663,19 +656,80 @@ void CompliantContactManager<T>::DoCalcContactSolverResults(
     throw std::runtime_error(msg);
   }
 
-  // Compute the gradient of the residual with autodiff
-  //vdot = (sap_results.v_next - v0_double)/plant().time_step();
-  //dr_dtheta = plant().time_step() * CalcInverseDynamics(vdot, context);
-
-  // Compute dv_dtheta via implicit function theorem
-  //dv_dtheta = sap.PropagateGradients(dr_theta);
-  //v.derivatives = dv_dtheta;
-
   const std::vector<DiscreteContactPair<T>>& discrete_pairs =
       EvalDiscreteContactPairs(context);
   const int num_contacts = discrete_pairs.size();
 
   PackContactSolverResults(sap_problem, num_contacts, sap_results,
+                           contact_results);
+}
+
+template <>
+void CompliantContactManager<AutoDiffXd>::DoCalcContactSolverResults(
+    const systems::Context<AutoDiffXd>& context,
+    ContactSolverResults<AutoDiffXd>* contact_results) const {
+  
+  // Compute problem data, including v_star, with double.
+  // As a workaround, we'll "fake" the double computation by doing the
+  // computation with autodiff, then extracting the (double) values.
+  const ContactProblemCache<AutoDiffXd>& contact_problem_cache =
+      EvalContactProblemCache(context);
+  const SapContactProblem<AutoDiffXd>& sap_problem_autodiff =
+      *contact_problem_cache.sap_problem;
+  std::unique_ptr<SapContactProblem<double>> sap_problem = sap_problem_autodiff.ExtractValues(); 
+
+  // We use the velocity stored in the current context as initial guess.
+  const VectorX<AutoDiffXd>& x0 =
+      context.get_discrete_state(this->multibody_state_index()).value();
+  const auto v0_autodiff = x0.bottomRows(this->plant().num_velocities());
+  const auto v0 = math::ExtractValue(v0_autodiff);
+
+  // Solve contact problem using double. Save the factorization of H.
+  SapSolver<double> sap;
+  sap.set_parameters(sap_parameters_);
+  SapSolverResults<double> sap_results;
+  const SapSolverStatus status =
+      sap.SolveWithGuess(*sap_problem, v0, &sap_results);
+  if (status!= SapSolverStatus::kSuccess) {
+    const std::string msg = fmt::format(
+        "The SAP solver failed to converge at simulation time = {:7.3g}. "
+        "Reasons for divergence and possible solutions include:\n"
+        "  1. Externally applied actuation values diverged due to external "
+        "     reasons to the solver. Revise your control logic.\n"
+        "  2. External force elements such as spring or bushing elements can "
+        "     lead to unstable temporal dynamics if too stiff. Revise your "
+        "     model and consider whether these forces can be better modeled "
+        "     using one of SAP's compliant constraints. E.g., use a distance "
+        "     constraint instead of a spring element.\n"
+        "  3. Numerical ill conditioning of the model caused by, for instance, "
+        "     extremely large mass ratios. Revise your model and consider "
+        "     whether very small objects can be removed or welded to larger "
+        "     objects in the model.",
+        context.get_time());
+    throw std::runtime_error(msg);
+  }
+
+  // Compute the gradient of the residual with autodiff
+  const VectorX<AutoDiffXd> vdot = (sap_results.v - v0_autodiff)/plant().time_step();
+  MultibodyForces<AutoDiffXd> f_ext(plant());  // TODO: include contact forces, computed with autodiff
+                                               // in terms of v and q0.
+  CalcNonContactForcesExcludingJointLimits(context, &f_ext);  // TODO: damping correction?
+  VectorX<AutoDiffXd> r = plant().time_step() * plant().CalcInverseDynamics(context, vdot, f_ext);
+  MatrixX<double> dr_dtheta = math::ExtractGradient(r);
+
+  // Compute dv_dtheta via implicit function theorem
+  MatrixX<double> dv_dtheta;
+  sap.PropagateGradients(*sap_problem, dr_dtheta, &dv_dtheta);
+
+  // Load back into the derivatives and return
+  SapSolverResults<AutoDiffXd> sap_results_autodiff;
+  math::InitializeAutoDiff(sap_results.v, dv_dtheta, &sap_results_autodiff.v);
+
+  const std::vector<DiscreteContactPair<AutoDiffXd>>& discrete_pairs =
+      EvalDiscreteContactPairs(context);
+  const int num_contacts = discrete_pairs.size();
+
+  PackContactSolverResults(sap_problem_autodiff, num_contacts, sap_results_autodiff,
                            contact_results);
 }
 

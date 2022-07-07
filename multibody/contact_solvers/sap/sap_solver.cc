@@ -5,6 +5,7 @@
 #include <type_traits>
 #include <utility>
 #include <vector>
+#include <iostream>
 
 #include "drake/common/default_scalars.h"
 #include "drake/common/extract_double.h"
@@ -82,6 +83,45 @@ void SapSolver<T>::CalcStoppingCriteriaResidual(const Context<T>& context,
 }
 
 template <typename T>
+void SapSolver<T>::PropagateGradients(const SapContactProblem<T>&,
+                                      const MatrixX<T>&,
+                                      MatrixX<T>*) {
+  throw std::logic_error(
+      "SapSolver::PropagateGradients(): Only T = double is supported for "
+      "gradient propagation.");
+}
+
+template <>
+void SapSolver<double>::PropagateGradients(
+    const SapContactProblem<double>& problem,
+    const MatrixX<double>& dr_dtheta,
+    MatrixX<double>* dv_dtheta) {
+  if (problem.num_constraints() == 0) {
+    // For an unconstrained problem we have v = v_star, and
+    // SapSolver::SolveWithGuess does essentially nothing.
+
+    // TODO: apply to arbitrary numbers of cliques
+    DRAKE_DEMAND( problem.num_cliques() == 1 );  // Assuming one clique for now
+
+    // TODO: reuse the factorization from SapModel::CalcDelassusDiagonalApproximation
+    const MatrixX<double>& A = problem.dynamics_matrix()[0];
+    Eigen::LDLT<MatrixX<double>> A_ldlt(A);
+
+    *dv_dtheta = A_ldlt.solve(-dr_dtheta);
+
+  } else {
+    // For problems with constraints, we can reuse the factorization of the
+    // Hessian of the contact problem. This includes contact contributions, but
+    // only for "participating DoFs", i.e., bodies that are in contact.
+    DRAKE_DEMAND(supernodal_solver_ != nullptr);
+    throw std::logic_error(
+        "SapSolver::PropagateGradients(): not implemented yet for constrained "
+        "problems.");
+    // MatrixX<double> dv_dtheta = supernodal_solver_->Solve(-dr_dtheta);
+  }
+}
+
+template <typename T>
 SapSolverStatus SapSolver<T>::SolveWithGuess(
     const SapContactProblem<T>& problem, const VectorX<T>&,
     SapSolverResults<T>* results) {
@@ -106,6 +146,13 @@ SapSolverStatus SapSolver<double>::SolveWithGuess(
   using std::abs;
   using std::max;
 
+  // Make model for the given contact problem.
+  // N.B. we make the model before early exit so we can use the model to
+  // propagate gradients.
+  model_ = std::make_unique<SapModel<double>>(&problem);
+  const int nv = model_->num_velocities();
+  const int nk = model_->num_constraint_equations();
+
   if (problem.num_constraints() == 0) {
     // In the absence of constraints the solution is trivially v = v*.
     results->Resize(problem.num_velocities(),
@@ -115,19 +162,11 @@ SapSolverStatus SapSolver<double>::SolveWithGuess(
     return SapSolverStatus::kSuccess;
   }
 
-  // Make model for the given contact problem.
-  model_ = std::make_unique<SapModel<double>>(&problem);
-  const int nv = model_->num_velocities();
-  const int nk = model_->num_constraint_equations();
-
   // Allocate the necessary memory to work with.
   auto context = model_->MakeContext();
   auto scratch = model_->MakeContext();
   SearchDirectionData search_direction_data(nv, nk);
   stats_ = SolverStats();
-  // The supernodal solver is expensive to instantiate and therefore we only
-  // instantiate when needed.
-  std::unique_ptr<SuperNodalSolver> supernodal_solver;
 
   {
     // We limit the lifetime of this reference, v, to within this scope where we
@@ -178,11 +217,11 @@ SapSolverStatus SapSolver<double>::SolveWithGuess(
               "SapSolver: Non-monotonic convergence detected.");
         }
       }
-      if (!parameters_.use_dense_algebra && supernodal_solver == nullptr) {
+      if (!parameters_.use_dense_algebra && supernodal_solver_ == nullptr) {
         // Instantiate supernodal solver on the first iteration when needed. If
         // the stopping criteria is satisfied at k = 0 (good guess), then we
         // skip the expensive instantiation of the solver.
-        supernodal_solver = MakeSuperNodalSolver();
+        supernodal_solver_ = MakeSuperNodalSolver();
       }
     }
 
@@ -193,7 +232,7 @@ SapSolverStatus SapSolver<double>::SolveWithGuess(
 
     // This is the most expensive update: it performs the factorization of H to
     // solve for the search direction dv.
-    CalcSearchDirectionData(*context, supernodal_solver.get(),
+    CalcSearchDirectionData(*context, supernodal_solver_.get(),
                             &search_direction_data);
     const VectorX<double>& dv = search_direction_data.dv;
 

@@ -223,6 +223,17 @@ class SapSolver {
   // SolveWithGuess().
   const SolverStats& get_statistics() const;
 
+  // Propagate velocity gradients using the implicit function theorem:
+  //
+  //    H * dv/dθ = - dr/θ
+  //
+  // where H is the (already factorized) Hessian, v are the next-step
+  // velocities, r(v;θ) = A(θ)⋅(v−v*(θ)) − J(q₀;θ)ᵀ⋅γ(v; q₀, θ) is the residual, and
+  // θ are the variables we are differentiating with respect to.
+  void PropagateGradients(const SapContactProblem<T>& problem,
+                          const MatrixX<T>& dr_dtheta, 
+                          MatrixX<T>* dv_dtheta);
+
  private:
   friend class SapSolverTester;
 
@@ -344,6 +355,9 @@ class SapSolver {
   // TODO(amcastro-tri): Consider moving stats into the solver's state stored as
   // part of the model's context.
   mutable SolverStats stats_;
+
+  // Store the supernodal solver so we can reuse the factorization
+  std::unique_ptr<SuperNodalSolver> supernodal_solver_;
 };
 
 // Forward-declare specializations, prior to DRAKE_DECLARE... below.
@@ -351,6 +365,11 @@ template <>
 SapSolverStatus SapSolver<double>::SolveWithGuess(
     const SapContactProblem<double>&, const VectorX<double>&,
     SapSolverResults<double>*);
+
+template <>
+void SapSolver<double>::PropagateGradients(const SapContactProblem<double>&,
+                                           const MatrixX<double>&,
+                                           MatrixX<double>*);
 
 }  // namespace internal
 }  // namespace contact_solvers

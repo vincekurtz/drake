@@ -327,6 +327,11 @@ class DummyModel {
   }
   const VectorX<T>& v_star() const { return v_star_; }
 
+  std::unique_ptr<SapContactProblem<T>> MakeContactProblemWithNoConstraints() {
+    return std::make_unique<SapContactProblem<T>>(
+        time_step_, dynamics_matrix_, v_star_);
+  }
+
   std::unique_ptr<SapContactProblem<T>> MakeContactProblem() {
     auto problem = std::make_unique<SapContactProblem<T>>(
         time_step_, dynamics_matrix_, v_star_);
@@ -608,6 +613,12 @@ class DummyModelTest : public ::testing::Test {
   VectorXd R_;
   MatrixXd J_not_permuted_;
 };
+
+TEST_F(DummyModelTest, VerifyData) {
+    auto problem = MakeContactProblemWithNoConstraints();
+    auto sap_model = std::make_unique<SapModel<double>>(sap_problem_.get());
+    EXPECT_EQ(sap_model->num_velocities(), 0);
+}
 
 // Verifies model data.
 TEST_F(DummyModelTest, VerifyData) {

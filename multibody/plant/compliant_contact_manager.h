@@ -366,6 +366,12 @@ class CompliantContactManager final
   VectorX<T> joint_damping_;
 };
 
+// Declare template specializations for AutoDiffXd
+template <>
+void CompliantContactManager<AutoDiffXd>::DoCalcContactSolverResults(
+    const systems::Context<AutoDiffXd>& context,
+    contact_solvers::internal::ContactSolverResults<AutoDiffXd>* contact_results) const;
+
 }  // namespace internal
 }  // namespace multibody
 }  // namespace drake

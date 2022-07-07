@@ -1,3 +1,4 @@
+#include <chrono>
 #include <iostream>
 #include <memory>
 
@@ -6,9 +7,11 @@
 #include "drake/common/drake_assert.h"
 #include "drake/common/find_resource.h"
 #include "drake/geometry/scene_graph.h"
+#include "drake/multibody/contact_solvers/sap/sap_solver.h"
 #include "drake/multibody/parsing/parser.h"
-#include "drake/systems/framework/diagram_builder.h"
+#include "drake/multibody/plant/compliant_contact_manager.h"
 #include "drake/multibody/plant/multibody_plant_config_functions.h"
+#include "drake/systems/framework/diagram_builder.h"
 
 namespace drake {
 
@@ -16,6 +19,8 @@ using multibody::AddMultibodyPlant;
 using multibody::MultibodyPlant;
 using multibody::MultibodyPlantConfig;
 using multibody::Parser;
+using multibody::contact_solvers::internal::SapSolverParameters;
+using multibody::internal::CompliantContactManager;
 using systems::Context;
 using systems::DiscreteValues;
 using systems::System;
@@ -24,19 +29,29 @@ namespace examples {
 namespace multibody {
 namespace acrobot {
 
-// Simulate a single step and use autodiff to compute gradients with respect to the initial state. 
-// Return the subsequent state and gradient matrix. 
-std::tuple<VectorX<double>, MatrixX<double>> take_autodiff_step(MultibodyPlantConfig plant_config) {
+// Simulate several steps and use autodiff to compute gradients with respect to
+// the initial state. Return the resulting state and gradient matrix.
+std::tuple<double, VectorX<double>, MatrixX<double>> take_autodiff_steps(
+    MultibodyPlantConfig plant_config, int num_steps, bool dense_algebra) {
   // Create a MultibodyPlant acrobot model via SDF parsing
   systems::DiagramBuilder<double> builder;
-  auto [plant_double, scene_graph_double] = AddMultibodyPlant(plant_config, &builder);
+  auto [plant_double, scene_graph_double] =
+      AddMultibodyPlant(plant_config, &builder);
   const std::string file_name =
       FindResourceOrThrow("drake/multibody/benchmarks/acrobot/acrobot.sdf");
   Parser(&plant_double).AddModelFromFile(file_name);
   plant_double.Finalize();
 
+  // Specify the SAP solver and parameters
+  auto manager = std::make_unique<CompliantContactManager<double>>();
+  SapSolverParameters sap_params;
+  sap_params.use_dense_algebra = dense_algebra;
+  manager->set_sap_solver_parameters(sap_params);
+  plant_double.SetDiscreteUpdateManager(std::move(manager));
+
   // Convert to autodiff after parsing
-  std::unique_ptr<MultibodyPlant<AutoDiffXd>> plant = System<double>::ToAutoDiffXd(plant_double);
+  std::unique_ptr<MultibodyPlant<AutoDiffXd>> plant =
+      System<double>::ToAutoDiffXd(plant_double);
   std::unique_ptr<Context<AutoDiffXd>> context = plant->CreateDefaultContext();
 
   // Set initial conditions and input
@@ -44,57 +59,64 @@ std::tuple<VectorX<double>, MatrixX<double>> take_autodiff_step(MultibodyPlantCo
   x0_val << 0.9, 1.1, 0.1, -0.2;
   const VectorX<AutoDiffXd> x0 = math::InitializeAutoDiff(x0_val);
   plant->SetPositionsAndVelocities(context.get(), x0);
-  
+
   const AutoDiffXd u = 0;
   plant->get_actuation_input_port().FixValue(context.get(), u);
 
-  // Simulate forward one timestep
+  // Simulate forward for num_steps
   std::unique_ptr<DiscreteValues<AutoDiffXd>> state =
       plant->AllocateDiscreteVariables();
-  plant->CalcDiscreteVariableUpdates(*context, state.get());
-  VectorX<AutoDiffXd> x = state->value();
+  VectorX<AutoDiffXd> x;
 
-  // Get the gradients
-  return { math::ExtractValue(x), math::ExtractGradient(x) };
+  std::chrono::duration<double> elapsed;
+  auto st = std::chrono::high_resolution_clock::now();
+  for (int i = 0; i < num_steps; ++i) {
+    plant->CalcDiscreteVariableUpdates(*context, state.get());
+    x = state->value();
+    context->SetDiscreteState(x);
+  }
+  elapsed = std::chrono::high_resolution_clock::now() - st;
 
+  // Return gradients and time elapsed in seconds
+  return {elapsed.count(), math::ExtractValue(x), math::ExtractGradient(x)};
 }
 
 DEFINE_double(time_step, 1e-2, "Time step for discrete-time simulation");
-DEFINE_string(contact_solver, "both",
-              "Contact solver. Options are: 'tamsi', 'sap', or 'both'.");
+DEFINE_string(
+    algebra, "both",
+    "Type of algebra to use. Options are: 'sparse', 'dense', or 'both'.");
+DEFINE_int32(num_steps, 1, "Number of steps to simulate.");
 
 int do_main() {
+  int num_steps = FLAGS_num_steps;
+  MultibodyPlantConfig plant_config;
+  plant_config.time_step = FLAGS_time_step;
 
-  if ( FLAGS_contact_solver == "sap" or FLAGS_contact_solver == "tamsi" ) {
+  if (FLAGS_algebra == "sparse" or FLAGS_algebra == "dense") {
     // Simulate a step and print the next state and gradients
 
-    MultibodyPlantConfig plant_config;
-    plant_config.time_step = FLAGS_time_step;
-    plant_config.contact_solver = FLAGS_contact_solver;
+    auto [runtime, x, dx] = take_autodiff_steps(plant_config, num_steps,
+                                                (FLAGS_algebra == "dense"));
 
-    // Simulate a step
-    auto [x, dx] = take_autodiff_step(plant_config);
+    std::cout << "runtime: " << runtime << std::endl;
+    std::cout << "x: \n" << x << std::endl;
+    std::cout << "dx/dx0: \n" << dx << std::endl;
 
-    // Get the gradients
-    std::cout << x << std::endl;
-    std::cout << dx << std::endl;
-  } else if ( FLAGS_contact_solver == "both" ) {
-    // Take a step with both contact solvers and compare the result
+  } else if (FLAGS_algebra == "both") {
+    // Take a step with both sparse and dense algebra and compare the results
 
-    MultibodyPlantConfig plant_config;
-    plant_config.time_step = FLAGS_time_step;
-    plant_config.contact_solver = "tamsi";
-    auto [x_tamsi, dx_tamsi] = take_autodiff_step(plant_config);
+    auto [st_dense, x_dense, dx_dense] =
+        take_autodiff_steps(plant_config, num_steps, true);
+    auto [st_sparse, x_sparse, dx_sparse] =
+        take_autodiff_steps(plant_config, num_steps, false);
 
-    plant_config.contact_solver = "sap";
-    auto [x_sap, dx_sap] = take_autodiff_step(plant_config);
+    const VectorX<double> val_diff = x_dense - x_sparse;
+    const MatrixX<double> grad_diff = dx_dense - dx_sparse;
 
-    const VectorX<double> val_diff = x_tamsi - x_sap;
-    const MatrixX<double> grad_diff = dx_tamsi - dx_sap;
-
+    std::cout << "Baseline (dense algebra) time: " << st_dense << std::endl;
+    std::cout << "SAP (sparse algebra) time: " << st_sparse << std::endl;
     std::cout << "Value error: " << val_diff.norm() << std::endl;
     std::cout << "Gradient error: " << grad_diff.norm() << std::endl;
-
   }
 
   return 0;

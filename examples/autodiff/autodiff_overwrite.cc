@@ -1,7 +1,6 @@
 #include <chrono>
 #include <iostream>
 
-
 #include <drake/math/autodiff.h>
 #include <drake/math/autodiff_gradient.h>
 
@@ -50,9 +49,6 @@ void TestFunctionOptimized(const MatrixX<double>& A,
   const MatrixX<double> deriv = dy_dx * grad;  // chain rule
 
   // Load those into a newly computed result.
-  // Note that other versions of InitializeAutoDiff may end up being this
-  // more useful to us, such as the one that takes a pointer to y
-  // (the resulting autodiff matrix) rather than returning it.
   math::InitializeAutoDiff(res, deriv, y);
 }
 
