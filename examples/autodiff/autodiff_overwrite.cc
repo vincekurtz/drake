@@ -1,5 +1,5 @@
-#include <iostream>
 #include <chrono>
+#include <iostream>
 
 #include <drake/math/autodiff.h>
 #include <drake/math/autodiff_gradient.h>
