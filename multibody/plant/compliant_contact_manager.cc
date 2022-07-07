@@ -721,6 +721,7 @@ void CompliantContactManager<AutoDiffXd>::
       *contact_problem_cache.sap_problem;
   std::unique_ptr<SapContactProblem<double>> sap_problem =
       sap_problem_autodiff.ExtractValues();
+  const double time_step = plant().time_step();
 
   // We use the velocity stored in the current context as initial guess.
   const VectorX<AutoDiffXd>& x0 =
@@ -755,14 +756,16 @@ void CompliantContactManager<AutoDiffXd>::
 
   // Compute the gradient of the residual with autodiff
   const VectorX<AutoDiffXd> vdot =
-      (sap_results.v - v0_autodiff) / plant().time_step();
-  MultibodyForces<AutoDiffXd> f_ext(
-      plant());  // TODO(vincekurtz): include contact forces, computed with
-                 // autodiff in terms of v and q0.
-  CalcNonContactForcesExcludingJointLimits(
-      context, &f_ext);  // TODO(vincekurtz): damping correction?
+      (sap_results.v - v0_autodiff) / time_step;
+  // TODO(vincekurtz): include contact forces, computed with autodiff in terms
+  // of v and q0.
+  MultibodyForces<AutoDiffXd> f_ext(plant());
+  CalcNonContactForcesExcludingJointLimits(context, &f_ext);
   VectorX<AutoDiffXd> r =
-      plant().time_step() * plant().CalcInverseDynamics(context, vdot, f_ext);
+      time_step * plant().CalcInverseDynamics(context, vdot, f_ext);
+  VectorX<AutoDiffXd> damping_correction =
+      joint_damping_.array() * (sap_results.v.array() - v0_autodiff.array());
+  r += time_step * damping_correction;
   MatrixX<double> dr_dtheta = math::ExtractGradient(r);
 
   // Compute dv_dtheta via implicit function theorem
