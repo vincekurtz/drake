@@ -43,6 +43,7 @@ DEFINE_int32(num_steps, 1,
 DEFINE_bool(contact, true,
             "Whether the initial state is such that the box is in contact with "
             "one of the acrobots or not.");
+DEFINE_double(realtime_rate, 0.5, "Realtime rate for simulating the plant.");
 
     void create_double_plant(MultibodyPlant<double>* plant,
                              const bool& dense_algebra) {
@@ -169,7 +170,7 @@ int do_main() {
         -1.5, 0.25, 2,      // box position
         0.5, 0.5,           // first acrobot velocity
         0.5, 0.5,           // second acrobot velocity
-        0.1, -0.2, 0.1,     // box angular velocity
+        0.01, -0.02, 0.01,     // box angular velocity
         0.1, 0.1, 0.2;      // box linear velocity
 
   if (!FLAGS_contact) {
@@ -206,8 +207,8 @@ int do_main() {
     }
   } else {
     // Run a full simulation
-    const double end_time = 0.5;
-    const double rate = 0.1;
+    const double end_time = 2.0;
+    const double rate = FLAGS_realtime_rate;
     simulate_with_visualizer(x0, end_time, rate);
   }
 
