@@ -17,6 +17,7 @@
 namespace drake {
 
 using multibody::AddMultibodyPlant;
+using multibody::ModelInstanceIndex;
 using multibody::MultibodyPlantConfig;
 using multibody::Parser;
 using multibody::contact_solvers::internal::SapSolverParameters;
@@ -34,11 +35,13 @@ namespace two_acrobots_and_box {
  * visualizer. This is just to get a general sense of what is going on in the
  * example.
  *
- * @param x0        The initial state of the system.
- * @param end_time  The time (in seconds) to simulate for.
+ * @param x0_box        The initial state of the box.
+ * @param x0_acrobot    The initial state of the acrobot.
+ * @param end_time      The time (in seconds) to simulate for.
  */
 
-void simulate_with_visualizer(const VectorX<double>& x0,
+void simulate_with_visualizer(const VectorX<double>& x0_box,
+                              const VectorX<double>& x0_acrobot,
                               const double& end_time) {
   systems::DiagramBuilder<double> builder;
 
@@ -70,11 +73,17 @@ void simulate_with_visualizer(const VectorX<double>& x0,
       diagram->GetMutableSubsystemContext(plant, diagram_context.get());
 
   // Set initial conditions and input
-  // plant.SetPositionsAndVelocities(&plant_context, x0);
-  (void)x0;
-  VectorX<double> u(2);
-  u << 0.0, 0.0;
+  VectorX<double> u(plant.num_actuators());
+  u.setZero(plant.num_actuators());
   plant.get_actuation_input_port().FixValue(&plant_context, u);
+
+  ModelInstanceIndex box = plant.GetModelInstanceByName("box");
+  ModelInstanceIndex acrobot_one = plant.GetModelInstanceByName("acrobot_one");
+  ModelInstanceIndex acrobot_two = plant.GetModelInstanceByName("acrobot_two");
+
+  plant.SetPositionsAndVelocities(&plant_context, box, x0_box);
+  plant.SetPositionsAndVelocities(&plant_context, acrobot_one, x0_acrobot);
+  plant.SetPositionsAndVelocities(&plant_context, acrobot_two, x0_acrobot);
 
   // Set up and run the simulator
   systems::Simulator<double> simulator(*diagram, std::move(diagram_context));
@@ -84,11 +93,15 @@ void simulate_with_visualizer(const VectorX<double>& x0,
 }
 
 int do_main() {
-  double end_time = 2.0;
-  VectorX<double> x0(4);
-  x0 << 0.9, 1.1, 0.1, -0.2;
+  const double end_time = 2;
 
-  simulate_with_visualizer(x0, end_time);
+  VectorX<double> x0_acrobot(4);
+  VectorX<double> x0_box(13);
+
+  x0_acrobot << 0.9, 1.1, 0.5, 0.5;
+  x0_box << 0.985, 0, 0.174, 0.0, -1.5, 0.25, 2, 0.1, -0.2, 0.1, 0.1, 0.1, -0.2;
+
+  simulate_with_visualizer(x0_box, x0_acrobot, end_time);
 
   return 0;
 }

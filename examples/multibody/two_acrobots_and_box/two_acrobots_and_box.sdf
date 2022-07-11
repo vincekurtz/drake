@@ -1,8 +1,41 @@
 <?xml version="1.0"?>
 <sdf version="1.7">
 <world name="two_acrobots_and_box_world">
-  <model name="acrobot_1">
-    <pose>0 0 1.0 0 0 0</pose>
+  <model name="box">
+    <pose>0.3 0.25 0 0 0 0</pose>
+    <link name="box">
+      <collision name="box_collision">
+        <geometry>
+          <box>
+            <size>0.5 0.5 0.5</size>
+          </box>
+        </geometry>
+        <drake:proximity_properties>
+          <drake:dissipation_timescale>0.05</drake:dissipation_timescale>
+        </drake:proximity_properties>
+      </collision>
+      <visual name="box_visual">
+        <geometry>
+          <box>
+            <size>0.5 0.5 0.5</size>
+          </box>
+        </geometry>
+      </visual>
+      <inertial>
+        <mass>1.</mass>
+        <inertia>
+          <ixx>1.0</ixx>
+          <ixy>0.0</ixy>
+          <ixz>0.0</ixz>
+          <iyy>1.0</iyy>
+          <iyz>0.0</iyz>
+          <izz>1.0</izz>
+        </inertia>
+      </inertial>
+    </link>
+  </model>
+  <model name="acrobot_one">
+    <pose>0 1.0 2.0 0 0 0</pose>
     <link name="base_link">
       <collision name="base_link_collision">
         <geometry>
@@ -10,6 +43,9 @@
             <size>0.2 0.2 0.2</size>
           </box>
         </geometry>
+        <drake:proximity_properties>
+          <drake:dissipation_timescale>0.05</drake:dissipation_timescale>
+        </drake:proximity_properties>
       </collision>
       <visual name="base_link_visual">
         <geometry>
@@ -45,6 +81,9 @@
             <radius>0.05</radius>
           </cylinder>
         </geometry>
+        <drake:proximity_properties>
+          <drake:dissipation_timescale>0.05</drake:dissipation_timescale>
+        </drake:proximity_properties>
       </collision>
       <visual name="upper_link_visual">
         <pose>0 0 -0.5 0 0 0</pose>
@@ -94,6 +133,9 @@
             <radius>0.05</radius>
           </cylinder>
         </geometry>
+        <drake:proximity_properties>
+          <drake:dissipation_timescale>0.05</drake:dissipation_timescale>
+        </drake:proximity_properties>
       </collision>
       <visual name="lower_link_visual">
         <pose>0 0 -1 0 0 0</pose>
@@ -124,8 +166,8 @@
       <pose relative_to="lower_link">0 0 -2.1 0 0 0</pose>
     </frame>
   </model>
-  <model name="acrobot_2">
-    <pose>0 0.5 1.0 0 0 0</pose>
+  <model name="acrobot_two">
+    <pose>0 0 2.0 0 0 0</pose>
     <link name="base_link">
       <collision name="base_link_collision">
         <geometry>
@@ -133,6 +175,9 @@
             <size>0.2 0.2 0.2</size>
           </box>
         </geometry>
+        <drake:proximity_properties>
+          <drake:dissipation_timescale>0.05</drake:dissipation_timescale>
+        </drake:proximity_properties>
       </collision>
       <visual name="base_link_visual">
         <geometry>
@@ -168,6 +213,9 @@
             <radius>0.05</radius>
           </cylinder>
         </geometry>
+        <drake:proximity_properties>
+          <drake:dissipation_timescale>0.05</drake:dissipation_timescale>
+        </drake:proximity_properties>
       </collision>
       <visual name="upper_link_visual">
         <pose>0 0 -0.5 0 0 0</pose>
@@ -217,6 +265,9 @@
             <radius>0.05</radius>
           </cylinder>
         </geometry>
+        <drake:proximity_properties>
+          <drake:dissipation_timescale>0.05</drake:dissipation_timescale>
+        </drake:proximity_properties>
       </collision>
       <visual name="lower_link_visual">
         <pose>0 0 -1 0 0 0</pose>
