@@ -99,15 +99,24 @@ void SapSolver<double>::PropagateGradients(
     // For an unconstrained problem we have v = v_star, and
     // SapSolver::SolveWithGuess does essentially nothing.
 
-    // TODO(vincekurtz): apply to arbitrary numbers of cliques
-    DRAKE_DEMAND(problem.num_cliques() == 1);  // Assuming one clique for now
-
     // TODO(vincekurtz): reuse the factorization from
     // SapModel::CalcDelassusDiagonalApproximation
-    const MatrixX<double>& A = problem.dynamics_matrix()[0];
-    Eigen::LDLT<MatrixX<double>> A_ldlt(A);
+    const int num_cliques = problem.num_cliques();
+    const std::vector<MatrixX<double>>& A = problem.dynamics_matrix();
+    std::vector<math::LinearSolver<Eigen::LDLT, MatrixX<double>>> A_ldlt(num_cliques);
+    for (int c = 0; c < num_cliques; ++c) {
+      A_ldlt[c] = math::LinearSolver<Eigen::LDLT, MatrixX<double>>(A[c]);
+      DRAKE_DEMAND(A_ldlt[c].eigen_linear_solver().isPositive());
+    }
 
-    *dv_dtheta = A_ldlt.solve(-dr_dtheta);
+    int ic = 0;   // start index for each clique
+    int nc = 0;   // number of rows in each clique
+    for (int c = 0; c < num_cliques; ++c) {
+      nc = A[c].rows();
+      const auto dr_dtheta_c = dr_dtheta.middleRows(ic, nc);
+      dv_dtheta->middleRows(ic, nc) = A_ldlt[c].Solve(-dr_dtheta_c);
+      ic += nc;
+    }
 
   } else {
     // For problems with constraints, we can reuse the factorization of the
