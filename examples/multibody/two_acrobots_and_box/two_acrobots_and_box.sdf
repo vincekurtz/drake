@@ -12,6 +12,9 @@
         </geometry>
         <drake:proximity_properties>
           <drake:dissipation_timescale>0.05</drake:dissipation_timescale>
+          <drake:compliant_hydroelastic/>
+          <drake:mesh_resolution_hint>0.1</drake:mesh_resolution_hint>
+          <drake:hydroelastic_modulus>5e7</drake:hydroelastic_modulus>
         </drake:proximity_properties>
       </collision>
       <visual name="box_visual">
@@ -45,6 +48,9 @@
         </geometry>
         <drake:proximity_properties>
           <drake:dissipation_timescale>0.05</drake:dissipation_timescale>
+          <drake:compliant_hydroelastic/>
+          <drake:mesh_resolution_hint>0.1</drake:mesh_resolution_hint>
+          <drake:hydroelastic_modulus>5e7</drake:hydroelastic_modulus>
         </drake:proximity_properties>
       </collision>
       <visual name="base_link_visual">
@@ -83,6 +89,9 @@
         </geometry>
         <drake:proximity_properties>
           <drake:dissipation_timescale>0.05</drake:dissipation_timescale>
+          <drake:compliant_hydroelastic/>
+          <drake:mesh_resolution_hint>0.05</drake:mesh_resolution_hint>
+          <drake:hydroelastic_modulus>5e7</drake:hydroelastic_modulus>
         </drake:proximity_properties>
       </collision>
       <visual name="upper_link_visual">
@@ -135,6 +144,9 @@
         </geometry>
         <drake:proximity_properties>
           <drake:dissipation_timescale>0.05</drake:dissipation_timescale>
+          <drake:compliant_hydroelastic/>
+          <drake:mesh_resolution_hint>0.05</drake:mesh_resolution_hint>
+          <drake:hydroelastic_modulus>5e7</drake:hydroelastic_modulus>
         </drake:proximity_properties>
       </collision>
       <visual name="lower_link_visual">
@@ -177,6 +189,9 @@
         </geometry>
         <drake:proximity_properties>
           <drake:dissipation_timescale>0.05</drake:dissipation_timescale>
+          <drake:compliant_hydroelastic/>
+          <drake:mesh_resolution_hint>0.05</drake:mesh_resolution_hint>
+          <drake:hydroelastic_modulus>5e7</drake:hydroelastic_modulus>
         </drake:proximity_properties>
       </collision>
       <visual name="base_link_visual">
@@ -215,6 +230,9 @@
         </geometry>
         <drake:proximity_properties>
           <drake:dissipation_timescale>0.05</drake:dissipation_timescale>
+          <drake:compliant_hydroelastic/>
+          <drake:mesh_resolution_hint>0.05</drake:mesh_resolution_hint>
+          <drake:hydroelastic_modulus>5e7</drake:hydroelastic_modulus>
         </drake:proximity_properties>
       </collision>
       <visual name="upper_link_visual">
@@ -267,6 +285,9 @@
         </geometry>
         <drake:proximity_properties>
           <drake:dissipation_timescale>0.05</drake:dissipation_timescale>
+          <drake:compliant_hydroelastic/>
+          <drake:mesh_resolution_hint>0.05</drake:mesh_resolution_hint>
+          <drake:hydroelastic_modulus>5e7</drake:hydroelastic_modulus>
         </drake:proximity_properties>
       </collision>
       <visual name="lower_link_visual">
