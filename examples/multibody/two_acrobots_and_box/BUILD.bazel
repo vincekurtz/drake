@@ -13,7 +13,7 @@ drake_cc_binary(
     name = "two_acrobots_and_box",
     srcs = ["two_acrobots_and_box.cc"],
     add_test_rule = 1,
-    data = ["//multibody/benchmarks/acrobot:models"],
+    data = [":models"],
     deps = [
         "//common:add_text_logging_gflags",
         "//common:find_resource",
@@ -23,6 +23,16 @@ drake_cc_binary(
         "//systems/framework:diagram",
         "@gflags",
     ],
+)
+
+filegroup(
+    name = "models",
+    srcs = glob([
+        "**/*.obj",
+        "**/*.sdf",
+        "**/*.urdf",
+        "**/*.xml",
+    ]),
 )
 
 add_lint_tests()

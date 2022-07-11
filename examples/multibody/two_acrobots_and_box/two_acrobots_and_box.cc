@@ -46,9 +46,10 @@ void simulate_with_visualizer(const VectorX<double>& x0,
   MultibodyPlantConfig config;
   config.time_step = 1e-3;
   auto [plant, scene_graph] = AddMultibodyPlant(config, &builder);
-  const std::string file_name =
-      FindResourceOrThrow("drake/multibody/benchmarks/acrobot/acrobot.sdf");
-  Parser(&plant).AddModelFromFile(file_name);
+  const std::string acrobot_file = FindResourceOrThrow(
+      "drake/examples/multibody/two_acrobots_and_box/two_acrobots_and_box.sdf");
+  Parser(&plant).AddAllModelsFromFile(acrobot_file);
+
   plant.Finalize();
 
   // Specify the SAP solver and parameters
@@ -69,8 +70,10 @@ void simulate_with_visualizer(const VectorX<double>& x0,
       diagram->GetMutableSubsystemContext(plant, diagram_context.get());
 
   // Set initial conditions and input
-  plant.SetPositionsAndVelocities(&plant_context, x0);
-  const double u = 0;
+  // plant.SetPositionsAndVelocities(&plant_context, x0);
+  (void)x0;
+  VectorX<double> u(2);
+  u << 0.0, 0.0;
   plant.get_actuation_input_port().FixValue(&plant_context, u);
 
   // Set up and run the simulator
@@ -81,7 +84,6 @@ void simulate_with_visualizer(const VectorX<double>& x0,
 }
 
 int do_main() {
-  std::cout << "hello world" << std::endl;
   double end_time = 2.0;
   VectorX<double> x0(4);
   x0 << 0.9, 1.1, 0.1, -0.2;
