@@ -103,14 +103,15 @@ void SapSolver<double>::PropagateGradients(
     // SapModel::CalcDelassusDiagonalApproximation
     const int num_cliques = problem.num_cliques();
     const std::vector<MatrixX<double>>& A = problem.dynamics_matrix();
-    std::vector<math::LinearSolver<Eigen::LDLT, MatrixX<double>>> A_ldlt(num_cliques);
+    std::vector<math::LinearSolver<Eigen::LDLT, MatrixX<double>>> A_ldlt(
+        num_cliques);
     for (int c = 0; c < num_cliques; ++c) {
       A_ldlt[c] = math::LinearSolver<Eigen::LDLT, MatrixX<double>>(A[c]);
       DRAKE_DEMAND(A_ldlt[c].eigen_linear_solver().isPositive());
     }
 
-    int ic = 0;   // start index for each clique
-    int nc = 0;   // number of rows in each clique
+    int ic = 0;  // start index for each clique
+    int nc = 0;  // number of rows in each clique
     for (int c = 0; c < num_cliques; ++c) {
       nc = A[c].rows();
       const auto dr_dtheta_c = dr_dtheta.middleRows(ic, nc);
