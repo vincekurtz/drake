@@ -17,22 +17,22 @@
 namespace drake {
 
 using multibody::AddMultibodyPlant;
-using multibody::MultibodyPlant;
 using multibody::ModelInstanceIndex;
+using multibody::MultibodyPlant;
 using multibody::MultibodyPlantConfig;
 using multibody::Parser;
 using multibody::contact_solvers::internal::SapSolverParameters;
 using multibody::internal::CompliantContactManager;
 using systems::Context;
+using systems::DiagramBuilder;
 using systems::DiscreteValues;
 using systems::System;
-using systems::DiagramBuilder;
 
 namespace examples {
 namespace multibody {
 namespace two_acrobots_and_box {
 
-DEFINE_bool(test_autodiff, true,
+DEFINE_bool(test_autodiff, false,
             "Whether to run some autodiff tests. If false, runs a quick "
             "simulation of the scenario instead.");
 DEFINE_string(algebra, "both",
@@ -45,9 +45,9 @@ DEFINE_bool(contact, true,
             "one of the acrobots or not.");
 DEFINE_double(realtime_rate, 0.5, "Realtime rate for simulating the plant.");
 
-    void create_double_plant(MultibodyPlant<double>* plant,
-                             const bool& dense_algebra) {
-  // Load the models of acrobots and box from an sdf file 
+void create_double_plant(MultibodyPlant<double>* plant,
+                         const bool& dense_algebra) {
+  // Load the models of acrobots and box from an sdf file
   const std::string acrobot_file = FindResourceOrThrow(
       "drake/examples/multibody/two_acrobots_and_box/two_acrobots_and_box.sdf");
   Parser(plant).AddAllModelsFromFile(acrobot_file);
@@ -68,10 +68,9 @@ DEFINE_double(realtime_rate, 0.5, "Realtime rate for simulating the plant.");
  *
  * @param x0            The initial state of the system
  * @param end_time      The time (in seconds) to simulate for.
- * @param rate          The realtime rate to run the simulation at. 
+ * @param rate          The realtime rate to run the simulation at.
  */
-void simulate_with_visualizer(const VectorX<double>& x0,
-                              const double& end_time,
+void simulate_with_visualizer(const VectorX<double>& x0, const double& end_time,
                               const double& rate) {
   // Set up the system diagram and create the plant model
   DiagramBuilder<double> builder;
@@ -130,11 +129,11 @@ std::tuple<double, VectorX<double>, MatrixX<double>> take_autodiff_steps(
   // Convert to autodiff
   auto diagram = systems::System<double>::ToAutoDiffXd(*diagram_double);
   auto diagram_context = diagram->CreateDefaultContext();
-  const MultibodyPlant<AutoDiffXd>* plant=
+  const MultibodyPlant<AutoDiffXd>* plant =
       dynamic_cast<const MultibodyPlant<AutoDiffXd>*>(
           &diagram->GetSubsystemByName("plant"));
   systems::Context<AutoDiffXd>& plant_context =
-        plant->GetMyMutableContextFromRoot(diagram_context.get());
+      plant->GetMyMutableContextFromRoot(diagram_context.get());
 
   // Set initial conditions and input
   VectorX<AutoDiffXd> u = VectorX<AutoDiffXd>::Zero(plant->num_actuators());
@@ -150,7 +149,7 @@ std::tuple<double, VectorX<double>, MatrixX<double>> take_autodiff_steps(
   std::chrono::duration<double> elapsed;
   auto st = std::chrono::high_resolution_clock::now();
 
-  for (int i=0; i<num_steps; ++i) {
+  for (int i = 0; i < num_steps; ++i) {
     plant->CalcDiscreteVariableUpdates(plant_context, state.get());
     plant_context.SetDiscreteState(state->value());
   }
@@ -163,15 +162,15 @@ std::tuple<double, VectorX<double>, MatrixX<double>> take_autodiff_steps(
 
 int do_main() {
   // Set the initial state
-  VectorX<double> x0(4+4+13);
-  x0 << 0.9, 1.1,           // first acrobot position
-        0.9, 1.1,           // second acrobot position
-        0.985, 0, 0.174, 0, // box orientation
-        -1.5, 0.25, 2,      // box position
-        0.5, 0.5,           // first acrobot velocity
-        0.5, 0.5,           // second acrobot velocity
-        0.01, -0.02, 0.01,     // box angular velocity
-        0.1, 0.1, 0.2;      // box linear velocity
+  VectorX<double> x0(4 + 4 + 13);
+  x0 << 0.9, 1.1,          // first acrobot position
+      0.9, 1.1,            // second acrobot position
+      0.985, 0, 0.174, 0,  // box orientation
+      -1.5, 0.25, 2,       // box position
+      0.5, 0.5,            // first acrobot velocity
+      0.5, 0.5,            // second acrobot velocity
+      0.01, -0.02, 0.01,   // box angular velocity
+      0.1, 0.1, 0.2;       // box linear velocity
 
   if (!FLAGS_contact) {
     // Move the box over so it doesn't contact the acrobot
