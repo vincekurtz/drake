@@ -123,26 +123,8 @@ void SapSolver<double>::PropagateGradients(
 
 template <typename T>
 SapSolverStatus SapSolver<T>::SolveWithGuess(
-    const SapContactProblem<T>& problem, const VectorX<T>&,
+    const SapContactProblem<T>& problem, const VectorX<T>& v_guess,
     SapSolverResults<T>* results) {
-  if (problem.num_constraints() == 0) {
-    // In the absence of constraints the solution is trivially v = v*.
-    results->Resize(problem.num_velocities(),
-                    problem.num_constraint_equations());
-    results->v = problem.v_star();
-    results->j.setZero();
-    return SapSolverStatus::kSuccess;
-  }
-
-  throw std::logic_error(
-      "SapSolver::SolveWithGuess(): Only T = double is supported in problems "
-      "with non-zero number of constraints.");
-}
-
-template <>
-SapSolverStatus SapSolver<double>::SolveWithGuess(
-    const SapContactProblem<double>& problem, const VectorX<double>& v_guess,
-    SapSolverResults<double>* results) {
   using std::abs;
   using std::max;
 
@@ -155,8 +137,21 @@ SapSolverStatus SapSolver<double>::SolveWithGuess(
     return SapSolverStatus::kSuccess;
   }
 
+  if (std::is_same_v<T, AutoDiffXd>) {
+    std::cout << "autodiff" << std::endl;
+    throw std::logic_error(
+        "SapSolver::SolveWithGuess(): Only T = double is supported in problems "
+        "with non-zero number of constraints.");
+  } else if (std::is_same_v<T, double>) {
+    std::cout << "double" << std::endl;
+  } else {
+    throw std::logic_error(
+        "SapSolver::SolveWithGuess(): Only T = double is supported in problems "
+        "with non-zero number of constraints.");
+  }
+
   // Make model for the given contact problem.
-  model_ = std::make_unique<SapModel<double>>(&problem);
+  model_ = std::make_unique<SapModel<T>>(&problem);
   const int nv = model_->num_velocities();
   const int nk = model_->num_constraint_equations();
 
@@ -169,22 +164,22 @@ SapSolverStatus SapSolver<double>::SolveWithGuess(
   {
     // We limit the lifetime of this reference, v, to within this scope where we
     // immediately need it.
-    Eigen::VectorBlock<VectorX<double>> v =
+    Eigen::VectorBlock<VectorX<T>> v =
         model_->GetMutableVelocities(context.get());
     model_->velocities_permutation().Apply(v_guess, &v);
   }
 
   // Start Newton iterations.
   int k = 0;
-  double ell = model_->EvalCost(*context);
-  double ell_previous = ell;
+  T ell = model_->EvalCost(*context);
+  T ell_previous = ell;
   bool converged = false;
-  double alpha = 1.0;
+  T alpha = 1.0;
   int num_line_search_iters = 0;
   for (;; ++k) {
     // We first verify the stopping criteria. If satisfied, we skip expensive
     // factorizations.
-    double momentum_residual, momentum_scale;
+    T momentum_residual, momentum_scale;
     CalcStoppingCriteriaResidual(*context, &momentum_residual, &momentum_scale);
     stats_.optimality_criterion_reached =
         momentum_residual <=
@@ -203,9 +198,9 @@ SapSolverStatus SapSolver<double>::SolveWithGuess(
       // N.B. Notice the check for monotonic convergence is placed AFTER the
       // check for convergence. This is done puposedly to avoid round-off errors
       // in the cost near convergence when the gradient is almost zero.
-      const double ell_scale = 0.5 * (ell + ell_previous);
-      const double ell_slop =
-          parameters_.relative_slop * std::max(1.0, ell_scale);
+      const T ell_scale = 0.5 * (ell + ell_previous);
+      const T ell_slop =
+          parameters_.relative_slop * max(T (1.0), ell_scale);
       if (ell > ell_previous + ell_slop) {
         DRAKE_LOGGER_DEBUG(
             "At iter {} cost increased by: {}. alpha = {}. Relative momentum "
@@ -234,7 +229,7 @@ SapSolverStatus SapSolver<double>::SolveWithGuess(
     // solve for the search direction dv.
     CalcSearchDirectionData(*context, supernodal_solver_.get(),
                             &search_direction_data);
-    const VectorX<double>& dv = search_direction_data.dv;
+    const VectorX<T>& dv = search_direction_data.dv;
 
     // Perform line search.
     switch (parameters_.line_search_type) {
@@ -255,11 +250,11 @@ SapSolverStatus SapSolver<double>::SolveWithGuess(
     ell_previous = ell;
     ell = model_->EvalCost(*context);
 
-    const double ell_scale = (ell + ell_previous) / 2.0;
+    const T ell_scale = (ell + ell_previous) / 2.0;
     // N.B. Even though theoretically we expect ell < ell_previous, round-off
     // errors might make the difference ell_previous - ell negative, within
     // machine epsilon. Therefore we take the absolute value here.
-    const double ell_decrement = std::abs(ell_previous - ell);
+    const T ell_decrement = abs(ell_previous - ell);
 
     // N.B. Here we want alpha≈1 and therefore we impose alpha > 0.5, an
     // arbitrarily "large" value. This is to avoid a false positive on the
@@ -282,6 +277,150 @@ SapSolverStatus SapSolver<double>::SolveWithGuess(
 
   return SapSolverStatus::kSuccess;
 }
+
+//template <>
+//SapSolverStatus SapSolver<double>::SolveWithGuess(
+//    const SapContactProblem<double>& problem, const VectorX<double>& v_guess,
+//    SapSolverResults<double>* results) {
+//  using std::abs;
+//  using std::max;
+//
+//  if (problem.num_constraints() == 0) {
+//    // In the absence of constraints the solution is trivially v = v*.
+//    results->Resize(problem.num_velocities(),
+//                    problem.num_constraint_equations());
+//    results->v = problem.v_star();
+//    results->j.setZero();
+//    return SapSolverStatus::kSuccess;
+//  }
+//
+//  // Make model for the given contact problem.
+//  model_ = std::make_unique<SapModel<double>>(&problem);
+//  const int nv = model_->num_velocities();
+//  const int nk = model_->num_constraint_equations();
+//
+//  // Allocate the necessary memory to work with.
+//  auto context = model_->MakeContext();
+//  auto scratch = model_->MakeContext();
+//  SearchDirectionData search_direction_data(nv, nk);
+//  stats_ = SolverStats();
+//
+//  {
+//    // We limit the lifetime of this reference, v, to within this scope where we
+//    // immediately need it.
+//    Eigen::VectorBlock<VectorX<double>> v =
+//        model_->GetMutableVelocities(context.get());
+//    model_->velocities_permutation().Apply(v_guess, &v);
+//  }
+//
+//  // Start Newton iterations.
+//  int k = 0;
+//  double ell = model_->EvalCost(*context);
+//  double ell_previous = ell;
+//  bool converged = false;
+//  double alpha = 1.0;
+//  int num_line_search_iters = 0;
+//  for (;; ++k) {
+//    // We first verify the stopping criteria. If satisfied, we skip expensive
+//    // factorizations.
+//    double momentum_residual, momentum_scale;
+//    CalcStoppingCriteriaResidual(*context, &momentum_residual, &momentum_scale);
+//    stats_.optimality_criterion_reached =
+//        momentum_residual <=
+//        parameters_.abs_tolerance + parameters_.rel_tolerance * momentum_scale;
+//    stats_.cost.push_back(ell);
+//    stats_.alpha.push_back(alpha);
+//    stats_.momentum_residual.push_back(momentum_residual);
+//    stats_.momentum_scale.push_back(momentum_scale);
+//    // TODO(amcastro-tri): consider monitoring the duality gap.
+//    if (stats_.optimality_criterion_reached || stats_.cost_criterion_reached) {
+//      converged = true;
+//      break;
+//    } else {
+//      // SAP's convergence is monotonic. We sanity check this here. We use a
+//      // slop to account for round-off errors.
+//      // N.B. Notice the check for monotonic convergence is placed AFTER the
+//      // check for convergence. This is done puposedly to avoid round-off errors
+//      // in the cost near convergence when the gradient is almost zero.
+//      const double ell_scale = 0.5 * (ell + ell_previous);
+//      const double ell_slop =
+//          parameters_.relative_slop * std::max(1.0, ell_scale);
+//      if (ell > ell_previous + ell_slop) {
+//        DRAKE_LOGGER_DEBUG(
+//            "At iter {} cost increased by: {}. alpha = {}. Relative momentum "
+//            "residual = {}\n",
+//            k, std::abs(ell - ell_previous), alpha,
+//            momentum_residual / momentum_scale);
+//        if (parameters_.nonmonotonic_convergence_is_error) {
+//          throw std::runtime_error(
+//              "SapSolver: Non-monotonic convergence detected.");
+//        }
+//      }
+//      if (!parameters_.use_dense_algebra && supernodal_solver_ == nullptr) {
+//        // Instantiate supernodal solver on the first iteration when needed. If
+//        // the stopping criteria is satisfied at k = 0 (good guess), then we
+//        // skip the expensive instantiation of the solver.
+//        supernodal_solver_ = MakeSuperNodalSolver();
+//      }
+//    }
+//
+//    // Exit if the maximum number of iterations is reached, but only after
+//    // checking the convergence criteria, so that also the last iteration is
+//    // considered.
+//    if (k == parameters_.max_iterations) break;
+//
+//    // This is the most expensive update: it performs the factorization of H to
+//    // solve for the search direction dv.
+//    CalcSearchDirectionData(*context, supernodal_solver_.get(),
+//                            &search_direction_data);
+//    const VectorX<double>& dv = search_direction_data.dv;
+//
+//    // Perform line search.
+//    switch (parameters_.line_search_type) {
+//      case SapSolverParameters::LineSearchType::kBackTracking:
+//        std::tie(alpha, num_line_search_iters) = PerformBackTrackingLineSearch(
+//            *context, search_direction_data, scratch.get());
+//        break;
+//      case SapSolverParameters::LineSearchType::kExact:
+//        std::tie(alpha, num_line_search_iters) = PerformExactLineSearch(
+//            *context, search_direction_data, scratch.get());
+//        break;
+//    }
+//    stats_.num_line_search_iters += num_line_search_iters;
+//
+//    // Update state.
+//    model_->GetMutableVelocities(context.get()) += alpha * dv;
+//
+//    ell_previous = ell;
+//    ell = model_->EvalCost(*context);
+//
+//    const double ell_scale = (ell + ell_previous) / 2.0;
+//    // N.B. Even though theoretically we expect ell < ell_previous, round-off
+//    // errors might make the difference ell_previous - ell negative, within
+//    // machine epsilon. Therefore we take the absolute value here.
+//    const double ell_decrement = std::abs(ell_previous - ell);
+//
+//    // N.B. Here we want alpha≈1 and therefore we impose alpha > 0.5, an
+//    // arbitrarily "large" value. This is to avoid a false positive on the
+//    // convergence of the cost due to a small value of the line search
+//    // parameter.
+//    stats_.cost_criterion_reached =
+//        ell_decrement < parameters_.cost_abs_tolerance +
+//                            parameters_.cost_rel_tolerance * ell_scale &&
+//        alpha > 0.5;
+//  }
+//
+//  if (!converged) return SapSolverStatus::kFailure;
+//
+//  PackSapSolverResults(*context, results);
+//
+//  // N.B. If the stopping criteria is satisfied for k = 0, the solver is not
+//  // even instantiated and no factorizations are performed (the expensive part
+//  // of the computation). We report zero number of iterations.
+//  stats_.num_iters = k;
+//
+//  return SapSolverStatus::kSuccess;
+//}
 
 template <typename T>
 T SapSolver<T>::CalcCostAlongLine(

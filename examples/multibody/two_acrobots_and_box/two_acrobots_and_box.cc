@@ -32,10 +32,10 @@ namespace examples {
 namespace multibody {
 namespace two_acrobots_and_box {
 
-DEFINE_bool(test_autodiff, false,
+DEFINE_bool(test_autodiff, true,
             "Whether to run some autodiff tests. If false, runs a quick "
             "simulation of the scenario instead.");
-DEFINE_string(algebra, "both",
+DEFINE_string(algebra, "dense",
               "Type of algebra to use for testing autodiff. Options are: "
               "'sparse', 'dense', or 'both'.");
 DEFINE_int32(num_steps, 1,
