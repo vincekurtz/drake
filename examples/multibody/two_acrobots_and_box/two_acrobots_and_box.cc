@@ -32,8 +32,20 @@ namespace examples {
 namespace multibody {
 namespace two_acrobots_and_box {
 
-void create_double_plant(MultibodyPlant<double>* plant,
-                         const bool& dense_algebra) {
+DEFINE_bool(test_autodiff, true,
+            "Whether to run some autodiff tests. If false, runs a quick "
+            "simulation of the scenario instead.");
+DEFINE_string(algebra, "both",
+              "Type of algebra to use for testing autodiff. Options are: "
+              "'sparse', 'dense', or 'both'.");
+DEFINE_int32(num_steps, 1,
+             "Number of timesteps to simulate for testing autodiff.");
+DEFINE_bool(contact, true,
+            "Whether the initial state is such that the box is in contact with "
+            "one of the acrobots or not.");
+
+    void create_double_plant(MultibodyPlant<double>* plant,
+                             const bool& dense_algebra) {
   // Load the models of acrobots and box from an sdf file 
   const std::string acrobot_file = FindResourceOrThrow(
       "drake/examples/multibody/two_acrobots_and_box/two_acrobots_and_box.sdf");
@@ -55,9 +67,11 @@ void create_double_plant(MultibodyPlant<double>* plant,
  *
  * @param x0            The initial state of the system
  * @param end_time      The time (in seconds) to simulate for.
+ * @param rate          The realtime rate to run the simulation at. 
  */
 void simulate_with_visualizer(const VectorX<double>& x0,
-                              const double& end_time) {
+                              const double& end_time,
+                              const double& rate) {
   // Set up the system diagram and create the plant model
   DiagramBuilder<double> builder;
   MultibodyPlantConfig config;
@@ -84,7 +98,7 @@ void simulate_with_visualizer(const VectorX<double>& x0,
 
   // Set up and run the simulator
   systems::Simulator<double> simulator(*diagram, std::move(diagram_context));
-  simulator.set_target_realtime_rate(1.0);
+  simulator.set_target_realtime_rate(rate);
   simulator.Initialize();
   simulator.AdvanceTo(end_time);
 }
@@ -158,13 +172,44 @@ int do_main() {
         0.1, -0.2, 0.1,     // box angular velocity
         0.1, 0.1, 0.2;      // box linear velocity
 
-  // Run a full simulation
-  //const double end_time = 2;
-  //simulate_with_visualizer(x0, end_time);
+  if (!FLAGS_contact) {
+    // Move the box over so it doesn't contact the acrobot
+    x0(9) -= 1;
+  }
 
-  // Take several timesteps with autodiff
-  const int num_steps = 1;
-  auto [runtime, x, dx] = take_autodiff_steps(x0, num_steps, true);
+  if (FLAGS_test_autodiff) {
+    if (FLAGS_algebra == "sparse" || FLAGS_algebra == "dense") {
+      // Simulate several steps, then print the final state and gradients
+      auto [runtime, x, dx] =
+          take_autodiff_steps(x0, FLAGS_num_steps, (FLAGS_algebra == "dense"));
+
+      std::cout << "runtime: " << runtime << std::endl;
+      std::cout << "x: \n" << x << std::endl;
+      std::cout << "dx/dx0: \n" << dx << std::endl;
+
+    } else if (FLAGS_algebra == "both") {
+      // Simulate several steps with both sparse (fancy) and dense (baseline)
+      // methods and compare the results
+
+      auto [st_dense, x_dense, dx_dense] =
+          take_autodiff_steps(x0, FLAGS_num_steps, true);
+      auto [st_sparse, x_sparse, dx_sparse] =
+          take_autodiff_steps(x0, FLAGS_num_steps, false);
+
+      const VectorX<double> val_diff = x_dense - x_sparse;
+      const MatrixX<double> grad_diff = dx_dense - dx_sparse;
+
+      std::cout << "Baseline (dense algebra) time: " << st_dense << std::endl;
+      std::cout << "SAP (sparse algebra) time: " << st_sparse << std::endl;
+      std::cout << "Value error: " << val_diff.norm() << std::endl;
+      std::cout << "Gradient error: " << grad_diff.norm() << std::endl;
+    }
+  } else {
+    // Run a full simulation
+    const double end_time = 0.5;
+    const double rate = 0.1;
+    simulate_with_visualizer(x0, end_time, rate);
+  }
 
   return 0;
 }
@@ -174,6 +219,7 @@ int do_main() {
 }  // namespace examples
 }  // namespace drake
 
-int main() {
+int main(int argc, char* argv[]) {
+  gflags::ParseCommandLineFlags(&argc, &argv, true);
   return drake::examples::multibody::two_acrobots_and_box::do_main();
 }
