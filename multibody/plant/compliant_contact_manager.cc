@@ -239,7 +239,7 @@ T CompliantContactManager<T>::GetDissipationTimeConstant(
   // N.B. Here we rely on the resolution of #13289 and #5454 to get properties
   // with the proper scalar type T. This will not work on scalar converted
   // models until those issues are resolved.
-  const T dissipation_timescale = prop->template GetProperty<T>(
+  const T dissipation_timescale = prop->template GetProperty<double>(
       geometry::internal::kMaterialGroup, "dissipation_timescale");
   if (dissipation_timescale < 0.0) {
     const std::string message = fmt::format(
