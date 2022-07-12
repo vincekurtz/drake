@@ -44,8 +44,9 @@ DEFINE_bool(contact, false,
             "Whether the initial state is such that the box is in contact with "
             "one of the acrobots or not.");
 DEFINE_double(realtime_rate, 0.5, "Realtime rate for simulating the plant.");
+DEFINE_double(timestep, 1e-3, "Simulation timestep.");
 
-void create_double_plant(
+void CreateDoublePlant(
     MultibodyPlant<double>* plant, const bool dense_algebra,
     const SapSolverParameters::LineSearchType linesearch_type) {
   // Load the models of acrobots and box from an sdf file
@@ -72,16 +73,16 @@ void create_double_plant(
  * @param end_time      The time (in seconds) to simulate for.
  * @param rate          The realtime rate to run the simulation at.
  */
-void simulate_with_visualizer(const VectorX<double>& x0, const double& end_time,
-                              const double& rate) {
+void SimulateWithVisualizer(const VectorX<double>& x0, const double end_time,
+                            const double rate) {
   // Set up the system diagram and create the plant model
   DiagramBuilder<double> builder;
   MultibodyPlantConfig config;
-  config.time_step = 1e-3;
+  config.time_step = FLAGS_timestep;
   config.contact_model = "hydroelastic";
   auto [plant, scene_graph] = AddMultibodyPlant(config, &builder);
-  create_double_plant(&plant, false,
-                      SapSolverParameters::LineSearchType::kBackTracking);
+  CreateDoublePlant(&plant, false,
+                    SapSolverParameters::LineSearchType::kBackTracking);
 
   // Connect to Drake visualizer
   geometry::DrakeVisualizerd::AddToBuilder(&builder, scene_graph);
@@ -117,17 +118,16 @@ void simulate_with_visualizer(const VectorX<double>& x0, const double& end_time,
  * @return std::tuple<double, VectorX<double>, MatrixX<double>> tuple of runtime
  * in seconds, x, dx_dx0.
  */
-std::tuple<double, VectorX<double>, MatrixX<double>> take_autodiff_steps(
-    const VectorX<double>& x0, const int& num_steps,
-    const bool& dense_algebra) {
+std::tuple<double, VectorX<double>, MatrixX<double>> TakeAutodiffSteps(
+    const VectorX<double>& x0, const int num_steps, const bool dense_algebra) {
   // Create a double plant and scene graph
   MultibodyPlantConfig config;
-  config.time_step = 1e-3;
+  config.time_step = FLAGS_timestep;
   config.contact_model = "hydroelastic";
   DiagramBuilder<double> builder;
   auto [plant_double, scene_graph_double] = AddMultibodyPlant(config, &builder);
-  create_double_plant(&plant_double, dense_algebra,
-                      SapSolverParameters::LineSearchType::kBackTracking);
+  CreateDoublePlant(&plant_double, dense_algebra,
+                    SapSolverParameters::LineSearchType::kBackTracking);
   auto diagram_double = builder.Build();
 
   // Convert to autodiff
@@ -185,7 +185,7 @@ int do_main() {
     if (FLAGS_algebra == "sparse" || FLAGS_algebra == "dense") {
       // Simulate several steps, then print the final state and gradients
       auto [runtime, x, dx] =
-          take_autodiff_steps(x0, FLAGS_num_steps, (FLAGS_algebra == "dense"));
+          TakeAutodiffSteps(x0, FLAGS_num_steps, (FLAGS_algebra == "dense"));
 
       std::cout << "runtime: " << runtime << std::endl;
       std::cout << "x: \n" << x << std::endl;
@@ -196,9 +196,9 @@ int do_main() {
       // methods and compare the results
 
       auto [st_dense, x_dense, dx_dense] =
-          take_autodiff_steps(x0, FLAGS_num_steps, true);
+          TakeAutodiffSteps(x0, FLAGS_num_steps, true);
       auto [st_sparse, x_sparse, dx_sparse] =
-          take_autodiff_steps(x0, FLAGS_num_steps, false);
+          TakeAutodiffSteps(x0, FLAGS_num_steps, false);
 
       const VectorX<double> val_diff = x_dense - x_sparse;
       const MatrixX<double> grad_diff = dx_dense - dx_sparse;
@@ -212,7 +212,7 @@ int do_main() {
     // Run a full simulation
     const double end_time = 2.0;
     const double rate = FLAGS_realtime_rate;
-    simulate_with_visualizer(x0, end_time, rate);
+    SimulateWithVisualizer(x0, end_time, rate);
   }
 
   return 0;
