@@ -435,10 +435,6 @@ class SapSolver {
 
 // Forward-declare specializations, prior to DRAKE_DECLARE... below.
 // We use these to specialize functions that do not support AutoDiffXd.
-//template <>
-//SapSolverStatus SapSolver<double>::SolveWithGuess(
-//    const SapContactProblem<double>&, const VectorX<double>&,
-//    SapSolverResults<double>*);
 template <>
 std::pair<double, int> SapSolver<double>::PerformExactLineSearch(
     const systems::Context<double>&, const SearchDirectionData&,
