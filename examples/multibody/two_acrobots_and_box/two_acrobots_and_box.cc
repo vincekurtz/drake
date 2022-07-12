@@ -46,7 +46,7 @@ DEFINE_bool(contact, true,
 DEFINE_double(realtime_rate, 0.5, "Realtime rate for simulating the plant.");
 
 void CreateDoublePlant(MultibodyPlant<double>* plant,
-                         const bool& dense_algebra) {
+                         const bool dense_algebra) {
   // Load the models of acrobots and box from an sdf file
   const std::string acrobot_file = FindResourceOrThrow(
       "drake/examples/multibody/two_acrobots_and_box/two_acrobots_and_box.sdf");
@@ -70,8 +70,8 @@ void CreateDoublePlant(MultibodyPlant<double>* plant,
  * @param end_time      The time (in seconds) to simulate for.
  * @param rate          The realtime rate to run the simulation at.
  */
-void simulate_with_visualizer(const VectorX<double>& x0, const double& end_time,
-                              const double& rate) {
+void SimulateWithVisualizer(const VectorX<double>& x0, const double end_time,
+                              const double rate) {
   // Set up the system diagram and create the plant model
   DiagramBuilder<double> builder;
   MultibodyPlantConfig config;
@@ -115,8 +115,8 @@ void simulate_with_visualizer(const VectorX<double>& x0, const double& end_time,
  * in seconds, x, dx_dx0.
  */
 std::tuple<double, VectorX<double>, MatrixX<double>> TakeAutodiffSteps(
-    const VectorX<double>& x0, const int& num_steps,
-    const bool& dense_algebra) {
+    const VectorX<double>& x0, const int num_steps,
+    const bool dense_algebra) {
   // Create a double plant and scene graph
   MultibodyPlantConfig config;
   config.time_step = 1e-3;
@@ -208,7 +208,7 @@ int do_main() {
     // Run a full simulation
     const double end_time = 2.0;
     const double rate = FLAGS_realtime_rate;
-    simulate_with_visualizer(x0, end_time, rate);
+    SimulateWithVisualizer(x0, end_time, rate);
   }
 
   return 0;
