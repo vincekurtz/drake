@@ -133,26 +133,8 @@ void SapSolver<double>::PropagateGradients(
 
 template <typename T>
 SapSolverStatus SapSolver<T>::SolveWithGuess(
-    const SapContactProblem<T>& problem, const VectorX<T>&,
+    const SapContactProblem<T>& problem, const VectorX<T>& v_guess,
     SapSolverResults<T>* results) {
-  if (problem.num_constraints() == 0) {
-    // In the absence of constraints the solution is trivially v = v*.
-    results->Resize(problem.num_velocities(),
-                    problem.num_constraint_equations());
-    results->v = problem.v_star();
-    results->j.setZero();
-    return SapSolverStatus::kSuccess;
-  }
-
-  throw std::logic_error(
-      "SapSolver::SolveWithGuess(): Only T = double is supported in problems "
-      "with non-zero number of constraints.");
-}
-
-template <>
-SapSolverStatus SapSolver<double>::SolveWithGuess(
-    const SapContactProblem<double>& problem, const VectorX<double>& v_guess,
-    SapSolverResults<double>* results) {
   using std::abs;
   using std::max;
 
@@ -166,7 +148,7 @@ SapSolverStatus SapSolver<double>::SolveWithGuess(
   }
 
   // Make model for the given contact problem.
-  model_ = std::make_unique<SapModel<double>>(&problem);
+  model_ = std::make_unique<SapModel<T>>(&problem);
   const int nv = model_->num_velocities();
   const int nk = model_->num_constraint_equations();
 
@@ -179,22 +161,22 @@ SapSolverStatus SapSolver<double>::SolveWithGuess(
   {
     // We limit the lifetime of this reference, v, to within this scope where we
     // immediately need it.
-    Eigen::VectorBlock<VectorX<double>> v =
+    Eigen::VectorBlock<VectorX<T>> v =
         model_->GetMutableVelocities(context.get());
     model_->velocities_permutation().Apply(v_guess, &v);
   }
 
   // Start Newton iterations.
   int k = 0;
-  double ell = model_->EvalCost(*context);
-  double ell_previous = ell;
+  T ell = model_->EvalCost(*context);
+  T ell_previous = ell;
   bool converged = false;
-  double alpha = 1.0;
+  T alpha = 1.0;
   int num_line_search_iters = 0;
   for (;; ++k) {
     // We first verify the stopping criteria. If satisfied, we skip expensive
     // factorizations.
-    double momentum_residual, momentum_scale;
+    T momentum_residual, momentum_scale;
     CalcStoppingCriteriaResidual(*context, &momentum_residual, &momentum_scale);
     stats_.optimality_criterion_reached =
         momentum_residual <=
@@ -213,9 +195,8 @@ SapSolverStatus SapSolver<double>::SolveWithGuess(
       // N.B. Notice the check for monotonic convergence is placed AFTER the
       // check for convergence. This is done puposedly to avoid round-off errors
       // in the cost near convergence when the gradient is almost zero.
-      const double ell_scale = 0.5 * (ell + ell_previous);
-      const double ell_slop =
-          parameters_.relative_slop * std::max(1.0, ell_scale);
+      const T ell_scale = 0.5 * (ell + ell_previous);
+      const T ell_slop = parameters_.relative_slop * max(T(1.0), ell_scale);
       if (ell > ell_previous + ell_slop) {
         DRAKE_LOGGER_DEBUG(
             "At iter {} cost increased by: {}. alpha = {}. Relative momentum "
@@ -244,7 +225,7 @@ SapSolverStatus SapSolver<double>::SolveWithGuess(
     // solve for the search direction dv.
     CalcSearchDirectionData(*context, supernodal_solver_.get(),
                             &search_direction_data);
-    const VectorX<double>& dv = search_direction_data.dv;
+    const VectorX<T>& dv = search_direction_data.dv;
 
     // Perform line search.
     switch (parameters_.line_search_type) {
@@ -265,11 +246,11 @@ SapSolverStatus SapSolver<double>::SolveWithGuess(
     ell_previous = ell;
     ell = model_->EvalCost(*context);
 
-    const double ell_scale = (ell + ell_previous) / 2.0;
+    const T ell_scale = (ell + ell_previous) / 2.0;
     // N.B. Even though theoretically we expect ell < ell_previous, round-off
     // errors might make the difference ell_previous - ell negative, within
     // machine epsilon. Therefore we take the absolute value here.
-    const double ell_decrement = std::abs(ell_previous - ell);
+    const T ell_decrement = abs(ell_previous - ell);
 
     // N.B. Here we want alpha≈1 and therefore we impose alpha > 0.5, an
     // arbitrarily "large" value. This is to avoid a false positive on the

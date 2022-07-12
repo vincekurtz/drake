@@ -35,7 +35,7 @@ namespace two_acrobots_and_box {
 DEFINE_bool(test_autodiff, true,
             "Whether to run some autodiff tests. If false, runs a quick "
             "simulation of the scenario instead.");
-DEFINE_string(algebra, "both",
+DEFINE_string(algebra, "dense",
               "Type of algebra to use for testing autodiff. Options are: "
               "'sparse', 'dense', or 'both'.");
 DEFINE_int32(num_steps, 1,
@@ -45,8 +45,9 @@ DEFINE_bool(contact, false,
             "one of the acrobots or not.");
 DEFINE_double(realtime_rate, 0.5, "Realtime rate for simulating the plant.");
 
-void create_double_plant(MultibodyPlant<double>* plant,
-                         const bool& dense_algebra) {
+void create_double_plant(
+    MultibodyPlant<double>* plant, const bool dense_algebra,
+    const SapSolverParameters::LineSearchType linesearch_type) {
   // Load the models of acrobots and box from an sdf file
   const std::string acrobot_file = FindResourceOrThrow(
       "drake/examples/multibody/two_acrobots_and_box/two_acrobots_and_box.sdf");
@@ -57,6 +58,7 @@ void create_double_plant(MultibodyPlant<double>* plant,
   auto manager = std::make_unique<CompliantContactManager<double>>();
   SapSolverParameters sap_params;
   sap_params.use_dense_algebra = dense_algebra;
+  sap_params.line_search_type = linesearch_type;
   manager->set_sap_solver_parameters(sap_params);
   plant->SetDiscreteUpdateManager(std::move(manager));
 }
@@ -78,7 +80,8 @@ void simulate_with_visualizer(const VectorX<double>& x0, const double& end_time,
   config.time_step = 1e-3;
   config.contact_model = "hydroelastic";
   auto [plant, scene_graph] = AddMultibodyPlant(config, &builder);
-  create_double_plant(&plant, false);
+  create_double_plant(&plant, false,
+                      SapSolverParameters::LineSearchType::kBackTracking);
 
   // Connect to Drake visualizer
   geometry::DrakeVisualizerd::AddToBuilder(&builder, scene_graph);
@@ -123,7 +126,8 @@ std::tuple<double, VectorX<double>, MatrixX<double>> take_autodiff_steps(
   config.contact_model = "hydroelastic";
   DiagramBuilder<double> builder;
   auto [plant_double, scene_graph_double] = AddMultibodyPlant(config, &builder);
-  create_double_plant(&plant_double, dense_algebra);
+  create_double_plant(&plant_double, dense_algebra,
+                      SapSolverParameters::LineSearchType::kBackTracking);
   auto diagram_double = builder.Build();
 
   // Convert to autodiff
