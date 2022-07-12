@@ -125,6 +125,8 @@ class SapLimitConstraint final : public SapConstraint<T> {
    at construction. */
   int clique_dof() const { return clique_dof_; }
 
+  int clique_nv() const { return clique_nv_; }
+
   /* Returns the position provided at construction. */
   const T& position() const { return q0_; }
 
@@ -146,6 +148,7 @@ class SapLimitConstraint final : public SapConstraint<T> {
                                         const T& wi) const final;
 
   std::unique_ptr<SapConstraint<T>> Clone() const final;
+  std::unique_ptr<SapConstraint<double>> ExtractValues() const final;
 
  private:
   /* Computes the constraint function g(q0) as a function of q0 for given lower
@@ -162,7 +165,8 @@ class SapLimitConstraint final : public SapConstraint<T> {
 
   Parameters parameters_;
   int clique_dof_{-1};  // Initialized to an invalid value.
-  T q0_{};  // position at the configuration from construction.
+  T q0_{};              // position at the configuration from construction.
+  int clique_nv_{-1};
 };
 
 }  // namespace internal

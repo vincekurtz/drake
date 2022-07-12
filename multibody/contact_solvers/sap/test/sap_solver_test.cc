@@ -726,6 +726,9 @@ class LimitConstraint final : public SapConstraint<T> {
   std::unique_ptr<SapConstraint<T>> Clone() const final {
     return std::make_unique<LimitConstraint<T>>(*this);
   }
+  std::unique_ptr<SapConstraint<double>> ExtractValues() const final {
+    throw std::runtime_error("ExtractValues undefined for this test class");
+  }
 
  private:
   static VectorX<T> ConcatenateVectors(const VectorX<T>& v1,

@@ -4,6 +4,8 @@
 
 #include "drake/common/drake_copyable.h"
 #include "drake/common/eigen_types.h"
+#include "drake/math/autodiff.h"
+#include "drake/math/autodiff_gradient.h"
 
 namespace drake {
 namespace multibody {
@@ -194,6 +196,8 @@ class SapConstraint {
   /* Derived classes must override to provide polymorphic deep-copy into a new
    instance. */
   virtual std::unique_ptr<SapConstraint<T>> Clone() const = 0;
+
+  virtual std::unique_ptr<SapConstraint<double>> ExtractValues() const = 0;
 
  protected:
   DRAKE_DEFAULT_COPY_AND_MOVE_AND_ASSIGN(SapConstraint);

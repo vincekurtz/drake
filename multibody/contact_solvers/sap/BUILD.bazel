@@ -55,8 +55,10 @@ drake_cc_library(
     srcs = ["sap_constraint.cc"],
     hdrs = ["sap_constraint.h"],
     deps = [
+        "//common:autodiff",
         "//common:default_scalars",
         "//common:essential",
+        "//math:gradient",
     ],
 )
 

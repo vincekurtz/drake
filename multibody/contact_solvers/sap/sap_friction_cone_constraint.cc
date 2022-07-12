@@ -151,6 +151,37 @@ void SapFrictionConeConstraint<T>::Project(
   }
 }
 
+template <typename T>
+std::unique_ptr<SapConstraint<double>>
+SapFrictionConeConstraint<T>::ExtractValues() const {
+  throw std::runtime_error(
+      "SapFrictionConeConstraint::ExtractValues() only supports T=AutoDiffXd");
+}
+
+template <>
+std::unique_ptr<SapConstraint<double>>
+SapFrictionConeConstraint<AutoDiffXd>::ExtractValues() const {
+  MatrixX<double> J0_double = math::ExtractValue(first_clique_jacobian());
+  double phi0_double = phi0_.value();
+  SapFrictionConeConstraint<double>::Parameters parameters_double;
+  parameters_double.mu = parameters_.mu.value();
+  parameters_double.stiffness = parameters_.stiffness.value();
+  parameters_double.dissipation_time_scale =
+      parameters_.dissipation_time_scale.value();
+  parameters_double.beta = parameters_.beta;
+  parameters_double.sigma = parameters_.sigma;
+
+  if (num_cliques() == 1) {
+    return std::make_unique<SapFrictionConeConstraint<double>>(
+        first_clique(), J0_double, phi0_double, parameters_double);
+  } else {  // num_cliques == 2
+    MatrixX<double> J1_double = math::ExtractValue(second_clique_jacobian());
+    return std::make_unique<SapFrictionConeConstraint<double>>(
+        first_clique(), second_clique(), J0_double, J1_double, phi0_double,
+        parameters_double);
+  }
+}
+
 }  // namespace internal
 }  // namespace contact_solvers
 }  // namespace multibody

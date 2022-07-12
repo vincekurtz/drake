@@ -74,6 +74,9 @@ class SpringConstraint final : public SapConstraint<T> {
   std::unique_ptr<SapConstraint<T>> Clone() const final {
     return std::make_unique<SpringConstraint<T>>(*this);
   }
+  std::unique_ptr<SapConstraint<double>> ExtractValues() const final {
+    throw std::runtime_error("ExtractValues undefined for this test class");
+  }
 
  private:
   T k_{0.0};      // Stiffness, in N/m.
@@ -273,6 +276,9 @@ class DummyConstraint final : public SapConstraint<T> {
 
   std::unique_ptr<SapConstraint<T>> Clone() const final {
     return std::make_unique<DummyConstraint<T>>(*this);
+  }
+  std::unique_ptr<SapConstraint<double>> ExtractValues() const final {
+    throw std::runtime_error("ExtractValues undefined for this test class");
   }
 
  private:

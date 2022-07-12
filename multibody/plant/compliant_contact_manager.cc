@@ -647,10 +647,6 @@ template <typename T>
 void CompliantContactManager<T>::DoCalcContactSolverResults(
     const systems::Context<T>& context,
     ContactSolverResults<T>* contact_results) const {
-  const ContactProblemCache<T>& contact_problem_cache =
-      EvalContactProblemCache(context);
-  const SapContactProblem<T>& sap_problem = *contact_problem_cache.sap_problem;
-
   if (std::is_same_v<T, AutoDiffXd> && !sap_parameters_.use_dense_algebra) {
     // T=AutoDiffXd and we're using sparse algebra, so compute gradients the
     // fancy way.
@@ -658,6 +654,11 @@ void CompliantContactManager<T>::DoCalcContactSolverResults(
                                                           contact_results);
 
   } else {  // Compute the solver results the normal way.
+    const ContactProblemCache<T>& contact_problem_cache =
+        EvalContactProblemCache(context);
+    const SapContactProblem<T>& sap_problem =
+        *contact_problem_cache.sap_problem;
+
     // We use the velocity stored in the current context as initial guess.
     const VectorX<T>& x0 =
         context.get_discrete_state(this->multibody_state_index()).value();
@@ -713,6 +714,10 @@ void CompliantContactManager<AutoDiffXd>::
         const systems::Context<AutoDiffXd>& context,
         ContactSolverResults<AutoDiffXd>* contact_results) const {
   // Compute problem data, including v_star, with double.
+
+  // TODO(vincekurtz) use actual double computations, possibly by specializing
+  // CalcContactProblemCache.
+
   // As a workaround, we'll "fake" the double computation by doing the
   // computation with autodiff, then extracting the (double) values.
   const ContactProblemCache<AutoDiffXd>& contact_problem_cache =

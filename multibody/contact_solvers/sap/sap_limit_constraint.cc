@@ -41,7 +41,10 @@ SapLimitConstraint<T>::SapLimitConstraint(int clique, int clique_dof,
                        CalcConstraintJacobian(clique_dof, clique_nv,
                                               parameters.lower_limit(),
                                               parameters.upper_limit())),
-      parameters_(std::move(parameters)), clique_dof_(clique_dof), q0_{q0} {}
+      parameters_(std::move(parameters)),
+      clique_dof_(clique_dof),
+      q0_{q0},
+      clique_nv_{clique_nv} {}
 
 template <typename T>
 VectorX<T> SapLimitConstraint<T>::CalcBiasTerm(const T& time_step,
@@ -99,6 +102,29 @@ void SapLimitConstraint<T>::Project(const Eigen::Ref<const VectorX<T>>& y,
 template <typename T>
 std::unique_ptr<SapConstraint<T>> SapLimitConstraint<T>::Clone() const {
   return std::make_unique<SapLimitConstraint<T>>(*this);
+}
+
+template <typename T>
+std::unique_ptr<SapConstraint<double>> SapLimitConstraint<T>::ExtractValues()
+    const {
+  throw std::runtime_error(
+      "SapLimitConstraint::ExtractValues() only supports T=AutoDiffXd");
+}
+
+template <>
+std::unique_ptr<SapConstraint<double>>
+SapLimitConstraint<AutoDiffXd>::ExtractValues() const {
+  double q0_double = q0_.value();
+  double lower_limit = parameters_.lower_limit().value();
+  double upper_limit = parameters_.upper_limit().value();
+  double stiffness = parameters_.stiffness().value();
+  double dissipation_time_scale = parameters_.dissipation_time_scale().value();
+  SapLimitConstraint<double>::Parameters parameters_double(
+      lower_limit, upper_limit, stiffness, dissipation_time_scale,
+      parameters_.beta());
+
+  return std::make_unique<SapLimitConstraint<double>>(
+      first_clique(), clique_dof(), clique_nv(), q0_double, parameters_double);
 }
 
 template <typename T>

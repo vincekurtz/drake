@@ -138,6 +138,8 @@ class SapFrictionConeConstraint final : public SapConstraint<T> {
     return std::make_unique<SapFrictionConeConstraint<T>>(*this);
   }
 
+  std::unique_ptr<SapConstraint<double>> ExtractValues() const final;
+
  private:
   Parameters parameters_;
   T phi0_;

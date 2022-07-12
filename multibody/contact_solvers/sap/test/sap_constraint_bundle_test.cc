@@ -86,6 +86,9 @@ class TestConstraint final : public SapConstraint<double> {
   std::unique_ptr<SapConstraint<double>> Clone() const final {
     return std::make_unique<TestConstraint>(*this);
   }
+  std::unique_ptr<SapConstraint<double>> ExtractValues() const final {
+    return this->Clone();
+  }
 
  private:
   double param_{0.0};

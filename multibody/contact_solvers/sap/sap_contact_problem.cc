@@ -67,10 +67,6 @@ std::unique_ptr<SapContactProblem<T>> SapContactProblem<T>::Clone() const {
 template <>
 std::unique_ptr<SapContactProblem<double>>
 SapContactProblem<AutoDiffXd>::ExtractValues() const {
-  // Conversion to double currently just works with
-  // unconstrained problems.
-  DRAKE_THROW_UNLESS(num_constraints() == 0);
-
   double new_time_step = time_step_.value();
   std::vector<MatrixX<double>> new_A;
   for (MatrixX<AutoDiffXd> Ai : A_) {
@@ -79,6 +75,12 @@ SapContactProblem<AutoDiffXd>::ExtractValues() const {
   VectorX<double> new_v_star = math::ExtractValue(v_star_);
   auto clone = std::make_unique<SapContactProblem<double>>(new_time_step, new_A,
                                                            new_v_star);
+
+  // Add constraints
+  for (int i = 0; i < num_constraints(); ++i) {
+    const SapConstraint<AutoDiffXd>& c_ad = get_constraint(i);
+    clone->AddConstraint(c_ad.ExtractValues());
+  }
 
   return clone;
 }
