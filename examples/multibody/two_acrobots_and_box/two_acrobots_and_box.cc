@@ -35,12 +35,12 @@ namespace two_acrobots_and_box {
 DEFINE_bool(test_autodiff, true,
             "Whether to run some autodiff tests. If false, runs a quick "
             "simulation of the scenario instead.");
-DEFINE_string(algebra, "dense",
+DEFINE_string(algebra, "sparse",
               "Type of algebra to use for testing autodiff. Options are: "
               "'sparse', 'dense', or 'both'.");
 DEFINE_int32(num_steps, 1,
              "Number of timesteps to simulate for testing autodiff.");
-DEFINE_bool(contact, false,
+DEFINE_bool(contact, true,
             "Whether the initial state is such that the box is in contact with "
             "one of the acrobots or not.");
 DEFINE_double(realtime_rate, 0.5, "Realtime rate for simulating the plant.");
