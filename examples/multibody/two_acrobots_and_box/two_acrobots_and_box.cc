@@ -44,6 +44,7 @@ DEFINE_bool(contact, true,
             "Whether the initial state is such that the box is in contact with "
             "one of the acrobots or not.");
 DEFINE_double(realtime_rate, 0.5, "Realtime rate for simulating the plant.");
+DEFINE_double(timestep, 1e-3, "Simulation timestep.");
 
 void CreateDoublePlant(MultibodyPlant<double>* plant,
                          const bool dense_algebra) {
@@ -75,7 +76,7 @@ void SimulateWithVisualizer(const VectorX<double>& x0, const double end_time,
   // Set up the system diagram and create the plant model
   DiagramBuilder<double> builder;
   MultibodyPlantConfig config;
-  config.time_step = 1e-3;
+  config.time_step = FLAGS_timestep;
   config.contact_model = "hydroelastic";
   auto [plant, scene_graph] = AddMultibodyPlant(config, &builder);
   CreateDoublePlant(&plant, false);
@@ -119,7 +120,7 @@ std::tuple<double, VectorX<double>, MatrixX<double>> TakeAutodiffSteps(
     const bool dense_algebra) {
   // Create a double plant and scene graph
   MultibodyPlantConfig config;
-  config.time_step = 1e-3;
+  config.time_step = FLAGS_timestep;
   config.contact_model = "hydroelastic";
   DiagramBuilder<double> builder;
   auto [plant_double, scene_graph_double] = AddMultibodyPlant(config, &builder);
