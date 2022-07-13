@@ -34,6 +34,7 @@ using drake::multibody::contact_solvers::internal::SapConstraint;
 using drake::multibody::contact_solvers::internal::SapContactProblem;
 using drake::multibody::contact_solvers::internal::SapFrictionConeConstraint;
 using drake::multibody::contact_solvers::internal::SapLimitConstraint;
+using drake::multibody::contact_solvers::internal::SapModel;
 using drake::multibody::contact_solvers::internal::SapSolver;
 using drake::multibody::contact_solvers::internal::SapSolverResults;
 using drake::multibody::contact_solvers::internal::SapSolverStatus;
@@ -759,13 +760,28 @@ void CompliantContactManager<AutoDiffXd>::
     throw std::runtime_error(msg);
   }
 
+  // Calculate external forces (e.g. gravity)
+  MultibodyForces<AutoDiffXd> f_ext(plant());
+  CalcNonContactForcesExcludingJointLimits(context, &f_ext);
+
+  // Compute constraint impulses using autodiff
+  // TODO(vincekurtz) compute gamma more efficiently, avoiding use of
+  // sap_problem_autodiff.
+  if (sap_problem->num_constraints() != 0) {
+    SapModel<AutoDiffXd> sap_model(&sap_problem_autodiff);
+    auto sap_model_context = sap_model.MakeContext();
+    const VectorX<AutoDiffXd>& gamma =
+        sap_model.EvalImpulses(*sap_model_context);
+
+    VectorX<AutoDiffXd> f_contact =
+        sap_model.constraints_bundle().J().MakeDenseMatrix().transpose() *
+        gamma;
+    f_ext.mutable_generalized_forces() += f_contact / time_step;
+  }
+
   // Compute the gradient of the residual with autodiff
   const VectorX<AutoDiffXd> vdot =
       (sap_results.v - v0_autodiff) / time_step;
-  // TODO(vincekurtz): include contact forces, computed with autodiff in terms
-  // of v and q0.
-  MultibodyForces<AutoDiffXd> f_ext(plant());
-  CalcNonContactForcesExcludingJointLimits(context, &f_ext);
   VectorX<AutoDiffXd> r =
       time_step * plant().CalcInverseDynamics(context, vdot, f_ext);
   VectorX<AutoDiffXd> damping_correction =

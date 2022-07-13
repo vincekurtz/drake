@@ -170,10 +170,10 @@ int do_main() {
   x0 << 0.9, 1.1,          // first acrobot position
       0.9, 1.1,            // second acrobot position
       0.985, 0, 0.174, 0,  // box orientation
-      -1.5, 0.25, 2,       // box position
+      -1.5, 0.25, 2.051,   // box position
       0.5, 0.5,            // first acrobot velocity
       0.5, 0.5,            // second acrobot velocity
-      0.01, -0.02, 0.01,   // box angular velocity
+      0.0, 0.0, 0.0,       // box angular velocity
       0.1, 0.1, 0.2;       // box linear velocity
 
   if (!FLAGS_contact) {
