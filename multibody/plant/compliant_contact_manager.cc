@@ -764,7 +764,7 @@ void CompliantContactManager<AutoDiffXd>::
   MultibodyForces<AutoDiffXd> f_ext(plant());
   CalcNonContactForcesExcludingJointLimits(context, &f_ext);
 
-  // Compute constraint impulses using autodiff
+  // Calculate constraint impulses using autodiff
   // TODO(vincekurtz) compute gamma more efficiently, avoiding use of
   // sap_problem_autodiff.
   if (sap_problem->num_constraints() != 0) {
@@ -773,10 +773,17 @@ void CompliantContactManager<AutoDiffXd>::
     const VectorX<AutoDiffXd>& gamma =
         sap_model.EvalImpulses(*sap_model_context);
 
-    VectorX<AutoDiffXd> f_contact =
+    // Contact forces for participating DoFs
+    VectorX<AutoDiffXd> f_contact_participating =
         sap_model.constraints_bundle().J().MakeDenseMatrix().transpose() *
-        gamma;
-    f_ext.mutable_generalized_forces() += f_contact / time_step;
+        gamma / time_step;
+
+    // Contact forces on all DoFs
+    VectorX<AutoDiffXd> f_contact;
+    f_contact.setZero(sap_model.velocities_permutation().domain_size());
+    sap_model.velocities_permutation().ApplyInverse(f_contact_participating, &f_contact);
+
+    f_ext.mutable_generalized_forces() += f_contact;
   }
 
   // Compute the gradient of the residual with autodiff
@@ -800,6 +807,8 @@ void CompliantContactManager<AutoDiffXd>::
   const std::vector<DiscreteContactPair<AutoDiffXd>>& discrete_pairs =
       EvalDiscreteContactPairs(context);
   const int num_contacts = discrete_pairs.size();
+
+  std::cout << dv_dtheta << std::endl;
 
   PackContactSolverResults(sap_problem_autodiff, num_contacts,
                            sap_results_autodiff, contact_results);
