@@ -4,6 +4,7 @@
 
 #include "drake/common/drake_copyable.h"
 #include "drake/common/drake_throw.h"
+#include "drake/common/default_scalars.h"
 
 namespace drake {
 namespace multibody {
@@ -122,6 +123,20 @@ class PartialPermutation {
     }
   }
 
+  // Version of Apply that operates directly on matrices
+  void ApplyToMatrix(const MatrixX<double>& X,
+                     EigenPtr<MatrixX<double>> X_permuted) const {
+    DRAKE_THROW_UNLESS(X.rows() == domain_size());
+    DRAKE_THROW_UNLESS(X_permuted != nullptr);
+    DRAKE_THROW_UNLESS(X_permuted->rows() == permuted_domain_size());
+    DRAKE_THROW_UNLESS(X_permuted->cols() == X.cols());
+    for (int i_permuted = 0; i_permuted < permuted_domain_size();
+         ++i_permuted) {
+      const int i = inverse_permutation_[i_permuted];
+      X_permuted->row(i_permuted) = X.row(i);
+    }
+  }
+
   // This method applies this inverse permutation to the elements of x_permuted
   // and writes them into x. That is, x[i] = x_permuted[permuted_index(i)] for
   // all indexes i for which participates(i) is true.
@@ -148,6 +163,20 @@ class PartialPermutation {
          ++i_permuted) {
       const int i = inverse_permutation_[i_permuted];
       (*x)[i] = x_permuted[i_permuted];
+    }
+  }
+
+  // Version of ApplyInverse that operates directly on matrices
+  void ApplyInverseToMatrix(const MatrixX<double>& X_permuted,
+                            EigenPtr<MatrixX<double>> X) const {
+    DRAKE_THROW_UNLESS(X_permuted.rows() == permuted_domain_size());
+    DRAKE_THROW_UNLESS(X != nullptr);
+    DRAKE_THROW_UNLESS(X->rows() == domain_size());
+    DRAKE_THROW_UNLESS(X->cols() == X_permuted.cols());
+    for (int i_permuted = 0; i_permuted < permuted_domain_size();
+         ++i_permuted) {
+      const int i = inverse_permutation_[i_permuted];
+      X->row(i) = X_permuted.row(i_permuted);
     }
   }
 

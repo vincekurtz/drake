@@ -95,39 +95,56 @@ template <>
 void SapSolver<double>::PropagateGradients(
     const SapContactProblem<double>& problem, const MatrixX<double>& dr_dtheta,
     MatrixX<double>* dv_dtheta) {
-  if (problem.num_constraints() == 0) {
-    // For an unconstrained problem we have v = v_star, and
-    // SapSolver::SolveWithGuess does essentially nothing.
+  // For an unconstrained problem we have v = v_star, and
+  // so we need to solve A*dv_dtheta = - dr_dtheta.
 
-    // TODO(vincekurtz): reuse the factorization from
-    // SapModel::CalcDelassusDiagonalApproximation
-    const int num_cliques = problem.num_cliques();
-    const std::vector<MatrixX<double>>& A = problem.dynamics_matrix();
-    std::vector<math::LinearSolver<Eigen::LDLT, MatrixX<double>>> A_ldlt(
-        num_cliques);
-    for (int c = 0; c < num_cliques; ++c) {
-      A_ldlt[c] = math::LinearSolver<Eigen::LDLT, MatrixX<double>>(A[c]);
-      DRAKE_DEMAND(A_ldlt[c].eigen_linear_solver().isPositive());
-    }
+  // TODO(vincekurtz): for problems with constraints, only use this
+  // factorization of A_ldlt for the non-participating velocities.
 
-    int ic = 0;  // start index for each clique
-    int nc = 0;  // number of rows in each clique
-    for (int c = 0; c < num_cliques; ++c) {
-      nc = A[c].rows();
-      const auto dr_dtheta_c = dr_dtheta.middleRows(ic, nc);
-      dv_dtheta->middleRows(ic, nc) = A_ldlt[c].Solve(-dr_dtheta_c);
-      ic += nc;
-    }
+  // TODO(vincekurtz): reuse the factorization from
+  // SapModel::CalcDelassusDiagonalApproximation
+  const int num_cliques = problem.num_cliques();
+  const std::vector<MatrixX<double>>& A = problem.dynamics_matrix();
+  std::vector<math::LinearSolver<Eigen::LDLT, MatrixX<double>>> A_ldlt(
+      num_cliques);
+  for (int c = 0; c < num_cliques; ++c) {
+    A_ldlt[c] = math::LinearSolver<Eigen::LDLT, MatrixX<double>>(A[c]);
+    DRAKE_DEMAND(A_ldlt[c].eigen_linear_solver().isPositive());
+  }
 
-  } else {
-    // For problems with constraints, we can reuse the factorization of the
-    // Hessian of the contact problem. This includes contact contributions, but
-    // only for "participating DoFs", i.e., bodies that are in contact.
+  int ic = 0;  // start index for each clique
+  int nc = 0;  // number of rows in each clique
+  for (int c = 0; c < num_cliques; ++c) {
+    nc = A[c].rows();
+    const auto dr_dtheta_c = dr_dtheta.middleRows(ic, nc);
+    dv_dtheta->middleRows(ic, nc) = A_ldlt[c].Solve(-dr_dtheta_c);
+    ic += nc;
+  }
+
+  if (problem.num_constraints() != 0) {
+    // For problems with constraints, we need to solve H*dv_dtheta = -dr_dtheta.
+    // To do this we can reuse the factorization of H from
+    // SapSolver::SolveWithGuess, but this factorization only exists for
+    // participating DoFs.
     DRAKE_DEMAND(supernodal_solver_ != nullptr);
-    throw std::logic_error(
-        "SapSolver::PropagateGradients(): not implemented yet for constrained "
-        "problems.");
-    // MatrixX<double> dv_dtheta = supernodal_solver_->Solve(-dr_dtheta);
+    const PartialPermutation& permutation = model_->velocities_permutation();
+    const int num_rows_permuted = permutation.permuted_domain_size();
+    const int num_theta = dr_dtheta.cols();
+
+    // Extract participating rows from dr_dtheta
+    MatrixX<double> dr_dtheta_p(num_rows_permuted, num_theta);
+    permutation.ApplyToMatrix(dr_dtheta, &dr_dtheta_p);
+
+    // Solve for dv_dtheta (for participating rows) using the stored factorization
+    MatrixX<double> dv_dtheta_p(num_rows_permuted, num_theta);
+    for (int i = 0; i < num_theta; ++i) {
+      dv_dtheta_p.col(i) = supernodal_solver_->Solve(-dr_dtheta_p.col(i));
+    }
+
+    // Put the newly solved participating rows of dv_dtheta back into
+    // the full result. 
+    permutation.ApplyInverseToMatrix(dv_dtheta_p, dv_dtheta);
+
   }
 }
 

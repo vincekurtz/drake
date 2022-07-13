@@ -46,6 +46,7 @@ drake_cc_library(
     srcs = ["partial_permutation.cc"],
     hdrs = ["partial_permutation.h"],
     deps = [
+        "//common:default_scalars",
         "//common:essential",
     ],
 )
