@@ -808,7 +808,10 @@ void CompliantContactManager<AutoDiffXd>::
       EvalDiscreteContactPairs(context);
   const int num_contacts = discrete_pairs.size();
 
-  std::cout << dv_dtheta << std::endl;
+  // TODO(vincekurtz) set these results properly, including the correct derivatives
+  sap_results_autodiff.gamma = sap_results.gamma;
+  sap_results_autodiff.vc = sap_results.vc;
+  sap_results_autodiff.j = sap_results.j;
 
   PackContactSolverResults(sap_problem_autodiff, num_contacts,
                            sap_results_autodiff, contact_results);
