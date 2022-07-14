@@ -767,16 +767,43 @@ void CompliantContactManager<AutoDiffXd>::
   // Calculate constraint impulses using autodiff
   // TODO(vincekurtz) compute gamma more efficiently, avoiding use of
   // sap_problem_autodiff.
+  // TODO(vincekurtz) store gamma, vc, j and the like in sap_results_autodiff
   if (sap_problem->num_constraints() != 0) {
+    
+
     SapModel<AutoDiffXd> sap_model(&sap_problem_autodiff);
     auto sap_model_context = sap_model.MakeContext();
-    const VectorX<AutoDiffXd>& gamma =
+
+    // I believe the problem may (?) be that sap_model and sap_model_context are not using 
+    // v, and instead only are using v and v_star
+
+    const VectorX<AutoDiffXd>& gamma_clustered =
         sap_model.EvalImpulses(*sap_model_context);
+    VectorX<AutoDiffXd> gamma(sap_model.num_constraint_equations());
+    sap_model.impulses_permutation().ApplyInverse(gamma_clustered, &gamma);
+
+    std::cout << "γ from autodiff:" << std::endl;
+    std::cout << gamma << std::endl;
+
+    VectorX<AutoDiffXd> j(plant().num_velocities());
+    j.setZero();
+    const VectorX<AutoDiffXd>& j_participating =
+        sap_model.EvalGeneralizedImpulses(*sap_model_context);
+    sap_model.velocities_permutation().ApplyInverse(j_participating, &j);
+
+    std::cout << "Jᵀ⋅γ from autodiff:" << std::endl;
+    std::cout << j << std::endl;
 
     // Contact forces for participating DoFs
     VectorX<AutoDiffXd> f_contact_participating =
         sap_model.constraints_bundle().J().MakeDenseMatrix().transpose() *
         gamma / time_step;
+
+    // Something isn't quite right, and it might be here...
+    // Wrong Jacobian?
+    // Wrong ordering of gamma?
+    // Wrong permutation elsewhere?
+    // Need some way to isolate whether the problem is here or in PropagateGradients.
 
     // Contact forces on all DoFs
     VectorX<AutoDiffXd> f_contact;
@@ -812,6 +839,11 @@ void CompliantContactManager<AutoDiffXd>::
   sap_results_autodiff.gamma = sap_results.gamma;
   sap_results_autodiff.vc = sap_results.vc;
   sap_results_autodiff.j = sap_results.j;
+
+  std::cout << "γ from double:" << std::endl;
+  std::cout << sap_results.gamma << std::endl;
+  std::cout << "Jᵀ⋅γ from double:" << std::endl;
+  std::cout << sap_results.j << std::endl;
 
   PackContactSolverResults(sap_problem_autodiff, num_contacts,
                            sap_results_autodiff, contact_results);
