@@ -690,10 +690,10 @@ void CompliantContactManager<T>::DoCalcContactSolverResults(
       throw std::runtime_error(msg);
     }
 
-    if (std::is_same_v<T, AutoDiffXd>) {
-      this->print_debug_data(sap_results.j);
-      this->print_debug_data(sap_results.gamma);
-    }
+    //if (std::is_same_v<T, AutoDiffXd>) {
+    //  this->print_debug_data(sap_results.j);
+    //  //this->print_debug_data(sap_results.gamma);
+    //}
 
     const std::vector<DiscreteContactPair<T>>& discrete_pairs =
         EvalDiscreteContactPairs(context);
@@ -799,16 +799,16 @@ void CompliantContactManager<AutoDiffXd>::
     }
 
     // Compute γ (for debugging purposes)
-    VectorX<AutoDiffXd> gamma(sap_model.num_constraint_equations());
-    gamma.setZero();
-    const VectorX<AutoDiffXd>& gamma_clustered =
-        sap_model.EvalImpulses(*sap_model_context);
-    sap_model.impulses_permutation().ApplyInverse(gamma_clustered, &gamma);
+    //VectorX<AutoDiffXd> gamma(sap_model.num_constraint_equations());
+    //gamma.setZero();
+    //const VectorX<AutoDiffXd>& gamma_clustered =
+    //    sap_model.EvalImpulses(*sap_model_context);
+    //sap_model.impulses_permutation().ApplyInverse(gamma_clustered, &gamma);
 
-    std::cout << "sparse γ" << std::endl;
-    std::cout << math::ExtractValue(gamma) << std::endl;
-    std::cout << "sparse ∂γ/∂θ" << std::endl;
-    std::cout << math::ExtractGradient(gamma) << std::endl;
+    //std::cout << "sparse γ" << std::endl;
+    //std::cout << math::ExtractValue(gamma) << std::endl;
+    //std::cout << "sparse ∂γ/∂θ" << std::endl;
+    //std::cout << math::ExtractGradient(gamma) << std::endl;
 
     // Here we'll compute tau_c = Jᵀ⋅γ directly
     VectorX<AutoDiffXd> tau_c(plant().num_velocities());
@@ -817,10 +817,10 @@ void CompliantContactManager<AutoDiffXd>::
         sap_model.EvalGeneralizedImpulses(*sap_model_context);
     sap_model.velocities_permutation().ApplyInverse(tau_c_participating, &tau_c);
 
-    std::cout << "sparse τ_c" << std::endl;
-    std::cout << math::ExtractValue(tau_c) << std::endl;
-    std::cout << "sparse ∂τ_c/∂θ" << std::endl;
-    std::cout << math::ExtractGradient(tau_c) << std::endl;
+    //std::cout << "sparse τ_c" << std::endl;
+    //std::cout << math::ExtractValue(tau_c) << std::endl;
+    //std::cout << "sparse ∂τ_c/∂θ" << std::endl;
+    //std::cout << math::ExtractGradient(tau_c) << std::endl;
 
     f_ext.mutable_generalized_forces() += tau_c / time_step;
   }

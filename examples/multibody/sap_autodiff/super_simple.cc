@@ -46,7 +46,7 @@ namespace {
 DEFINE_bool(test_autodiff, true,
             "Whether to run some autodiff tests. If false, runs a quick "
             "simulation of the scenario instead.");
-DEFINE_string(algebra, "sparse",
+DEFINE_string(algebra, "both",
               "Type of algebra to use for testing autodiff. Options are: "
               "'sparse', 'dense', or 'both'.");
 DEFINE_int32(num_steps, 1,
@@ -62,14 +62,14 @@ void CreateDoublePlant(MultibodyPlant<double>* plant, const bool dense_algebra) 
   const double lower_limit = 0.1;
 
   // Create the plant
-  UnitInertia<double> G_Bo = UnitInertia<double>::SolidSphere(radius);
+  UnitInertia<double> G_Bo = UnitInertia<double>::SolidCube(2*radius);
   SpatialInertia<double> M_Bo(mass, Vector3<double>::Zero(), G_Bo);
-  const RigidBody<double>& sphere_body = plant->AddRigidBody("sphere_body", M_Bo);
+  const RigidBody<double>& body = plant->AddRigidBody("body", M_Bo);
   const math::RigidTransform<double> X;
-  plant->RegisterVisualGeometry(sphere_body, X, geometry::Sphere(radius), "sphere_body");
+  plant->RegisterVisualGeometry(body, X, geometry::Box(2*radius, 2*radius, 2*radius), "body");
   plant->RegisterVisualGeometry(plant->world_body(), X, geometry::Cylinder(0.01,10), "vertical_rod");
   plant->AddJoint<PrismaticJoint>(
-      "joint", plant->world_body(), std::nullopt, sphere_body, std::nullopt,
+      "joint", plant->world_body(), std::nullopt, body, std::nullopt,
       Vector3<double>::UnitZ(), lower_limit);
   plant->Finalize();
 
@@ -165,7 +165,7 @@ std::tuple<double, VectorX<double>, MatrixX<double>> TakeAutodiffSteps(
 int do_main() {
   // Define the initial state
   VectorX<double> x0(2);
-  x0 << 0.1, 0;
+  x0 << 0.05, 0;
 
   if (!FLAGS_constrained) {
     // Move the sphere up away from the joint limits

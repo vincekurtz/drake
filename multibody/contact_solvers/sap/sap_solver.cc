@@ -127,6 +127,7 @@ void SapSolver<double>::PropagateGradients(
     // SapSolver::SolveWithGuess, but this factorization only exists for
     // participating DoFs.
     DRAKE_DEMAND(supernodal_solver_ != nullptr);
+
     const PartialPermutation& permutation = model_->velocities_permutation();
     const int num_rows_permuted = permutation.permuted_domain_size();
     const int num_theta = dr_dtheta.cols();
