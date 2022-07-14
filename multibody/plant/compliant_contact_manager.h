@@ -152,6 +152,9 @@ class CompliantContactManager final
   template <typename U>
   friend class CompliantContactManager;
 
+  //DEBUG
+  void print_debug_data(const VectorX<T>& data) const;
+
   // Struct used to conglomerate the indexes of cache entries declared by the
   // manager.
   struct CacheIndexes {
@@ -383,6 +386,9 @@ void CompliantContactManager<AutoDiffXd>::
     DoCalcContactSolverResultsWithImplicitFunctionTheorem(
         const systems::Context<AutoDiffXd>&,
         contact_solvers::internal::ContactSolverResults<AutoDiffXd>*) const;
+
+template <>  
+void CompliantContactManager<AutoDiffXd>::print_debug_data(const VectorX<AutoDiffXd>&) const;
 
 }  // namespace internal
 }  // namespace multibody

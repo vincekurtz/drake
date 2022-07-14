@@ -135,7 +135,10 @@ void SapSolver<double>::PropagateGradients(
     MatrixX<double> dr_dtheta_p(num_rows_permuted, num_theta);
     permutation.ApplyToMatrix(dr_dtheta, &dr_dtheta_p);
 
-    // Solve for dv_dtheta (for participating rows) using the stored factorization
+    // Solve for dv_dtheta (for participating rows) using the stored
+    // factorization.
+    // TODO(vincekurtz): add a method to SupernodalSolver that uses a matrix
+    // directly.
     MatrixX<double> dv_dtheta_p(num_rows_permuted, num_theta);
     for (int i = 0; i < num_theta; ++i) {
       dv_dtheta_p.col(i) = supernodal_solver_->Solve(-dr_dtheta_p.col(i));

@@ -690,6 +690,11 @@ void CompliantContactManager<T>::DoCalcContactSolverResults(
       throw std::runtime_error(msg);
     }
 
+    //DEBUG
+    if (std::is_same_v<T, AutoDiffXd>) {
+      this->print_debug_data(sap_results.j);
+    }
+
     const std::vector<DiscreteContactPair<T>>& discrete_pairs =
         EvalDiscreteContactPairs(context);
     const int num_contacts = discrete_pairs.size();
@@ -697,6 +702,20 @@ void CompliantContactManager<T>::DoCalcContactSolverResults(
     PackContactSolverResults(sap_problem, num_contacts, sap_results,
                             contact_results);
   }
+}
+
+//DEBUG
+template <typename T>
+void CompliantContactManager<T>::print_debug_data(const VectorX<T>& data) const {
+  std::cout << data << std::endl;
+}
+
+template <>
+void CompliantContactManager<AutoDiffXd>::print_debug_data(const VectorX<AutoDiffXd>& data) const {
+  std::cout << "dense τ_c" << std::endl;
+  std::cout << math::ExtractValue(data) << std::endl;
+  std::cout << "dense ∂τ_c/∂θ" << std::endl;
+  std::cout << math::ExtractGradient(data) << std::endl;
 }
 
 template <typename T>
@@ -764,8 +783,6 @@ void CompliantContactManager<AutoDiffXd>::
   MultibodyForces<AutoDiffXd> f_ext(plant());
   CalcNonContactForcesExcludingJointLimits(context, &f_ext);
     
-  VectorX<AutoDiffXd> tau_c(plant().num_velocities());
-
   // Calculate constraint impulses using autodiff
   // TODO(vincekurtz) compute gamma more efficiently, avoiding use of
   // sap_problem_autodiff.
@@ -782,13 +799,18 @@ void CompliantContactManager<AutoDiffXd>::
     }
 
     // Here we'll compute tau_c = Jᵀ⋅γ directly
-    //VectorX<AutoDiffXd> tau_c(plant().num_velocities());
+    VectorX<AutoDiffXd> tau_c(plant().num_velocities());
     tau_c.setZero();
     const VectorX<AutoDiffXd>& tau_c_participating =
         sap_model.EvalGeneralizedImpulses(*sap_model_context);
     sap_model.velocities_permutation().ApplyInverse(tau_c_participating, &tau_c);
 
-    f_ext.mutable_generalized_forces() += tau_c / time_step;
+    std::cout << "sparse τ_c" << std::endl;
+    std::cout << math::ExtractValue(tau_c) << std::endl;
+    std::cout << "sparse ∂τ_c/∂θ" << std::endl;
+    std::cout << math::ExtractGradient(tau_c) << std::endl;
+
+    f_ext.mutable_generalized_forces() = tau_c / time_step;
   }
 
   // Compute the gradient of the residual with autodiff
@@ -817,16 +839,6 @@ void CompliantContactManager<AutoDiffXd>::
   sap_results_autodiff.gamma = sap_results.gamma;
   sap_results_autodiff.vc = sap_results.vc;
   sap_results_autodiff.j = sap_results.j;
-
-  std::cout << "Jᵀ⋅γ from double:" << std::endl;
-  std::cout << sap_results.j << std::endl;
-  std::cout << "Jᵀ⋅γ from autodiff:" << std::endl;
-  std::cout << math::ExtractValue(tau_c) << std::endl;
-  std::cout << "Jᵀ⋅γ error:" << std::endl;
-  VectorX<double> tau_c_err = sap_results.j - math::ExtractValue(tau_c);
-  std::cout << tau_c_err << std::endl;
-  std::cout << "Jᵀ⋅γ gradient:" << std::endl;
-  std::cout << math::ExtractGradient(tau_c) << std::endl;
 
   PackContactSolverResults(sap_problem_autodiff, num_contacts,
                            sap_results_autodiff, contact_results);

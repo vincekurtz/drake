@@ -62,6 +62,11 @@ void CreateDoublePlant(
   sap_params.line_search_type = linesearch_type;
   manager->set_sap_solver_parameters(sap_params);
   plant->SetDiscreteUpdateManager(std::move(manager));
+
+  // DEBUG: turn off gravity
+  //Vector3<double> g;
+  //g.setZero();
+  //plant->mutable_gravity_field().set_gravity_vector(g);
 }
 
 /**
@@ -206,7 +211,7 @@ int do_main() {
       std::cout << "Baseline (dense algebra) time: " << st_dense << std::endl;
       std::cout << "SAP (sparse algebra) time: " << st_sparse << std::endl;
       std::cout << "Value error: " << val_diff.norm() << std::endl;
-      std::cout << "Gradient error: " << grad_diff.norm() << std::endl;
+      std::cout << "Gradient error norm: " << grad_diff.norm() << std::endl;
     }
   } else {
     // Run a full simulation
