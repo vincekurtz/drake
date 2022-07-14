@@ -763,6 +763,8 @@ void CompliantContactManager<AutoDiffXd>::
   // Calculate external forces (e.g. gravity)
   MultibodyForces<AutoDiffXd> f_ext(plant());
   CalcNonContactForcesExcludingJointLimits(context, &f_ext);
+    
+  VectorX<AutoDiffXd> tau_c(plant().num_velocities());
 
   // Calculate constraint impulses using autodiff
   // TODO(vincekurtz) compute gamma more efficiently, avoiding use of
@@ -779,47 +781,14 @@ void CompliantContactManager<AutoDiffXd>::
       sap_model.velocities_permutation().Apply(sap_results.v, &v);
     }
 
-    // I believe the problem may (?) be that sap_model and sap_model_context are not using 
-    // v, and instead only are using v and v_star
-    //std::cout << "v from double sol'n" << std::endl;
-    //std::cout << sap_results.v << std::endl;
-    //std::cout << "v in autodiff model" << std::endl;
-    //std::cout << sap_model.GetVelocities(*sap_model_context) << std::endl;
-
-    const VectorX<AutoDiffXd>& gamma_clustered =
-        sap_model.EvalImpulses(*sap_model_context);
-    VectorX<AutoDiffXd> gamma(sap_model.num_constraint_equations());
-    sap_model.impulses_permutation().ApplyInverse(gamma_clustered, &gamma);
-
-    //std::cout << "γ from autodiff:" << std::endl;
-    //std::cout << gamma << std::endl;
-
-    VectorX<AutoDiffXd> j(plant().num_velocities());
-    j.setZero();
-    const VectorX<AutoDiffXd>& j_participating =
+    // Here we'll compute tau_c = Jᵀ⋅γ directly
+    //VectorX<AutoDiffXd> tau_c(plant().num_velocities());
+    tau_c.setZero();
+    const VectorX<AutoDiffXd>& tau_c_participating =
         sap_model.EvalGeneralizedImpulses(*sap_model_context);
-    sap_model.velocities_permutation().ApplyInverse(j_participating, &j);
+    sap_model.velocities_permutation().ApplyInverse(tau_c_participating, &tau_c);
 
-    //std::cout << "Jᵀ⋅γ from autodiff:" << std::endl;
-    //std::cout << j << std::endl;
-
-    // Contact forces for participating DoFs
-    VectorX<AutoDiffXd> f_contact_participating =
-        sap_model.constraints_bundle().J().MakeDenseMatrix().transpose() *
-        gamma / time_step;
-
-    // Something isn't quite right, and it might be here...
-    // Wrong Jacobian?
-    // Wrong ordering of gamma?
-    // Wrong permutation elsewhere?
-    // Need some way to isolate whether the problem is here or in PropagateGradients.
-
-    // Contact forces on all DoFs
-    VectorX<AutoDiffXd> f_contact;
-    f_contact.setZero(sap_model.velocities_permutation().domain_size());
-    sap_model.velocities_permutation().ApplyInverse(f_contact_participating, &f_contact);
-
-    f_ext.mutable_generalized_forces() += f_contact;
+    f_ext.mutable_generalized_forces() += tau_c / time_step;
   }
 
   // Compute the gradient of the residual with autodiff
@@ -849,10 +818,15 @@ void CompliantContactManager<AutoDiffXd>::
   sap_results_autodiff.vc = sap_results.vc;
   sap_results_autodiff.j = sap_results.j;
 
-  std::cout << "γ from double:" << std::endl;
-  std::cout << sap_results.gamma << std::endl;
   std::cout << "Jᵀ⋅γ from double:" << std::endl;
   std::cout << sap_results.j << std::endl;
+  std::cout << "Jᵀ⋅γ from autodiff:" << std::endl;
+  std::cout << math::ExtractValue(tau_c) << std::endl;
+  std::cout << "Jᵀ⋅γ error:" << std::endl;
+  VectorX<double> tau_c_err = sap_results.j - math::ExtractValue(tau_c);
+  std::cout << tau_c_err << std::endl;
+  std::cout << "Jᵀ⋅γ gradient:" << std::endl;
+  std::cout << math::ExtractGradient(tau_c) << std::endl;
 
   PackContactSolverResults(sap_problem_autodiff, num_contacts,
                            sap_results_autodiff, contact_results);
