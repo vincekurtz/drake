@@ -30,7 +30,8 @@ using systems::System;
 
 namespace examples {
 namespace multibody {
-namespace two_acrobots_and_box {
+namespace sap_autodiff {
+namespace {
 
 DEFINE_bool(test_autodiff, true,
             "Whether to run some autodiff tests. If false, runs a quick "
@@ -51,7 +52,7 @@ void CreateDoublePlant(
     const SapSolverParameters::LineSearchType linesearch_type) {
   // Load the models of acrobots and box from an sdf file
   const std::string acrobot_file = FindResourceOrThrow(
-      "drake/examples/multibody/two_acrobots_and_box/two_acrobots_and_box.sdf");
+      "drake/examples/multibody/sap_autodiff/two_acrobots_and_box.sdf");
   Parser(plant).AddAllModelsFromFile(acrobot_file);
   plant->Finalize();
 
@@ -223,12 +224,13 @@ int do_main() {
   return 0;
 }
 
-}  // namespace two_acrobots_and_box
+}
+}  // namespace sap_autodiff
 }  // namespace multibody
 }  // namespace examples
 }  // namespace drake
 
 int main(int argc, char* argv[]) {
   gflags::ParseCommandLineFlags(&argc, &argv, true);
-  return drake::examples::multibody::two_acrobots_and_box::do_main();
+  return drake::examples::multibody::sap_autodiff::do_main();
 }
