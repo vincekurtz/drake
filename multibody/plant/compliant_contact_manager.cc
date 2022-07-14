@@ -767,23 +767,32 @@ void CompliantContactManager<AutoDiffXd>::
   // Calculate constraint impulses using autodiff
   // TODO(vincekurtz) compute gamma more efficiently, avoiding use of
   // sap_problem_autodiff.
-  // TODO(vincekurtz) store gamma, vc, j and the like in sap_results_autodiff
   if (sap_problem->num_constraints() != 0) {
-    
-
     SapModel<AutoDiffXd> sap_model(&sap_problem_autodiff);
     auto sap_model_context = sap_model.MakeContext();
 
+    {
+      // Set velocities in sap_model_context.
+      // The lifetime of the reference v is limited to this scope. 
+      Eigen::VectorBlock<VectorX<AutoDiffXd>> v =
+          sap_model.GetMutableVelocities(sap_model_context.get());
+      sap_model.velocities_permutation().Apply(sap_results.v, &v);
+    }
+
     // I believe the problem may (?) be that sap_model and sap_model_context are not using 
     // v, and instead only are using v and v_star
+    //std::cout << "v from double sol'n" << std::endl;
+    //std::cout << sap_results.v << std::endl;
+    //std::cout << "v in autodiff model" << std::endl;
+    //std::cout << sap_model.GetVelocities(*sap_model_context) << std::endl;
 
     const VectorX<AutoDiffXd>& gamma_clustered =
         sap_model.EvalImpulses(*sap_model_context);
     VectorX<AutoDiffXd> gamma(sap_model.num_constraint_equations());
     sap_model.impulses_permutation().ApplyInverse(gamma_clustered, &gamma);
 
-    std::cout << "γ from autodiff:" << std::endl;
-    std::cout << gamma << std::endl;
+    //std::cout << "γ from autodiff:" << std::endl;
+    //std::cout << gamma << std::endl;
 
     VectorX<AutoDiffXd> j(plant().num_velocities());
     j.setZero();
@@ -791,8 +800,8 @@ void CompliantContactManager<AutoDiffXd>::
         sap_model.EvalGeneralizedImpulses(*sap_model_context);
     sap_model.velocities_permutation().ApplyInverse(j_participating, &j);
 
-    std::cout << "Jᵀ⋅γ from autodiff:" << std::endl;
-    std::cout << j << std::endl;
+    //std::cout << "Jᵀ⋅γ from autodiff:" << std::endl;
+    //std::cout << j << std::endl;
 
     // Contact forces for participating DoFs
     VectorX<AutoDiffXd> f_contact_participating =
