@@ -12,6 +12,7 @@
 #include "drake/systems/analysis/simulator.h"
 #include "drake/systems/framework/diagram_builder.h"
 #include "drake/multibody/tree/prismatic_joint.h"
+#include "drake/multibody/tree/revolute_joint.h"
 
 /**
  * A super simple example system which contains one degree of freedom and one
@@ -28,6 +29,7 @@ using multibody::ModelInstanceIndex;
 using multibody::MultibodyPlant;
 using multibody::MultibodyPlantConfig;
 using multibody::PrismaticJoint;
+using multibody::RevoluteJoint;
 using multibody::RigidBody;
 using multibody::SpatialInertia;
 using multibody::UnitInertia;
@@ -68,9 +70,19 @@ void CreateDoublePlant(MultibodyPlant<double>* plant, const bool dense_algebra) 
   const math::RigidTransform<double> X;
   plant->RegisterVisualGeometry(body, X, geometry::Box(2*radius, 2*radius, 2*radius), "body");
   plant->RegisterVisualGeometry(plant->world_body(), X, geometry::Cylinder(0.01,10), "vertical_rod");
-  plant->AddJoint<PrismaticJoint>(
-      "joint", plant->world_body(), std::nullopt, body, std::nullopt,
-      Vector3<double>::UnitZ(), lower_limit);
+  //plant->AddJoint<PrismaticJoint>(
+  //    "joint", plant->world_body(), std::nullopt, body, std::nullopt,
+  //    Vector3<double>::UnitZ(), lower_limit);
+  plant->AddJoint<RevoluteJoint>(
+      "joint", 
+      plant->world_body(), std::nullopt, 
+      body, std::nullopt,
+      Vector3<double>::UnitZ(),
+      lower_limit,
+      1e5);
+//      lower_limit);
+
+  (void) lower_limit;
   plant->Finalize();
 
   // Specify the SAP solver and parameters
@@ -165,7 +177,7 @@ std::tuple<double, VectorX<double>, MatrixX<double>> TakeAutodiffSteps(
 int do_main() {
   // Define the initial state
   VectorX<double> x0(2);
-  x0 << 0.05, 0;
+  x0 << 0.0, -1;
 
   if (!FLAGS_constrained) {
     // Move the sphere up away from the joint limits
