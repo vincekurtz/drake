@@ -64,25 +64,15 @@ void CreateDoublePlant(MultibodyPlant<double>* plant, const bool dense_algebra) 
   const double lower_limit = 0.1;
 
   // Create the plant
-  UnitInertia<double> G_Bo = UnitInertia<double>::SolidCube(2*radius);
+  UnitInertia<double> G_Bo = UnitInertia<double>::SolidSphere(radius);
   SpatialInertia<double> M_Bo(mass, Vector3<double>::Zero(), G_Bo);
   const RigidBody<double>& body = plant->AddRigidBody("body", M_Bo);
   const math::RigidTransform<double> X;
-  plant->RegisterVisualGeometry(body, X, geometry::Box(2*radius, 2*radius, 2*radius), "body");
+  plant->RegisterVisualGeometry(body, X, geometry::Sphere(radius), "body");
   plant->RegisterVisualGeometry(plant->world_body(), X, geometry::Cylinder(0.01,10), "vertical_rod");
-  //plant->AddJoint<PrismaticJoint>(
-  //    "joint", plant->world_body(), std::nullopt, body, std::nullopt,
-  //    Vector3<double>::UnitZ(), lower_limit);
-  plant->AddJoint<RevoluteJoint>(
-      "joint", 
-      plant->world_body(), std::nullopt, 
-      body, std::nullopt,
-      Vector3<double>::UnitZ(),
-      lower_limit,
-      1e5);
-//      lower_limit);
-
-  (void) lower_limit;
+  plant->AddJoint<PrismaticJoint>(
+      "joint", plant->world_body(), std::nullopt, body, std::nullopt,
+      Vector3<double>::UnitZ(), lower_limit);
   plant->Finalize();
 
   // Specify the SAP solver and parameters
@@ -177,11 +167,11 @@ std::tuple<double, VectorX<double>, MatrixX<double>> TakeAutodiffSteps(
 int do_main() {
   // Define the initial state
   VectorX<double> x0(2);
-  x0 << 0.0, -1;
+  x0 << 0.1, 0;
 
   if (!FLAGS_constrained) {
     // Move the sphere up away from the joint limits
-    x0(0) += 2;
+    x0(0) += 0.5;
   }
 
   if (FLAGS_test_autodiff) {
