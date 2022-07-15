@@ -39,6 +39,28 @@ drake_cc_binary(
     ],
 )
 
+drake_cc_binary(
+    name = "constrained_prismatic_joint",
+    srcs = ["constrained_prismatic_joint.cc"],
+    add_test_rule = 1,
+    deps = [
+        "//common:add_text_logging_gflags",
+        ":test_scenario",
+    ],
+)
+
+drake_cc_library(
+    name = "test_scenario",
+    srcs = ["test_scenario.cc"],
+    hdrs = ["test_scenario.h"],
+    deps = [
+        "//common:find_resource",
+        "//geometry:drake_visualizer",
+        "//multibody/parsing",
+        "//systems/analysis:simulator",
+        "//systems/framework:diagram",
+    ],
+)
 
 filegroup(
     name = "models",
