@@ -95,11 +95,11 @@ class SapAutodiffTestScenario {
   
   // Initial condition where constraints, either contact or joint limit, are
   // active
-  virtual VectorX<double> get_x0_constrained() const = 0;
+  virtual VectorX<double> get_x0_constrained() = 0;
 
   // Initial condition where constraints, either contact or joint limit, are
   // notactive
-  virtual VectorX<double> get_x0_unconstrained() const = 0;
+  virtual VectorX<double> get_x0_unconstrained() = 0;
 
   /**
    * Simulate several steps and use autodiff to compute gradients with respect

@@ -17,25 +17,11 @@ drake_cc_binary(
     deps = [
         "//common:add_text_logging_gflags",
         "//common:find_resource",
-        "//geometry:drake_visualizer",
         "//multibody/parsing",
         "//systems/analysis:simulator",
         "//systems/framework:diagram",
+        ":test_scenario",
         "@gflags",
-    ],
-)
-
-drake_cc_binary(
-    name = "super_simple",
-    srcs = ["super_simple.cc"],
-    add_test_rule = 1,
-    deps = [
-        "//common:add_text_logging_gflags",
-        "//common:find_resource",
-        "//geometry:drake_visualizer",
-        "//multibody/parsing",
-        "//systems/analysis:simulator",
-        "//systems/framework:diagram",
     ],
 )
 
@@ -46,6 +32,7 @@ drake_cc_binary(
     deps = [
         "//common:add_text_logging_gflags",
         ":test_scenario",
+        "@gflags",
     ],
 )
 

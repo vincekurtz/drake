@@ -148,9 +148,13 @@ SapAutodiffTestScenario::TakeAutodiffSteps(const VectorX<double>& x0,
   systems::Context<AutoDiffXd>& plant_context =
       plant->GetMyMutableContextFromRoot(diagram_context.get());
 
-  // Set initial conditions
+  // Set initial conditions and control inputs
   const VectorX<AutoDiffXd> x0_ad = math::InitializeAutoDiff(x0);
   plant->SetPositionsAndVelocities(&plant_context, x0_ad);
+  if (plant->num_actuators() > 0) {
+    VectorX<AutoDiffXd> u = VectorX<double>::Zero(plant->num_actuators());
+    plant->get_actuation_input_port().FixValue(&plant_context, u);
+  }
 
   // Step forward in time
   std::unique_ptr<DiscreteValues<AutoDiffXd>> state =

@@ -6,7 +6,7 @@
 
 DEFINE_bool(constraint, true,
             "Whether the initial state is such that constraints are active.");
-DEFINE_bool(simulate, true,
+DEFINE_bool(simulate, false,
             "Whether to run a quick simulation of the scenario.");
 DEFINE_double(realtime_rate, 1.0, "Realtime rate for simulation.");
 DEFINE_double(simulation_time, 2.0, "The time, in seconds, to simulate for.");
@@ -52,10 +52,10 @@ class ConstrainedPrismaticJointScenaro final : public SapAutodiffTestScenario {
     plant->Finalize();
   }
 
-  VectorX<double> get_x0_constrained() const override {
+  VectorX<double> get_x0_constrained() override {
     return Vector2<double>(0.1, 0.0);
   }
-  VectorX<double> get_x0_unconstrained() const override {
+  VectorX<double> get_x0_unconstrained() override {
     return Vector2<double>(0.5, 0.0);
   }
 };
