@@ -1,6 +1,7 @@
-#include <iostream>
-
 #include "drake/examples/multibody/sap_autodiff/test_scenario.h"
+
+#include <iostream>
+#include <chrono>
 
 namespace drake {
 
@@ -42,17 +43,36 @@ void SapAutodiffTestScenario::RunTests(
 
   if (params.test_autodiff) {
     if (params.algebra == kAlgebraType::Both) {
-        // Compare both methods
-        std::cout << "comparing both methods" << std::endl;
+      // Simulate several steps with both sparse (fancy) and dense (baseline)
+      // methods and compare the results
+
+      auto [st_dense, x_dense, dx_dense] =
+          TakeAutodiffSteps(x0, params.num_steps, true);
+      auto [st_sparse, x_sparse, dx_sparse] =
+          TakeAutodiffSteps(x0, params.num_steps, false);
+
+      const VectorX<double> val_diff = x_dense - x_sparse;
+      const MatrixX<double> grad_diff = dx_dense - dx_sparse;
+
+      std::cout << "Baseline (dense algebra) time: " << st_dense << std::endl;
+      std::cout << "SAP (sparse algebra) time: " << st_sparse << std::endl;
+      std::cout << "Value error: " << val_diff.norm() << std::endl;
+      std::cout << "Gradient error: " << grad_diff.norm() << std::endl;
+    
     } else {
-        // Just use one of the methods and print the result
-        std::cout << "using just one method" << std::endl;
+      // Simulate several steps, then print the final state and gradients
+      auto [runtime, x, dx] = TakeAutodiffSteps(
+          x0, params.num_steps, (params.algebra == kAlgebraType::Dense));
+
+      std::cout << "runtime: " << runtime << std::endl;
+      std::cout << "x: \n" << x << std::endl;
+      std::cout << "dx/dx0: \n" << dx << std::endl;
     }
   }
 }
 
-void SapAutodiffTestScenario::SimulateWithVisualizer(const VectorX<double>& x0) const {
-
+void SapAutodiffTestScenario::SimulateWithVisualizer(
+    const VectorX<double>& x0) const {
   // Set up a system diagram
   MultibodyPlantConfig config;
   config.time_step = params_.time_step;
@@ -67,7 +87,8 @@ void SapAutodiffTestScenario::SimulateWithVisualizer(const VectorX<double>& x0) 
   auto manager = std::make_unique<CompliantContactManager<double>>();
   SapSolverParameters sap_params;
   sap_params.use_dense_algebra = false;
-  sap_params.line_search_type = SapSolverParameters::LineSearchType::kBackTracking;
+  sap_params.line_search_type =
+      SapSolverParameters::LineSearchType::kBackTracking;
   manager->set_sap_solver_parameters(sap_params);
   plant.SetDiscreteUpdateManager(std::move(manager));
 
@@ -92,7 +113,61 @@ void SapAutodiffTestScenario::SimulateWithVisualizer(const VectorX<double>& x0) 
   simulator.set_target_realtime_rate(params_.realtime_rate);
   simulator.Initialize();
   simulator.AdvanceTo(params_.simulation_time);
+}
 
+std::tuple<double, VectorX<double>, MatrixX<double>>
+SapAutodiffTestScenario::TakeAutodiffSteps(const VectorX<double>& x0,
+                                           const int num_steps,
+                                           const bool dense_algebra) const {
+  // Set up a system diagram
+  MultibodyPlantConfig config;
+  config.time_step = params_.time_step;
+  config.contact_model = "hydroelastic";
+  DiagramBuilder<double> builder;
+  auto [plant_double, scene_graph_double] = AddMultibodyPlant(config, &builder);
+
+  // Create the plant model (user defined)
+  CreateDoublePlant(&plant_double);
+
+  // Use the SAP solver and set its parameters
+  auto manager = std::make_unique<CompliantContactManager<double>>();
+  SapSolverParameters sap_params;
+  sap_params.use_dense_algebra = dense_algebra;
+  sap_params.line_search_type =
+      SapSolverParameters::LineSearchType::kBackTracking;
+  manager->set_sap_solver_parameters(sap_params);
+  plant_double.SetDiscreteUpdateManager(std::move(manager));
+
+  // Build the system diagram and convert to autodiff
+  auto diagram_double = builder.Build();
+  auto diagram = systems::System<double>::ToAutoDiffXd(*diagram_double);
+  auto diagram_context = diagram->CreateDefaultContext();
+  const MultibodyPlant<AutoDiffXd>* plant =
+      dynamic_cast<const MultibodyPlant<AutoDiffXd>*>(
+          &diagram->GetSubsystemByName("plant"));
+  systems::Context<AutoDiffXd>& plant_context =
+      plant->GetMyMutableContextFromRoot(diagram_context.get());
+
+  // Set initial conditions
+  const VectorX<AutoDiffXd> x0_ad = math::InitializeAutoDiff(x0);
+  plant->SetPositionsAndVelocities(&plant_context, x0_ad);
+
+  // Step forward in time
+  std::unique_ptr<DiscreteValues<AutoDiffXd>> state =
+      plant->AllocateDiscreteVariables();
+
+  std::chrono::duration<double> elapsed;
+  auto st = std::chrono::high_resolution_clock::now();
+
+  for (int i = 0; i < num_steps; ++i) {
+    plant->CalcDiscreteVariableUpdates(plant_context, state.get());
+    plant_context.SetDiscreteState(state->value());
+  }
+
+  elapsed = std::chrono::high_resolution_clock::now() - st;
+  VectorX<AutoDiffXd> x = state->value();
+
+  return {elapsed.count(), math::ExtractValue(x), math::ExtractGradient(x)};
 }
 
 }  // namespace sap_autodiff

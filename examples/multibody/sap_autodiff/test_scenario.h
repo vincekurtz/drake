@@ -80,7 +80,7 @@ class SapAutodiffTestScenario {
   virtual ~SapAutodiffTestScenario() = default;
 
   /**
-   * The main thing to do - tun whatever tests are indicated by the given
+   * The main thing to do - run whatever tests are indicated by the given
    * parameters.
    *
    * @param params parameters describing what exactly to do, usually loaded from
@@ -124,10 +124,6 @@ class SapAutodiffTestScenario {
    * @param x0            The initial state of the system
    */
   void SimulateWithVisualizer(const VectorX<double>& x0) const;
-
-  // Set the SAP solver options to use dense algebra or not for the given plant.
-  void SetSapSolverOptions(MultibodyPlant<double>* plant,
-                           const bool dense_algebra) const;
 
   SapAutodiffTestParameters params_;
 };
