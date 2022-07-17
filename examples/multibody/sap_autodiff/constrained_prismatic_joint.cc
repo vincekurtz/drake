@@ -4,6 +4,20 @@
 #include "drake/multibody/tree/prismatic_joint.h"
 #include "drake/examples/multibody/sap_autodiff/test_scenario.h"
 
+DEFINE_bool(constraint, true,
+            "Whether the initial state is such that constraints are active.");
+DEFINE_bool(simulate, true,
+            "Whether to run a quick simulation of the scenario.");
+DEFINE_double(realtime_rate, 1.0, "Realtime rate for simulation.");
+DEFINE_double(simulation_time, 2.0, "The time, in seconds, to simulate for.");
+DEFINE_bool(test_autodiff, true, "Whether to run some autodiff tests.");
+DEFINE_string(algebra, "both",
+              "Type of algebra to use for testing autodiff. Options are: "
+              "'sparse', 'dense', or 'both'.");
+DEFINE_int32(num_steps, 1,
+             "Number of timesteps to simulate for testing autodiff.");
+DEFINE_double(time_step, 1e-2, "Size of the discrete timestep, in seconds");
+
 namespace drake {
     
 using multibody::PrismaticJoint;
@@ -55,10 +69,25 @@ class ConstrainedPrismaticJointScenaro final : public SapAutodiffTestScenario {
 int main(int argc, char* argv[]) {
   using drake::examples::multibody::sap_autodiff::ConstrainedPrismaticJointScenaro;
   using drake::examples::multibody::sap_autodiff::SapAutodiffTestParameters;
+  using drake::examples::multibody::sap_autodiff::kAlgebraType;
 
   gflags::ParseCommandLineFlags(&argc, &argv, true);
   SapAutodiffTestParameters params;
-  params.simulate = true;
+  params.constraint = FLAGS_constraint;
+  params.simulate = FLAGS_simulate;
+  params.realtime_rate = FLAGS_realtime_rate;
+  params.simulation_time = FLAGS_simulation_time;
+  params.test_autodiff = FLAGS_test_autodiff;
+  params.num_steps = FLAGS_num_steps;
+  params.time_step = FLAGS_time_step;
+
+  if (FLAGS_algebra == "dense") {
+    params.algebra = kAlgebraType::Dense;
+  } else if (FLAGS_algebra == "sparse") {
+    params.algebra = kAlgebraType::Sparse;
+  } else {
+    params.algebra = kAlgebraType::Both;
+  }
 
   ConstrainedPrismaticJointScenaro scenario;
   scenario.RunTests(params);

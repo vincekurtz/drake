@@ -43,8 +43,10 @@ void SapAutodiffTestScenario::RunTests(
   if (params.test_autodiff) {
     if (params.algebra == kAlgebraType::Both) {
         // Compare both methods
+        std::cout << "comparing both methods" << std::endl;
     } else {
         // Just use one of the methods and print the result
+        std::cout << "using just one method" << std::endl;
     }
   }
 }
