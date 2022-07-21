@@ -101,7 +101,8 @@ struct GradientData {
 };
 
 /**
- * Struct containing everything we need to compute the gradient and Hessian for our optimization problem. 
+ * Struct containing everything we need to compute the gradient and Hessian for
+ * our optimization problem.
  */
 struct ProblemData {
   // Container for the trajectory (q, v, tau)

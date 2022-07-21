@@ -5,8 +5,8 @@
 namespace drake {
 namespace traj_opt {
 
-using Eigen::VectorXd;
 using Eigen::MatrixXd;
+using Eigen::VectorXd;
 
 /**
  * A struct for specifying the optimization problem

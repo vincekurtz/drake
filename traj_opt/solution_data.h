@@ -49,14 +49,14 @@ struct SolverStats {
  * if not, why it failed.
  */
 enum SolverFlag {
-    // The solver successfully found a locally optimal trajectory
-    kSuccess,
+  // The solver successfully found a locally optimal trajectory
+  kSuccess,
 
-    // The linesearch procedure failed
-    kLinesearchFailed,
+  // The linesearch procedure failed
+  kLinesearchFailed,
 
-    // The maximum number of Gauss-Newton iterations was reached
-    kMaxIterationsReached
+  // The maximum number of Gauss-Newton iterations was reached
+  kMaxIterationsReached
 };
 
 }  // namespace traj_opt
