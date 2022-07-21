@@ -3,6 +3,7 @@
 #include "drake/traj_opt/solution_data.h"
 #include "drake/traj_opt/problem_definition.h"
 #include "drake/traj_opt/problem_data.h"
+#include "drake/traj_opt/pentadiagonal_matrix.h"
 
 namespace drake {
 namespace traj_opt {
@@ -17,6 +18,9 @@ int do_main() {
   
   ProblemData prob_data;
   (void) prob_data;
+
+  SymmetricPentadiagonalMatrix H(1,1);
+  (void) H;
 
   return 0;
 }

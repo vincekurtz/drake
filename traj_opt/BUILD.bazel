@@ -48,3 +48,13 @@ drake_cc_library(
         "//common:essential",
     ],
 )
+
+drake_cc_library(
+    name = "pentadiagonal_matrix",
+    hdrs = [
+        "pentadiagonal_matrix.h",
+    ],
+    deps = [
+        "//common:essential",
+    ],
+)
