@@ -1,0 +1,37 @@
+# -*- python -*-
+# This file contains rules for Bazel; see drake/doc/bazel.rst.
+
+load(
+    "@drake//tools/skylark:drake_cc.bzl",
+    "drake_cc_googletest",
+    "drake_cc_library",
+    "drake_cc_package_library",
+)
+load("//tools/lint:lint.bzl", "add_lint_tests")
+
+package(
+    default_visibility = ["//visibility:public"],
+)
+
+drake_cc_package_library(
+    name = "traj_opt",
+    visibility = ["//visibility:public"],
+    deps = [],
+)
+
+drake_cc_library(
+    name = "solution_data",
+    hdrs = [
+        "solution_data.h",
+    ],
+    deps = [
+        "//common:essential",
+    ],
+)
+
+#drake_cc_googletest(
+#    name = "solution_data_test",
+#    deps = [
+#        ":solution_data",
+#    ],
+#)
