@@ -15,5 +15,6 @@ drake_cc_binary(
     add_test_rule = 1,
     deps = [
         "//traj_opt:solution_data",
+        "//traj_opt:problem_definition",
     ],
 )

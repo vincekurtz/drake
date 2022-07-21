@@ -1,6 +1,7 @@
 #include <iostream>
 
 #include "drake/traj_opt/solution_data.h"
+#include "drake/traj_opt/problem_definition.h"
 
 namespace drake {
 namespace traj_opt {
@@ -10,14 +11,9 @@ namespace pendulum {
 int do_main() {
   std::cout << "hello world" << std::endl;
 
-  Solution soln;
-  SolverStats stats;
-  SolverFlag flag;
+  ProblemDefinition optimization_problem;
 
-  std::cout << (flag == SolverFlag::kSuccess) << std::endl;
-
-  (void) soln;
-  (void) stats;
+  (void) optimization_problem;
 
   return 0;
 }

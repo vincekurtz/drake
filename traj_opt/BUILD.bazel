@@ -29,9 +29,12 @@ drake_cc_library(
     ],
 )
 
-#drake_cc_googletest(
-#    name = "solution_data_test",
-#    deps = [
-#        ":solution_data",
-#    ],
-#)
+drake_cc_library(
+    name = "problem_definition",
+    hdrs = [
+        "problem_definition.h",
+    ],
+    deps = [
+        "//common:essential",
+    ],
+)
