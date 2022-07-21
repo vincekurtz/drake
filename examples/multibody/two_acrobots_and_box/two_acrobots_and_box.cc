@@ -32,22 +32,23 @@ namespace examples {
 namespace multibody {
 namespace two_acrobots_and_box {
 
-DEFINE_bool(test_autodiff, false,
+DEFINE_bool(test_autodiff, true,
             "Whether to run some autodiff tests. If false, runs a quick "
             "simulation of the scenario instead.");
-DEFINE_string(algebra, "both",
+DEFINE_string(algebra, "dense",
               "Type of algebra to use for testing autodiff. Options are: "
               "'sparse', 'dense', or 'both'.");
 DEFINE_int32(num_steps, 1,
              "Number of timesteps to simulate for testing autodiff.");
-DEFINE_bool(contact, true,
+DEFINE_bool(contact, false,
             "Whether the initial state is such that the box is in contact with "
             "one of the acrobots or not.");
 DEFINE_double(realtime_rate, 0.5, "Realtime rate for simulating the plant.");
 DEFINE_double(timestep, 1e-3, "Simulation timestep.");
 
-void CreateDoublePlant(MultibodyPlant<double>* plant,
-                         const bool dense_algebra) {
+void CreateDoublePlant(
+    MultibodyPlant<double>* plant, const bool dense_algebra,
+    const SapSolverParameters::LineSearchType linesearch_type) {
   // Load the models of acrobots and box from an sdf file
   const std::string acrobot_file = FindResourceOrThrow(
       "drake/examples/multibody/two_acrobots_and_box/two_acrobots_and_box.sdf");
@@ -58,6 +59,7 @@ void CreateDoublePlant(MultibodyPlant<double>* plant,
   auto manager = std::make_unique<CompliantContactManager<double>>();
   SapSolverParameters sap_params;
   sap_params.use_dense_algebra = dense_algebra;
+  sap_params.line_search_type = linesearch_type;
   manager->set_sap_solver_parameters(sap_params);
   plant->SetDiscreteUpdateManager(std::move(manager));
 }
@@ -72,14 +74,15 @@ void CreateDoublePlant(MultibodyPlant<double>* plant,
  * @param rate          The realtime rate to run the simulation at.
  */
 void SimulateWithVisualizer(const VectorX<double>& x0, const double end_time,
-                              const double rate) {
+                            const double rate) {
   // Set up the system diagram and create the plant model
   DiagramBuilder<double> builder;
   MultibodyPlantConfig config;
   config.time_step = FLAGS_timestep;
   config.contact_model = "hydroelastic";
   auto [plant, scene_graph] = AddMultibodyPlant(config, &builder);
-  CreateDoublePlant(&plant, false);
+  CreateDoublePlant(&plant, false,
+                    SapSolverParameters::LineSearchType::kBackTracking);
 
   // Connect to Drake visualizer
   geometry::DrakeVisualizerd::AddToBuilder(&builder, scene_graph);
@@ -116,15 +119,15 @@ void SimulateWithVisualizer(const VectorX<double>& x0, const double end_time,
  * in seconds, x, dx_dx0.
  */
 std::tuple<double, VectorX<double>, MatrixX<double>> TakeAutodiffSteps(
-    const VectorX<double>& x0, const int num_steps,
-    const bool dense_algebra) {
+    const VectorX<double>& x0, const int num_steps, const bool dense_algebra) {
   // Create a double plant and scene graph
   MultibodyPlantConfig config;
   config.time_step = FLAGS_timestep;
   config.contact_model = "hydroelastic";
   DiagramBuilder<double> builder;
   auto [plant_double, scene_graph_double] = AddMultibodyPlant(config, &builder);
-  CreateDoublePlant(&plant_double, dense_algebra);
+  CreateDoublePlant(&plant_double, dense_algebra,
+                    SapSolverParameters::LineSearchType::kBackTracking);
   auto diagram_double = builder.Build();
 
   // Convert to autodiff

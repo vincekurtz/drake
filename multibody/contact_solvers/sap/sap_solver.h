@@ -223,19 +223,19 @@ class SapSolver {
 
     // Cost at each SAP Newton iteration. cost[0] stores cost at the initial
     // guess.
-    std::vector<double> cost;
+    std::vector<T> cost;
 
     // Line search step size at each SAP Newton iteration. alpha[0] stores alpha
     // = 1.
-    std::vector<double> alpha;
+    std::vector<T> alpha;
 
     // Dimensionless momentum residual at each SAP Newton iteration. Of size
     // num_iters + 1.
-    std::vector<double> momentum_residual;
+    std::vector<T> momentum_residual;
 
     // Dimensionless momentum scale at each SAP Newton iteration. Of size
     // num_iters + 1.
-    std::vector<double> momentum_scale;
+    std::vector<T> momentum_scale;
   };
 
   SapSolver() = default;
@@ -435,10 +435,6 @@ class SapSolver {
 
 // Forward-declare specializations, prior to DRAKE_DECLARE... below.
 // We use these to specialize functions that do not support AutoDiffXd.
-template <>
-SapSolverStatus SapSolver<double>::SolveWithGuess(
-    const SapContactProblem<double>&, const VectorX<double>&,
-    SapSolverResults<double>*);
 template <>
 std::pair<double, int> SapSolver<double>::PerformExactLineSearch(
     const systems::Context<double>&, const SearchDirectionData&,

@@ -769,7 +769,7 @@ void CompliantContactManager<AutoDiffXd>::
   MatrixX<double> dr_dtheta = math::ExtractGradient(r);
 
   // Compute dv_dtheta via implicit function theorem
-  MatrixX<double> dv_dtheta;
+  MatrixX<double> dv_dtheta(plant().num_velocities(), dr_dtheta.cols());
   sap.PropagateGradients(*sap_problem, dr_dtheta, &dv_dtheta);
 
   // Load back into the derivatives and return
