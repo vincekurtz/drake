@@ -17,6 +17,6 @@ drake_cc_binary(
         "//traj_opt:solution_data",
         "//traj_opt:problem_definition",
         "//traj_opt:problem_data",
-        "//traj_opt:pentadiagonal_matrix",
+        "//traj_opt:trajectory_optimizer",
     ],
 )

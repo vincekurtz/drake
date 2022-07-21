@@ -20,6 +20,22 @@ drake_cc_package_library(
 )
 
 drake_cc_library(
+    name = "trajectory_optimizer",
+    hdrs = [
+        "trajectory_optimizer.h",
+    ],
+    srcs = ["trajectory_optimizer.cc"],
+    deps = [
+        "//common:essential",
+        "//multibody/plant",
+        ":pentadiagonal_matrix",
+        ":solution_data",
+        ":problem_definition",
+        ":problem_data",
+    ],
+)
+
+drake_cc_library(
     name = "solution_data",
     hdrs = [
         "solution_data.h",

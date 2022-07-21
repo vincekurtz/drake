@@ -11,10 +11,10 @@ using Eigen::MatrixXd;
 using Eigen::VectorXd;
 
 /**
- * A sparse representation of a symetric penta-diagonal matrix. 
- * 
+ * A sparse representation of a symetric penta-diagonal matrix.
+ *
  * A penta-diagonal matrix is of the form
- * 
+ *
  *   [ C0 D0 E0  0  0  0  0  0 ]
  *   [ B1 C1 D1 E1  0  0  0  0 ]
  *   [ A2 B2 C2 D2 E2  0  0  0 ]
@@ -22,20 +22,20 @@ using Eigen::VectorXd;
  *                 ...
  *                    ...
  *   [  0  0  0  0  0 AN BN CN ]
- * 
+ *
  * In our case this is a symmetric matrix, so we only need to
  * store Ci, Di, and Ei.
  */
 class SymmetricPentadiagonalMatrix {
  public:
-  // Allocate a symmetric pentadiagonal matrix with N blocks on the diagonal 
-  // and each block being an (n x n) matrix. 
+  // Allocate a symmetric pentadiagonal matrix with N blocks on the diagonal
+  // and each block being an (n x n) matrix.
   SymmetricPentadiagonalMatrix(int N, int n);
 
   // Sets the value of the i^th diagonal block.
   // TODO(vincekurtz): return a mutable Eigen::Ref instead?
   void SetDiagonalBlock(int i, MatrixXd Ci);
-  
+
   // Sets the value of the i^th block on the first diagonal.
   void SetFirstDiagonalBlock(int i, MatrixXd Di);
 
@@ -55,7 +55,7 @@ class SymmetricPentadiagonalMatrix {
   //    H * x = b,
   // for x, where H is this matrix, and b is a given vector.
   //
-  // Does so by first constructing a dense matrix, so this will be super slow. 
+  // Does so by first constructing a dense matrix, so this will be super slow.
   void SolveDense(const MatrixXd& b, EigenPtr<VectorXd> x);
 
  private:
