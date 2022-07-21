@@ -16,5 +16,6 @@ drake_cc_binary(
     deps = [
         "//traj_opt:solution_data",
         "//traj_opt:problem_definition",
+        "//traj_opt:problem_data",
     ],
 )
