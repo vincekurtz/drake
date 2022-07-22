@@ -1,0 +1,52 @@
+# -*- python -*-
+# This file contains rules for Bazel; see drake/doc/bazel.rst.
+
+load(
+    "@drake//tools/skylark:drake_cc.bzl",
+    "drake_cc_googletest",
+    "drake_cc_library",
+    "drake_cc_package_library",
+)
+load("//tools/lint:lint.bzl", "add_lint_tests")
+
+package(
+    default_visibility = ["//visibility:public"],
+)
+
+drake_cc_package_library(
+    name = "trajopt",
+    visibility = ["//visibility:public"],
+    deps = [
+        ":penta_diagonal_matrix",
+    ],
+)
+
+drake_cc_library(
+    name = "penta_diagonal_matrix",
+    srcs = ["penta_diagonal_matrix.cc"],
+    hdrs = ["penta_diagonal_matrix.h"],
+    deps = [
+        "//common:essential",
+    ],
+)
+
+drake_cc_library(
+    name = "penta_diagonal_solver",
+    srcs = [],
+    hdrs = ["penta_diagonal_solver.h"],
+    deps = [
+        "//common:essential",
+        ":penta_diagonal_matrix",
+    ],
+)
+
+drake_cc_googletest(
+    name = "penta_diagonal_solver_test",
+    deps = [
+        ":penta_diagonal_matrix",
+        ":penta_diagonal_solver",
+        "//common/test_utilities:eigen_matrix_compare",
+    ],
+)
+
+add_lint_tests()
