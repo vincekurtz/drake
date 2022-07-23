@@ -25,7 +25,8 @@ class TrajectoryOptimizer {
    * @param prob Problem definition, including cost, initial and target states,
    *             etc.
    */
-  TrajectoryOptimizer(std::unique_ptr<const MultibodyPlant<double>> plant, const ProblemDefinition& prob);
+  TrajectoryOptimizer(std::unique_ptr<const MultibodyPlant<double>> plant,
+                      const ProblemDefinition& prob);
 
   /**
    * Solve the optimization problem
@@ -49,6 +50,33 @@ class TrajectoryOptimizer {
    */
   SolverFlag Solve(const std::vector<VectorXd>& q_guess, Solution* soln,
                    SolverStats* stats);
+
+  /**
+   * Convienience function to get the timestep of this optimization problem.
+   *
+   * @return double dt, the time step for this optimization problem
+   */
+  double time_step() const { return plant_->time_step(); }
+
+  /**
+   * Convienience function to get the time horizon of this optimization problem.
+   *
+   * @return double T, the number of time steps in the optimal trajectory.
+   */
+  double T() const { return prob_.T; }
+
+  /**
+   * Compute a sequence of generalized velocities v from a sequence of
+   * generalized positions, where
+   *
+   *     v_t = (q_t - q_{t-1})/dt
+   *
+   * and v_0 is defined by the initial state of the optimization problem.
+   *
+   * @param q sequence of generalized positions
+   * @param v sequence of generalized velocities
+   */
+  void CalcV(const std::vector<VectorXd>& q, std::vector<VectorXd>* v) const;
 
  private:
   // A model of the system that we are trying to find an optimal trajectory for.
