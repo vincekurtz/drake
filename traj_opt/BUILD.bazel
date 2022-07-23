@@ -74,3 +74,15 @@ drake_cc_library(
         "//common:essential",
     ],
 )
+
+drake_cc_googletest(
+    name = "trajectory_optimizer_test",
+    data = ["//traj_opt/examples:pendulum.urdf"],
+    deps = [
+        ":trajectory_optimizer",
+        "//common/test_utilities:eigen_matrix_compare",
+        "//common:find_resource",
+        "//multibody/parsing",
+        "//multibody/plant",
+    ],
+)
