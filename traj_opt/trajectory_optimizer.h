@@ -18,12 +18,6 @@ using systems::DiagramContext;
 class TrajectoryOptimizer {
  public:
   /**
-   * Temporary constructor which allows us to test various methods without
-   * putting together a whole problem.
-   */
-  TrajectoryOptimizer();
-
-  /**
    * Construct a new Trajectory Optimizer object.
    *
    * @param plant A model of the system that we're trying to find an optimal
@@ -31,7 +25,8 @@ class TrajectoryOptimizer {
    * @param prob Problem definition, including cost, initial and target states,
    *             etc.
    */
-  TrajectoryOptimizer(MultibodyPlant<double> plant, ProblemDefinition prob);
+  TrajectoryOptimizer(std::unique_ptr<const MultibodyPlant<double>> plant,
+                      const ProblemDefinition& prob);
 
   /**
    * Solve the optimization problem
@@ -58,10 +53,10 @@ class TrajectoryOptimizer {
 
  private:
   // A model of the system that we are trying to find an optimal trajectory for.
-  MultibodyPlant<double> plant_;
+  std::unique_ptr<const MultibodyPlant<double>> plant_;
 
   // A context corresponding to plant_, to enable dynamics computations.
-  DiagramContext<double> context_;
+  std::unique_ptr<Context<double>> context_;
 
   // Stores the problem definition, including cost, time horizon, initial state,
   // target state, etc.
