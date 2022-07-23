@@ -25,12 +25,16 @@ using multibody::Parser;
 using systems::DiagramBuilder;
 using systems::Simulator;
 
-int do_main() {
-  // For now we'll just run a simple passive simulation of the pendulum
-
+/**
+ * Just run a simple passive simulation of the pendulum, connected to the Drake visualizer.  
+ * 
+ * @param time_step Time step for discretization (seconds)
+ * @param sim_time How long to simulate for (seconds)
+ */
+void run_passive_simulation(double time_step, double sim_time) {
   DiagramBuilder<double> builder;
   MultibodyPlantConfig config;
-  config.time_step = 1e-2;
+  config.time_step = time_step;
   config.discrete_contact_solver = "sap";
 
   auto [plant, scene_graph] = AddMultibodyPlant(config, &builder);
@@ -58,7 +62,42 @@ int do_main() {
 
   simulator.set_target_realtime_rate(1.0);
   simulator.Initialize();
-  simulator.AdvanceTo(2.0);
+  simulator.AdvanceTo(sim_time);
+}
+
+/**
+ * Test our computation of generalized velocities
+ * 
+ *   v_t = (q_t - q_{t-1})/dt
+ * 
+ */
+void test_v_from_q() {
+  // Set up the system model
+  auto plant = std::make_unique<MultibodyPlant<double>>(1e-2);
+  //plant->set_discrete_contact_solver("SAP")
+
+  const std::string urdf_file =
+      FindResourceOrThrow("drake/traj_opt/examples/pendulum.urdf");
+  Parser(plant.get()).AddAllModelsFromFile(urdf_file);
+  plant->Finalize();
+
+  // Create a trajectory optimizer
+  ProblemDefinition opt_prob;
+  TrajectoryOptimizer(std::move(plant), opt_prob);
+
+  // Simulate forward, recording q and v
+
+  // Compute v from q
+
+  // Check that our computed v matches the recorded v
+}
+
+int do_main() {
+  // For now we'll just run a simple passive simulation of the pendulum
+  // run_passive_simulation(1e-2, 2.0);
+
+  // Test computation of v from q
+  test_v_from_q();
 
   return 0;
 }
