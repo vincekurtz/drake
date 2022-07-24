@@ -66,6 +66,16 @@ class TrajectoryOptimizer {
   double T() const { return prob_.T; }
 
   /**
+   * Convienience function to get a const reference to the multibody plant that
+   * we are optimizing over.
+   *
+   * @return const MultibodyPlant<double>&, the plant we're optimizing over.
+   */
+  const MultibodyPlant<double>& plant() const {
+    return *plant_;
+  }
+
+  /**
    * Compute a sequence of generalized velocities v from a sequence of
    * generalized positions, where
    *
@@ -78,6 +88,21 @@ class TrajectoryOptimizer {
    */
   void CalcV(const std::vector<VectorXd>& q, std::vector<VectorXd>* v) const;
 
+  /**
+   * Compute a sequence of generalized forces t from sequences of generalized
+   * velocities and positions, where generalized forces are defined by the
+   * inverse dynamics,
+   *
+   *    tau_t = M*(v_{t+1}-v_t})/dt + D*v_{t+1} - k(q_t,v_t)
+   *                               - (1/dt) *J'*gamma(v_{t+1},q_t)
+   *
+   * @param q sequence of generalized positions
+   * @param v sequence of generalized velocities
+   * @param tau sequence of generalized forces
+   */
+  void CalcTau(const std::vector<VectorXd>& q, const std::vector<VectorXd>& v,
+               std::vector<VectorXd>* tau) const;
+
  private:
   // A model of the system that we are trying to find an optimal trajectory for.
   std::unique_ptr<const MultibodyPlant<double>> plant_;
@@ -88,6 +113,9 @@ class TrajectoryOptimizer {
   // Stores the problem definition, including cost, time horizon, initial state,
   // target state, etc.
   const ProblemDefinition prob_;
+
+  // Joint damping coefficients for the plant under consideration
+  VectorXd joint_damping_;
 };
 
 }  // namespace traj_opt
