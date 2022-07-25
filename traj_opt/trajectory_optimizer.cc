@@ -80,19 +80,33 @@ void TrajectoryOptimizer::CalcDtaumDq(const std::vector<VectorXd>& q,
                                       const int t,
                                       Eigen::Ref<MatrixXd> dtaum_dq) const {
   // TODO(vincekurtz): use a more efficient approximation
-  CalcDtaumDqFiniteDiff(q, t, dtaum_dq);
+  CalcDtausDqtFiniteDiff(q, t-1, t, dtaum_dq);
 }
 
-void TrajectoryOptimizer::CalcDtaumDqFiniteDiff(
-    const std::vector<VectorXd>& q, const int t,
-    Eigen::Ref<MatrixXd> dtaum_dq) const {
-  DRAKE_DEMAND(dtaum_dq.rows() ==          // nv and not nu, since tau is
+void TrajectoryOptimizer::CalcDtauDq(const std::vector<VectorXd>& q,
+                                      const int t,
+                                      Eigen::Ref<MatrixXd> dtaum_dq) const {
+  // TODO(vincekurtz): use a more efficient approximation
+  CalcDtausDqtFiniteDiff(q, t, t, dtaum_dq);
+}
+
+void TrajectoryOptimizer::CalcDtaupDq(const std::vector<VectorXd>& q,
+                                      const int t,
+                                      Eigen::Ref<MatrixXd> dtaum_dq) const {
+  // TODO(vincekurtz): use a more efficient approximation
+  CalcDtausDqtFiniteDiff(q, t+1, t, dtaum_dq);
+}
+
+void TrajectoryOptimizer::CalcDtausDqtFiniteDiff(
+    const std::vector<VectorXd>& q, const int s, const int t,
+    Eigen::Ref<MatrixXd> dtaus_dqt) const {
+  DRAKE_DEMAND(dtaus_dqt.rows() ==          // nv and not nu, since tau is
                plant().num_velocities());  // generalized forces, not control
-  DRAKE_DEMAND(dtaum_dq.cols() == plant().num_positions());
+  DRAKE_DEMAND(dtaus_dqt.cols() == plant().num_positions());
 
   // Compute generalized forces from q. This is very gross and brute-force,
   // since we compute everything for every timestep.
-  std::vector<VectorXd> v(T()+1);
+  std::vector<VectorXd> v(T() + 1);
   std::vector<VectorXd> tau(T());
   CalcV(q, &v);
   CalcTau(q, v, &tau);
@@ -101,12 +115,12 @@ void TrajectoryOptimizer::CalcDtaumDqFiniteDiff(
   std::vector<VectorXd> q_eps = q;
   std::vector<VectorXd> tau_eps(T());
 
-  const double eps = std::numeric_limits<double>::epsilon() * 1e3;
-  for (int i=0; i<plant().num_positions(); ++i) {
+  const double eps = sqrt(std::numeric_limits<double>::epsilon());
+  for (int i = 0; i < plant().num_positions(); ++i) {
     q_eps[t](i) += eps;
     CalcV(q_eps, &v);
     CalcTau(q_eps, v, &tau_eps);
-    dtaum_dq.row(i) = (tau_eps[t-1] - tau[t-1]) / eps;
+    dtaus_dqt.row(i) = (tau_eps[s] - tau[s]) / eps;
   }
 }
 

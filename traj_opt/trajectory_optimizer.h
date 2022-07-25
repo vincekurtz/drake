@@ -85,32 +85,35 @@ class TrajectoryOptimizer {
    * @param t timestep under consideration
    * @param dtaum_dq ∂tau_{t-1} / ∂q_t
    */
-  void CalcDtaumDq(const std::vector<VectorXd>& q, const int t, Eigen::Ref<MatrixXd> dtaum_dq) const;
+  void CalcDtaumDq(const std::vector<VectorXd>& q, const int t,
+                   Eigen::Ref<MatrixXd> dtaum_dq) const;
+  void CalcDtauDq(const std::vector<VectorXd>& q, const int t,
+                  Eigen::Ref<MatrixXd> dtaum_dq) const;
+  void CalcDtaupDq(const std::vector<VectorXd>& q, const int t,
+                   Eigen::Ref<MatrixXd> dtaum_dq) const;
 
   /**
-   * Finite difference version of CalcDtaumDq. For testing only. 
-   * 
+   * Compute ∂tau_s / ∂q_t using finite differences.
+   *
    * @param q sequence of all generalized positions
-   * @param t timestep under consideration
-   * @param dtaum_dq ∂tau_{t-1} / ∂q_t
+   * @param s timestep of tau
+   * @param t timestep of q
+   * @param dtaus_dqt ∂tau_s / ∂q_t
    */
-  void CalcDtaumDqFiniteDiff(const std::vector<VectorXd>& q, const int t, Eigen::Ref<MatrixXd> dtaum_dq) const;
-  
-
-  // TODO 
-  void CalcDtauDq();
-  void CalcDtaupDq();
-
+  void CalcDtausDqtFiniteDiff(const std::vector<VectorXd>& q, const int s,
+                              const int t,
+                              Eigen::Ref<MatrixXd> dtaus_dqt) const;
 
  private:
-  // A model of the system that we are trying to find an optimal trajectory for.
+  // A model of the system that we are trying to find an optimal trajectory
+  // for.
   std::unique_ptr<const MultibodyPlant<double>> plant_;
 
   // A context corresponding to plant_, to enable dynamics computations.
   std::unique_ptr<Context<double>> context_;
 
-  // Stores the problem definition, including cost, time horizon, initial state,
-  // target state, etc.
+  // Stores the problem definition, including cost, time horizon, initial
+  // state, target state, etc.
   const ProblemDefinition prob_;
 
   // Joint damping coefficients for the plant under consideration

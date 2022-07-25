@@ -48,6 +48,14 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumDtauDq) {
   MatrixXd dtau2_dq3(1,1);
   optimizer.CalcDtaumDq(q, 3, dtau2_dq3);
   std::cout << dtau2_dq3 << std::endl;
+  
+  MatrixXd dtau3_dq3(1,1);
+  optimizer.CalcDtauDq(q, 3, dtau3_dq3);
+  std::cout << dtau3_dq3 << std::endl;
+  
+  MatrixXd dtau4_dq3(1,1);
+  optimizer.CalcDtaupDq(q, 3, dtau4_dq3);
+  std::cout << dtau4_dq3 << std::endl;
 
   EXPECT_TRUE(true);
 }
