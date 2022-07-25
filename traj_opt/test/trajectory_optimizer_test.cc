@@ -60,7 +60,7 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumCalcV) {
   ProblemDefinition opt_prob;
   opt_prob.q_init = x0.topRows<1>();
   opt_prob.v_init = x0.bottomRows<1>();
-  opt_prob.T = num_steps;
+  opt_prob.num_steps = num_steps;
   TrajectoryOptimizer optimizer(std::move(plant), opt_prob);
 
   // Compute v as from q using the optimizer

@@ -36,9 +36,9 @@ class TrajectoryOptimizer {
   /**
    * Convienience function to get the time horizon of this optimization problem.
    *
-   * @return double T, the number of time steps in the optimal trajectory.
+   * @return int the number of time steps in the optimal trajectory.
    */
-  double T() const { return prob_.T; }
+  int num_steps() const { return prob_.num_steps; }
 
   /**
    * Compute a sequence of generalized velocities v from a sequence of

@@ -21,7 +21,7 @@ using Eigen::VectorXd;
  */
 struct ProblemDefinition {
   // Time horizon (number of steps) for the optimization problem
-  int T;
+  int num_steps;
 
   // Running cost coefficients for generalized positions
   MatrixXd Qq;
