@@ -46,9 +46,7 @@ class TrajectoryOptimizer {
    *
    * @return const MultibodyPlant<double>&, the plant we're optimizing over.
    */
-  const MultibodyPlant<double>& plant() const {
-    return *plant_;
-  }
+  const MultibodyPlant<double>& plant() const { return *plant_; }
 
   /**
    * Compute a sequence of generalized velocities v from a sequence of
