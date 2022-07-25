@@ -8,11 +8,9 @@ namespace traj_opt {
 using multibody::MultibodyPlant;
 using systems::System;
 
-TrajectoryOptimizer::TrajectoryOptimizer(
-    std::unique_ptr<const MultibodyPlant<double>> plant,
-    const ProblemDefinition& prob)
-    : prob_(prob) {
-  plant_ = std::move(plant);
+TrajectoryOptimizer::TrajectoryOptimizer(const MultibodyPlant<double>* plant,
+                                         const ProblemDefinition& prob)
+    : plant_(plant), prob_(prob) {
   context_ = plant_->CreateDefaultContext();
 }
 

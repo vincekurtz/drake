@@ -23,7 +23,7 @@ class TrajectoryOptimizer {
    * @param prob Problem definition, including cost, initial and target states,
    *             etc.
    */
-  TrajectoryOptimizer(std::unique_ptr<const MultibodyPlant<double>> plant,
+  TrajectoryOptimizer(const MultibodyPlant<double>* plant,
                       const ProblemDefinition& prob);
 
   /**
@@ -55,7 +55,7 @@ class TrajectoryOptimizer {
 
  private:
   // A model of the system that we are trying to find an optimal trajectory for.
-  std::unique_ptr<const MultibodyPlant<double>> plant_;
+  const MultibodyPlant<double>* plant_;
 
   // A context corresponding to plant_, to enable dynamics computations.
   std::unique_ptr<Context<double>> context_;
