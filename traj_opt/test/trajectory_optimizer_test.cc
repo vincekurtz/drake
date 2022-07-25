@@ -32,9 +32,10 @@ using multibody::Parser;
  */
 GTEST_TEST(TrajectoryOptimizerTest, PendulumCalcVAndTau) {
   const int num_steps = 5;
+  const double dt = 1e-2;
 
   // Set up the system model
-  auto plant = std::make_unique<MultibodyPlant<double>>(1e-2);
+  auto plant = std::make_unique<MultibodyPlant<double>>(dt);
   const std::string urdf_file =
       FindResourceOrThrow("drake/traj_opt/examples/pendulum.urdf");
   Parser(plant.get()).AddAllModelsFromFile(urdf_file);
@@ -82,13 +83,13 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumCalcVAndTau) {
   optimizer.CalcTau(q, v, &tau);
 
   // Check that our computed values match the true (recorded) ones
-  const double kToleranceV = std::numeric_limits<double>::epsilon() * 100;
+  const double kToleranceV = std::numeric_limits<double>::epsilon() / dt;
   for (int t = 0; t <= num_steps; ++t) {
     EXPECT_TRUE(CompareMatrices(v[t], x.block<1, 1>(1, t), kToleranceV,
                                 MatrixCompareType::relative));
   }
 
-  const double kToleranceTau = std::numeric_limits<double>::epsilon() * 1e4;
+  const double kToleranceTau = std::numeric_limits<double>::epsilon() / dt / dt;
   for (int t = 0; t < num_steps; ++t) {
     EXPECT_TRUE(CompareMatrices(tau[t], tau_gt[t], kToleranceTau,
                                 MatrixCompareType::relative));
