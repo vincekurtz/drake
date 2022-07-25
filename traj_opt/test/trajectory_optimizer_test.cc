@@ -7,7 +7,6 @@
 #include "drake/multibody/parsing/parser.h"
 #include "drake/multibody/plant/multibody_plant.h"
 #include "drake/traj_opt/problem_definition.h"
-#include "drake/traj_opt/solution_data.h"
 
 namespace drake {
 namespace traj_opt {
@@ -117,7 +116,7 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumCalcV) {
     x.col(t + 1) = state->get_value();
   }
 
-  // Formate a std::vector of generalized positions (q)
+  // Construct a std::vector of generalized positions (q)
   std::vector<VectorXd> q;
   for (int t = 0; t <= num_steps; ++t) {
     q.emplace_back(x.block<1, 1>(0, t));
@@ -125,8 +124,8 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumCalcV) {
 
   // Create a trajectory optimizer
   ProblemDefinition opt_prob;
-  opt_prob.q0 = x.block<1, 1>(0, 0);
-  opt_prob.v0 = x.block<1, 1>(1, 0);
+  opt_prob.q_init = x0.topRows<1>();
+  opt_prob.v_init = x0.bottomRows<1>();
   opt_prob.T = num_steps;
   TrajectoryOptimizer optimizer(std::move(plant), opt_prob);
 

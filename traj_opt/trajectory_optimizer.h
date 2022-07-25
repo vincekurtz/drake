@@ -4,9 +4,7 @@
 
 #include "drake/common/eigen_types.h"
 #include "drake/multibody/plant/multibody_plant.h"
-#include "drake/traj_opt/problem_data.h"
 #include "drake/traj_opt/problem_definition.h"
-#include "drake/traj_opt/solution_data.h"
 
 namespace drake {
 namespace traj_opt {
@@ -27,29 +25,6 @@ class TrajectoryOptimizer {
    */
   TrajectoryOptimizer(std::unique_ptr<const MultibodyPlant<double>> plant,
                       const ProblemDefinition& prob);
-
-  /**
-   * Solve the optimization problem
-   *
-   *    min  x_err(T)'*Qf*x_err(T) + sum{ x_err(t)'*Q*x_err(t) + u(t)'*R*u(t) }
-   *    s.t. x(0) = x0
-   *         multibody dynamics with contact
-   *
-   * using our proposed formulation, where generalized positions q are the only
-   * decision variables, we use an implicit formulation of the dynamics, and we
-   * exploit the sparsity of the problem as much as possible.
-   *
-   * @param q_guess An initial guess for the optimal trajectory. Doesn't need to
-   *                be dynamically feasible.
-   * @param soln Optimal solution to the problem, including state x = [q;v] and
-   *             control inputs u.
-   * @param stats Additional solver statistics such as timing information,
-   *              optimal cost, etc.
-   * @return SolverFlag indicating whether our optimization was successful, or
-   *         why it failed.
-   */
-  SolverFlag Solve(const std::vector<VectorXd>& q_guess, Solution* soln,
-                   SolverStats* stats);
 
   /**
    * Convienience function to get the timestep of this optimization problem.

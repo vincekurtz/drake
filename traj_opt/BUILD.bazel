@@ -28,20 +28,7 @@ drake_cc_library(
     deps = [
         "//common:essential",
         "//multibody/plant",
-        ":pentadiagonal_matrix",
-        ":solution_data",
         ":problem_definition",
-        ":problem_data",
-    ],
-)
-
-drake_cc_library(
-    name = "solution_data",
-    hdrs = [
-        "solution_data.h",
-    ],
-    deps = [
-        "//common:essential",
     ],
 )
 
@@ -49,26 +36,6 @@ drake_cc_library(
     name = "problem_definition",
     hdrs = [
         "problem_definition.h",
-    ],
-    deps = [
-        "//common:essential",
-    ],
-)
-
-drake_cc_library(
-    name = "problem_data",
-    hdrs = [
-        "problem_data.h",
-    ],
-    deps = [
-        "//common:essential",
-    ],
-)
-
-drake_cc_library(
-    name = "pentadiagonal_matrix",
-    hdrs = [
-        "pentadiagonal_matrix.h",
     ],
     deps = [
         "//common:essential",

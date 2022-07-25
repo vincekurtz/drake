@@ -36,7 +36,7 @@ void TrajectoryOptimizer::CalcV(const std::vector<VectorXd>& q,
   DRAKE_DEMAND(static_cast<int>(q.size()) == T() + 1);
   DRAKE_DEMAND(static_cast<int>(v->size()) == T() + 1);
 
-  v->at(0) = prob_.v0;
+  v->at(0) = prob_.v_init;
   for (int i = 1; i <= T(); ++i) {
     v->at(i) = (q[i] - q[i - 1]) / time_step();
   }

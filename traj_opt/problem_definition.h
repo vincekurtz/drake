@@ -15,7 +15,7 @@ using Eigen::VectorXd;
  *    s.t. x(0) = x0
  *         multibody dynamics with contact
  *
- *  where x(t) = [q(t); v(t)] and
+ *  where x(t) = [q(t); v(t)], x_err(t) = x(t)-x_nom(t), and
  *  Q = [ Qq  0  ]
  *      [ 0   Qv ].
  */
@@ -45,10 +45,10 @@ struct ProblemDefinition {
   VectorXd v_nom;
 
   // Initial generalized positions
-  VectorXd q0;
+  VectorXd q_init;
 
   // Initial generalized velocities
-  VectorXd v0;
+  VectorXd v_init;
 };
 
 }  // namespace traj_opt
