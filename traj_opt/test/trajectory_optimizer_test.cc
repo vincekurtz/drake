@@ -14,6 +14,7 @@ namespace internal {
 
 using Eigen::MatrixXd;
 using Eigen::VectorXd;
+using Eigen::Vector2d;
 using multibody::DiscreteContactSolver;
 using multibody::MultibodyPlant;
 using multibody::Parser;
@@ -24,53 +25,35 @@ using multibody::Parser;
  *   v_t = (q_t - q_{t-1})/dt
  *
  */
-GTEST_TEST(TrajectoryOptimizerTest, PendulumCalcV) {
+GTEST_TEST(TrajectoryOptimizerTest, CalcV) {
   const int num_steps = 5;
+  const double dt = 1e-2;
 
-  // Set up the system model
-  auto plant = std::make_unique<MultibodyPlant<double>>(1e-2);
-  const std::string urdf_file =
-      FindResourceOrThrow("drake/examples/pendulum/Pendulum.urdf");
-  Parser(plant.get()).AddAllModelsFromFile(urdf_file);
-  plant->set_discrete_contact_solver(DiscreteContactSolver::kSap);
-  plant->Finalize();
-  auto plant_context = plant->CreateDefaultContext();
-
-  // Simulate forward, recording the state
-  MatrixXd x(plant->num_multibody_states(), num_steps + 1);
-  auto x0 = x.leftCols<1>();
-  x0 << 1.3, 0.4;
-  plant->SetPositionsAndVelocities(plant_context.get(), x.leftCols<1>());
-
-  auto state = plant->AllocateDiscreteVariables();
-  for (int t = 0; t < num_steps; ++t) {
-    plant->get_actuation_input_port().FixValue(plant_context.get(), sin(t));
-    plant->CalcDiscreteVariableUpdates(*plant_context, state.get());
-    plant_context->SetDiscreteState(state->get_value());
-    x.col(t + 1) = state->get_value();
-  }
+  // Create a TrajectoryOptimizer object
+  MultibodyPlant<double> plant(dt);
+  plant.Finalize();
+  ProblemDefinition opt_prob;
+  opt_prob.q_init = Vector2d(0.1, 0.2);
+  opt_prob.v_init = Vector2d(0.5/dt, 1.5/dt);
+  opt_prob.num_steps = num_steps;
+  TrajectoryOptimizer optimizer(&plant, opt_prob);
 
   // Construct a std::vector of generalized positions (q)
+  // where q(t) = [0.1 + 0.5*t]
+  //              [0.2 + 1.5*t]
   std::vector<VectorXd> q;
   for (int t = 0; t <= num_steps; ++t) {
-    q.emplace_back(x.block<1, 1>(0, t));
+    q.push_back(Vector2d(0.1 + 0.5*t, 0.2 + 1.5*t));
   }
 
-  // Create a trajectory optimizer
-  ProblemDefinition opt_prob;
-  opt_prob.q_init = x0.topRows<1>();
-  opt_prob.v_init = x0.bottomRows<1>();
-  opt_prob.num_steps = num_steps;
-  TrajectoryOptimizer optimizer(plant.get(), opt_prob);
-
-  // Compute v as from q using the optimizer
+  // Compute v from q
   std::vector<VectorXd> v(num_steps + 1);
   optimizer.CalcV(q, &v);
 
-  // Check that our computed v matches the recorded v
-  const double kTolerance = std::numeric_limits<double>::epsilon() * 100;
+  // Check that our computed v is correct
+  const double kTolerance = std::numeric_limits<double>::epsilon() / dt;
   for (int t = 0; t <= num_steps; ++t) {
-    EXPECT_TRUE(CompareMatrices(v[t], x.block<1, 1>(1, t), kTolerance,
+    EXPECT_TRUE(CompareMatrices(v[t], opt_prob.v_init, kTolerance,
                                 MatrixCompareType::relative));
   }
 }
