@@ -55,8 +55,6 @@ void TrajectoryOptimizer::CalcTau(const std::vector<VectorXd>& q,
   const int nv = plant().num_velocities();
   VectorXd a(nv);                          // acceleration
   MultibodyForces<double> f_ext(plant());  // external forces
-  VectorXd tau_id(nv);                     // inverse dynamics
-  VectorXd damping_correction(nv);         // joint damping correction
 
   for (int t = 0; t < T(); ++t) {
     a = (v[t+1] - v[t])/time_step();
@@ -64,15 +62,14 @@ void TrajectoryOptimizer::CalcTau(const std::vector<VectorXd>& q,
     plant().SetVelocities(context_.get(), v[t]);
     plant().CalcForceElementsContribution(*context_, &f_ext);
 
-    // Inverse dynamics computes M*a + D*v + C(q,v)v + f_ext
-    tau_id = plant().CalcInverseDynamics(*context_, a, f_ext);
+    // Inverse dynamics computes M*a + D*v - k(q,v)
+    tau->at(t) = plant().CalcInverseDynamics(*context_, a, f_ext);
 
     // CalcInverseDynamics considers damping from v_t (D*v_t), but we want to
     // consider damping from v_{t+1} (D*v_{t+1}).
-    damping_correction = joint_damping_.array() * (v[t+1].array() - v[t].array());
+    tau->at(t).array() += joint_damping_.array() * (v[t+1].array() - v[t].array());
 
     // TODO(vincekurtz) add in contact/constriant contribution
-    tau->at(t) = tau_id + damping_correction;
   }
 
 }
