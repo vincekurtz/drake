@@ -5,10 +5,10 @@
 namespace drake {
 namespace traj_opt {
 
-using multibody::MultibodyPlant;
-using multibody::MultibodyForces;
-using multibody::JointIndex;
 using multibody::Joint;
+using multibody::JointIndex;
+using multibody::MultibodyForces;
+using multibody::MultibodyPlant;
 using systems::System;
 
 TrajectoryOptimizer::TrajectoryOptimizer(
@@ -17,7 +17,7 @@ TrajectoryOptimizer::TrajectoryOptimizer(
     : prob_(prob) {
   plant_ = std::move(plant);
   context_ = plant_->CreateDefaultContext();
-  
+
   // Define joint damping coefficients.
   joint_damping_ = VectorXd::Zero(plant_->num_velocities());
 
@@ -27,7 +27,6 @@ TrajectoryOptimizer::TrajectoryOptimizer(
     const int nv = joint.num_velocities();
     joint_damping_.segment(velocity_start, nv) = joint.damping_vector();
   }
-
 }
 
 void TrajectoryOptimizer::CalcV(const std::vector<VectorXd>& q,
@@ -59,7 +58,7 @@ void TrajectoryOptimizer::CalcTau(const std::vector<VectorXd>& q,
   VectorXd damping_correction(nv);         // joint damping correction
 
   for (int t = 0; t < T(); ++t) {
-    a = (v[t+1] - v[t])/time_step();
+    a = (v[t + 1] - v[t]) / time_step();
     plant().SetPositions(context_.get(), q[t]);
     plant().SetVelocities(context_.get(), v[t]);
     plant().CalcForceElementsContribution(*context_, &f_ext);
@@ -69,12 +68,46 @@ void TrajectoryOptimizer::CalcTau(const std::vector<VectorXd>& q,
 
     // CalcInverseDynamics considers damping from v_t (D*v_t), but we want to
     // consider damping from v_{t+1} (D*v_{t+1}).
-    damping_correction = joint_damping_.array() * (v[t+1].array() - v[t].array());
+    damping_correction =
+        joint_damping_.array() * (v[t + 1].array() - v[t].array());
 
     // TODO(vincekurtz) add in contact/constriant contribution
     tau->at(t) = tau_id + damping_correction;
   }
+}
 
+void TrajectoryOptimizer::CalcDtaumDq(const std::vector<VectorXd>& q,
+                                      const int t,
+                                      Eigen::Ref<MatrixXd> dtaum_dq) const {
+  // TODO(vincekurtz): use a more efficient approximation
+  CalcDtaumDqFiniteDiff(q, t, dtaum_dq);
+}
+
+void TrajectoryOptimizer::CalcDtaumDqFiniteDiff(
+    const std::vector<VectorXd>& q, const int t,
+    Eigen::Ref<MatrixXd> dtaum_dq) const {
+  DRAKE_DEMAND(dtaum_dq.rows() ==          // nv and not nu, since tau is
+               plant().num_velocities());  // generalized forces, not control
+  DRAKE_DEMAND(dtaum_dq.cols() == plant().num_positions());
+
+  // Compute generalized forces from q. This is very gross and brute-force,
+  // since we compute everything for every timestep.
+  std::vector<VectorXd> v(T()+1);
+  std::vector<VectorXd> tau(T());
+  CalcV(q, &v);
+  CalcTau(q, v, &tau);
+
+  // Modulate qt[i] to define each row of dtaum_dq
+  std::vector<VectorXd> q_eps = q;
+  std::vector<VectorXd> tau_eps(T());
+
+  const double eps = std::numeric_limits<double>::epsilon() * 1e3;
+  for (int i=0; i<plant().num_positions(); ++i) {
+    q_eps[t](i) += eps;
+    CalcV(q_eps, &v);
+    CalcTau(q_eps, v, &tau_eps);
+    dtaum_dq.row(i) = (tau_eps[t-1] - tau[t-1]) / eps;
+  }
 }
 
 }  // namespace traj_opt

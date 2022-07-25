@@ -18,6 +18,40 @@ using multibody::DiscreteContactSolver;
 using multibody::MultibodyPlant;
 using multibody::Parser;
 
+GTEST_TEST(TrajectoryOptimizerTest, PendulumDtauDq) {
+  const int num_steps = 5;
+  const double dt = 1e-2;
+
+  // Set up a system model
+  auto plant = std::make_unique<MultibodyPlant<double>>(dt);
+  const std::string urdf_file =
+      FindResourceOrThrow("drake/traj_opt/examples/pendulum.urdf");
+  Parser(plant.get()).AddAllModelsFromFile(urdf_file);
+  plant->set_discrete_contact_solver(DiscreteContactSolver::kSap);
+  plant->Finalize();
+
+  // Create a trajectory optimizer
+  ProblemDefinition opt_prob;
+  opt_prob.q_init = Vector1d(0.0);
+  opt_prob.v_init = Vector1d(0.1);
+  opt_prob.T = num_steps;
+  TrajectoryOptimizer optimizer(std::move(plant), opt_prob);
+
+  // Create some fake data
+  std::vector<VectorXd> q;
+  q.push_back(opt_prob.q_init);
+  for (int t = 1; t <= num_steps; ++t) {
+    q.push_back(Vector1d(0.0 + dt * 0.1 * t));
+  }
+
+  // Compute inverse dynamics partials
+  MatrixXd dtau2_dq3(1,1);
+  optimizer.CalcDtaumDq(q, 3, dtau2_dq3);
+  std::cout << dtau2_dq3 << std::endl;
+
+  EXPECT_TRUE(true);
+}
+
 /**
  * Test our computation of generalized velocities
  *

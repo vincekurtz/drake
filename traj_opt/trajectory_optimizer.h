@@ -76,6 +76,32 @@ class TrajectoryOptimizer {
   void CalcTau(const std::vector<VectorXd>& q, const std::vector<VectorXd>& v,
                std::vector<VectorXd>* tau) const;
 
+  /**
+   * Compute the partial derivative of generalized forces at the previous
+   * timestep, tau_{t-1}, with respect to generalized positions at the current
+   * timestep, q_t.
+   *
+   * @param q sequence of all generalized positions
+   * @param t timestep under consideration
+   * @param dtaum_dq ∂tau_{t-1} / ∂q_t
+   */
+  void CalcDtaumDq(const std::vector<VectorXd>& q, const int t, Eigen::Ref<MatrixXd> dtaum_dq) const;
+
+  /**
+   * Finite difference version of CalcDtaumDq. For testing only. 
+   * 
+   * @param q sequence of all generalized positions
+   * @param t timestep under consideration
+   * @param dtaum_dq ∂tau_{t-1} / ∂q_t
+   */
+  void CalcDtaumDqFiniteDiff(const std::vector<VectorXd>& q, const int t, Eigen::Ref<MatrixXd> dtaum_dq) const;
+  
+
+  // TODO 
+  void CalcDtauDq();
+  void CalcDtaupDq();
+
+
  private:
   // A model of the system that we are trying to find an optimal trajectory for.
   std::unique_ptr<const MultibodyPlant<double>> plant_;
