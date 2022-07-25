@@ -23,27 +23,6 @@ struct ProblemDefinition {
   // Time horizon (number of steps) for the optimization problem
   int num_steps;
 
-  // Running cost coefficients for generalized positions
-  MatrixXd Qq;
-
-  // Running cost coefficients for generalized velocities
-  MatrixXd Qv;
-
-  // Terminal cost coefficients for generalized positions
-  MatrixXd Qf_q;
-
-  // Terminal cost coefficients for generalized velocities
-  MatrixXd Qf_v;
-
-  // Control cost coefficients
-  MatrixXd R;
-
-  // Target generalized positions
-  VectorXd q_nom;
-
-  // Target generalized velocities
-  VectorXd v_nom;
-
   // Initial generalized positions
   VectorXd q_init;
 
