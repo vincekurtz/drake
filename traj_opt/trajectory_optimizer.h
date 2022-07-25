@@ -10,6 +10,7 @@ namespace drake {
 namespace traj_opt {
 
 using Eigen::VectorXd;
+using multibody::MultibodyForces;
 using multibody::MultibodyPlant;
 using systems::Context;
 
@@ -82,9 +83,11 @@ class TrajectoryOptimizer {
    *
    * @param q sequence of generalized positions
    * @param v sequence of generalized velocities
+   * @param f_ext scratch space for computing external forces (e.g., gravity)
    * @param tau sequence of generalized forces
    */
   void CalcTau(const std::vector<VectorXd>& q, const std::vector<VectorXd>& v,
+               MultibodyForces<double>* f_ext,
                std::vector<VectorXd>* tau) const;
 
  private:

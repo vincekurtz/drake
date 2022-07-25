@@ -5,10 +5,10 @@
 namespace drake {
 namespace traj_opt {
 
-using multibody::MultibodyPlant;
-using multibody::MultibodyForces;
-using multibody::JointIndex;
 using multibody::Joint;
+using multibody::JointIndex;
+using multibody::MultibodyForces;
+using multibody::MultibodyPlant;
 using systems::System;
 
 TrajectoryOptimizer::TrajectoryOptimizer(
@@ -17,7 +17,7 @@ TrajectoryOptimizer::TrajectoryOptimizer(
     : prob_(prob) {
   plant_ = std::move(plant);
   context_ = plant_->CreateDefaultContext();
-  
+
   // Define joint damping coefficients.
   joint_damping_ = VectorXd::Zero(plant_->num_velocities());
 
@@ -27,7 +27,6 @@ TrajectoryOptimizer::TrajectoryOptimizer(
     const int nv = joint.num_velocities();
     joint_damping_.segment(velocity_start, nv) = joint.damping_vector();
   }
-
 }
 
 void TrajectoryOptimizer::CalcV(const std::vector<VectorXd>& q,
@@ -44,6 +43,7 @@ void TrajectoryOptimizer::CalcV(const std::vector<VectorXd>& q,
 
 void TrajectoryOptimizer::CalcTau(const std::vector<VectorXd>& q,
                                   const std::vector<VectorXd>& v,
+                                  MultibodyForces<double>* f_ext,
                                   std::vector<VectorXd>* tau) const {
   // Generalized forces aren't defined for the last timestep
   // TODO(vincekurtz): additional checks that q_t, v_t, tau_t are the right size
@@ -52,26 +52,22 @@ void TrajectoryOptimizer::CalcTau(const std::vector<VectorXd>& q,
   DRAKE_DEMAND(static_cast<int>(v.size()) == T() + 1);
   DRAKE_DEMAND(static_cast<int>(tau->size()) == T());
 
-  const int nv = plant().num_velocities();
-  VectorXd a(nv);                          // acceleration
-  MultibodyForces<double> f_ext(plant());  // external forces
-
   for (int t = 0; t < T(); ++t) {
-    a = (v[t+1] - v[t])/time_step();
     plant().SetPositions(context_.get(), q[t]);
     plant().SetVelocities(context_.get(), v[t]);
-    plant().CalcForceElementsContribution(*context_, &f_ext);
+    plant().CalcForceElementsContribution(*context_, f_ext);
 
     // Inverse dynamics computes M*a + D*v - k(q,v)
-    tau->at(t) = plant().CalcInverseDynamics(*context_, a, f_ext);
+    tau->at(t) = plant().CalcInverseDynamics(
+        *context_, (v[t + 1] - v[t]) / time_step(), *f_ext);
 
     // CalcInverseDynamics considers damping from v_t (D*v_t), but we want to
     // consider damping from v_{t+1} (D*v_{t+1}).
-    tau->at(t).array() += joint_damping_.array() * (v[t+1].array() - v[t].array());
+    tau->at(t).array() +=
+        joint_damping_.array() * (v[t + 1].array() - v[t].array());
 
     // TODO(vincekurtz) add in contact/constriant contribution
   }
-
 }
 
 }  // namespace traj_opt

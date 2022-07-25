@@ -15,6 +15,7 @@ namespace internal {
 using Eigen::MatrixXd;
 using Eigen::VectorXd;
 using multibody::DiscreteContactSolver;
+using multibody::MultibodyForces;
 using multibody::MultibodyPlant;
 using multibody::Parser;
 
@@ -69,6 +70,10 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumCalcVAndTau) {
     q.emplace_back(x.block<1, 1>(0, t));
   }
 
+  // TODO(vincekurtz): once #14 lands this can be moved down to just before
+  // CalcTau, where it is actually used (as scratch space)
+  MultibodyForces<double> f_ext(*plant);
+
   // Create a trajectory optimizer object
   ProblemDefinition opt_prob;
   opt_prob.q_init = x0.topRows<1>();
@@ -80,7 +85,7 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumCalcVAndTau) {
   std::vector<VectorXd> v(num_steps + 1);
   std::vector<VectorXd> tau(num_steps);
   optimizer.CalcV(q, &v);
-  optimizer.CalcTau(q, v, &tau);
+  optimizer.CalcTau(q, v, &f_ext, &tau);
 
   // Check that our computed values match the true (recorded) ones
   const double kToleranceV = std::numeric_limits<double>::epsilon() / dt;
