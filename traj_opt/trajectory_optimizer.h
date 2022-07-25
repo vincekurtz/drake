@@ -34,7 +34,7 @@ class TrajectoryOptimizer {
   double time_step() const { return plant_->time_step(); }
 
   /**
-   * Convienience function to get the time horizon of this optimization problem.
+   * Convienience function to get the time horizon (T) of this optimization problem.
    *
    * @return int the number of time steps in the optimal trajectory.
    */
@@ -44,9 +44,15 @@ class TrajectoryOptimizer {
    * Compute a sequence of generalized velocities v from a sequence of
    * generalized positions, where
    *
-   *     v_t = (q_t - q_{t-1})/dt
+   *     v_t = (q_t - q_{t-1})/dt            (1)
    *
-   * and v_0 is defined by the initial state of the optimization problem.
+   * v and q are each vectors of length T+1,
+   *
+   *     v = [v0, v1, v2, ..., v_T],
+   *     q = [q0, q1, q2, ..., q_T].
+   *
+   * Note that v0 = v_init is defined by the initial state of the optimization
+   * problem, rather than Equation (1) above.
    *
    * @param q sequence of generalized positions
    * @param v sequence of generalized velocities
