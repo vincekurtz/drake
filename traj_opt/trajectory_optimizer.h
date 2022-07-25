@@ -67,7 +67,18 @@ class TrajectoryOptimizer {
    * inverse dynamics,
    *
    *    tau_t = M*(v_{t+1}-v_t})/dt + D*v_{t+1} - k(q_t,v_t)
-   *                               - (1/dt) *J'*gamma(v_{t+1},q_t)
+   *                               - (1/dt) *J'*gamma(v_{t+1},q_t).
+   *
+   * N.B. q and v have length T+1,
+   *
+   *  q = [q0, q1, ..., q_T],
+   *  v = [v0, v1, ..., v_T],
+   *
+   * while tau has length T,
+   *
+   *  tau = [tau(0), tau(1), ..., tau(T-1)],
+   *
+   * i.e., tau(t) takes us us from t to t+1.
    *
    * @param q sequence of generalized positions
    * @param v sequence of generalized velocities
