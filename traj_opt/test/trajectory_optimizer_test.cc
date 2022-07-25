@@ -30,7 +30,7 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumCalcV) {
   // Set up the system model
   auto plant = std::make_unique<MultibodyPlant<double>>(1e-2);
   const std::string urdf_file =
-      FindResourceOrThrow("drake/traj_opt/examples/pendulum.urdf");
+      FindResourceOrThrow("drake/examples/pendulum/Pendulum.urdf");
   Parser(plant.get()).AddAllModelsFromFile(urdf_file);
   plant->set_discrete_contact_solver(DiscreteContactSolver::kSap);
   plant->Finalize();
