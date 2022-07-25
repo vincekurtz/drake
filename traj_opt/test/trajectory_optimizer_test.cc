@@ -53,8 +53,9 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumDtauDq) {
   plant->SetVelocities(context.get(), Vector1d(v_test));
   plant->CalcForceElementsContribution(*context, &f_ext);
   Vector1d tau_plant = plant->CalcInverseDynamics(*context, Vector1d(a_test), f_ext);
-  std::cout << tau_plant << std::endl;
 
+  // TODO(vincekurtz): reorganize (put down at bottom) and make this a proper test
+  std::cout << tau_plant << std::endl;
   std::cout << std::endl;
 
   // Create a trajectory optimizer
@@ -84,8 +85,9 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumDtauDq) {
   optimizer.CalcDtaupDq(q, 3, dtau4_dq3);
   std::cout << dtau4_dq3 << std::endl;
 
-
-
+  // Compute ground truth partials
+  double dtau2_dq3_gt = 1/dt/dt * m * l * l + 1/dt * D;// + m * g * l * cos(q[3]);
+  std::cout << dtau2_dq3_gt << std::endl;
 
   EXPECT_TRUE(true);
 }
