@@ -66,42 +66,36 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumDtauDq) {
   const double g = 9.81;
 
   GradientData grad_data_gt;
-  MatrixXd dtautm_dqt(1, 1);
+  MatrixXd dtaut_dqtm(1, 1);
   MatrixXd dtaut_dqt(1, 1);
-  MatrixXd dtautp_dqt(1, 1);
-  for (int t = 0; t <= num_steps; ++t) {
-    dtautm_dqt(0, 0) = 1 / dt / dt * m * l * l + 1 / dt * b;
+  MatrixXd dtaut_dqtp(1, 1);
+  for (int t = 0; t < num_steps; ++t) {
+    dtaut_dqtp(0, 0) = 1 / dt / dt * m * l * l + 1 / dt * b;
     dtaut_dqt(0, 0) =
         -2 / dt / dt * m * l * l - 1 / dt * b + m * g * l * cos(q[t](0));
-    dtautp_dqt(0, 0) = 1 / dt / dt * m * l * l;
+    dtaut_dqtm(0, 0) = 1 / dt / dt * m * l * l;
 
+    // q0 = q_init is fixed, so all the derivatives w.r.t. q0 are zero
     if (t == 0) {
-      // q0 = q_init is fixed, so all the derivatives w.r.t. q0 are zero
-      dtautm_dqt(0, 0) = 0;
+      dtaut_dqtm(0, 0) = 0;
       dtaut_dqt(0, 0) = 0;
-      dtautp_dqt(0, 0) = 0;
-    } else if (t == num_steps) {
-      // set dtau_T/dq_T = dtau_{T+1}/dq_T = 0
-      dtaut_dqt(0, 0) = 0;
-      dtautp_dqt(0, 0) = 0;
-    } else if (t == (num_steps - 1)) {
-      // set dtau_{T}/dq_{T-1} = 0
-      dtautp_dqt(0, 0) = 0;
+    } else if (t == 1) {
+      dtaut_dqtm(0, 0) = 0;
     }
 
-    grad_data_gt.dtaum_dq.push_back(dtautm_dqt);
+    grad_data_gt.dtau_dqm.push_back(dtaut_dqtm);
     grad_data_gt.dtau_dq.push_back(dtaut_dqt);
-    grad_data_gt.dtaup_dq.push_back(dtautp_dqt);
+    grad_data_gt.dtau_dqp.push_back(dtaut_dqtp);
   }
 
   // Compare the computed values and the analytical ground truth
   const double kTolerance = sqrt(std::numeric_limits<double>::epsilon());
-  for (int t = 0; t <= num_steps; ++t) {
-    EXPECT_TRUE(CompareMatrices(grad_data.dtaum_dq[t], grad_data_gt.dtaum_dq[t],
+  for (int t = 0; t < num_steps; ++t) {
+    EXPECT_TRUE(CompareMatrices(grad_data.dtau_dqm[t], grad_data_gt.dtau_dqm[t],
                                 kTolerance, MatrixCompareType::relative));
     EXPECT_TRUE(CompareMatrices(grad_data.dtau_dq[t], grad_data_gt.dtau_dq[t],
                                 kTolerance, MatrixCompareType::relative));
-    EXPECT_TRUE(CompareMatrices(grad_data.dtaup_dq[t], grad_data_gt.dtaup_dq[t],
+    EXPECT_TRUE(CompareMatrices(grad_data.dtau_dqp[t], grad_data_gt.dtau_dqp[t],
                                 kTolerance, MatrixCompareType::relative));
   }
 }
