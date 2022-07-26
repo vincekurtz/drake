@@ -33,9 +33,10 @@ class TrajectoryOptimizer {
    * @return double dt, the time step for this optimization problem
    */
   double time_step() const { return plant_->time_step(); }
-  
+
   /**
-   * Convienience function to get the time horizon (T) of this optimization problem.
+   * Convienience function to get the time horizon (T) of this optimization
+   * problem.
    *
    * @return int the number of time steps in the optimal trajectory.
    */
@@ -89,11 +90,12 @@ class TrajectoryOptimizer {
    *
    * @param q sequence of generalized positions
    * @param v sequence of generalized velocities
+   * @param a scratch space for computing accelerations
    * @param f_ext scratch space for computing external forces (e.g., gravity)
    * @param tau sequence of generalized forces
    */
   void CalcTau(const std::vector<VectorXd>& q, const std::vector<VectorXd>& v,
-               MultibodyForces<double>* f_ext,
+               VectorXd* a, MultibodyForces<double>* f_ext,
                std::vector<VectorXd>* tau) const;
 
  private:

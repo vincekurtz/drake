@@ -41,7 +41,7 @@ void TrajectoryOptimizer::CalcV(const std::vector<VectorXd>& q,
 }
 
 void TrajectoryOptimizer::CalcTau(const std::vector<VectorXd>& q,
-                                  const std::vector<VectorXd>& v,
+                                  const std::vector<VectorXd>& v, VectorXd* a,
                                   MultibodyForces<double>* f_ext,
                                   std::vector<VectorXd>* tau) const {
   // Generalized forces aren't defined for the last timestep
@@ -57,8 +57,8 @@ void TrajectoryOptimizer::CalcTau(const std::vector<VectorXd>& q,
     plant().CalcForceElementsContribution(*context_, f_ext);
 
     // Inverse dynamics computes M*a + D*v - k(q,v)
-    tau->at(t) = plant().CalcInverseDynamics(
-        *context_, (v[t + 1] - v[t]) / time_step(), *f_ext);
+    *a = (v[t + 1] - v[t]) / time_step();
+    tau->at(t) = plant().CalcInverseDynamics(*context_, *a, *f_ext);
 
     // CalcInverseDynamics considers damping from v_t (D*v_t), but we want to
     // consider damping from v_{t+1} (D*v_{t+1}).
