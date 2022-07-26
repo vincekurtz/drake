@@ -110,11 +110,11 @@ void TrajectoryOptimizer::CalcDtausDqtFiniteDiff(
   std::vector<VectorXd> q_eps = q;
   std::vector<VectorXd> tau_eps(num_steps());
 
-  const double eps = sqrt(std::numeric_limits<double>::epsilon());
+  const double eps = 100*sqrt(std::numeric_limits<double>::epsilon());
   for (int i = 0; i < plant().num_positions(); ++i) {
     q_eps[t](i) += eps;
     CalcV(q_eps, &v);
-    CalcTau(q, v, &a, &f_ext, &tau_eps);
+    CalcTau(q_eps, v, &a, &f_ext, &tau_eps);
     dtaus_dqt.row(i) = (tau_eps[s] - tau[s]) / eps;
   }
 }

@@ -34,36 +34,6 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumDtauDq) {
   plant.set_discrete_contact_solver(DiscreteContactSolver::kSap);
   plant.Finalize();
 
-  // Compute ground truth partials from the pendulum model
-  //
-  //     m*l^2*a + m*g*l*sin(q) + D*v = tau
-  //
-  // where q is the joint angle and a = dv/dt, v = dq/dt.
-  const double m = 1.0;
-  const double l = 0.5;
-  const double D = 0.1;
-  const double g = 9.81;
-
-  // Sanity check that the model matches the plant loaded from urdf
-  double q_test = 0.1;
-  double v_test = 0.2;
-  double a_test = 0.3;
-  double tau_test = m * l * l * a_test + m * g * l * sin(q_test) + D * v_test;
-  std::cout << tau_test << std::endl;
-
-  multibody::MultibodyForces<double> f_ext(plant);
-  auto context = plant.CreateDefaultContext();
-  plant.SetPositions(context.get(), Vector1d(q_test));
-  plant.SetVelocities(context.get(), Vector1d(v_test));
-  plant.CalcForceElementsContribution(*context, &f_ext);
-  Vector1d tau_plant =
-      plant.CalcInverseDynamics(*context, Vector1d(a_test), f_ext);
-
-  // TODO(vincekurtz): reorganize (put down at bottom) and make this a proper
-  // test
-  std::cout << tau_plant << std::endl;
-  std::cout << std::endl;
-
   // Create a trajectory optimizer
   ProblemDefinition opt_prob;
   opt_prob.q_init = Vector1d(0.0);
@@ -80,23 +50,37 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumDtauDq) {
 
   // Compute inverse dynamics partials
   MatrixXd dtau2_dq3(1, 1);
-  optimizer.CalcDtaumDq(q, 3, dtau2_dq3);
-  std::cout << dtau2_dq3 << std::endl;
-
   MatrixXd dtau3_dq3(1, 1);
-  optimizer.CalcDtauDq(q, 3, dtau3_dq3);
-  std::cout << dtau3_dq3 << std::endl;
-
   MatrixXd dtau4_dq3(1, 1);
+  optimizer.CalcDtaumDq(q, 3, dtau2_dq3);
+  optimizer.CalcDtauDq(q, 3, dtau3_dq3);
   optimizer.CalcDtaupDq(q, 3, dtau4_dq3);
-  std::cout << dtau4_dq3 << std::endl;
 
-  // Compute ground truth partials
-  double dtau2_dq3_gt =
-      1 / dt / dt * m * l * l + 1 / dt * D;  // + m * g * l * cos(q[3]);
-  std::cout << dtau2_dq3_gt << std::endl;
+  // Compute ground truth partials from the pendulum model
+  //
+  //     m*l^2*a + m*g*l*sin(q) + D*v = tau
+  //
+  // where q is the joint angle and a = dv/dt, v = dq/dt.
+  const double m = 1.0;
+  const double l = 0.5;
+  const double D = 0.1;
+  const double g = 9.81;
 
-  EXPECT_TRUE(true);
+  MatrixXd dtau2_dq3_gt(1, 1);
+  MatrixXd dtau3_dq3_gt(1, 1);
+  MatrixXd dtau4_dq3_gt(1, 1);
+  dtau2_dq3_gt(0, 0) = 1 / dt / dt * m * l * l + 1 / dt * D;
+  dtau3_dq3_gt(0, 0) =
+      -2 / dt / dt * m * l * l - 1 / dt * D + m * g * l * cos(q[3](0));
+  dtau4_dq3_gt(0, 0) = 1 / dt / dt * m * l * l;
+
+  const double kTolerance = std::numeric_limits<double>::epsilon() / dt / dt;
+  EXPECT_TRUE(CompareMatrices(dtau2_dq3, dtau2_dq3_gt, kTolerance,
+                              MatrixCompareType::relative));
+  EXPECT_TRUE(CompareMatrices(dtau3_dq3, dtau3_dq3_gt, kTolerance,
+                              MatrixCompareType::relative));
+  EXPECT_TRUE(CompareMatrices(dtau4_dq3, dtau4_dq3_gt, kTolerance,
+                              MatrixCompareType::relative));
 }
 
 /**
