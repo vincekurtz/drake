@@ -12,7 +12,7 @@ package(default_visibility = ["//visibility:public"])
 drake_cc_binary(
     name = "pendulum",
     srcs = ["pendulum.cc"],
-    data = ["pendulum.urdf"],
+    data = ["//examples/pendulum:prod_models"],
     add_test_rule = 1,
     deps = [
         "//common:find_resource",
@@ -21,8 +21,5 @@ drake_cc_binary(
         "//multibody/plant",
         "//systems/analysis:simulator",
         "//systems/framework:diagram",   
-        "//traj_opt:solution_data",
-        "//traj_opt:problem_definition",
-        "//traj_opt:trajectory_optimizer",
     ],
 )
