@@ -114,6 +114,23 @@ class TrajectoryOptimizer {
   void CalcInverseDynamicsPartials(const std::vector<VectorXd>& q,
                                    const std::vector<VectorXd>& v,
                                    GradientData* grad_data) const;
+  
+  /**
+   * Compute partial derivatives of the inverse dynamics 
+   * 
+   *    tau_t = ID(q_{t-1}, q_t, q_{t+1})
+   * 
+   * using finite differences.
+   * 
+   * For testing purposes only - this is very inefficient.
+   * 
+   * @param q sequence of generalized positions
+   * @param v sequence of generalized velocities (computed from q)
+   * @param grad_data struct for holding dtau/dq
+   */
+  void CalcInverseDynamicsPartialsFiniteDiff(const std::vector<VectorXd>& q,
+                                             const std::vector<VectorXd>& v,
+                                             GradientData* grad_data) const;
 
   /**
    * Compute the partial derivative of generalized forces at the previous

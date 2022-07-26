@@ -46,7 +46,7 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumDtauDq) {
   std::vector<VectorXd> q;
   q.push_back(opt_prob.q_init);
   for (int t = 1; t <= num_steps; ++t) {
-    q.push_back(Vector1d(0.0 + dt * 0.1 * t));
+    q.push_back(Vector1d(0.0 + 0.1 * t));
   }
 
   // Compute inverse dynamics partials
@@ -83,15 +83,18 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumDtauDq) {
         -2 / dt / dt * m * l * l - 1 / dt * D + m * g * l * cos(q[t](0));
     dtautp_dqt(0, 0) = 1 / dt / dt * m * l * l;
 
+    // TODO(vincekurtz): set dtau_dq0 = 0 all the time
     if (t == 0) {
-      // tau_{-1]} is undefined, so set dtau_{-1}/dq_0 to zero
+      // q0 = q_init is fixed, so all the derivatives w.r.t. q0 are zero
       dtautm_dqt(0, 0) = 0;
+      dtaut_dqt(0, 0) = 0;
+      dtautp_dqt(0, 0) = 0;
     } else if (t == num_steps) {
-      // dtau_{T} is undefined, so set dtau_T/dq_T = dtau_{T+1}/dq_T = 0
+      // set dtau_T/dq_T = dtau_{T+1}/dq_T = 0
       dtaut_dqt(0, 0) = 0;
       dtautp_dqt(0, 0) = 0;
     } else if (t == (num_steps - 1)) {
-      // dtau_{T} is undefined, so set dtau_{T}/dq_{T-1} = 0
+      // set dtau_{T}/dq_{T-1} = 0
       dtautp_dqt(0, 0) = 0;
     }
 
@@ -104,8 +107,11 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumDtauDq) {
   for (int t=0; t<= num_steps; ++t) {
     std::cout << "\nt = " << t << std::endl;
     std::cout << "dtau_{t-1}/dq_t: " << grad_data_gt.dtaum_dq[t] << std::endl;
+    std::cout << "                 " << grad_data.dtaum_dq[t] << std::endl;
     std::cout << "dtau_{t}/dq_t: " << grad_data_gt.dtau_dq[t] << std::endl;
+    std::cout << "               " << grad_data.dtau_dq[t] << std::endl;
     std::cout << "dtau_{t+1}/dq_t: " << grad_data_gt.dtaup_dq[t] << std::endl;
+    std::cout << "                 " << grad_data.dtaup_dq[t] << std::endl;
   }
 
   MatrixXd dtau2_dq3_gt(1, 1);

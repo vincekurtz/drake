@@ -72,10 +72,75 @@ void TrajectoryOptimizer::CalcTau(const std::vector<VectorXd>& q,
 void TrajectoryOptimizer::CalcInverseDynamicsPartials(
     const std::vector<VectorXd>& q, const std::vector<VectorXd>& v,
     GradientData* grad_data) const {
-  (void)q;
-  (void)v;
-  (void)grad_data;
-  std::cout << "hello world" << std::endl;
+  // TODO(vincekurtz): use an analytical approximation rather than finite differences
+  CalcInverseDynamicsPartialsFiniteDiff(q, v, grad_data);
+}
+
+void TrajectoryOptimizer::CalcInverseDynamicsPartialsFiniteDiff(
+    const std::vector<VectorXd>& q, const std::vector<VectorXd>& v,
+    GradientData* grad_data) const {
+  // Allocate storage space
+  // TODO(vincekurtz): allocate a GradientData struct of the proper size earlier
+  // in the process, and check that it has the correct size here.
+  const int nv = plant().num_velocities();
+  const int nq = plant().num_positions();
+  std::vector<MatrixXd> dtaum_dq(num_steps()+1, MatrixXd(nv, nq));
+  std::vector<MatrixXd> dtau_dq(num_steps()+1, MatrixXd(nv, nq));
+  std::vector<MatrixXd> dtaup_dq(num_steps()+1, MatrixXd(nv, nq));
+
+  // All derivatives w.r.t. q0 are zero, since q0 = q_init is fixed. We only
+  // include them in GradientData so we can index by t. 
+  dtaum_dq[0].setZero();
+  dtau_dq[0].setZero();
+  dtaup_dq[0].setZero();
+
+  // Compute tau(q) [all timesteps] using the orignal value of q
+  // TODO(vincekurtz): consider passing this as an argument along with q and v,
+  // perhaps combined into a TrajectoryData struct
+  VectorXd a(plant().num_velocities());    // scratch space
+  MultibodyForces<double> f_ext(plant());  // scratch space
+  std::vector<VectorXd> tau(num_steps());
+  CalcTau(q, v, &a, &f_ext, &tau);
+
+  // Purturbed versions of q, v, and tau
+  std::vector<VectorXd> q_eps(q);
+  std::vector<VectorXd> v_eps(v);
+  std::vector<VectorXd> tau_eps(tau);
+
+  const double eps = sqrt(std::numeric_limits<double>::epsilon());
+  for (int t = 1; t <= num_steps(); ++t) {
+    for (int i = 0; i < nq; ++i) {
+      // Purturb q_t[i] by epsilon
+      q_eps = q;
+      q_eps[t](i) += eps;
+
+      // Compute tau(q + S*epsilon), where S is a selection matrix for the i^th
+      // element
+      CalcV(q_eps, &v_eps);
+      CalcTau(q_eps, v_eps, &a, &f_ext, &tau_eps);
+
+      // Update the nozero entries of dtau_t/dq_t
+      dtaum_dq[t].row(i) = (tau_eps[t-1] - tau[t-1]) / eps;
+
+      if ( t == num_steps() ) {
+        dtau_dq[t].setZero();
+      } else {
+        dtau_dq[t].row(i) = (tau_eps[t] - tau[t]) / eps;
+      }
+
+      if ( (t == num_steps()) || (t == (num_steps()-1) )) {
+        dtaup_dq[t].setZero();
+      } else {
+        dtaup_dq[t].row(i) = (tau_eps[t+1] - tau[t+1]) / eps;
+      }
+
+    }
+  }
+
+  // Put the results into the GradientData struct
+  grad_data->dtaum_dq = dtaum_dq;
+  grad_data->dtau_dq = dtau_dq;
+  grad_data->dtaup_dq = dtaup_dq;
 }
 
 void TrajectoryOptimizer::CalcDtaumDq(const std::vector<VectorXd>& q,

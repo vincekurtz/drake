@@ -31,9 +31,10 @@ struct GradientData {
   //    d(tau_t)/d(q_t)
   //
   // for each timestep. This is indexed by t ranging from 0 to num_steps.
-  // For values where tau_t is undefined, we simply store zeros, i.e.,
+  // For values where tau_t is undefined, and for t=0, we simply store zeros,
+  // i.e.,
   //
-  //    [ d(tau_0)/d(q_0), d(tau_1)/d(q_1), ... ,
+  //    [ 0, d(tau_1)/d(q_1), ... ,
   //                                d(tau_{num_steps-1})/d(q_{num_steps-1}), 0]
   std::vector<MatrixXd> dtau_dq;
 
@@ -42,9 +43,10 @@ struct GradientData {
   //    d(tau_{t+1})/d(q_t)
   //
   // for each timestep. This is indexed by t ranging from 0 to num_steps.
-  // For values where tau_{t+1} is undefined, we simply store zeros, i.e.,
+  // For values where tau_{t+1} is undefined and for t=0, we simply store zeros,
+  // i.e.,
   //
-  //    [ d(tau_1)/d(q_0), d(tau_2)/d(q_1), ... ,
+  //    [ 0, d(tau_2)/d(q_1), ... ,
   //                              d(tau_{num_steps-1})/d(q_{num_steps-2}), 0, 0]
   std::vector<MatrixXd> dtaup_dq;
 };
