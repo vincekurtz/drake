@@ -73,6 +73,41 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumDtauDq) {
   const double D = 0.1;
   const double g = 9.81;
 
+  GradientData grad_data_gt;
+  MatrixXd dtautm_dqt(1, 1);
+  MatrixXd dtaut_dqt(1, 1);
+  MatrixXd dtautp_dqt(1, 1);
+  for (int t = 0; t <= num_steps; ++t) {
+    dtautm_dqt(0, 0) = 1 / dt / dt * m * l * l + 1 / dt * D;
+    dtaut_dqt(0, 0) =
+        -2 / dt / dt * m * l * l - 1 / dt * D + m * g * l * cos(q[t](0));
+    dtautp_dqt(0, 0) = 1 / dt / dt * m * l * l;
+
+    if (t == 0) {
+      // tau_{-1]} is undefined, so set dtau_{-1}/dq_0 to zero
+      dtautm_dqt(0, 0) = 0;
+    } else if (t == num_steps) {
+      // dtau_{T} is undefined, so set dtau_T/dq_T = dtau_{T+1}/dq_T = 0
+      dtaut_dqt(0, 0) = 0;
+      dtautp_dqt(0, 0) = 0;
+    } else if (t == (num_steps - 1)) {
+      // dtau_{T} is undefined, so set dtau_{T}/dq_{T-1} = 0
+      dtautp_dqt(0, 0) = 0;
+    }
+
+    grad_data_gt.dtaum_dq.push_back(dtautm_dqt);
+    grad_data_gt.dtau_dq.push_back(dtaut_dqt);
+    grad_data_gt.dtaup_dq.push_back(dtautp_dqt);
+  }
+
+  //DEBUG
+  for (int t=0; t<= num_steps; ++t) {
+    std::cout << "\nt = " << t << std::endl;
+    std::cout << "dtau_{t-1}/dq_t: " << grad_data_gt.dtaum_dq[t] << std::endl;
+    std::cout << "dtau_{t}/dq_t: " << grad_data_gt.dtau_dq[t] << std::endl;
+    std::cout << "dtau_{t+1}/dq_t: " << grad_data_gt.dtaup_dq[t] << std::endl;
+  }
+
   MatrixXd dtau2_dq3_gt(1, 1);
   MatrixXd dtau3_dq3_gt(1, 1);
   MatrixXd dtau4_dq3_gt(1, 1);
