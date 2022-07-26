@@ -46,16 +46,8 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumDtauDq) {
   std::vector<VectorXd> q;
   q.push_back(opt_prob.q_init);
   for (int t = 1; t <= num_steps; ++t) {
-    q.push_back(Vector1d(0.0 + 0.1 * t));
+    q.push_back(Vector1d(0.0 + 0.6 * t));
   }
-
-  // Compute inverse dynamics partials
-  MatrixXd dtau2_dq3(1, 1);
-  MatrixXd dtau3_dq3(1, 1);
-  MatrixXd dtau4_dq3(1, 1);
-  optimizer.CalcDtaumDq(q, 3, dtau2_dq3);
-  optimizer.CalcDtauDq(q, 3, dtau3_dq3);
-  optimizer.CalcDtaupDq(q, 3, dtau4_dq3);
 
   // Compute inverse dynamics partials
   GradientData grad_data;
@@ -65,12 +57,12 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumDtauDq) {
 
   // Compute ground truth partials from the pendulum model
   //
-  //     m*l^2*a + m*g*l*sin(q) + D*v = tau
+  //     m*l^2*a + m*g*l*sin(q) + b*v = tau
   //
   // where q is the joint angle and a = dv/dt, v = dq/dt.
   const double m = 1.0;
   const double l = 0.5;
-  const double D = 0.1;
+  const double b = 0.1;
   const double g = 9.81;
 
   GradientData grad_data_gt;
@@ -78,12 +70,11 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumDtauDq) {
   MatrixXd dtaut_dqt(1, 1);
   MatrixXd dtautp_dqt(1, 1);
   for (int t = 0; t <= num_steps; ++t) {
-    dtautm_dqt(0, 0) = 1 / dt / dt * m * l * l + 1 / dt * D;
+    dtautm_dqt(0, 0) = 1 / dt / dt * m * l * l + 1 / dt * b;
     dtaut_dqt(0, 0) =
-        -2 / dt / dt * m * l * l - 1 / dt * D + m * g * l * cos(q[t](0));
+        -2 / dt / dt * m * l * l - 1 / dt * b + m * g * l * cos(q[t](0));
     dtautp_dqt(0, 0) = 1 / dt / dt * m * l * l;
 
-    // TODO(vincekurtz): set dtau_dq0 = 0 all the time
     if (t == 0) {
       // q0 = q_init is fixed, so all the derivatives w.r.t. q0 are zero
       dtautm_dqt(0, 0) = 0;
@@ -103,32 +94,16 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumDtauDq) {
     grad_data_gt.dtaup_dq.push_back(dtautp_dqt);
   }
 
-  //DEBUG
-  for (int t=0; t<= num_steps; ++t) {
-    std::cout << "\nt = " << t << std::endl;
-    std::cout << "dtau_{t-1}/dq_t: " << grad_data_gt.dtaum_dq[t] << std::endl;
-    std::cout << "                 " << grad_data.dtaum_dq[t] << std::endl;
-    std::cout << "dtau_{t}/dq_t: " << grad_data_gt.dtau_dq[t] << std::endl;
-    std::cout << "               " << grad_data.dtau_dq[t] << std::endl;
-    std::cout << "dtau_{t+1}/dq_t: " << grad_data_gt.dtaup_dq[t] << std::endl;
-    std::cout << "                 " << grad_data.dtaup_dq[t] << std::endl;
+  // Compare the computed values and the analytical ground truth
+  const double kTolerance = sqrt(std::numeric_limits<double>::epsilon());
+  for (int t = 0; t <= num_steps; ++t) {
+    EXPECT_TRUE(CompareMatrices(grad_data.dtaum_dq[t], grad_data_gt.dtaum_dq[t],
+                                kTolerance, MatrixCompareType::relative));
+    EXPECT_TRUE(CompareMatrices(grad_data.dtau_dq[t], grad_data_gt.dtau_dq[t],
+                                kTolerance, MatrixCompareType::relative));
+    EXPECT_TRUE(CompareMatrices(grad_data.dtaup_dq[t], grad_data_gt.dtaup_dq[t],
+                                kTolerance, MatrixCompareType::relative));
   }
-
-  MatrixXd dtau2_dq3_gt(1, 1);
-  MatrixXd dtau3_dq3_gt(1, 1);
-  MatrixXd dtau4_dq3_gt(1, 1);
-  dtau2_dq3_gt(0, 0) = 1 / dt / dt * m * l * l + 1 / dt * D;
-  dtau3_dq3_gt(0, 0) =
-      -2 / dt / dt * m * l * l - 1 / dt * D + m * g * l * cos(q[3](0));
-  dtau4_dq3_gt(0, 0) = 1 / dt / dt * m * l * l;
-
-  const double kTolerance = std::numeric_limits<double>::epsilon() / dt / dt;
-  EXPECT_TRUE(CompareMatrices(dtau2_dq3, dtau2_dq3_gt, kTolerance,
-                              MatrixCompareType::relative));
-  EXPECT_TRUE(CompareMatrices(dtau3_dq3, dtau3_dq3_gt, kTolerance,
-                              MatrixCompareType::relative));
-  EXPECT_TRUE(CompareMatrices(dtau4_dq3, dtau4_dq3_gt, kTolerance,
-                              MatrixCompareType::relative));
 }
 
 /**

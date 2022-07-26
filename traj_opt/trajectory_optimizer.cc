@@ -120,18 +120,18 @@ void TrajectoryOptimizer::CalcInverseDynamicsPartialsFiniteDiff(
       CalcTau(q_eps, v_eps, &a, &f_ext, &tau_eps);
 
       // Update the nozero entries of dtau_t/dq_t
-      dtaum_dq[t].row(i) = (tau_eps[t-1] - tau[t-1]) / eps;
+      dtaum_dq[t].col(i) = (tau_eps[t-1] - tau[t-1]) / eps;
 
       if ( t == num_steps() ) {
-        dtau_dq[t].setZero();
+        dtau_dq[t].setZero();  // tau[num_steps] is undefined
       } else {
-        dtau_dq[t].row(i) = (tau_eps[t] - tau[t]) / eps;
+        dtau_dq[t].col(i) = (tau_eps[t] - tau[t]) / eps;
       }
 
       if ( (t == num_steps()) || (t == (num_steps()-1) )) {
-        dtaup_dq[t].setZero();
+        dtaup_dq[t].setZero();  // tau[num_steps (+ 1)] is undefined
       } else {
-        dtaup_dq[t].row(i) = (tau_eps[t+1] - tau[t+1]) / eps;
+        dtaup_dq[t].col(i) = (tau_eps[t+1] - tau[t+1]) / eps;
       }
 
     }
