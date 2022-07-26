@@ -24,7 +24,7 @@ class TrajectoryOptimizer {
    * @param prob Problem definition, including cost, initial and target states,
    *             etc.
    */
-  TrajectoryOptimizer(std::unique_ptr<const MultibodyPlant<double>> plant,
+  TrajectoryOptimizer(const MultibodyPlant<double>* plant,
                       const ProblemDefinition& prob);
 
   /**
@@ -33,13 +33,13 @@ class TrajectoryOptimizer {
    * @return double dt, the time step for this optimization problem
    */
   double time_step() const { return plant_->time_step(); }
-
+  
   /**
-   * Convienience function to get the time horizon of this optimization problem.
+   * Convienience function to get the time horizon (T) of this optimization problem.
    *
-   * @return double T, the number of time steps in the optimal trajectory.
+   * @return int the number of time steps in the optimal trajectory.
    */
-  double T() const { return prob_.T; }
+  int num_steps() const { return prob_.num_steps; }
 
   /**
    * Convienience function to get a const reference to the multibody plant that
@@ -53,9 +53,15 @@ class TrajectoryOptimizer {
    * Compute a sequence of generalized velocities v from a sequence of
    * generalized positions, where
    *
-   *     v_t = (q_t - q_{t-1})/dt
+   *     v_t = (q_t - q_{t-1})/dt            (1)
    *
-   * and v_0 is defined by the initial state of the optimization problem.
+   * v and q are each vectors of length num_steps+1,
+   *
+   *     v = [v(0), v(1), v(2), ..., v(num_steps)],
+   *     q = [q(0), q(1), q(2), ..., q(num_steps)].
+   *
+   * Note that v0 = v_init is defined by the initial state of the optimization
+   * problem, rather than Equation (1) above.
    *
    * @param q sequence of generalized positions
    * @param v sequence of generalized velocities
@@ -70,14 +76,14 @@ class TrajectoryOptimizer {
    *    tau_t = M*(v_{t+1}-v_t})/dt + D*v_{t+1} - k(q_t,v_t)
    *                               - (1/dt) *J'*gamma(v_{t+1},q_t).
    *
-   * N.B. q and v have length T+1,
+   * Note that q and v have length num_steps+1,
    *
-   *  q = [q0, q1, ..., q_T],
-   *  v = [v0, v1, ..., v_T],
+   *  q = [q(0), q(1), ..., q(num_steps)],
+   *  v = [v(0), v(1), ..., v(num_steps)],
    *
-   * while tau has length T,
+   * while tau has length num_steps,
    *
-   *  tau = [tau(0), tau(1), ..., tau(T-1)],
+   *  tau = [tau(0), tau(1), ..., tau(num_steps-1)],
    *
    * i.e., tau(t) takes us us from t to t+1.
    *
@@ -92,7 +98,7 @@ class TrajectoryOptimizer {
 
  private:
   // A model of the system that we are trying to find an optimal trajectory for.
-  std::unique_ptr<const MultibodyPlant<double>> plant_;
+  const MultibodyPlant<double>* plant_;
 
   // A context corresponding to plant_, to enable dynamics computations.
   std::unique_ptr<Context<double>> context_;

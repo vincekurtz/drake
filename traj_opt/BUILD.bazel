@@ -44,7 +44,7 @@ drake_cc_library(
 
 drake_cc_googletest(
     name = "trajectory_optimizer_test",
-    data = ["//traj_opt/examples:pendulum.urdf"],
+    data = ["//examples/pendulum:prod_models"],
     deps = [
         ":trajectory_optimizer",
         "//common/test_utilities:eigen_matrix_compare",

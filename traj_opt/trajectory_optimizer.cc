@@ -12,10 +12,9 @@ using multibody::MultibodyPlant;
 using systems::System;
 
 TrajectoryOptimizer::TrajectoryOptimizer(
-    std::unique_ptr<const MultibodyPlant<double>> plant,
+    const MultibodyPlant<double>* plant,
     const ProblemDefinition& prob)
-    : prob_(prob) {
-  plant_ = std::move(plant);
+    : plant_(plant), prob_(prob) {
   context_ = plant_->CreateDefaultContext();
 
   // Define joint damping coefficients.
@@ -32,11 +31,11 @@ TrajectoryOptimizer::TrajectoryOptimizer(
 void TrajectoryOptimizer::CalcV(const std::vector<VectorXd>& q,
                                 std::vector<VectorXd>* v) const {
   // x = [x0, x1, ..., xT]
-  DRAKE_DEMAND(static_cast<int>(q.size()) == T() + 1);
-  DRAKE_DEMAND(static_cast<int>(v->size()) == T() + 1);
+  DRAKE_DEMAND(static_cast<int>(q.size()) == num_steps() + 1);
+  DRAKE_DEMAND(static_cast<int>(v->size()) == num_steps() + 1);
 
   v->at(0) = prob_.v_init;
-  for (int i = 1; i <= T(); ++i) {
+  for (int i = 1; i <= num_steps(); ++i) {
     v->at(i) = (q[i] - q[i - 1]) / time_step();
   }
 }
@@ -48,11 +47,11 @@ void TrajectoryOptimizer::CalcTau(const std::vector<VectorXd>& q,
   // Generalized forces aren't defined for the last timestep
   // TODO(vincekurtz): additional checks that q_t, v_t, tau_t are the right size
   // for the plant?
-  DRAKE_DEMAND(static_cast<int>(q.size()) == T() + 1);
-  DRAKE_DEMAND(static_cast<int>(v.size()) == T() + 1);
-  DRAKE_DEMAND(static_cast<int>(tau->size()) == T());
+  DRAKE_DEMAND(static_cast<int>(q.size()) == num_steps() + 1);
+  DRAKE_DEMAND(static_cast<int>(v.size()) == num_steps() + 1);
+  DRAKE_DEMAND(static_cast<int>(tau->size()) == num_steps());
 
-  for (int t = 0; t < T(); ++t) {
+  for (int t = 0; t < num_steps(); ++t) {
     plant().SetPositions(context_.get(), q[t]);
     plant().SetVelocities(context_.get(), v[t]);
     plant().CalcForceElementsContribution(*context_, f_ext);

@@ -13,6 +13,7 @@ namespace traj_opt {
 namespace internal {
 
 using Eigen::MatrixXd;
+using Eigen::Vector2d;
 using Eigen::VectorXd;
 using multibody::DiscreteContactSolver;
 using multibody::MultibodyForces;
@@ -36,13 +37,13 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumCalcVAndTau) {
   const double dt = 1e-2;
 
   // Set up the system model
-  auto plant = std::make_unique<MultibodyPlant<double>>(dt);
+  MultibodyPlant<double> plant(dt);
   const std::string urdf_file =
-      FindResourceOrThrow("drake/traj_opt/examples/pendulum.urdf");
-  Parser(plant.get()).AddAllModelsFromFile(urdf_file);
-  plant->set_discrete_contact_solver(DiscreteContactSolver::kSap);
-  plant->Finalize();
-  auto plant_context = plant->CreateDefaultContext();
+      FindResourceOrThrow("drake/examples/pendulum/Pendulum.urdf");
+  Parser(&plant).AddAllModelsFromFile(urdf_file);
+  plant.set_discrete_contact_solver(DiscreteContactSolver::kSap);
+  plant.Finalize();
+  auto plant_context = plant.CreateDefaultContext();
 
   // Define a sequence of ground-truth generalized forces
   std::vector<VectorXd> tau_gt;
@@ -51,15 +52,15 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumCalcVAndTau) {
   }
 
   // Simulate forward, recording the state
-  MatrixXd x(plant->num_multibody_states(), num_steps + 1);
+  MatrixXd x(plant.num_multibody_states(), num_steps + 1);
   auto x0 = x.leftCols<1>();
   x0 << 1.3, 0.4;
-  plant->SetPositionsAndVelocities(plant_context.get(), x.leftCols<1>());
+  plant.SetPositionsAndVelocities(plant_context.get(), x.leftCols<1>());
 
-  auto state = plant->AllocateDiscreteVariables();
+  auto state = plant.AllocateDiscreteVariables();
   for (int t = 0; t < num_steps; ++t) {
-    plant->get_actuation_input_port().FixValue(plant_context.get(), tau_gt[t]);
-    plant->CalcDiscreteVariableUpdates(*plant_context, state.get());
+    plant.get_actuation_input_port().FixValue(plant_context.get(), tau_gt[t]);
+    plant.CalcDiscreteVariableUpdates(*plant_context, state.get());
     plant_context->SetDiscreteState(state->get_value());
     x.col(t + 1) = state->get_value();
   }
@@ -70,20 +71,17 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumCalcVAndTau) {
     q.emplace_back(x.block<1, 1>(0, t));
   }
 
-  // TODO(vincekurtz): once #14 lands this can be moved down to just before
-  // CalcTau, where it is actually used (as scratch space)
-  MultibodyForces<double> f_ext(*plant);
-
   // Create a trajectory optimizer object
   ProblemDefinition opt_prob;
   opt_prob.q_init = x0.topRows<1>();
   opt_prob.v_init = x0.bottomRows<1>();
-  opt_prob.T = num_steps;
-  TrajectoryOptimizer optimizer(std::move(plant), opt_prob);
+  opt_prob.num_steps = num_steps;
+  TrajectoryOptimizer optimizer(&plant, opt_prob);
 
   // Compute v and tau from q
   std::vector<VectorXd> v(num_steps + 1);
   std::vector<VectorXd> tau(num_steps);
+  MultibodyForces<double> f_ext(plant);
   optimizer.CalcV(q, &v);
   optimizer.CalcTau(q, v, &f_ext, &tau);
 
@@ -97,6 +95,45 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumCalcVAndTau) {
   const double kToleranceTau = std::numeric_limits<double>::epsilon() / dt / dt;
   for (int t = 0; t < num_steps; ++t) {
     EXPECT_TRUE(CompareMatrices(tau[t], tau_gt[t], kToleranceTau,
+                                MatrixCompareType::relative));
+  }
+}
+
+/**
+ * Test our computation of generalized velocities
+ *
+ *   v_t = (q_t - q_{t-1})/dt
+ *
+ */
+GTEST_TEST(TrajectoryOptimizerTest, CalcV) {
+  const int num_steps = 5;
+  const double dt = 1e-2;
+
+  // Create a TrajectoryOptimizer object
+  MultibodyPlant<double> plant(dt);
+  plant.Finalize();
+  ProblemDefinition opt_prob;
+  opt_prob.q_init = Vector2d(0.1, 0.2);
+  opt_prob.v_init = Vector2d(0.5/dt, 1.5/dt);
+  opt_prob.num_steps = num_steps;
+  TrajectoryOptimizer optimizer(&plant, opt_prob);
+
+  // Construct a std::vector of generalized positions (q)
+  // where q(t) = [0.1 + 0.5*t]
+  //              [0.2 + 1.5*t]
+  std::vector<VectorXd> q;
+  for (int t = 0; t <= num_steps; ++t) {
+    q.push_back(Vector2d(0.1 + 0.5*t, 0.2 + 1.5*t));
+  }
+
+  // Compute v from q
+  std::vector<VectorXd> v(num_steps + 1);
+  optimizer.CalcV(q, &v);
+
+  // Check that our computed v is correct
+  const double kTolerance = std::numeric_limits<double>::epsilon() / dt;
+  for (int t = 0; t <= num_steps; ++t) {
+    EXPECT_TRUE(CompareMatrices(v[t], opt_prob.v_init, kTolerance,
                                 MatrixCompareType::relative));
   }
 }
