@@ -72,7 +72,8 @@ void TrajectoryOptimizer::CalcTau(const std::vector<VectorXd>& q,
 void TrajectoryOptimizer::CalcInverseDynamicsPartials(
     const std::vector<VectorXd>& q, const std::vector<VectorXd>& v,
     GradientData* grad_data) const {
-  // TODO(vincekurtz): use an analytical approximation rather than finite differences
+  // TODO(vincekurtz): use a solver flag to choose between finite differences
+  // and an analytical approximation
   CalcInverseDynamicsPartialsFiniteDiff(q, v, grad_data);
 }
 
@@ -84,12 +85,12 @@ void TrajectoryOptimizer::CalcInverseDynamicsPartialsFiniteDiff(
   // in the process, and check that it has the correct size here.
   const int nv = plant().num_velocities();
   const int nq = plant().num_positions();
-  std::vector<MatrixXd> dtaum_dq(num_steps()+1, MatrixXd(nv, nq));
-  std::vector<MatrixXd> dtau_dq(num_steps()+1, MatrixXd(nv, nq));
-  std::vector<MatrixXd> dtaup_dq(num_steps()+1, MatrixXd(nv, nq));
+  std::vector<MatrixXd> dtaum_dq(num_steps() + 1, MatrixXd(nv, nq));
+  std::vector<MatrixXd> dtau_dq(num_steps() + 1, MatrixXd(nv, nq));
+  std::vector<MatrixXd> dtaup_dq(num_steps() + 1, MatrixXd(nv, nq));
 
   // All derivatives w.r.t. q0 are zero, since q0 = q_init is fixed. We only
-  // include them in GradientData so we can index by t. 
+  // include them in GradientData so we can index by t.
   dtaum_dq[0].setZero();
   dtau_dq[0].setZero();
   dtaup_dq[0].setZero();
@@ -120,20 +121,19 @@ void TrajectoryOptimizer::CalcInverseDynamicsPartialsFiniteDiff(
       CalcTau(q_eps, v_eps, &a, &f_ext, &tau_eps);
 
       // Update the nozero entries of dtau_t/dq_t
-      dtaum_dq[t].col(i) = (tau_eps[t-1] - tau[t-1]) / eps;
+      dtaum_dq[t].col(i) = (tau_eps[t - 1] - tau[t - 1]) / eps;
 
-      if ( t == num_steps() ) {
+      if (t == num_steps()) {
         dtau_dq[t].setZero();  // tau[num_steps] is undefined
       } else {
         dtau_dq[t].col(i) = (tau_eps[t] - tau[t]) / eps;
       }
 
-      if ( (t == num_steps()) || (t == (num_steps()-1) )) {
+      if ((t == num_steps()) || (t == (num_steps() - 1))) {
         dtaup_dq[t].setZero();  // tau[num_steps (+ 1)] is undefined
       } else {
-        dtaup_dq[t].col(i) = (tau_eps[t+1] - tau[t+1]) / eps;
+        dtaup_dq[t].col(i) = (tau_eps[t + 1] - tau[t + 1]) / eps;
       }
-
     }
   }
 
@@ -141,56 +141,6 @@ void TrajectoryOptimizer::CalcInverseDynamicsPartialsFiniteDiff(
   grad_data->dtaum_dq = dtaum_dq;
   grad_data->dtau_dq = dtau_dq;
   grad_data->dtaup_dq = dtaup_dq;
-}
-
-void TrajectoryOptimizer::CalcDtaumDq(const std::vector<VectorXd>& q,
-                                      const int t,
-                                      Eigen::Ref<MatrixXd> dtaum_dq) const {
-  // TODO(vincekurtz): use a more efficient approximation
-  CalcDtausDqtFiniteDiff(q, t-1, t, dtaum_dq);
-}
-
-void TrajectoryOptimizer::CalcDtauDq(const std::vector<VectorXd>& q,
-                                      const int t,
-                                      Eigen::Ref<MatrixXd> dtaum_dq) const {
-  // TODO(vincekurtz): use a more efficient approximation
-  CalcDtausDqtFiniteDiff(q, t, t, dtaum_dq);
-}
-
-void TrajectoryOptimizer::CalcDtaupDq(const std::vector<VectorXd>& q,
-                                      const int t,
-                                      Eigen::Ref<MatrixXd> dtaum_dq) const {
-  // TODO(vincekurtz): use a more efficient approximation
-  CalcDtausDqtFiniteDiff(q, t+1, t, dtaum_dq);
-}
-
-void TrajectoryOptimizer::CalcDtausDqtFiniteDiff(
-    const std::vector<VectorXd>& q, const int s, const int t,
-    Eigen::Ref<MatrixXd> dtaus_dqt) const {
-  DRAKE_DEMAND(dtaus_dqt.rows() ==          // nv and not nu, since tau is
-               plant().num_velocities());  // generalized forces, not control
-  DRAKE_DEMAND(dtaus_dqt.cols() == plant().num_positions());
-
-  // Compute generalized forces from q. This is very gross and brute-force,
-  // since we compute everything for every timestep.
-  std::vector<VectorXd> v(num_steps() + 1);
-  VectorXd a(plant().num_velocities());
-  MultibodyForces<double> f_ext(plant());
-  std::vector<VectorXd> tau(num_steps());
-  CalcV(q, &v);
-  CalcTau(q, v, &a, &f_ext, &tau);
-
-  // Modulate qt[i] to define each row of dtaum_dq
-  std::vector<VectorXd> q_eps = q;
-  std::vector<VectorXd> tau_eps(num_steps());
-
-  const double eps = 100*sqrt(std::numeric_limits<double>::epsilon());
-  for (int i = 0; i < plant().num_positions(); ++i) {
-    q_eps[t](i) += eps;
-    CalcV(q_eps, &v);
-    CalcTau(q_eps, v, &a, &f_ext, &tau_eps);
-    dtaus_dqt.row(i) = (tau_eps[s] - tau[s]) / eps;
-  }
 }
 
 }  // namespace traj_opt

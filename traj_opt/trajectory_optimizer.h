@@ -5,8 +5,8 @@
 
 #include "drake/common/eigen_types.h"
 #include "drake/multibody/plant/multibody_plant.h"
-#include "drake/traj_opt/problem_definition.h"
 #include "drake/traj_opt/problem_data.h"
+#include "drake/traj_opt/problem_definition.h"
 
 namespace drake {
 namespace traj_opt {
@@ -101,12 +101,12 @@ class TrajectoryOptimizer {
                std::vector<VectorXd>* tau) const;
 
   /**
-   * Compute partial derivatives of the inverse dynamics 
-   * 
+   * Compute partial derivatives of the inverse dynamics
+   *
    *    tau_t = ID(q_{t-1}, q_t, q_{t+1})
-   * 
-   * and store them in the given GradientData struct. 
-   * 
+   *
+   * and store them in the given GradientData struct.
+   *
    * @param q sequence of generalized positions
    * @param v sequence of generalized velocities (computed from q)
    * @param grad_data struct for holding dtau/dq
@@ -114,16 +114,16 @@ class TrajectoryOptimizer {
   void CalcInverseDynamicsPartials(const std::vector<VectorXd>& q,
                                    const std::vector<VectorXd>& v,
                                    GradientData* grad_data) const;
-  
+
   /**
-   * Compute partial derivatives of the inverse dynamics 
-   * 
+   * Compute partial derivatives of the inverse dynamics
+   *
    *    tau_t = ID(q_{t-1}, q_t, q_{t+1})
-   * 
+   *
    * using finite differences.
-   * 
+   *
    * For testing purposes only - this is very inefficient.
-   * 
+   *
    * @param q sequence of generalized positions
    * @param v sequence of generalized velocities (computed from q)
    * @param grad_data struct for holding dtau/dq
@@ -131,34 +131,6 @@ class TrajectoryOptimizer {
   void CalcInverseDynamicsPartialsFiniteDiff(const std::vector<VectorXd>& q,
                                              const std::vector<VectorXd>& v,
                                              GradientData* grad_data) const;
-
-  /**
-   * Compute the partial derivative of generalized forces at the previous
-   * timestep, tau_{t-1}, with respect to generalized positions at the current
-   * timestep, q_t.
-   *
-   * @param q sequence of all generalized positions
-   * @param t timestep under consideration
-   * @param dtaum_dq ∂tau_{t-1} / ∂q_t
-   */
-  void CalcDtaumDq(const std::vector<VectorXd>& q, const int t,
-                   Eigen::Ref<MatrixXd> dtaum_dq) const;
-  void CalcDtauDq(const std::vector<VectorXd>& q, const int t,
-                  Eigen::Ref<MatrixXd> dtaum_dq) const;
-  void CalcDtaupDq(const std::vector<VectorXd>& q, const int t,
-                   Eigen::Ref<MatrixXd> dtaum_dq) const;
-
-  /**
-   * Compute ∂tau_s / ∂q_t using finite differences.
-   *
-   * @param q sequence of all generalized positions
-   * @param s timestep of tau
-   * @param t timestep of q
-   * @param dtaus_dqt ∂tau_s / ∂q_t
-   */
-  void CalcDtausDqtFiniteDiff(const std::vector<VectorXd>& q, const int s,
-                              const int t,
-                              Eigen::Ref<MatrixXd> dtaus_dqt) const;
 
  private:
   // A model of the system that we are trying to find an optimal trajectory for.

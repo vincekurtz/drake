@@ -7,8 +7,8 @@
 #include "drake/common/test_utilities/limit_malloc.h"
 #include "drake/multibody/parsing/parser.h"
 #include "drake/multibody/plant/multibody_plant.h"
-#include "drake/traj_opt/problem_definition.h"
 #include "drake/traj_opt/problem_data.h"
+#include "drake/traj_opt/problem_definition.h"
 
 namespace drake {
 namespace traj_opt {
@@ -51,7 +51,7 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumDtauDq) {
 
   // Compute inverse dynamics partials
   GradientData grad_data;
-  std::vector<VectorXd> v(num_steps+1);
+  std::vector<VectorXd> v(num_steps + 1);
   optimizer.CalcV(q, &v);
   optimizer.CalcInverseDynamicsPartials(q, v, &grad_data);
 

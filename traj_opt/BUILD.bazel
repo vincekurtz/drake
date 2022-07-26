@@ -17,8 +17,8 @@ drake_cc_package_library(
     name = "traj_opt",
     visibility = ["//visibility:public"],
     deps = [
-        ":problem_definition",
         ":problem_data",
+        ":problem_definition",
         ":trajectory_optimizer",
     ],
 )
@@ -61,8 +61,8 @@ drake_cc_googletest(
     name = "trajectory_optimizer_test",
     data = ["//examples/pendulum:prod_models"],
     deps = [
-        ":trajectory_optimizer",
         ":problem_data",
+        ":trajectory_optimizer",
         "//common:find_resource",
         "//common/test_utilities:eigen_matrix_compare",
         "//common/test_utilities:limit_malloc",
