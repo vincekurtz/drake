@@ -4,6 +4,7 @@
 
 #include "drake/common/find_resource.h"
 #include "drake/common/test_utilities/eigen_matrix_compare.h"
+#include "drake/common/test_utilities/limit_malloc.h"
 #include "drake/multibody/parsing/parser.h"
 #include "drake/multibody/plant/multibody_plant.h"
 #include "drake/traj_opt/problem_definition.h"
@@ -19,6 +20,7 @@ using multibody::DiscreteContactSolver;
 using multibody::MultibodyForces;
 using multibody::MultibodyPlant;
 using multibody::Parser;
+using test::LimitMalloc;
 
 /**
  * Test our computation of generalized velocities
@@ -79,11 +81,14 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumCalcVAndTau) {
   TrajectoryOptimizer optimizer(&plant, opt_prob);
 
   // Compute v and tau from q
-  std::vector<VectorXd> v(num_steps + 1);
-  std::vector<VectorXd> tau(num_steps);
+  std::vector<VectorXd> v(num_steps + 1, VectorXd(1));
+  std::vector<VectorXd> tau(num_steps, VectorXd(1));
   MultibodyForces<double> f_ext(plant);
-  optimizer.CalcV(q, &v);
-  optimizer.CalcTau(q, v, &f_ext, &tau);
+  {
+    LimitMalloc guard({ .max_num_allocations = 0 });
+    optimizer.CalcV(q, &v);
+    optimizer.CalcTau(q, v, &f_ext, &tau);
+  }
 
   // Check that our computed values match the true (recorded) ones
   const double kToleranceV = std::numeric_limits<double>::epsilon() / dt;
@@ -97,6 +102,7 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumCalcVAndTau) {
     EXPECT_TRUE(CompareMatrices(tau[t], tau_gt[t], kToleranceTau,
                                 MatrixCompareType::relative));
   }
+  
 }
 
 /**
