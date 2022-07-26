@@ -46,10 +46,10 @@ class TrajectoryOptimizer {
    *
    *     v_t = (q_t - q_{t-1})/dt            (1)
    *
-   * v and q are each vectors of length T+1,
+   * v and q are each vectors of length num_steps+1,
    *
-   *     v = [v0, v1, v2, ..., v_T],
-   *     q = [q0, q1, q2, ..., q_T].
+   *     v = [v(0), v(1), v(2), ..., v(num_steps)],
+   *     q = [q(0), q(1), q(2), ..., q(num_steps)].
    *
    * Note that v0 = v_init is defined by the initial state of the optimization
    * problem, rather than Equation (1) above.
