@@ -115,6 +115,7 @@ class TrajectoryOptimizer {
                                    const std::vector<VectorXd>& v,
                                    GradientData* grad_data) const;
 
+ private:
   /**
    * Compute partial derivatives of the inverse dynamics
    *
@@ -131,8 +132,6 @@ class TrajectoryOptimizer {
   void CalcInverseDynamicsPartialsFiniteDiff(const std::vector<VectorXd>& q,
                                              const std::vector<VectorXd>& v,
                                              GradientData* grad_data) const;
-
- private:
   // A model of the system that we are trying to find an optimal trajectory for.
   const MultibodyPlant<double>* plant_;
 
