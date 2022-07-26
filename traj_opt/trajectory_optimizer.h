@@ -6,6 +6,7 @@
 #include "drake/common/eigen_types.h"
 #include "drake/multibody/plant/multibody_plant.h"
 #include "drake/traj_opt/problem_definition.h"
+#include "drake/traj_opt/problem_data.h"
 
 namespace drake {
 namespace traj_opt {
@@ -98,6 +99,21 @@ class TrajectoryOptimizer {
   void CalcTau(const std::vector<VectorXd>& q, const std::vector<VectorXd>& v,
                VectorXd* a, MultibodyForces<double>* f_ext,
                std::vector<VectorXd>* tau) const;
+
+  /**
+   * Compute partial derivatives of the inverse dynamics 
+   * 
+   *    tau_t = ID(q_{t-1}, q_t, q_{t+1})
+   * 
+   * and store them in the given GradientData struct. 
+   * 
+   * @param q sequence of generalized positions
+   * @param v sequence of generalized velocities (computed from q)
+   * @param grad_data struct for holding dtau/dq
+   */
+  void CalcInverseDynamicsPartials(const std::vector<VectorXd>& q,
+                                   const std::vector<VectorXd>& v,
+                                   GradientData* grad_data) const;
 
   /**
    * Compute the partial derivative of generalized forces at the previous

@@ -8,6 +8,7 @@
 #include "drake/multibody/parsing/parser.h"
 #include "drake/multibody/plant/multibody_plant.h"
 #include "drake/traj_opt/problem_definition.h"
+#include "drake/traj_opt/problem_data.h"
 
 namespace drake {
 namespace traj_opt {
@@ -55,6 +56,12 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumDtauDq) {
   optimizer.CalcDtaumDq(q, 3, dtau2_dq3);
   optimizer.CalcDtauDq(q, 3, dtau3_dq3);
   optimizer.CalcDtaupDq(q, 3, dtau4_dq3);
+
+  // Compute inverse dynamics partials
+  GradientData grad_data;
+  std::vector<VectorXd> v(num_steps+1);
+  optimizer.CalcV(q, &v);
+  optimizer.CalcInverseDynamicsPartials(q, v, &grad_data);
 
   // Compute ground truth partials from the pendulum model
   //

@@ -18,6 +18,7 @@ drake_cc_package_library(
     visibility = ["//visibility:public"],
     deps = [
         ":problem_definition",
+        ":problem_data",
         ":trajectory_optimizer",
     ],
 )
@@ -29,6 +30,7 @@ drake_cc_library(
         "trajectory_optimizer.h",
     ],
     deps = [
+        ":problem_data",
         ":problem_definition",
         "//common:essential",
         "//multibody/plant",
@@ -45,11 +47,22 @@ drake_cc_library(
     ],
 )
 
+drake_cc_library(
+    name = "problem_data",
+    hdrs = [
+        "problem_data.h",
+    ],
+    deps = [
+        "//common:essential",
+    ],
+)
+
 drake_cc_googletest(
     name = "trajectory_optimizer_test",
     data = ["//examples/pendulum:prod_models"],
     deps = [
         ":trajectory_optimizer",
+        ":problem_data",
         "//common:find_resource",
         "//common/test_utilities:eigen_matrix_compare",
         "//common/test_utilities:limit_malloc",

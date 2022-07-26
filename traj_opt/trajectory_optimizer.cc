@@ -69,6 +69,15 @@ void TrajectoryOptimizer::CalcTau(const std::vector<VectorXd>& q,
   }
 }
 
+void TrajectoryOptimizer::CalcInverseDynamicsPartials(
+    const std::vector<VectorXd>& q, const std::vector<VectorXd>& v,
+    GradientData* grad_data) const {
+  (void)q;
+  (void)v;
+  (void)grad_data;
+  std::cout << "hello world" << std::endl;
+}
+
 void TrajectoryOptimizer::CalcDtaumDq(const std::vector<VectorXd>& q,
                                       const int t,
                                       Eigen::Ref<MatrixXd> dtaum_dq) const {
