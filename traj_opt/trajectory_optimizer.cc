@@ -27,6 +27,27 @@ TrajectoryOptimizer::TrajectoryOptimizer(const MultibodyPlant<double>* plant,
   }
 }
 
+double TrajectoryOptimizer::CalcCost(const std::vector<VectorXd>& q,
+                                     const std::vector<VectorXd>& v,
+                                     const std::vector<VectorXd>& tau) const {
+  double cost = 0;
+  VectorXd q_err;
+  VectorXd v_err;
+  for (int t = 0; t < num_steps(); ++t) {
+    q_err = q[t] - prob_.q_nom;
+    v_err = v[t] - prob_.v_nom;
+    cost += q_err.transpose() * prob_.Qq * q_err;
+    cost += v_err.transpose() * prob_.Qv * v_err;
+    cost += tau[t].transpose() * prob_.R * tau[t];
+  }
+  q_err = q[num_steps()] - prob_.q_nom;
+  v_err = v[num_steps()] - prob_.v_nom;
+  cost += q_err.transpose() * prob_.Qf_q * q_err;
+  cost += v_err.transpose() * prob_.Qf_v * v_err;
+
+  return cost;
+}
+
 void TrajectoryOptimizer::CalcV(const std::vector<VectorXd>& q,
                                 std::vector<VectorXd>* v) const {
   // x = [x0, x1, ..., xT]

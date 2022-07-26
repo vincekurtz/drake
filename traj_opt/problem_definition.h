@@ -28,6 +28,27 @@ struct ProblemDefinition {
 
   // Initial generalized velocities
   VectorXd v_init;
+
+  // Running cost coefficients for generalized positions
+  MatrixXd Qq;
+
+  // Running cost coefficients for generalized velocities
+  MatrixXd Qv;
+
+  // Terminal cost coefficients for generalized positions
+  MatrixXd Qf_q;
+
+  // Terminal cost coefficients for generalized velocities
+  MatrixXd Qf_v;
+
+  // Control cost coefficients
+  MatrixXd R;
+
+  // Target generalized positions
+  VectorXd q_nom;
+
+  // Target generalized velocities
+  VectorXd v_nom;
 };
 
 }  // namespace traj_opt
