@@ -8,7 +8,6 @@ namespace traj_opt {
 
 using multibody::Joint;
 using multibody::JointIndex;
-using multibody::MultibodyForces;
 using multibody::MultibodyPlant;
 using systems::System;
 
@@ -41,8 +40,8 @@ void TrajectoryOptimizer::CalcV(const std::vector<VectorXd>& q,
 }
 
 void TrajectoryOptimizer::CalcTau(const std::vector<VectorXd>& q,
-                                  const std::vector<VectorXd>& v, VectorXd* a,
-                                  MultibodyForces<double>* f_ext,
+                                  const std::vector<VectorXd>& v,
+                                  TrajectoryOptimizerWorkspace* workspace,
                                   std::vector<VectorXd>* tau) const {
   // Generalized forces aren't defined for the last timestep
   // TODO(vincekurtz): additional checks that q_t, v_t, tau_t are the right size
@@ -52,22 +51,20 @@ void TrajectoryOptimizer::CalcTau(const std::vector<VectorXd>& q,
   DRAKE_DEMAND(static_cast<int>(tau->size()) == num_steps());
 
   for (int t = 0; t < num_steps(); ++t) {
-    InverseDynamicsHelper(q[t], v[t+1], v[t], a, f_ext, &tau->at(t));
+    InverseDynamicsHelper(q[t], v[t + 1], v[t], workspace, &tau->at(t));
   }
 }
 
-void TrajectoryOptimizer::InverseDynamicsHelper(const VectorXd& q,
-                                                const VectorXd& v_next,
-                                                const VectorXd& v, VectorXd* a,
-                                                MultibodyForces<double>* f_ext,
-                                                VectorXd* tau) const {
+void TrajectoryOptimizer::InverseDynamicsHelper(
+    const VectorXd& q, const VectorXd& v_next, const VectorXd& v,
+    TrajectoryOptimizerWorkspace* workspace, VectorXd* tau) const {
   plant().SetPositions(context_.get(), q);
   plant().SetVelocities(context_.get(), v);
-  plant().CalcForceElementsContribution(*context_, f_ext);
+  plant().CalcForceElementsContribution(*context_, &workspace->f_ext);
 
   // Inverse dynamics computes M*a + D*v - k(q,v)
-  *a = (v_next - v) / time_step();
-  *tau = plant().CalcInverseDynamics(*context_, *a, *f_ext);
+  workspace->a = (v_next - v) / time_step();
+  *tau = plant().CalcInverseDynamics(*context_, workspace->a, workspace->f_ext);
 
   // CalcInverseDynamics considers damping from v_t (D*v_t), but we want to
   // consider damping from v_{t+1} (D*v_{t+1}).
@@ -78,15 +75,15 @@ void TrajectoryOptimizer::InverseDynamicsHelper(const VectorXd& q,
 
 void TrajectoryOptimizer::CalcInverseDynamicsPartials(
     const std::vector<VectorXd>& q, const std::vector<VectorXd>& v,
-    GradientData* grad_data) const {
+    TrajectoryOptimizerWorkspace* workspace, GradientData* grad_data) const {
   // TODO(vincekurtz): use a solver flag to choose between finite differences
   // and an analytical approximation
-  CalcInverseDynamicsPartialsFiniteDiff(q, v, grad_data);
+  CalcInverseDynamicsPartialsFiniteDiff(q, v, workspace, grad_data);
 }
 
 void TrajectoryOptimizer::CalcInverseDynamicsPartialsFiniteDiff(
     const std::vector<VectorXd>& q, const std::vector<VectorXd>& v,
-    GradientData* grad_data) const {
+    TrajectoryOptimizerWorkspace* workspace, GradientData* grad_data) const {
   // Allocate storage space
   // TODO(vincekurtz): allocate a GradientData struct of the proper size earlier
   // in the process, and check that it has the correct size here.
@@ -105,12 +102,10 @@ void TrajectoryOptimizer::CalcInverseDynamicsPartialsFiniteDiff(
   // Compute tau(q) [all timesteps] using the orignal value of q
   // TODO(vincekurtz): consider passing this as an argument along with q and v,
   // perhaps combined into a TrajectoryData struct
-  VectorXd a(plant().num_velocities());    // scratch space
-  MultibodyForces<double> f_ext(plant());  // scratch space
   std::vector<VectorXd> tau(num_steps());
-  CalcTau(q, v, &a, &f_ext, &tau);
+  CalcTau(q, v, workspace, &tau);
 
-  // Perturbed versions of q_t, v_t, v_{t+1}, tau_{t-1}, tau_t, and tau_{t-1}.
+  // Perturbed versions of q_t, v_t, v_{t+1}, tau_{t-1}, tau_t, and tau_{t - 1}.
   // These are all of the quantities that change when we perturb q_t.
   VectorXd q_eps_t(nq);
   VectorXd v_eps_t(nv);
@@ -129,17 +124,17 @@ void TrajectoryOptimizer::CalcInverseDynamicsPartialsFiniteDiff(
       // Compute perturbed v(q_t) and tau(q_t) accordingly
       // TODO(vincekurtz): add N(q)+ factor to consider quaternion DoFs.
       v_eps_t = (q_eps_t - q[t - 1]) / time_step();
-      InverseDynamicsHelper(q[t - 1], v_eps_t, v[t - 1], &a, &f_ext,
+      InverseDynamicsHelper(q[t - 1], v_eps_t, v[t - 1], workspace,
                             &tau_eps_tm);
 
       if (t < num_steps()) {
         v_eps_tp = (q[t + 1] - q_eps_t) / time_step();
-        InverseDynamicsHelper(q_eps_t, v_eps_tp, v_eps_t, &a, &f_ext,
+        InverseDynamicsHelper(q_eps_t, v_eps_tp, v_eps_t, workspace,
                               &tau_eps_t);
       }
 
       if (t < num_steps() - 1) {
-        InverseDynamicsHelper(q[t + 1], v[t + 2], v_eps_tp, &a, &f_ext,
+        InverseDynamicsHelper(q[t + 1], v[t + 2], v_eps_tp, workspace,
                               &tau_eps_tp);
       }
 

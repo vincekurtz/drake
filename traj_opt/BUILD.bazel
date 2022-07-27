@@ -20,6 +20,7 @@ drake_cc_package_library(
         ":problem_data",
         ":problem_definition",
         ":trajectory_optimizer",
+        ":trajectory_optimizer_workspace",
     ],
 )
 
@@ -32,6 +33,7 @@ drake_cc_library(
     deps = [
         ":problem_data",
         ":problem_definition",
+        ":trajectory_optimizer_workspace",
         "//common:essential",
         "//multibody/plant",
     ],
@@ -57,12 +59,24 @@ drake_cc_library(
     ],
 )
 
+drake_cc_library(
+    name = "trajectory_optimizer_workspace",
+    hdrs = [
+        "trajectory_optimizer_workspace.h",
+    ],
+    deps = [
+        "//common:essential",
+        "//multibody/plant",
+    ],
+)
+
 drake_cc_googletest(
     name = "trajectory_optimizer_test",
     data = ["//examples/pendulum:prod_models"],
     deps = [
         ":problem_data",
         ":trajectory_optimizer",
+        ":trajectory_optimizer_workspace",
         "//common:find_resource",
         "//common/test_utilities:eigen_matrix_compare",
         "//common/test_utilities:limit_malloc",

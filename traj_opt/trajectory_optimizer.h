@@ -7,12 +7,12 @@
 #include "drake/multibody/plant/multibody_plant.h"
 #include "drake/traj_opt/problem_data.h"
 #include "drake/traj_opt/problem_definition.h"
+#include "drake/traj_opt/trajectory_optimizer_workspace.h"
 
 namespace drake {
 namespace traj_opt {
 
 using Eigen::VectorXd;
-using multibody::MultibodyForces;
 using multibody::MultibodyPlant;
 using systems::Context;
 
@@ -92,12 +92,12 @@ class TrajectoryOptimizer {
    *
    * @param q sequence of generalized positions
    * @param v sequence of generalized velocities
-   * @param a scratch space for computing accelerations
-   * @param f_ext scratch space for computing external forces (e.g., gravity)
+   * @param workspace scratch space for computing accelerations and external
+   * forces
    * @param tau sequence of generalized forces
    */
   void CalcTau(const std::vector<VectorXd>& q, const std::vector<VectorXd>& v,
-               VectorXd* a, MultibodyForces<double>* f_ext,
+               TrajectoryOptimizerWorkspace* workspace,
                std::vector<VectorXd>* tau) const;
 
   /**
@@ -109,10 +109,13 @@ class TrajectoryOptimizer {
    *
    * @param q sequence of generalized positions
    * @param v sequence of generalized velocities (computed from q)
+   * @param workspace scratch space for computing accelerations and external
+   * forces
    * @param grad_data struct for holding dtau/dq
    */
   void CalcInverseDynamicsPartials(const std::vector<VectorXd>& q,
                                    const std::vector<VectorXd>& v,
+                                   TrajectoryOptimizerWorkspace* workspace,
                                    GradientData* grad_data) const;
 
  private:
@@ -127,32 +130,35 @@ class TrajectoryOptimizer {
    *
    * @param q sequence of generalized positions
    * @param v sequence of generalized velocities (computed from q)
+   * @param workspace scratch space for computing accelerations and external
+   * forces
    * @param grad_data struct for holding dtau/dq
    */
-  void CalcInverseDynamicsPartialsFiniteDiff(const std::vector<VectorXd>& q,
-                                             const std::vector<VectorXd>& v,
-                                             GradientData* grad_data) const;
+  void CalcInverseDynamicsPartialsFiniteDiff(
+      const std::vector<VectorXd>& q, const std::vector<VectorXd>& v,
+      TrajectoryOptimizerWorkspace* workspace, GradientData* grad_data) const;
 
   /**
    * Helper function for computing the inverse dynamics
-   * 
+   *
    *  tau = ID(a, v, q, f_ext),
-   * 
+   *
    * where
-   * 
+   *
    *    a = (v_next - v) / dt
-   * 
+   *
    * and damping is considered explicitly (based on v_next rather than v).
-   * 
+   *
    * @param q generalized position at time t
    * @param v_next generalized velocity at time t+1
    * @param v generalized velocity at time t
-   * @param a scratch space for acceleration computations
-   * @param f_ext scratch space for force (e.g. gravity) contributions
+   * @param workspace scratch space for computing accelerations and external
+   * forces
    * @param tau generalized forces at time t (output)
    */
-  void InverseDynamicsHelper(const VectorXd& q, const VectorXd& v_next, const VectorXd& v,
-                             VectorXd* a, MultibodyForces<double>* f_ext,
+  void InverseDynamicsHelper(const VectorXd& q, const VectorXd& v_next,
+                             const VectorXd& v,
+                             TrajectoryOptimizerWorkspace* workspace,
                              VectorXd* tau) const;
 
   // A model of the system that we are trying to find an optimal trajectory for.

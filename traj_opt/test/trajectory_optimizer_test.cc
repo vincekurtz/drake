@@ -9,6 +9,7 @@
 #include "drake/multibody/plant/multibody_plant.h"
 #include "drake/traj_opt/problem_data.h"
 #include "drake/traj_opt/problem_definition.h"
+#include "drake/traj_opt/trajectory_optimizer_workspace.h"
 
 namespace drake {
 namespace traj_opt {
@@ -18,7 +19,6 @@ using Eigen::MatrixXd;
 using Eigen::Vector2d;
 using Eigen::VectorXd;
 using multibody::DiscreteContactSolver;
-using multibody::MultibodyForces;
 using multibody::MultibodyPlant;
 using multibody::Parser;
 using test::LimitMalloc;
@@ -40,6 +40,7 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumDtauDq) {
   opt_prob.q_init = Vector1d(0.0);
   opt_prob.v_init = Vector1d(0.1);
   opt_prob.num_steps = num_steps;
+  TrajectoryOptimizerWorkspace workspace(plant);
   TrajectoryOptimizer optimizer(&plant, opt_prob);
 
   // Create some fake data
@@ -53,7 +54,7 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumDtauDq) {
   GradientData grad_data;
   std::vector<VectorXd> v(num_steps + 1);
   optimizer.CalcV(q, &v);
-  optimizer.CalcInverseDynamicsPartials(q, v, &grad_data);
+  optimizer.CalcInverseDynamicsPartials(q, v, &workspace, &grad_data);
 
   // Compute ground truth partials from the pendulum model
   //
@@ -156,19 +157,18 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumCalcVAndTau) {
   opt_prob.q_init = x0.topRows<1>();
   opt_prob.v_init = x0.bottomRows<1>();
   opt_prob.num_steps = num_steps;
+  TrajectoryOptimizerWorkspace workspace(plant);
   TrajectoryOptimizer optimizer(&plant, opt_prob);
 
   // Compute v and tau from q
   std::vector<VectorXd> v(num_steps + 1, VectorXd(1));
   std::vector<VectorXd> tau(num_steps, VectorXd(1));
-  VectorXd a(1);
-  MultibodyForces<double> f_ext(plant);
   {
     // It appears, via trial and error, that CalcInverseDynamics makes exactly
     // 15 allocations for this example.
     LimitMalloc guard({.max_num_allocations = 15});
     optimizer.CalcV(q, &v);
-    optimizer.CalcTau(q, v, &a, &f_ext, &tau);
+    optimizer.CalcTau(q, v, &workspace, &tau);
   }
 
   // Check that our computed values match the true (recorded) ones
