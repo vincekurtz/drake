@@ -1,5 +1,6 @@
 #pragma once
 
+#include <iostream>//DEBUG
 #include <vector>
 
 #include "drake/common/eigen_types.h"
@@ -15,6 +16,33 @@ using Eigen::VectorXd;
  * compute the (approximate) gradient and Hessian for our Gauss-Newton steps.
  */
 struct GradientData {
+  /**
+   * Constructor which allocates variables of the proper sizes.
+   * 
+   * @param num_steps number of time steps in the optimization problem
+   * @param nv number of generalized velocities (size of tau and v)
+   * @param nq number of generalized positions (size of q)
+   */
+  GradientData(const int num_steps, const int nv, const int nq) {
+    dtau_dqm.assign( num_steps, MatrixXd(nv, nq));
+    dtau_dq.assign( num_steps, MatrixXd(nv, nq));
+    dtau_dqp.assign( num_steps, MatrixXd(nv, nq));
+
+    // Set all derivatives w.r.t q(0) and q(-1) to zero
+    dtau_dq[0].setZero();
+    dtau_dqm[0].setZero();
+    dtau_dqm[1].setZero();
+  }
+
+  // Return the number of steps allocated in this object.
+  // TODO(vincekurtz): we may eventually want size checks to include the
+  // dimensions of each matrix for each timestep.
+  int size() const {
+    DRAKE_DEMAND(dtau_dq.size() == dtau_dqm.size());
+    DRAKE_DEMAND(dtau_dq.size() == dtau_dqp.size());
+    return dtau_dq.size();
+  }
+
   // Partials of tau_t with respect to q_{t-1} ("q_t minus"),
   //
   //    d(tau_t)/d(q_{t-1})

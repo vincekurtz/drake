@@ -51,7 +51,7 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumDtauDq) {
   }
 
   // Compute inverse dynamics partials
-  GradientData grad_data;
+  GradientData grad_data(num_steps, 1, 1);
   std::vector<VectorXd> v(num_steps + 1);
   optimizer.CalcV(q, &v);
   optimizer.CalcInverseDynamicsPartials(q, v, &workspace, &grad_data);
@@ -66,27 +66,25 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumDtauDq) {
   const double b = 0.1;
   const double g = 9.81;
 
-  GradientData grad_data_gt;
-  MatrixXd dtaut_dqtm(1, 1);
-  MatrixXd dtaut_dqt(1, 1);
-  MatrixXd dtaut_dqtp(1, 1);
+  GradientData grad_data_gt(num_steps, 1, 1);
   for (int t = 0; t < num_steps; ++t) {
-    dtaut_dqtp(0, 0) = 1 / dt / dt * m * l * l + 1 / dt * b;
-    dtaut_dqt(0, 0) =
+    // dtau[t]/dq[t+1]
+    grad_data_gt.dtau_dqp[t](0, 0) = 1 / dt / dt * m * l * l + 1 / dt * b;
+
+    // dtau[t]/dq[t]
+    grad_data_gt.dtau_dq[t](0, 0) =
         -2 / dt / dt * m * l * l - 1 / dt * b + m * g * l * cos(q[t](0));
-    dtaut_dqtm(0, 0) = 1 / dt / dt * m * l * l;
+
+    // dtau[t]/dq[t-1]
+    grad_data_gt.dtau_dqm[t](0, 0) = 1 / dt / dt * m * l * l;
 
     // q0 = q_init is fixed, so all the derivatives w.r.t. q0 are zero
     if (t == 0) {
-      dtaut_dqtm(0, 0) = 0;
-      dtaut_dqt(0, 0) = 0;
+      grad_data_gt.dtau_dqm[t](0, 0) = 0;  // q[-1] doesn't exist
+      grad_data_gt.dtau_dq[t](0, 0) = 0;   // q[0] is constant
     } else if (t == 1) {
-      dtaut_dqtm(0, 0) = 0;
+      grad_data_gt.dtau_dqm[t](0, 0) = 0;  // q[0] is constant
     }
-
-    grad_data_gt.dtau_dqm.push_back(dtaut_dqtm);
-    grad_data_gt.dtau_dq.push_back(dtaut_dqt);
-    grad_data_gt.dtau_dqp.push_back(dtaut_dqtp);
   }
 
   // Compare the computed values and the analytical ground truth
