@@ -23,12 +23,17 @@ struct TrajectoryOptimizerWorkspace {
 
     // Set vector sizes
     q_size_tmp.resize(nq);
+
     v_size_tmp1.resize(nv);
     v_size_tmp2.resize(nv);
+
     tau_size_tmp1.resize(nv);
     tau_size_tmp2.resize(nv);
     tau_size_tmp3.resize(nv);
-    a_size_tmp.resize(nq);
+
+    a_size_tmp1.resize(nq);
+    a_size_tmp2.resize(nq);
+    a_size_tmp3.resize(nq);
   }
 
   // Storage for multibody forces
@@ -41,10 +46,14 @@ struct TrajectoryOptimizerWorkspace {
   // These are named v, tau, and a, but this distinction is just for convienience.
   VectorXd v_size_tmp1;
   VectorXd v_size_tmp2;
+
   VectorXd tau_size_tmp1;
   VectorXd tau_size_tmp2;
   VectorXd tau_size_tmp3;
-  VectorXd a_size_tmp;
+
+  VectorXd a_size_tmp1;
+  VectorXd a_size_tmp2;
+  VectorXd a_size_tmp3;
 
 };
 

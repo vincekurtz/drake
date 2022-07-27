@@ -53,7 +53,7 @@ void TrajectoryOptimizer::CalcTau(const std::vector<VectorXd>& q,
   for (int t = 0; t < num_steps(); ++t) {
 
     // Acceleration at time t
-    VectorXd& a = workspace->a_size_tmp;
+    VectorXd& a = workspace->a_size_tmp1;
     a = (v[t+1] - v[t])/time_step();
     
     // All dynamics terms are treated implicitly, i.e., 
@@ -100,12 +100,14 @@ void TrajectoryOptimizer::CalcInverseDynamicsPartialsFiniteDiff(
   std::vector<VectorXd> tau(num_steps());
   CalcTau(q, v, workspace, &tau);
 
-  // Get references to perturbed versions of q_t, v_t, v_{t+1}, tau_{t-1},
-  // tau_t, and tau_{t-1}. These are all of the quantities that change when we
-  // perturb q_t.
+  // Get references to perturbed versions of q, v, tau, and a, at (t-1, t, t).
+  // These are all of the quantities that change when we perturb q_t.
   VectorXd& q_eps_t = workspace->q_size_tmp;
   VectorXd& v_eps_t = workspace->v_size_tmp1;
   VectorXd& v_eps_tp = workspace->v_size_tmp2;
+  VectorXd& a_eps_tm = workspace->a_size_tmp1;
+  VectorXd& a_eps_t = workspace->a_size_tmp2;
+  VectorXd& a_eps_tp = workspace->a_size_tmp3;
   VectorXd& tau_eps_tm = workspace->tau_size_tmp1;
   VectorXd& tau_eps_t = workspace->tau_size_tmp2;
   VectorXd& tau_eps_tp = workspace->tau_size_tmp3;
@@ -119,20 +121,29 @@ void TrajectoryOptimizer::CalcInverseDynamicsPartialsFiniteDiff(
       dqt_i = eps * std::max(1.0, std::abs(q_eps_t(i)));  // avoid losing precision
       q_eps_t(i) += dqt_i;
 
-      // Compute perturbed v(q_t) and tau(q_t) accordingly
+      // Compute perturbed v(q_t)
       // TODO(vincekurtz): add N(q)+ factor to consider quaternion DoFs.
       v_eps_t = (q_eps_t - q[t - 1]) / time_step();
-      InverseDynamicsHelper(q[t - 1], v_eps_t, v[t - 1], workspace,
-                            &tau_eps_tm);
-
       if (t < num_steps()) {
         v_eps_tp = (q[t + 1] - q_eps_t) / time_step();
-        InverseDynamicsHelper(q_eps_t, v_eps_tp, v_eps_t, workspace,
+      }
+
+      // tau[t-1] = ID(q[t], v[t], a[t-1])
+      a_eps_tm = (v_eps_t - v[t-1]) / time_step();
+      InverseDynamicsHelper(q_eps_t, v_eps_t, a_eps_tm, workspace,
+                            &tau_eps_tm);
+
+      // tau[t] = ID(q[t+1], v[t+1], a[t])
+      if (t < num_steps()) {
+        a_eps_t = (v_eps_tp - v_eps_t) / time_step();
+        InverseDynamicsHelper(q[t+1], v_eps_tp, a_eps_t, workspace,
                               &tau_eps_t);
       }
 
+      // tau[t+1] = ID(q[t+2], v[t+2], a[t+1])
       if (t < num_steps() - 1) {
-        InverseDynamicsHelper(q[t + 1], v[t + 2], v_eps_tp, workspace,
+        a_eps_tp = (v[t+2] - v_eps_tp) / time_step();
+        InverseDynamicsHelper(q[t + 2], v[t + 2], a_eps_tp, workspace,
                               &tau_eps_tp);
       }
 

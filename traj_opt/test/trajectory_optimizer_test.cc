@@ -23,81 +23,87 @@ using multibody::MultibodyPlant;
 using multibody::Parser;
 using test::LimitMalloc;
 
-//GTEST_TEST(TrajectoryOptimizerTest, PendulumDtauDq) {
-//  const int num_steps = 5;
-//  const double dt = 1e-2;
-//
-//  // Set up a system model
-//  MultibodyPlant<double> plant(dt);
-//  const std::string urdf_file =
-//      FindResourceOrThrow("drake/examples/pendulum/Pendulum.urdf");
-//  Parser(&plant).AddAllModelsFromFile(urdf_file);
-//  plant.set_discrete_contact_solver(DiscreteContactSolver::kSap);
-//  plant.Finalize();
-//
-//  // Create a trajectory optimizer
-//  ProblemDefinition opt_prob;
-//  opt_prob.q_init = Vector1d(0.0);
-//  opt_prob.v_init = Vector1d(0.1);
-//  opt_prob.num_steps = num_steps;
-//  TrajectoryOptimizerWorkspace workspace(plant);
-//  TrajectoryOptimizer optimizer(&plant, opt_prob);
-//
-//  // Create some fake data
-//  std::vector<VectorXd> q;
-//  q.push_back(opt_prob.q_init);
-//  for (int t = 1; t <= num_steps; ++t) {
-//    q.push_back(Vector1d(0.0 + 0.6 * t));
-//  }
-//
-//  // Compute inverse dynamics partials
-//  GradientData grad_data(num_steps, 1, 1);
-//  std::vector<VectorXd> v(num_steps + 1);
-//  optimizer.CalcV(q, &v);
-//  optimizer.CalcInverseDynamicsPartials(q, v, &workspace, &grad_data);
-//
-//  // Compute ground truth partials from the pendulum model
-//  //
-//  //     m*l^2*a + m*g*l*sin(q) + b*v = tau
-//  //
-//  // where q is the joint angle and a = dv/dt, v = dq/dt.
-//  const double m = 1.0;
-//  const double l = 0.5;
-//  const double b = 0.1;
-//  const double g = 9.81;
-//
-//  GradientData grad_data_gt(num_steps, 1, 1);
-//  for (int t = 0; t < num_steps; ++t) {
-//    // dtau[t]/dq[t+1]
-//    grad_data_gt.dtau_dqp[t](0, 0) = 1 / dt / dt * m * l * l + 1 / dt * b;
-//
-//    // dtau[t]/dq[t]
-//    grad_data_gt.dtau_dq[t](0, 0) =
-//        -2 / dt / dt * m * l * l - 1 / dt * b + m * g * l * cos(q[t](0));
-//
-//    // dtau[t]/dq[t-1]
-//    grad_data_gt.dtau_dqm[t](0, 0) = 1 / dt / dt * m * l * l;
-//
-//    // q0 = q_init is fixed, so all the derivatives w.r.t. q0 are zero
-//    if (t == 0) {
-//      grad_data_gt.dtau_dqm[t](0, 0) = 0;  // q[-1] doesn't exist
-//      grad_data_gt.dtau_dq[t](0, 0) = 0;   // q[0] is constant
-//    } else if (t == 1) {
-//      grad_data_gt.dtau_dqm[t](0, 0) = 0;  // q[0] is constant
-//    }
-//  }
-//
-//  // Compare the computed values and the analytical ground truth
-//  const double kTolerance = sqrt(std::numeric_limits<double>::epsilon());
-//  for (int t = 0; t < num_steps; ++t) {
-//    EXPECT_TRUE(CompareMatrices(grad_data.dtau_dqm[t], grad_data_gt.dtau_dqm[t],
-//                                kTolerance, MatrixCompareType::relative));
-//    EXPECT_TRUE(CompareMatrices(grad_data.dtau_dq[t], grad_data_gt.dtau_dq[t],
-//                                kTolerance, MatrixCompareType::relative));
-//    EXPECT_TRUE(CompareMatrices(grad_data.dtau_dqp[t], grad_data_gt.dtau_dqp[t],
-//                                kTolerance, MatrixCompareType::relative));
-//  }
-//}
+GTEST_TEST(TrajectoryOptimizerTest, PendulumDtauDq) {
+  const int num_steps = 5;
+  const double dt = 1e-2;
+
+  // Set up a system model
+  MultibodyPlant<double> plant(dt);
+  const std::string urdf_file =
+      FindResourceOrThrow("drake/examples/pendulum/Pendulum.urdf");
+  Parser(&plant).AddAllModelsFromFile(urdf_file);
+  plant.set_discrete_contact_solver(DiscreteContactSolver::kSap);
+  plant.Finalize();
+
+  // Create a trajectory optimizer
+  ProblemDefinition opt_prob;
+  opt_prob.q_init = Vector1d(0.0);
+  opt_prob.v_init = Vector1d(0.1);
+  opt_prob.num_steps = num_steps;
+  TrajectoryOptimizerWorkspace workspace(plant);
+  TrajectoryOptimizer optimizer(&plant, opt_prob);
+
+  // Create some fake data
+  std::vector<VectorXd> q;
+  q.push_back(opt_prob.q_init);
+  for (int t = 1; t <= num_steps; ++t) {
+    q.push_back(Vector1d(0.0 + 0.6 * t));
+  }
+
+  // Compute inverse dynamics partials
+  GradientData grad_data(num_steps, 1, 1);
+  std::vector<VectorXd> v(num_steps + 1);
+  optimizer.CalcV(q, &v);
+  optimizer.CalcInverseDynamicsPartials(q, v, &workspace, &grad_data);
+
+  // Compute ground truth partials from the pendulum model
+  //
+  //     m*l^2*a + m*g*l*sin(q) + b*v = tau
+  //
+  // where q is the joint angle and a = dv/dt, v = dq/dt.
+  const double m = 1.0;
+  const double l = 0.5;
+  const double b = 0.1;
+  const double g = 9.81;
+
+  GradientData grad_data_gt(num_steps, 1, 1);
+  for (int t = 0; t < num_steps; ++t) {
+    // dtau[t]/dq[t+1]
+    grad_data_gt.dtau_dqp[t](0, 0) = 1 / dt / dt * m * l * l + 1 / dt * b + m * g * l * cos(q[t+1](0));
+
+    // dtau[t]/dq[t]
+    grad_data_gt.dtau_dq[t](0, 0) =
+        -2 / dt / dt * m * l * l - 1 / dt * b;
+
+    // dtau[t]/dq[t-1]
+    grad_data_gt.dtau_dqm[t](0, 0) = 1 / dt / dt * m * l * l;
+
+    // Derivatives w.r.t. q[t-1] do not exist
+    if (t == 0) {
+      grad_data_gt.dtau_dqm[t](0, 0) = 0;
+    }
+  }
+
+  // Compare the computed values and the analytical ground truth
+  //const double kTolerance = sqrt(std::numeric_limits<double>::epsilon());
+  for (int t = 0; t < num_steps; ++t) {
+    std::cout << grad_data_gt.dtau_dqm[t] << std::endl;
+    std::cout << grad_data.dtau_dqm[t] << std::endl;
+    std::cout << std::endl;
+    std::cout << grad_data_gt.dtau_dq[t] << std::endl;
+    std::cout << grad_data.dtau_dq[t] << std::endl;
+    std::cout << std::endl;
+    std::cout << grad_data_gt.dtau_dqp[t] << std::endl;
+    std::cout << grad_data.dtau_dqp[t] << std::endl;
+    std::cout << std::endl;
+    //EXPECT_TRUE(CompareMatrices(grad_data.dtau_dqm[t], grad_data_gt.dtau_dqm[t],
+    //                            kTolerance, MatrixCompareType::relative));
+    //EXPECT_TRUE(CompareMatrices(grad_data.dtau_dq[t], grad_data_gt.dtau_dq[t],
+    //                            kTolerance, MatrixCompareType::relative));
+    //EXPECT_TRUE(CompareMatrices(grad_data.dtau_dqp[t], grad_data_gt.dtau_dqp[t],
+    //                            kTolerance, MatrixCompareType::relative));
+  }
+}
 
 /**
  * Test our computation of generalized forces
