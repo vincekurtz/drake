@@ -63,8 +63,8 @@ void TrajectoryOptimizer::InverseDynamicsHelper(
   plant().CalcForceElementsContribution(*context_, &workspace->f_ext);
 
   // Inverse dynamics computes M*a + D*v - k(q,v)
-  workspace->a = (v_next - v) / time_step();
-  *tau = plant().CalcInverseDynamics(*context_, workspace->a, workspace->f_ext);
+  workspace->a_size_tmp = (v_next - v) / time_step();
+  *tau = plant().CalcInverseDynamics(*context_, workspace->a_size_tmp, workspace->f_ext);
 
   // CalcInverseDynamics considers damping from v_t (D*v_t), but we want to
   // consider damping from v_{t+1} (D*v_{t+1}).
@@ -101,12 +101,12 @@ void TrajectoryOptimizer::CalcInverseDynamicsPartialsFiniteDiff(
   // Get references to perturbed versions of q_t, v_t, v_{t+1}, tau_{t-1},
   // tau_t, and tau_{t-1}. These are all of the quantities that change when we
   // perturb q_t.
-  VectorXd& q_eps_t = workspace->q_eps_t;
-  VectorXd& v_eps_t = workspace->v_eps_t;
-  VectorXd& v_eps_tp = workspace->v_eps_tp;
-  VectorXd& tau_eps_tm = workspace->tau_eps_tm;
-  VectorXd& tau_eps_t = workspace->tau_eps_t;
-  VectorXd& tau_eps_tp = workspace->tau_eps_tp;
+  VectorXd& q_eps_t = workspace->q_size_tmp;
+  VectorXd& v_eps_t = workspace->v_size_tmp1;
+  VectorXd& v_eps_tp = workspace->v_size_tmp2;
+  VectorXd& tau_eps_tm = workspace->tau_size_tmp1;
+  VectorXd& tau_eps_t = workspace->tau_size_tmp2;
+  VectorXd& tau_eps_tp = workspace->tau_size_tmp3;
 
   const double eps = sqrt(std::numeric_limits<double>::epsilon());
   for (int t = 1; t <= num_steps(); ++t) {

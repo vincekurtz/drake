@@ -22,30 +22,30 @@ struct TrajectoryOptimizerWorkspace {
     const int nv = plant.num_velocities();
 
     // Set vector sizes
-    a.resize(nv);
-    q_eps_t.resize(nq);
-    v_eps_t.resize(nv);
-    v_eps_tp.resize(nv);
-    tau_eps_tm.resize(nv);
-    tau_eps_t.resize(nv);
-    tau_eps_tp.resize(nv);
+    q_size_tmp.resize(nq);
+    v_size_tmp1.resize(nv);
+    v_size_tmp2.resize(nv);
+    tau_size_tmp1.resize(nv);
+    tau_size_tmp2.resize(nv);
+    tau_size_tmp3.resize(nv);
+    a_size_tmp.resize(nq);
   }
 
-  // Generalized accelerations
-  VectorXd a;
-
-  // External forces, such as gravity
+  // Storage for multibody forces
   MultibodyForces<double> f_ext;
 
-  // Perturbed copies of q_t, v_t, v_{t+1}, tau_{t-1}, tau_t, and tau_{t+1}.
-  // These are all of the quantities that change when we perturb q_t, and are
-  // used to compute inverse dynamics partials with finite differences.
-  VectorXd q_eps_t;
-  VectorXd v_eps_t;
-  VectorXd v_eps_tp;
-  VectorXd tau_eps_tm;
-  VectorXd tau_eps_t;
-  VectorXd tau_eps_tp;
+  // Storage of size nq
+  VectorXd q_size_tmp;
+
+  // Storage of size nv
+  // These are named v, tau, and a, but this distinction is just for convienience.
+  VectorXd v_size_tmp1;
+  VectorXd v_size_tmp2;
+  VectorXd tau_size_tmp1;
+  VectorXd tau_size_tmp2;
+  VectorXd tau_size_tmp3;
+  VectorXd a_size_tmp;
+
 };
 
 }  // namespace traj_opt
