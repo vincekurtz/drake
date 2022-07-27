@@ -23,6 +23,52 @@ using multibody::MultibodyPlant;
 using multibody::Parser;
 using test::LimitMalloc;
 
+GTEST_TEST(TrajectoryOptimizerTest, CalcGradient) {
+  // Set up an optimization problem 
+  const int num_steps = 100;
+  const double dt = 1e-2;
+
+  ProblemDefinition opt_prob;
+  opt_prob.num_steps = num_steps;
+  opt_prob.q_init = Vector1d(0.2);
+  opt_prob.v_init = Vector1d(-0.1);
+  opt_prob.Qq = 0.1 * MatrixXd::Identity(1,1);
+  opt_prob.Qv = 0.2 * MatrixXd::Identity(1,1);
+  opt_prob.Qf_q = 0.3 * MatrixXd::Identity(1,1);
+  opt_prob.Qf_v = 0.4 * MatrixXd::Identity(1,1);
+  opt_prob.R = 0.5 * MatrixXd::Identity(1,1);
+  opt_prob.q_nom = Vector1d(1.2);
+  opt_prob.v_nom = Vector1d(-1.1);
+
+  // Create a pendulum model
+  MultibodyPlant<double> plant(dt);
+  const std::string urdf_file =
+      FindResourceOrThrow("drake/examples/pendulum/Pendulum.urdf");
+  Parser(&plant).AddAllModelsFromFile(urdf_file);
+  plant.set_discrete_contact_solver(DiscreteContactSolver::kSap);
+  plant.Finalize();
+
+  // Create an optimizer 
+  TrajectoryOptimizer optimizer(&plant, opt_prob);
+
+  // Make some fake data
+  std::vector<VectorXd> q(num_steps+1);
+  q[0] = opt_prob.q_init;
+  for (int t = 1; t <= num_steps; ++t) {
+    q[t] = q[t-1] + 0.1*dt*MatrixXd::Identity(1,1);
+  }
+
+  // Compute the ("ground truth") gradient with finite differences
+  VectorXd g_gt(plant.num_positions()*(num_steps+1));
+
+  for (int j=0; j<g_gt.size(); ++j) {
+    g_gt(j) = 123;
+  }
+  optimizer.CalcGradientFiniteDiff(q, &g_gt);
+
+  // Compute the gradient using our approximations
+}
+
 /**
  * Test our computation of the total cost L(q)
  */

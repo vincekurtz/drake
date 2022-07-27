@@ -58,6 +58,20 @@ double TrajectoryOptimizer::CalcCost(const std::vector<VectorXd>& q,
   return cost;
 }
 
+double TrajectoryOptimizer::CalcCost(const std::vector<VectorXd>& q) const {
+  std::vector<VectorXd> v(num_steps() + 1);
+  std::vector<VectorXd> tau(num_steps());
+
+  // TODO: replace with workspace
+  VectorXd a;
+  MultibodyForces<double> f_ext(plant());
+
+  CalcV(q, &v);
+  CalcTau(q, v, &a, &f_ext, &tau);
+
+  return CalcCost(q, v, tau);
+}
+
 void TrajectoryOptimizer::CalcV(const std::vector<VectorXd>& q,
                                 std::vector<VectorXd>* v) const {
   // x = [x0, x1, ..., xT]
@@ -97,6 +111,40 @@ void TrajectoryOptimizer::CalcTau(const std::vector<VectorXd>& q,
 
     // TODO(vincekurtz) add in contact/constriant contribution
   }
+}
+
+void TrajectoryOptimizer::CalcGradientFiniteDiff(const std::vector<VectorXd>& q, EigenPtr<VectorXd> g) const {
+  // Compute the baseline cost
+  double L = CalcCost(q);
+  std::cout << L << std::endl;
+
+  // Perturbed versions of q and L
+  // TODO(vincekurtz): store in the workspace
+  std::vector<VectorXd> q_eps(q);
+
+  // Set first block of g (derivatives w.r.t. q_0) to zero, since q0 = q_init are constant.
+  g->topRows(plant().num_positions()).setZero();
+
+  // Iterate through rows of g using finite differences
+  double eps = sqrt(std::numeric_limits<double>::epsilon());
+  int j = plant().num_positions();
+  for (int t=1; t<=num_steps(); ++t ) {
+    for (int i=0; i<plant().num_positions(); ++i) {
+      // Perturb Q_j
+      q_eps[t](i) += eps;
+
+      // Set g_j = ( L(Q) + L(Q+epsilon) ) / epsilon
+      double L_eps = CalcCost(q_eps);
+      (*g)(j) = (L + L_eps) / eps;
+
+      // reset our perturbed Q and move to the next row of g.
+      q_eps[t](i) = q[t](i);
+      ++j;
+    }
+  }
+
+  std::cout << *g << std::endl;
+
 }
 
 }  // namespace traj_opt

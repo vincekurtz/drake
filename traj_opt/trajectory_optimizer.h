@@ -77,6 +77,15 @@ class TrajectoryOptimizer {
                   const std::vector<VectorXd>& tau) const;
 
   /**
+   * Convienience function which computes the total cost as a function of q directly, 
+   * and includes the intermediate computation of v(q) and tau(q).
+   * 
+   * @param q sequence of generalized positions
+   * @return double the total cost
+   */
+  double CalcCost(const std::vector<VectorXd>& q) const;
+
+  /**
    * Compute a sequence of generalized velocities v from a sequence of
    * generalized positions, where
    *
@@ -123,6 +132,19 @@ class TrajectoryOptimizer {
   void CalcTau(const std::vector<VectorXd>& q, const std::vector<VectorXd>& v,
                VectorXd* a, MultibodyForces<double>* f_ext,
                std::vector<VectorXd>* tau) const;
+
+  /**
+   * Compute the gradient of the unconstrained cost L(q) using finite
+   * differences.
+   *
+   * For testing purposes only.
+   *
+   * TODO(vincekurtz): refactor so this takes the same structure as CalcGradient
+   * @param q vector of generalized positions at each timestep
+   * @param g a single VectorXd containing the partials of L w.r.t. each
+   *          decision variable (q_t[i]).
+   */
+  void CalcGradientFiniteDiff(const std::vector<VectorXd>& q, EigenPtr<VectorXd> g) const;
 
  private:
   // A model of the system that we are trying to find an optimal trajectory for.
