@@ -56,7 +56,7 @@ class TrajectoryOptimizer {
    * problem,
    *
    *     L(q) = x_err(T)'*Qf*x_err(T)
-   *                + sum_{t=0}^{T-1} x_err(t)'*Q*x_err(t) + u(t)'*R*u(t),
+   *                + dt*sum_{t=0}^{T-1} x_err(t)'*Q*x_err(t) + u(t)'*R*u(t),
    *
    * where:
    *      x_err(t) = x(t) - x_nom is the state error,

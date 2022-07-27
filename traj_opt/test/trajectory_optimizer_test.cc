@@ -27,20 +27,23 @@ using test::LimitMalloc;
  * Test our computation of the total cost L(q)
  */
 GTEST_TEST(TrajectoryOptimizerTest, CalcCost) {
+  const int num_steps = 100;
+  const double dt = 1e-2;
+
   // Set up an (empty) system model
-  MultibodyPlant<double> plant(1e-2);
+  MultibodyPlant<double> plant(dt);
   plant.Finalize();
 
   // Set up the optimization problem
   ProblemDefinition opt_prob;
-  opt_prob.num_steps = 3;
+  opt_prob.num_steps = num_steps;
   opt_prob.q_init = Vector2d(0.2, 0.1);
   opt_prob.v_init = Vector2d(-0.1, 0.0);
-  opt_prob.Qq = Matrix2d::Identity();
-  opt_prob.Qv = Matrix2d::Identity();
-  opt_prob.Qf_q = Matrix2d::Identity();
-  opt_prob.Qf_v = Matrix2d::Identity();
-  opt_prob.R = Matrix2d::Identity();
+  opt_prob.Qq = 0.1 * Matrix2d::Identity();
+  opt_prob.Qv = 0.2 * Matrix2d::Identity();
+  opt_prob.Qf_q = 0.3 * Matrix2d::Identity();
+  opt_prob.Qf_v = 0.4 * Matrix2d::Identity();
+  opt_prob.R = 0.5 * Matrix2d::Identity();
   opt_prob.q_nom = Vector2d(1.2, 1.1);
   opt_prob.v_nom = Vector2d(-1.1, 1.0);
 
@@ -59,8 +62,11 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcCost) {
   // Compute the cost and compare with the true value
   TrajectoryOptimizer optimizer(&plant, opt_prob);
   double L = optimizer.CalcCost(q, v, tau);
+  double L_gt =
+      num_steps * dt * (2 * 0.1 + 2 * 0.2 + 2 * 0.5) + 2 * 0.3 + 2 * 0.4;
 
-  EXPECT_TRUE(L == 22.);
+  const double kTolerance = std::numeric_limits<double>::epsilon() / dt;
+  EXPECT_NEAR(L, L_gt, kTolerance);
 }
 
 /**

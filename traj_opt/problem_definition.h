@@ -11,7 +11,7 @@ using Eigen::VectorXd;
 /**
  * A struct for specifying the optimization problem
  *
- *    min x_err(T)'*Qf*x_err(T) + sum{ x_err(t)'*Q*x_err(t) + u(t)'*R*u(t) }
+ *    min x_err(T)'*Qf*x_err(T) + dt*sum{ x_err(t)'*Q*x_err(t) + u(t)'*R*u(t) }
  *    s.t. x(0) = x0
  *         multibody dynamics with contact
  *
@@ -30,9 +30,11 @@ struct ProblemDefinition {
   VectorXd v_init;
 
   // Running cost coefficients for generalized positions
+  // N.B. these weights are per unit of time
   MatrixXd Qq;
 
   // Running cost coefficients for generalized velocities
+  // N.B. these weights are per unit of time
   MatrixXd Qv;
 
   // Terminal cost coefficients for generalized positions
@@ -42,6 +44,7 @@ struct ProblemDefinition {
   MatrixXd Qf_v;
 
   // Control cost coefficients
+  // N.B. these weights are per unit of time
   MatrixXd R;
 
   // Target generalized positions
