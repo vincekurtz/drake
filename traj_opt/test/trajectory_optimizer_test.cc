@@ -1,5 +1,7 @@
 #include "drake/traj_opt/trajectory_optimizer.h"
 
+#include <algorithm>
+
 #include <gtest/gtest.h>
 
 #include "drake/common/find_resource.h"
@@ -69,16 +71,15 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumDtauDq) {
   GradientData grad_data_gt(num_steps, 1, 1);
   for (int t = 0; t < num_steps; ++t) {
     // dtau[t]/dq[t+1]
-    grad_data_gt.dtau_dqp[t](0, 0) = 1 / dt / dt * m * l * l + 1 / dt * b + m * g * l * cos(q[t+1](0));
+    grad_data_gt.dtau_dqp[t](0, 0) =
+        1 / dt / dt * m * l * l + 1 / dt * b + m * g * l * cos(q[t + 1](0));
 
     // dtau[t]/dq[t]
-    grad_data_gt.dtau_dq[t](0, 0) =
-        -2 / dt / dt * m * l * l - 1 / dt * b;
-    
-    if ( t == 0 ) {
+    grad_data_gt.dtau_dq[t](0, 0) = -2 / dt / dt * m * l * l - 1 / dt * b;
+
+    if (t == 0) {
       // v[0] is constant
-      grad_data_gt.dtau_dq[t](0, 0) =
-          -1 / dt / dt * m * l * l - 1 / dt * b;
+      grad_data_gt.dtau_dq[t](0, 0) = -1 / dt / dt * m * l * l - 1 / dt * b;
     }
 
     // dtau[t]/dq[t-1]
@@ -86,7 +87,7 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumDtauDq) {
 
     // Derivatives w.r.t. q[t-1] do not exist
     if (t == 0) {
-      grad_data_gt.dtau_dqm[t](0, 0) = 0; // TODO make NaN
+      grad_data_gt.dtau_dqm[t](0, 0) = NAN;
     }
   }
 
@@ -123,16 +124,16 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumCalcTau) {
   plant.Finalize();
   auto plant_context = plant.CreateDefaultContext();
 
-  // Make some fake data 
+  // Make some fake data
   std::vector<VectorXd> q;
   std::vector<VectorXd> v;
   for (int t = 0; t <= num_steps; ++t) {
     // Not physically valid, but should be fine for this test
-    q.push_back(Vector1d(-0.2 + dt*0.1*t));
-    v.push_back(Vector1d(0.1 + dt*0.01*t));
+    q.push_back(Vector1d(-0.2 + dt * 0.1 * t));
+    v.push_back(Vector1d(0.1 + dt * 0.01 * t));
   }
 
-  // Compute ground truth torque analytically using the 
+  // Compute ground truth torque analytically using the
   // pendulum model
   //
   //     m*l^2*a + m*g*l*sin(q) + b*v = tau
@@ -145,9 +146,9 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumCalcTau) {
 
   std::vector<VectorXd> tau_gt;
   for (int t = 0; t < num_steps; ++t) {
-    Vector1d a = (v[t+1] - v[t])/dt;
-    Vector1d sin_q = sin(q[t+1](0)) * MatrixXd::Identity(1,1);
-    Vector1d tau_t = m * l * l * a + m * g * l * sin_q + b * v[t+1];
+    Vector1d a = (v[t + 1] - v[t]) / dt;
+    Vector1d sin_q = sin(q[t + 1](0)) * MatrixXd::Identity(1, 1);
+    Vector1d tau_t = m * l * l * a + m * g * l * sin_q + b * v[t + 1];
     tau_gt.push_back(tau_t);
   }
 

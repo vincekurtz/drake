@@ -1,5 +1,6 @@
 #include "drake/traj_opt/trajectory_optimizer.h"
 
+#include <algorithm>
 #include <iostream>
 #include <limits>
 
@@ -51,14 +52,13 @@ void TrajectoryOptimizer::CalcTau(const std::vector<VectorXd>& q,
   DRAKE_DEMAND(static_cast<int>(tau->size()) == num_steps());
 
   for (int t = 0; t < num_steps(); ++t) {
-
     // Acceleration at time t
     VectorXd& a = workspace->a_size_tmp1;
-    a = (v[t+1] - v[t])/time_step();
-    
-    // All dynamics terms are treated implicitly, i.e., 
+    a = (v[t + 1] - v[t]) / time_step();
+
+    // All dynamics terms are treated implicitly, i.e.,
     // tau[t] = M(q[t+1]) * a[t] - k(q[t+1],v[t+1]) - f_ext[t+1]
-    InverseDynamicsHelper(q[t+1], v[t+1], a, workspace, &tau->at(t));
+    InverseDynamicsHelper(q[t + 1], v[t + 1], a, workspace, &tau->at(t));
   }
 }
 
@@ -118,7 +118,8 @@ void TrajectoryOptimizer::CalcInverseDynamicsPartialsFiniteDiff(
     for (int i = 0; i < plant().num_positions(); ++i) {
       // Perturb q_t by epsilon
       q_eps_t = q[t];
-      dqt_i = eps * std::max(1.0, std::abs(q_eps_t(i)));  // avoid losing precision
+      dqt_i =
+          eps * std::max(1.0, std::abs(q_eps_t(i)));  // avoid losing precision
       q_eps_t(i) += dqt_i;
 
       // Compute perturbed v(q)
@@ -138,27 +139,26 @@ void TrajectoryOptimizer::CalcInverseDynamicsPartialsFiniteDiff(
       if (t == 0) {
         a_eps_tm = (v_eps_t - prob_.v_init) / time_step();
       } else {
-        a_eps_tm = (v_eps_t - v[t-1]) / time_step();
+        a_eps_tm = (v_eps_t - v[t - 1]) / time_step();
       }
-      InverseDynamicsHelper(q_eps_t, v_eps_t, a_eps_tm, workspace,
-                            &tau_eps_tm);
+      InverseDynamicsHelper(q_eps_t, v_eps_t, a_eps_tm, workspace, &tau_eps_tm);
 
       // tau[t] = ID(q[t+1], v[t+1], a[t])
       if (t < num_steps()) {
         a_eps_t = (v_eps_tp - v_eps_t) / time_step();
-        InverseDynamicsHelper(q[t+1], v_eps_tp, a_eps_t, workspace,
+        InverseDynamicsHelper(q[t + 1], v_eps_tp, a_eps_t, workspace,
                               &tau_eps_t);
       }
 
       // tau[t+1] = ID(q[t+2], v[t+2], a[t+1])
       if (t < num_steps() - 1) {
-        a_eps_tp = (v[t+2] - v_eps_tp) / time_step();
+        a_eps_tp = (v[t + 2] - v_eps_tp) / time_step();
         InverseDynamicsHelper(q[t + 2], v[t + 2], a_eps_tp, workspace,
                               &tau_eps_tp);
       }
 
       // Compute the nonzero entries of dtau/dq via finite differencing
-      if ( t > 0 ) {
+      if (t > 0) {
         dtau_dqp[t - 1].col(i) = (tau_eps_tm - tau[t - 1]) / dqt_i;
       }
       if (t < num_steps()) {

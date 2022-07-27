@@ -43,7 +43,8 @@ struct TrajectoryOptimizerWorkspace {
   VectorXd q_size_tmp;
 
   // Storage of size nv
-  // These are named v, tau, and a, but this distinction is just for convienience.
+  // These are named v, tau, and a, but this distinction is just for
+  // convienience.
   VectorXd v_size_tmp1;
   VectorXd v_size_tmp2;
 
@@ -54,7 +55,6 @@ struct TrajectoryOptimizerWorkspace {
   VectorXd a_size_tmp1;
   VectorXd a_size_tmp2;
   VectorXd a_size_tmp3;
-
 };
 
 }  // namespace traj_opt
