@@ -109,11 +109,13 @@ void TrajectoryOptimizer::CalcInverseDynamicsPartialsFiniteDiff(
   VectorXd& tau_eps_tp = workspace->tau_size_tmp3;
 
   const double eps = sqrt(std::numeric_limits<double>::epsilon());
+  double dqt_i;
   for (int t = 1; t <= num_steps(); ++t) {
     for (int i = 0; i < plant().num_positions(); ++i) {
       // Perturb q_t by epsilon
       q_eps_t = q[t];
-      q_eps_t(i) += eps;
+      dqt_i = eps * std::max(1.0, std::abs(q_eps_t(i)));  // avoid losing precision
+      q_eps_t(i) += dqt_i;
 
       // Compute perturbed v(q_t) and tau(q_t) accordingly
       // TODO(vincekurtz): add N(q)+ factor to consider quaternion DoFs.
@@ -133,12 +135,12 @@ void TrajectoryOptimizer::CalcInverseDynamicsPartialsFiniteDiff(
       }
 
       // Compute the nonzero entries of dtau/dq via finite differencing
-      dtau_dqp[t - 1].col(i) = (tau_eps_tm - tau[t - 1]) / eps;
+      dtau_dqp[t - 1].col(i) = (tau_eps_tm - tau[t - 1]) / dqt_i;
       if (t < num_steps()) {
-        dtau_dq[t].col(i) = (tau_eps_t - tau[t]) / eps;
+        dtau_dq[t].col(i) = (tau_eps_t - tau[t]) / dqt_i;
       }
       if (t < num_steps() - 1) {
-        dtau_dqm[t + 1].col(i) = (tau_eps_tp - tau[t + 1]) / eps;
+        dtau_dqm[t + 1].col(i) = (tau_eps_tp - tau[t + 1]) / dqt_i;
       }
     }
   }
