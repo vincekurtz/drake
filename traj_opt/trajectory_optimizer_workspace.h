@@ -34,7 +34,7 @@ struct TrajectoryOptimizerWorkspace {
   // Generalized accelerations
   VectorXd a;
 
-  // External forces, including gravity
+  // External forces, such as gravity
   MultibodyForces<double> f_ext;
 
   // Perturbed copies of q_t, v_t, v_{t+1}, tau_{t-1}, tau_t, and tau_{t+1}.

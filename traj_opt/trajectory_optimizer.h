@@ -92,8 +92,7 @@ class TrajectoryOptimizer {
    *
    * @param q sequence of generalized positions
    * @param v sequence of generalized velocities
-   * @param workspace scratch space for computing accelerations and external
-   * forces
+   * @param workspace scratch space for intermediate computations
    * @param tau sequence of generalized forces
    */
   void CalcTau(const std::vector<VectorXd>& q, const std::vector<VectorXd>& v,
@@ -109,8 +108,7 @@ class TrajectoryOptimizer {
    *
    * @param q sequence of generalized positions
    * @param v sequence of generalized velocities (computed from q)
-   * @param workspace scratch space for computing accelerations and external
-   * forces
+   * @param workspace scratch space for intermediate computations
    * @param grad_data struct for holding dtau/dq
    */
   void CalcInverseDynamicsPartials(const std::vector<VectorXd>& q,
@@ -130,8 +128,7 @@ class TrajectoryOptimizer {
    *
    * @param q sequence of generalized positions
    * @param v sequence of generalized velocities (computed from q)
-   * @param workspace scratch space for computing accelerations and external
-   * forces
+   * @param workspace scratch space for intermediate computations
    * @param grad_data struct for holding dtau/dq
    */
   void CalcInverseDynamicsPartialsFiniteDiff(
@@ -152,8 +149,7 @@ class TrajectoryOptimizer {
    * @param q generalized position at time t
    * @param v_next generalized velocity at time t+1
    * @param v generalized velocity at time t
-   * @param workspace scratch space for computing accelerations and external
-   * forces
+   * @param workspace scratch space for intermediate computations
    * @param tau generalized forces at time t (output)
    */
   void InverseDynamicsHelper(const VectorXd& q, const VectorXd& v_next,
