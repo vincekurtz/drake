@@ -51,24 +51,26 @@ void TrajectoryOptimizer::CalcTau(const std::vector<VectorXd>& q,
   DRAKE_DEMAND(static_cast<int>(tau->size()) == num_steps());
 
   for (int t = 0; t < num_steps(); ++t) {
-    InverseDynamicsHelper(q[t], v[t + 1], v[t], workspace, &tau->at(t));
+
+    // Acceleration at time t
+    VectorXd& a = workspace->a_size_tmp;
+    a = (v[t+1] - v[t])/time_step();
+    
+    // All dynamics terms are treated implicitly, i.e., 
+    // tau[t] = M(q[t+1]) * a[t] - k(q[t+1],v[t+1]) - f_ext[t+1]
+    InverseDynamicsHelper(q[t+1], v[t+1], a, workspace, &tau->at(t));
   }
 }
 
 void TrajectoryOptimizer::InverseDynamicsHelper(
-    const VectorXd& q, const VectorXd& v_next, const VectorXd& v,
+    const VectorXd& q, const VectorXd& v, const VectorXd& a,
     TrajectoryOptimizerWorkspace* workspace, VectorXd* tau) const {
   plant().SetPositions(context_.get(), q);
   plant().SetVelocities(context_.get(), v);
   plant().CalcForceElementsContribution(*context_, &workspace->f_ext);
 
-  // Inverse dynamics computes M*a + D*v - k(q,v)
-  workspace->a_size_tmp = (v_next - v) / time_step();
-  *tau = plant().CalcInverseDynamics(*context_, workspace->a_size_tmp, workspace->f_ext);
-
-  // CalcInverseDynamics considers damping from v_t (D*v_t), but we want to
-  // consider damping from v_{t+1} (D*v_{t+1}).
-  tau->array() += joint_damping_.array() * (v_next.array() - v.array());
+  // Inverse dynamics computes tau = M*a - k(q,v) - f_ext
+  *tau = plant().CalcInverseDynamics(*context_, a, workspace->f_ext);
 
   // TODO(vincekurtz) add in contact/constriant contribution
 }

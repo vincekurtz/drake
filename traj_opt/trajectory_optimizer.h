@@ -138,22 +138,16 @@ class TrajectoryOptimizer {
   /**
    * Helper function for computing the inverse dynamics
    *
-   *  tau = ID(a, v, q, f_ext),
+   *  tau = ID(a, v, q, f_ext)
    *
-   * where
-   *
-   *    a = (v_next - v) / dt
-   *
-   * and damping is considered explicitly (based on v_next rather than v).
-   *
-   * @param q generalized position at time t
-   * @param v_next generalized velocity at time t+1
-   * @param v generalized velocity at time t
+   * @param q generalized position
+   * @param v generalized velocity
+   * @param a generalized acceleration
    * @param workspace scratch space for intermediate computations
-   * @param tau generalized forces at time t (output)
+   * @param tau generalized forces
    */
-  void InverseDynamicsHelper(const VectorXd& q, const VectorXd& v_next,
-                             const VectorXd& v,
+  void InverseDynamicsHelper(const VectorXd& q, const VectorXd& v,
+                             const VectorXd& a,
                              TrajectoryOptimizerWorkspace* workspace,
                              VectorXd* tau) const;
 
