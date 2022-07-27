@@ -132,6 +132,29 @@ class TrajectoryOptimizer {
   void CalcInverseDynamicsPartialsFiniteDiff(const std::vector<VectorXd>& q,
                                              const std::vector<VectorXd>& v,
                                              GradientData* grad_data) const;
+
+  /**
+   * Helper function for computing the inverse dynamics
+   * 
+   *  tau = ID(a, v, q, f_ext),
+   * 
+   * where
+   * 
+   *    a = (v_next - v) / dt
+   * 
+   * and damping is considered explicitly (based on v_next rather than v).
+   * 
+   * @param q generalized position at time t
+   * @param v_next generalized velocity at time t+1
+   * @param v generalized velocity at time t
+   * @param a scratch space for acceleration computations
+   * @param f_ext scratch space for force (e.g. gravity) contributions
+   * @param tau generalized forces at time t (output)
+   */
+  void InverseDynamicsHelper(const VectorXd& q, const VectorXd& v_next, const VectorXd& v,
+                             VectorXd* a, MultibodyForces<double>* f_ext,
+                             VectorXd* tau) const;
+
   // A model of the system that we are trying to find an optimal trajectory for.
   const MultibodyPlant<double>* plant_;
 

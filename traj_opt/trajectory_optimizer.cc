@@ -52,21 +52,28 @@ void TrajectoryOptimizer::CalcTau(const std::vector<VectorXd>& q,
   DRAKE_DEMAND(static_cast<int>(tau->size()) == num_steps());
 
   for (int t = 0; t < num_steps(); ++t) {
-    plant().SetPositions(context_.get(), q[t]);
-    plant().SetVelocities(context_.get(), v[t]);
-    plant().CalcForceElementsContribution(*context_, f_ext);
-
-    // Inverse dynamics computes M*a + D*v - k(q,v)
-    *a = (v[t + 1] - v[t]) / time_step();
-    tau->at(t) = plant().CalcInverseDynamics(*context_, *a, *f_ext);
-
-    // CalcInverseDynamics considers damping from v_t (D*v_t), but we want to
-    // consider damping from v_{t+1} (D*v_{t+1}).
-    tau->at(t).array() +=
-        joint_damping_.array() * (v[t + 1].array() - v[t].array());
-
-    // TODO(vincekurtz) add in contact/constriant contribution
+    InverseDynamicsHelper(q[t], v[t+1], v[t], a, f_ext, &tau->at(t));
   }
+}
+
+void TrajectoryOptimizer::InverseDynamicsHelper(const VectorXd& q,
+                                                const VectorXd& v_next,
+                                                const VectorXd& v, VectorXd* a,
+                                                MultibodyForces<double>* f_ext,
+                                                VectorXd* tau) const {
+  plant().SetPositions(context_.get(), q);
+  plant().SetVelocities(context_.get(), v);
+  plant().CalcForceElementsContribution(*context_, f_ext);
+
+  // Inverse dynamics computes M*a + D*v - k(q,v)
+  *a = (v_next - v) / time_step();
+  *tau = plant().CalcInverseDynamics(*context_, *a, *f_ext);
+
+  // CalcInverseDynamics considers damping from v_t (D*v_t), but we want to
+  // consider damping from v_{t+1} (D*v_{t+1}).
+  tau->array() += joint_damping_.array() * (v_next.array() - v.array());
+
+  // TODO(vincekurtz) add in contact/constriant contribution
 }
 
 void TrajectoryOptimizer::CalcInverseDynamicsPartials(
@@ -103,28 +110,46 @@ void TrajectoryOptimizer::CalcInverseDynamicsPartialsFiniteDiff(
   std::vector<VectorXd> tau(num_steps());
   CalcTau(q, v, &a, &f_ext, &tau);
 
-  // Purturbed versions of q, v, and tau
-  std::vector<VectorXd> q_eps(q);
-  std::vector<VectorXd> v_eps(v);
-  std::vector<VectorXd> tau_eps(tau);
+  // Perturbed versions of q_t, v_t, v_{t+1}, tau_{t-1}, tau_t, and tau_{t-1}.
+  // These are all of the quantities that change when we perturb q_t.
+  VectorXd q_eps_t(nq);
+  VectorXd v_eps_t(nv);
+  VectorXd v_eps_tp(nv);
+  VectorXd tau_eps_tm(nv);
+  VectorXd tau_eps_t(nv);
+  VectorXd tau_eps_tp(nv);
 
   const double eps = sqrt(std::numeric_limits<double>::epsilon());
   for (int t = 1; t <= num_steps(); ++t) {
     for (int i = 0; i < nq; ++i) {
-      // Purturb q_t[i] by epsilon
-      q_eps = q;
-      q_eps[t](i) += eps;
+      // Perturb q_t by epsilon
+      q_eps_t = q[t];
+      q_eps_t(i) += eps;
 
-      // Compute tau(q + S*epsilon), where S is a selection matrix for the i^th
-      // element
-      CalcV(q_eps, &v_eps);
-      CalcTau(q_eps, v_eps, &a, &f_ext, &tau_eps);
+      // Compute perturbed v(q_t) and tau(q_t) accordingly
+      // TODO(vincekurtz): add N(q)+ factor to consider quaternion DoFs.
+      v_eps_t = (q_eps_t - q[t - 1]) / time_step();
+      InverseDynamicsHelper(q[t - 1], v_eps_t, v[t - 1], &a, &f_ext,
+                            &tau_eps_tm);
 
-      // Update the non-zero entries of dtau/dq
-      dtau_dq[t].col(i) = (tau_eps[t] - tau[t]) / eps;
-      dtau_dqp[t - 1].col(i) = (tau_eps[t - 1] - tau[t - 1]) / eps;
       if (t < num_steps()) {
-        dtau_dqm[t + 1].col(i) = (tau_eps[t + 1] - tau[t + 1]) / eps;
+        v_eps_tp = (q[t + 1] - q_eps_t) / time_step();
+        InverseDynamicsHelper(q_eps_t, v_eps_tp, v_eps_t, &a, &f_ext,
+                              &tau_eps_t);
+      }
+
+      if (t < num_steps() - 1) {
+        InverseDynamicsHelper(q[t + 1], v[t + 2], v_eps_tp, &a, &f_ext,
+                              &tau_eps_tp);
+      }
+
+      // Compute the nonzero entries of dtau/dq via finite differencing
+      dtau_dqp[t - 1].col(i) = (tau_eps_tm - tau[t - 1]) / eps;
+      if (t < num_steps()) {
+        dtau_dq[t].col(i) = (tau_eps_t - tau[t]) / eps;
+      }
+      if (t < num_steps() - 1) {
+        dtau_dqm[t + 1].col(i) = (tau_eps_tp - tau[t + 1]) / eps;
       }
     }
   }
