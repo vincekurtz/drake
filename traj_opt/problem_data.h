@@ -1,6 +1,5 @@
 #pragma once
 
-#include <iostream>//DEBUG
 #include <vector>
 
 #include "drake/common/eigen_types.h"
@@ -18,15 +17,15 @@ using Eigen::VectorXd;
 struct GradientData {
   /**
    * Constructor which allocates variables of the proper sizes.
-   * 
+   *
    * @param num_steps number of time steps in the optimization problem
    * @param nv number of generalized velocities (size of tau and v)
    * @param nq number of generalized positions (size of q)
    */
   GradientData(const int num_steps, const int nv, const int nq) {
-    dtau_dqm.assign( num_steps, MatrixXd(nv, nq));
-    dtau_dq.assign( num_steps, MatrixXd(nv, nq));
-    dtau_dqp.assign( num_steps, MatrixXd(nv, nq));
+    dtau_dqm.assign(num_steps, MatrixXd(nv, nq));
+    dtau_dq.assign(num_steps, MatrixXd(nv, nq));
+    dtau_dqp.assign(num_steps, MatrixXd(nv, nq));
 
     // Set all derivatives w.r.t q(0) and q(-1) to zero
     dtau_dq[0].setZero();

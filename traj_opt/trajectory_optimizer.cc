@@ -85,7 +85,7 @@ void TrajectoryOptimizer::CalcInverseDynamicsPartialsFiniteDiff(
     const std::vector<VectorXd>& q, const std::vector<VectorXd>& v,
     TrajectoryOptimizerWorkspace* workspace, GradientData* grad_data) const {
   // Check that grad_data has been allocated correctly.
-  DRAKE_DEMAND( grad_data->size() == num_steps() );
+  DRAKE_DEMAND(grad_data->size() == num_steps());
 
   // Get references to the partials that we'll be setting
   std::vector<MatrixXd>& dtau_dqm = grad_data->dtau_dqm;
@@ -98,21 +98,19 @@ void TrajectoryOptimizer::CalcInverseDynamicsPartialsFiniteDiff(
   std::vector<VectorXd> tau(num_steps());
   CalcTau(q, v, workspace, &tau);
 
-  // Perturbed versions of q_t, v_t, v_{t+1}, tau_{t-1}, tau_t, and tau_{t - 1}.
-  // These are all of the quantities that change when we perturb q_t.
-  // TODO put in workspace
-  const int nv = plant().num_velocities();
-  const int nq = plant().num_positions();
-  VectorXd q_eps_t(nq);
-  VectorXd v_eps_t(nv);
-  VectorXd v_eps_tp(nv);
-  VectorXd tau_eps_tm(nv);
-  VectorXd tau_eps_t(nv);
-  VectorXd tau_eps_tp(nv);
+  // Get references to perturbed versions of q_t, v_t, v_{t+1}, tau_{t-1},
+  // tau_t, and tau_{t-1}. These are all of the quantities that change when we
+  // perturb q_t.
+  VectorXd& q_eps_t = workspace->q_eps_t;
+  VectorXd& v_eps_t = workspace->v_eps_t;
+  VectorXd& v_eps_tp = workspace->v_eps_tp;
+  VectorXd& tau_eps_tm = workspace->tau_eps_tm;
+  VectorXd& tau_eps_t = workspace->tau_eps_t;
+  VectorXd& tau_eps_tp = workspace->tau_eps_tp;
 
   const double eps = sqrt(std::numeric_limits<double>::epsilon());
   for (int t = 1; t <= num_steps(); ++t) {
-    for (int i = 0; i < nq; ++i) {
+    for (int i = 0; i < plant().num_positions(); ++i) {
       // Perturb q_t by epsilon
       q_eps_t = q[t];
       q_eps_t(i) += eps;
@@ -144,11 +142,6 @@ void TrajectoryOptimizer::CalcInverseDynamicsPartialsFiniteDiff(
       }
     }
   }
-
-  // Put the results into the GradientData struct
-  //grad_data->dtau_dqm = dtau_dqm;
-  //grad_data->dtau_dq = dtau_dq;
-  //grad_data->dtau_dqp = dtau_dqp;
 }
 
 }  // namespace traj_opt
