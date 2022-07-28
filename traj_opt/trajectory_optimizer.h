@@ -146,10 +146,10 @@ class TrajectoryOptimizer {
    * @param workspace scratch space for intermediate computations
    * @param tau generalized forces
    */
-  void InverseDynamicsHelper(const VectorXd& q, const VectorXd& v,
-                             const VectorXd& a,
-                             TrajectoryOptimizerWorkspace* workspace,
-                             VectorXd* tau) const;
+  void CalcInverseDynamics(const VectorXd& q, const VectorXd& v,
+                           const VectorXd& a,
+                           TrajectoryOptimizerWorkspace* workspace,
+                           VectorXd* tau) const;
 
   // A model of the system that we are trying to find an optimal trajectory for.
   const MultibodyPlant<double>* plant_;

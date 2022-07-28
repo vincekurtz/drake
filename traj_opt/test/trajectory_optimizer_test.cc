@@ -75,11 +75,11 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumDtauDq) {
         1 / dt / dt * m * l * l + 1 / dt * b + m * g * l * cos(q[t + 1](0));
 
     // dtau[t]/dq[t]
-    grad_data_gt.dtau_dq[t](0, 0) = -2 / dt / dt * m * l * l - 1 / dt * b;
+    grad_data_gt.dtau_dqt[t](0, 0) = -2 / dt / dt * m * l * l - 1 / dt * b;
 
     if (t == 0) {
       // v[0] is constant
-      grad_data_gt.dtau_dq[t](0, 0) = -1 / dt / dt * m * l * l - 1 / dt * b;
+      grad_data_gt.dtau_dqt[t](0, 0) = -1 / dt / dt * m * l * l - 1 / dt * b;
     }
 
     // dtau[t]/dq[t-1]
@@ -96,7 +96,7 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumDtauDq) {
   for (int t = 0; t < num_steps; ++t) {
     EXPECT_TRUE(CompareMatrices(grad_data.dtau_dqm[t], grad_data_gt.dtau_dqm[t],
                                 kTolerance, MatrixCompareType::relative));
-    EXPECT_TRUE(CompareMatrices(grad_data.dtau_dq[t], grad_data_gt.dtau_dq[t],
+    EXPECT_TRUE(CompareMatrices(grad_data.dtau_dqt[t], grad_data_gt.dtau_dqt[t],
                                 kTolerance, MatrixCompareType::relative));
     EXPECT_TRUE(CompareMatrices(grad_data.dtau_dqp[t], grad_data_gt.dtau_dqp[t],
                                 kTolerance, MatrixCompareType::relative));

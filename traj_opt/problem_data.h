@@ -24,19 +24,15 @@ struct GradientData {
    */
   GradientData(const int num_steps, const int nv, const int nq) {
     dtau_dqm.assign(num_steps, MatrixXd(nv, nq));
-    dtau_dq.assign(num_steps, MatrixXd(nv, nq));
+    dtau_dqt.assign(num_steps, MatrixXd(nv, nq));
     dtau_dqp.assign(num_steps, MatrixXd(nv, nq));
 
     // Set all derivatives w.r.t q(-1) to NaN
-    for (int i = 0; i < nv; ++i) {
-      for (int j = 0; j < nq; ++j) {
-        dtau_dqm[0](i, j) = NAN;
-      }
-    }
+    dtau_dqm[0].setConstant(nv, nq, NAN);
   }
 
   // Return the number of steps allocated in this object.
-  int size() const { return dtau_dq.size(); }
+  int size() const { return dtau_dqt.size(); }
 
   // Partials of tau_t with respect to q_{t-1} ("q_t minus"),
   //
@@ -61,7 +57,7 @@ struct GradientData {
   //    [ d(tau_0)/d(q_0), d(tau_1)/d(q_1), ... ,
   //                                    d(tau_{num_steps-1})/d(q_{num_steps-1})]
   //
-  std::vector<MatrixXd> dtau_dq;
+  std::vector<MatrixXd> dtau_dqt;
 
   // Partial of tau_t with respect to q_{t+1} ("q_t plus"),
   //

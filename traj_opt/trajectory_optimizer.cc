@@ -58,11 +58,11 @@ void TrajectoryOptimizer::CalcTau(const std::vector<VectorXd>& q,
 
     // All dynamics terms are treated implicitly, i.e.,
     // tau[t] = M(q[t+1]) * a[t] - k(q[t+1],v[t+1]) - f_ext[t+1]
-    InverseDynamicsHelper(q[t + 1], v[t + 1], a, workspace, &tau->at(t));
+    CalcInverseDynamics(q[t + 1], v[t + 1], a, workspace, &tau->at(t));
   }
 }
 
-void TrajectoryOptimizer::InverseDynamicsHelper(
+void TrajectoryOptimizer::CalcInverseDynamics(
     const VectorXd& q, const VectorXd& v, const VectorXd& a,
     TrajectoryOptimizerWorkspace* workspace, VectorXd* tau) const {
   plant().SetPositions(context_.get(), q);
@@ -91,7 +91,7 @@ void TrajectoryOptimizer::CalcInverseDynamicsPartialsFiniteDiff(
 
   // Get references to the partials that we'll be setting
   std::vector<MatrixXd>& dtau_dqm = grad_data->dtau_dqm;
-  std::vector<MatrixXd>& dtau_dq = grad_data->dtau_dq;
+  std::vector<MatrixXd>& dtau_dqt = grad_data->dtau_dqt;
   std::vector<MatrixXd>& dtau_dqp = grad_data->dtau_dqp;
 
   // Compute tau(q) [all timesteps] using the orignal value of q
@@ -115,6 +115,10 @@ void TrajectoryOptimizer::CalcInverseDynamicsPartialsFiniteDiff(
   const double eps = sqrt(std::numeric_limits<double>::epsilon());
   double dqt_i;
   for (int t = 0; t <= num_steps(); ++t) {
+    // N.B. A perturbation of qt propagates to tau[t-1], tau[t] and tau[t+1].
+    // Therefore we compute one column of grad_tau at a time. That is, once the
+    // loop on position indices i is over, we effectively computed the t-th
+    // column of grad_tau.
     for (int i = 0; i < plant().num_positions(); ++i) {
       // Perturb q_t by epsilon
       q_eps_t = q[t];
@@ -141,19 +145,19 @@ void TrajectoryOptimizer::CalcInverseDynamicsPartialsFiniteDiff(
       } else {
         a_eps_tm = (v_eps_t - v[t - 1]) / time_step();
       }
-      InverseDynamicsHelper(q_eps_t, v_eps_t, a_eps_tm, workspace, &tau_eps_tm);
+      CalcInverseDynamics(q_eps_t, v_eps_t, a_eps_tm, workspace, &tau_eps_tm);
 
       // tau[t] = ID(q[t+1], v[t+1], a[t])
       if (t < num_steps()) {
         a_eps_t = (v_eps_tp - v_eps_t) / time_step();
-        InverseDynamicsHelper(q[t + 1], v_eps_tp, a_eps_t, workspace,
+        CalcInverseDynamics(q[t + 1], v_eps_tp, a_eps_t, workspace,
                               &tau_eps_t);
       }
 
       // tau[t+1] = ID(q[t+2], v[t+2], a[t+1])
       if (t < num_steps() - 1) {
         a_eps_tp = (v[t + 2] - v_eps_tp) / time_step();
-        InverseDynamicsHelper(q[t + 2], v[t + 2], a_eps_tp, workspace,
+        CalcInverseDynamics(q[t + 2], v[t + 2], a_eps_tp, workspace,
                               &tau_eps_tp);
       }
 
@@ -162,7 +166,7 @@ void TrajectoryOptimizer::CalcInverseDynamicsPartialsFiniteDiff(
         dtau_dqp[t - 1].col(i) = (tau_eps_tm - tau[t - 1]) / dqt_i;
       }
       if (t < num_steps()) {
-        dtau_dq[t].col(i) = (tau_eps_t - tau[t]) / dqt_i;
+        dtau_dqt[t].col(i) = (tau_eps_t - tau[t]) / dqt_i;
       }
       if (t < num_steps() - 1) {
         dtau_dqm[t + 1].col(i) = (tau_eps_tp - tau[t + 1]) / dqt_i;
