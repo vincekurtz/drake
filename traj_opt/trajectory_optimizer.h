@@ -134,17 +134,29 @@ class TrajectoryOptimizer {
                std::vector<VectorXd>* tau) const;
 
   /**
+   * Compute the gradient of the unconstrained cost L(q).
+   *
+   * @param q vector of generalized positions at each timestep
+   * @param g a single VectorXd containing the partials of L w.r.t. each
+   *          decision variable (q_t[i]).
+   */
+  void CalcGradient(const std::vector<VectorXd>& q, const GradientData& grad_data,
+                    TrajectoryOptimizerWorkspace* workspace,
+                    EigenPtr<VectorXd> g) const;
+
+  /**
    * Compute the gradient of the unconstrained cost L(q) using finite
    * differences.
    *
    * For testing purposes only.
    *
-   * TODO(vincekurtz): refactor so this takes the same structure as CalcGradient
    * @param q vector of generalized positions at each timestep
    * @param g a single VectorXd containing the partials of L w.r.t. each
    *          decision variable (q_t[i]).
    */
-  void CalcGradientFiniteDiff(const std::vector<VectorXd>& q, TrajectoryOptimizerWorkspace* workspace, EigenPtr<VectorXd> g) const;
+  void CalcGradientFiniteDiff(const std::vector<VectorXd>& q,
+                              TrajectoryOptimizerWorkspace* workspace,
+                              EigenPtr<VectorXd> g) const;
 
   /**
    * Compute partial derivatives of the inverse dynamics

@@ -33,15 +33,15 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcGradient) {
 
   ProblemDefinition opt_prob;
   opt_prob.num_steps = num_steps;
-  opt_prob.q_init = Vector1d(0.1);
+  opt_prob.q_init = Vector1d(0.0);
   opt_prob.v_init = Vector1d(0.0);
   opt_prob.Qq = 0.1 * MatrixXd::Identity(1,1);
   opt_prob.Qv = 0.2 * MatrixXd::Identity(1,1);
   opt_prob.Qf_q = 0.3 * MatrixXd::Identity(1,1);
   opt_prob.Qf_v = 0.4 * MatrixXd::Identity(1,1);
   opt_prob.R = 0.5 * MatrixXd::Identity(1,1);
-  opt_prob.q_nom = Vector1d(0.1);
-  opt_prob.v_nom = Vector1d(0.0);
+  opt_prob.q_nom = Vector1d(0.0);
+  opt_prob.v_nom = Vector1d(0.1);
 
   // Create a pendulum model
   MultibodyPlant<double> plant(dt);
@@ -59,29 +59,38 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcGradient) {
   std::vector<VectorXd> q(num_steps+1);
   q[0] = opt_prob.q_init;
   for (int t = 1; t <= num_steps; ++t) {
-    q[t] = opt_prob.q_init;
-    //q[t] = q[t-1] + 0.0*dt*MatrixXd::Identity(1,1);
+    q[t] = q[t-1] + 0.0*dt*MatrixXd::Identity(1,1);
   }
 
   // Compute the ("ground truth") gradient with finite differences
   VectorXd g_gt(plant.num_positions()*(num_steps+1));
-
-  for (int j=0; j<g_gt.size(); ++j) {
-    g_gt(j) = 123;
-  }
   optimizer.CalcGradientFiniteDiff(q, &workspace, &g_gt);
 
-  // DEBUG
+  // Compute the gradient with our method
+  VectorXd g(plant.num_positions()*(num_steps+1));
+  GradientData grad_data(num_steps, 1, 1);
   std::vector<VectorXd> v(num_steps + 1);
-  std::vector<VectorXd> tau(num_steps);
   optimizer.CalcV(q, &v);
-  optimizer.CalcTau(q, v, &workspace, &tau);
+  optimizer.CalcInverseDynamicsPartials(q, v, &workspace, &grad_data);
 
-  for (VectorXd tau_t : tau) {
-    std::cout << "tau[t]: " << tau_t << std::endl;
+  optimizer.CalcGradient(q, grad_data, &workspace, &g);
+
+
+  // Compare
+  for (int t=0; t <= num_steps; ++t) {
+    std::cout << "t = " << t << std::endl;
+    std::cout << "true: " << g_gt[t] << std::endl;
+    std::cout << "ours: " << g[t] << std::endl;
   }
 
-  // Compute the gradient using our approximations
+  // DEBUG
+  std::vector<VectorXd> tau(num_steps);
+  optimizer.CalcTau(q, v, &workspace, &tau);
+  for (int t=0; t <= num_steps; ++t) {
+    std::cout << tau[t] << std::endl;
+  }
+
+
 }
 
 

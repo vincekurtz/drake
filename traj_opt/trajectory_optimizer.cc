@@ -283,9 +283,48 @@ void TrajectoryOptimizer::CalcGradientFiniteDiff(const std::vector<VectorXd>& q,
       ++j;
     }
   }
+}
 
-  std::cout << *g << std::endl;
+void TrajectoryOptimizer::CalcGradient(const std::vector<VectorXd>& q, const GradientData& grad_data, TrajectoryOptimizerWorkspace* workspace, EigenPtr<VectorXd> g) const {
+  // Compute v and tau
+  // TODO(vincekurtz): wrap all this data into a TrajectoryOptimizerState and compute ahead of time
+  std::vector<VectorXd> v(num_steps() + 1);
+  std::vector<VectorXd> tau(num_steps());
+  CalcV(q, &v);
+  CalcTau(q, v, workspace, &tau);
 
+  // TODO this should also go in the TrajectoryOptimizerState (cache part)
+  double dvt_dqt = 1 / time_step();   // assuming no quaternion DoFs
+  double dvt_dqm = - 1 / time_step();
+
+  // Set first block of g (derivatives w.r.t. q_0) to zero, since q0 = q_init are constant.
+  g->topRows(plant().num_positions()).setZero();
+
+  for (int t = 1; t < num_steps(); ++t ) {
+    // TODO: allocate q, v, and tau size things outside the loop, from workspace
+    Vector1d qt_term = (q[t] - prob_.q_nom).transpose() * 2 * prob_.Qq * time_step();
+    Vector1d vt_term = (v[t] - prob_.v_nom).transpose() * 2 * prob_.Qv * time_step() * dvt_dqt;
+    Vector1d vp_term;
+    if ( t == num_steps() - 1) {
+      // The terminal cost needs to be handled differently
+      vp_term = (v[t + 1] - prob_.v_nom).transpose() * 2 * prob_.Qf_v * dvt_dqm;
+    } else {
+      vp_term = (v[t + 1] - prob_.v_nom).transpose() * 2 * prob_.Qv * time_step() * dvt_dqm;
+    }
+    
+    // TODO: this should be a block of g
+    (*g)(t) = qt_term(0) + vt_term(0) + vp_term(0);
+  }
+
+  // Last step is different, because there is terminal cost and v[t+1] doesn't exist
+  Vector1d qt_term = (q[num_steps()] - prob_.q_nom).transpose() * 2 * prob_.Qf_q;
+  Vector1d vt_term = (v[num_steps()] - prob_.v_nom).transpose() * 2 * prob_.Qf_v * dvt_dqt;
+  (*g)(num_steps()) = qt_term(0) + vt_term(0);
+
+  (void) dvt_dqt;
+  (void) dvt_dqm;  
+  (void) grad_data;
+  (void) g;
 }
 
 }  // namespace traj_opt
