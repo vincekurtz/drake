@@ -78,13 +78,14 @@ class TrajectoryOptimizer {
                   const std::vector<VectorXd>& tau) const;
 
   /**
-   * Convienience function which computes the total cost as a function of q directly, 
-   * and includes the intermediate computation of v(q) and tau(q).
-   * 
+   * Convienience function which computes the total cost as a function of q
+   * directly, and includes the intermediate computation of v(q) and tau(q).
+   *
    * @param q sequence of generalized positions
    * @return double the total cost
    */
-  double CalcCost(const std::vector<VectorXd>& q, TrajectoryOptimizerWorkspace* workspace) const;
+  double CalcCost(const std::vector<VectorXd>& q,
+                  TrajectoryOptimizerWorkspace* workspace) const;
 
   /**
    * Compute a sequence of generalized velocities v from a sequence of
@@ -140,7 +141,8 @@ class TrajectoryOptimizer {
    * @param g a single VectorXd containing the partials of L w.r.t. each
    *          decision variable (q_t[i]).
    */
-  void CalcGradient(const std::vector<VectorXd>& q, const GradientData& grad_data,
+  void CalcGradient(const std::vector<VectorXd>& q,
+                    const GradientData& grad_data,
                     TrajectoryOptimizerWorkspace* workspace,
                     EigenPtr<VectorXd> g) const;
 
