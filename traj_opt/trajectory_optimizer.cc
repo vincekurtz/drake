@@ -116,29 +116,35 @@ void TrajectoryOptimizer::CalcTau(const std::vector<VectorXd>& q,
 void TrajectoryOptimizer::CalcGradientFiniteDiff(const std::vector<VectorXd>& q, EigenPtr<VectorXd> g) const {
   // Compute the baseline cost
   double L = CalcCost(q);
-  std::cout << L << std::endl;
+  std::cout << "L : " << L << std::endl;
 
-  // Perturbed versions of q and L
+  // Perturbed versions of q
   // TODO(vincekurtz): store in the workspace
-  std::vector<VectorXd> q_eps(q);
+  std::vector<VectorXd> q_plus(q);
+  std::vector<VectorXd> q_minus(q);
 
   // Set first block of g (derivatives w.r.t. q_0) to zero, since q0 = q_init are constant.
   g->topRows(plant().num_positions()).setZero();
 
   // Iterate through rows of g using finite differences
-  double eps = sqrt(std::numeric_limits<double>::epsilon());
+  const double eps = sqrt(std::numeric_limits<double>::epsilon());
+  double dqt_i;
   int j = plant().num_positions();
   for (int t=1; t<=num_steps(); ++t ) {
     for (int i=0; i<plant().num_positions(); ++i) {
-      // Perturb Q_j
-      q_eps[t](i) += eps;
+      // Set finite difference step size
+      dqt_i = eps * std::max(1.0, std::abs(q[t](i)));
+      q_plus[t](i) += dqt_i;
+      q_minus[t](i) -= dqt_i;
 
-      // Set g_j = ( L(Q) + L(Q+epsilon) ) / epsilon
-      double L_eps = CalcCost(q_eps);
-      (*g)(j) = (L + L_eps) / eps;
+      // Set g_j = using central differences
+      double L_plus = CalcCost(q_plus);
+      double L_minus = CalcCost(q_minus);
+      (*g)(j) = (L_plus - L_minus) / (2*dqt_i);
 
       // reset our perturbed Q and move to the next row of g.
-      q_eps[t](i) = q[t](i);
+      q_plus[t](i) = q[t](i);
+      q_minus[t](i) = q[t](i);
       ++j;
     }
   }

@@ -25,20 +25,20 @@ using test::LimitMalloc;
 
 GTEST_TEST(TrajectoryOptimizerTest, CalcGradient) {
   // Set up an optimization problem 
-  const int num_steps = 100;
-  const double dt = 1e-2;
+  const int num_steps = 5;
+  const double dt = 1e-3;
 
   ProblemDefinition opt_prob;
   opt_prob.num_steps = num_steps;
-  opt_prob.q_init = Vector1d(0.2);
-  opt_prob.v_init = Vector1d(-0.1);
+  opt_prob.q_init = Vector1d(0.1);
+  opt_prob.v_init = Vector1d(0.0);
   opt_prob.Qq = 0.1 * MatrixXd::Identity(1,1);
   opt_prob.Qv = 0.2 * MatrixXd::Identity(1,1);
   opt_prob.Qf_q = 0.3 * MatrixXd::Identity(1,1);
   opt_prob.Qf_v = 0.4 * MatrixXd::Identity(1,1);
   opt_prob.R = 0.5 * MatrixXd::Identity(1,1);
-  opt_prob.q_nom = Vector1d(1.2);
-  opt_prob.v_nom = Vector1d(-1.1);
+  opt_prob.q_nom = Vector1d(0.1);
+  opt_prob.v_nom = Vector1d(0.0);
 
   // Create a pendulum model
   MultibodyPlant<double> plant(dt);
@@ -55,7 +55,8 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcGradient) {
   std::vector<VectorXd> q(num_steps+1);
   q[0] = opt_prob.q_init;
   for (int t = 1; t <= num_steps; ++t) {
-    q[t] = q[t-1] + 0.1*dt*MatrixXd::Identity(1,1);
+    q[t] = opt_prob.q_init;
+    //q[t] = q[t-1] + 0.0*dt*MatrixXd::Identity(1,1);
   }
 
   // Compute the ("ground truth") gradient with finite differences
@@ -65,6 +66,18 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcGradient) {
     g_gt(j) = 123;
   }
   optimizer.CalcGradientFiniteDiff(q, &g_gt);
+
+  // DEBUG
+  std::vector<VectorXd> v(num_steps + 1);
+  std::vector<VectorXd> tau(num_steps);
+  VectorXd a;
+  MultibodyForces<double> f_ext(plant);
+  optimizer.CalcV(q, &v);
+  optimizer.CalcTau(q, v, &a, &f_ext, &tau);
+
+  for (VectorXd tau_t : tau) {
+    std::cout << "tau[t]: " << tau_t << std::endl;
+  }
 
   // Compute the gradient using our approximations
 }
