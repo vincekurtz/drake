@@ -300,31 +300,47 @@ void TrajectoryOptimizer::CalcGradient(const std::vector<VectorXd>& q, const Gra
   // Set first block of g (derivatives w.r.t. q_0) to zero, since q0 = q_init are constant.
   g->topRows(plant().num_positions()).setZero();
 
+  // TODO: allocate things of proper size from the workspace
+  Vector1d qt_term;
+  Vector1d vt_term;
+  Vector1d vp_term;
+  Vector1d taum_term;
+  Vector1d taut_term;
+  Vector1d taup_term;
+
   for (int t = 1; t < num_steps(); ++t ) {
-    // TODO: allocate q, v, and tau size things outside the loop, from workspace
-    Vector1d qt_term = (q[t] - prob_.q_nom).transpose() * 2 * prob_.Qq * time_step();
-    Vector1d vt_term = (v[t] - prob_.v_nom).transpose() * 2 * prob_.Qv * time_step() * dvt_dqt;
-    Vector1d vp_term;
+    // Contribution from position cost
+    qt_term = (q[t] - prob_.q_nom).transpose() * 2 * prob_.Qq * time_step();
+
+    // Contribution from velocity cost 
+    vt_term = (v[t] - prob_.v_nom).transpose() * 2 * prob_.Qv * time_step() * dvt_dqt;
     if ( t == num_steps() - 1) {
       // The terminal cost needs to be handled differently
       vp_term = (v[t + 1] - prob_.v_nom).transpose() * 2 * prob_.Qf_v * dvt_dqm;
     } else {
       vp_term = (v[t + 1] - prob_.v_nom).transpose() * 2 * prob_.Qv * time_step() * dvt_dqm;
     }
+
+    // Contribution from control cost
+    taum_term = tau[t-1].transpose() * 2 * prob_.R * time_step() * grad_data.dtau_dqp[t-1];
+    taut_term = tau[t].transpose() * 2 * prob_.R * time_step() * grad_data.dtau_dqt[t];
+    if (t == num_steps() -1 ) {
+      // There is no constrol input at the final timestep
+      taup_term.setZero();
+    } else {
+      taup_term = tau[t+1].transpose() * 2 * prob_.R * time_step() * grad_data.dtau_dqm[t+1];
+    }
     
-    // TODO: this should be a block of g
-    (*g)(t) = qt_term(0) + vt_term(0) + vp_term(0);
+    // TODO: this should be a block of g, not a double
+    (*g)(t) = qt_term(0) + vt_term(0) + vp_term(0) + taum_term(0) + taut_term(0) + taup_term(0);
   }
 
   // Last step is different, because there is terminal cost and v[t+1] doesn't exist
-  Vector1d qt_term = (q[num_steps()] - prob_.q_nom).transpose() * 2 * prob_.Qf_q;
-  Vector1d vt_term = (v[num_steps()] - prob_.v_nom).transpose() * 2 * prob_.Qf_v * dvt_dqt;
-  (*g)(num_steps()) = qt_term(0) + vt_term(0);
+  taum_term = tau[num_steps()-1].transpose() * 2 * prob_.R * time_step() * grad_data.dtau_dqp[num_steps()-1];
+  qt_term = (q[num_steps()] - prob_.q_nom).transpose() * 2 * prob_.Qf_q;
+  vt_term = (v[num_steps()] - prob_.v_nom).transpose() * 2 * prob_.Qf_v * dvt_dqt;
+  (*g)(num_steps()) = qt_term(0) + vt_term(0) + taum_term(0);
 
-  (void) dvt_dqt;
-  (void) dvt_dqm;  
-  (void) grad_data;
-  (void) g;
 }
 
 }  // namespace traj_opt
