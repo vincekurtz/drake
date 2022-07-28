@@ -249,12 +249,7 @@ void TrajectoryOptimizer::CalcInverseDynamicsPartialsFiniteDiff(
 }
 
 void TrajectoryOptimizer::CalcGradientFiniteDiff(const std::vector<VectorXd>& q, TrajectoryOptimizerWorkspace* workspace, EigenPtr<VectorXd> g) const {
-  // Compute the baseline cost
-  double L = CalcCost(q, workspace);
-  std::cout << "L : " << L << std::endl;
-
-  // Perturbed versions of q
-  // TODO(vincekurtz): store in the workspace
+  // Allocate perturbed versions of q
   std::vector<VectorXd> q_plus(q);
   std::vector<VectorXd> q_minus(q);
 
@@ -262,7 +257,7 @@ void TrajectoryOptimizer::CalcGradientFiniteDiff(const std::vector<VectorXd>& q,
   g->topRows(plant().num_positions()).setZero();
 
   // Iterate through rows of g using finite differences
-  const double eps = sqrt(std::numeric_limits<double>::epsilon());
+  const double eps = cbrt(std::numeric_limits<double>::epsilon());
   double dqt_i;
   int j = plant().num_positions();
   for (int t=1; t<=num_steps(); ++t ) {
@@ -285,62 +280,76 @@ void TrajectoryOptimizer::CalcGradientFiniteDiff(const std::vector<VectorXd>& q,
   }
 }
 
-void TrajectoryOptimizer::CalcGradient(const std::vector<VectorXd>& q, const GradientData& grad_data, TrajectoryOptimizerWorkspace* workspace, EigenPtr<VectorXd> g) const {
+void TrajectoryOptimizer::CalcGradient(const std::vector<VectorXd>& q,
+                                       const GradientData& grad_data,
+                                       TrajectoryOptimizerWorkspace* workspace,
+                                       EigenPtr<VectorXd> g) const {
+  const double dt = time_step();
+  const int nq = plant().num_positions();
+
   // Compute v and tau
-  // TODO(vincekurtz): wrap all this data into a TrajectoryOptimizerState and compute ahead of time
+  // TODO(vincekurtz): wrap all this data into a TrajectoryOptimizerState and
+  // compute ahead of time
   std::vector<VectorXd> v(num_steps() + 1);
   std::vector<VectorXd> tau(num_steps());
   CalcV(q, &v);
   CalcTau(q, v, workspace, &tau);
 
   // TODO this should also go in the TrajectoryOptimizerState (cache part)
-  double dvt_dqt = 1 / time_step();   // assuming no quaternion DoFs
-  double dvt_dqm = - 1 / time_step();
+  double dvt_dqt = 1 / time_step();  // assuming no quaternion DoFs
+  double dvt_dqm = -1 / time_step();
 
-  // Set first block of g (derivatives w.r.t. q_0) to zero, since q0 = q_init are constant.
+  // Set first block of g (derivatives w.r.t. q_0) to zero, since q0 = q_init
+  // are constant.
   g->topRows(plant().num_positions()).setZero();
 
-  // TODO: allocate things of proper size from the workspace
-  Vector1d qt_term;
-  Vector1d vt_term;
-  Vector1d vp_term;
-  Vector1d taum_term;
-  Vector1d taut_term;
-  Vector1d taup_term;
+  // Scratch variables for storing intermediate cost terms
+  VectorXd& qt_term = workspace->q_size_tmp;
+  VectorXd& vt_term = workspace->v_size_tmp1;
+  VectorXd& vp_term = workspace->v_size_tmp2;
+  VectorXd& taum_term = workspace->tau_size_tmp1;
+  VectorXd& taut_term = workspace->tau_size_tmp2;
+  VectorXd& taup_term = workspace->tau_size_tmp3;
 
-  for (int t = 1; t < num_steps(); ++t ) {
+  for (int t = 1; t < num_steps(); ++t) {
     // Contribution from position cost
-    qt_term = (q[t] - prob_.q_nom).transpose() * 2 * prob_.Qq * time_step();
+    qt_term = (q[t] - prob_.q_nom).transpose() * 2 * prob_.Qq * dt;
 
-    // Contribution from velocity cost 
-    vt_term = (v[t] - prob_.v_nom).transpose() * 2 * prob_.Qv * time_step() * dvt_dqt;
-    if ( t == num_steps() - 1) {
+    // Contribution from velocity cost
+    vt_term = (v[t] - prob_.v_nom).transpose() * 2 * prob_.Qv * dt * dvt_dqt;
+    if (t == num_steps() - 1) {
       // The terminal cost needs to be handled differently
       vp_term = (v[t + 1] - prob_.v_nom).transpose() * 2 * prob_.Qf_v * dvt_dqm;
     } else {
-      vp_term = (v[t + 1] - prob_.v_nom).transpose() * 2 * prob_.Qv * time_step() * dvt_dqm;
+      vp_term =
+          (v[t + 1] - prob_.v_nom).transpose() * 2 * prob_.Qv * dt * dvt_dqm;
     }
 
     // Contribution from control cost
-    taum_term = tau[t-1].transpose() * 2 * prob_.R * time_step() * grad_data.dtau_dqp[t-1];
-    taut_term = tau[t].transpose() * 2 * prob_.R * time_step() * grad_data.dtau_dqt[t];
-    if (t == num_steps() -1 ) {
+    taum_term =
+        tau[t - 1].transpose() * 2 * prob_.R * dt * grad_data.dtau_dqp[t - 1];
+    taut_term = tau[t].transpose() * 2 * prob_.R * dt * grad_data.dtau_dqt[t];
+    if (t == num_steps() - 1) {
       // There is no constrol input at the final timestep
-      taup_term.setZero();
+      taup_term.setZero(nq);
     } else {
-      taup_term = tau[t+1].transpose() * 2 * prob_.R * time_step() * grad_data.dtau_dqm[t+1];
+      taup_term =
+          tau[t + 1].transpose() * 2 * prob_.R * dt * grad_data.dtau_dqm[t + 1];
     }
-    
-    // TODO: this should be a block of g, not a double
-    (*g)(t) = qt_term(0) + vt_term(0) + vp_term(0) + taum_term(0) + taut_term(0) + taup_term(0);
+
+    // Put it all together to get the gradient w.r.t q[t]
+    g->segment(t * nq, nq) =
+        qt_term + vt_term + vp_term + taum_term + taut_term + taup_term;
   }
 
-  // Last step is different, because there is terminal cost and v[t+1] doesn't exist
-  taum_term = tau[num_steps()-1].transpose() * 2 * prob_.R * time_step() * grad_data.dtau_dqp[num_steps()-1];
+  // Last step is different, because there is terminal cost and v[t+1] doesn't
+  // exist
+  taum_term = tau[num_steps() - 1].transpose() * 2 * prob_.R * dt *
+              grad_data.dtau_dqp[num_steps() - 1];
   qt_term = (q[num_steps()] - prob_.q_nom).transpose() * 2 * prob_.Qf_q;
-  vt_term = (v[num_steps()] - prob_.v_nom).transpose() * 2 * prob_.Qf_v * dvt_dqt;
-  (*g)(num_steps()) = qt_term(0) + vt_term(0) + taum_term(0);
-
+  vt_term =
+      (v[num_steps()] - prob_.v_nom).transpose() * 2 * prob_.Qf_v * dvt_dqt;
+  g->tail(nq) = qt_term + vt_term + taum_term;
 }
 
 }  // namespace traj_opt

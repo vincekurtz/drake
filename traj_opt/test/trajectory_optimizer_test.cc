@@ -72,15 +72,11 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcGradient) {
   std::vector<VectorXd> v(num_steps + 1);
   optimizer.CalcV(q, &v);
   optimizer.CalcInverseDynamicsPartials(q, v, &workspace, &grad_data);
-
   optimizer.CalcGradient(q, grad_data, &workspace, &g);
 
-  // Compare
-  for (int t=0; t <= num_steps; ++t) {
-    std::cout << "t = " << t << std::endl;
-    std::cout << "true: " << g_gt[t] << std::endl;
-    std::cout << "ours: " << g[t] << std::endl;
-  }
+  // Compare the two (we don't quite get the theoretical eps^(2/3) accuracy)
+  const double kTolerance = pow(std::numeric_limits<double>::epsilon(), 0.5);
+  EXPECT_TRUE(CompareMatrices(g, g_gt, kTolerance, MatrixCompareType::relative));
 
 }
 
