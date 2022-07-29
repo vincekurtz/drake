@@ -11,8 +11,22 @@ using Eigen::MatrixXd;
 using Eigen::VectorXd;
 
 /**
+ * Struct storing gradients of generalized velocities (v) with respect to
+ * generalized positions (q).
+ *
+ * TODO(vincekurtz): extend to quaternion DoFs, where these quantities are
+ * different for each timestep, and include a factor of N+(q).
+ */
+struct VelocityPartials {
+  double dvt_dqt;
+  double dvt_dqm;
+};
+
+/**
  * Struct containing the gradients of generalized forces (tau) with respect to
- * generalized positions (q). This is essentially a tri-diagonal matrix, since
+ * generalized positions (q).
+ *
+ * This is essentially a tri-diagonal matrix, since
  * tau_t is a function of q at times t-1, t, and t+1.
  */
 struct InverseDynamicsPartials {
@@ -72,6 +86,64 @@ struct InverseDynamicsPartials {
   //                                     d(tau_{num_steps-1})/d(q_{num_steps})]
   //
   std::vector<MatrixXd> dtau_dqp;
+};
+
+struct TrajectoryOptimizerCache {
+  TrajectoryOptimizerCache(const int num_steps, const int nv, const int nq)
+      : id_partials(num_steps, nv, nq) {
+    v.assign(num_steps + 1, VectorXd(nv));
+    a.assign(num_steps, VectorXd(nv));
+    tau.assign(num_steps, VectorXd(nv));
+  }
+  // Generalized velocities at each timestep
+  // [v(0), v(1), ..., v(num_steps)]
+  std::vector<VectorXd> v;
+
+  // Generalized accelerations at each timestep
+  // [a(0), a(1), ..., a(num_steps-1)]
+  std::vector<VectorXd> a;
+
+  // Generalized forces at each timestep
+  // [tau(0), tau(1), ..., tau(num_steps-1)]
+  std::vector<VectorXd> tau;
+
+  // Storage for dv(t)/dq(t) and dv(t)/dq(t-1)
+  VelocityPartials v_partials;
+
+  // Storage for dtau(t)/dq(t-1), dtau(t)/dq(t), and dtau(t)/dq(t+1)
+  InverseDynamicsPartials id_partials;
+};
+
+/**
+ * Struct for storing the "state" of the trajectory optimizer.
+ *
+ * The only actual state is the sequence of generalized positions q at each
+ * timestep. This class stores that directly, but also a "cache" of other values
+ * computed from q, such as generalized velocities and forces at each timesteps,
+ * relevant dynamics partials, etc.
+ */
+struct TrajectoryOptimizerState {
+  /**
+   * Constructor which allocates things of the proper sizes.
+   *
+   * @param num_steps number of timesteps in the optimization problem
+   * @param nv number of multibody velocities
+   * @param nq number of multipody positions
+   */
+  TrajectoryOptimizerState(const int num_steps, const int nv, const int nq)
+      : cache(num_steps, nv, nq) {
+    q.assign(num_steps, VectorXd(nq));
+  }
+
+  // Sequence of generalized velocities at each timestep,
+  // [q(0), q(1), ..., q(num_steps)]
+  // TODO(vincekurtz): consider storing as a single VectorXd for better memory
+  // layout.
+  std::vector<VectorXd> q;
+
+  // Storage for all other quantities that are computed from q, and are useful
+  // for our calculations
+  TrajectoryOptimizerCache cache;
 };
 
 }  // namespace traj_opt

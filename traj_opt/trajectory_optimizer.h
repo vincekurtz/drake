@@ -137,12 +137,12 @@ class TrajectoryOptimizer {
   /**
    * Compute the gradient of the unconstrained cost L(q).
    *
-   * @param q vector of generalized positions at each timestep
+   * @param state optimizer state, including q, v, tau, gradients, etc.
+   * @param workspace scratch space for intermediate computations
    * @param g a single VectorXd containing the partials of L w.r.t. each
    *          decision variable (q_t[i]).
    */
-  void CalcGradient(const std::vector<VectorXd>& q,
-                    const InverseDynamicsPartials& id_partials,
+  void CalcGradient(const TrajectoryOptimizerState& state,
                     TrajectoryOptimizerWorkspace* workspace,
                     EigenPtr<VectorXd> g) const;
 
@@ -176,6 +176,20 @@ class TrajectoryOptimizer {
                                    const std::vector<VectorXd>& v,
                                    TrajectoryOptimizerWorkspace* workspace,
                                    InverseDynamicsPartials* id_partials) const;
+
+  /**
+   * Update the optimizer state with given sequence of generalized positions.
+   *
+   * This computes everything in the state's cache (v, a, tau, dv_dq, dtau_dq)
+   * to correspond to the given generalized positions q.
+   *
+   * @param q new generalized positions
+   * @param workspace scratch space for intermediate computations
+   * @param state optimizer state to update.
+   */
+  void UpdateState(const std::vector<VectorXd>& q,
+                   TrajectoryOptimizerWorkspace* workspace,
+                   TrajectoryOptimizerState* state) const;
 
  private:
   /**

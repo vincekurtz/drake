@@ -96,6 +96,7 @@ void TrajectoryOptimizer::CalcTau(const std::vector<VectorXd>& q,
 
   for (int t = 0; t < num_steps(); ++t) {
     // Acceleration at time t
+    // TODO(vincekurtz): use precomputed accelerations
     VectorXd& a = workspace->a_size_tmp1;
     a = (v[t + 1] - v[t]) / time_step();
 
@@ -287,24 +288,20 @@ void TrajectoryOptimizer::CalcGradientFiniteDiff(
   }
 }
 
-void TrajectoryOptimizer::CalcGradient(
-    const std::vector<VectorXd>& q, const InverseDynamicsPartials& id_partials,
-    TrajectoryOptimizerWorkspace* workspace, EigenPtr<VectorXd> g) const {
+void TrajectoryOptimizer::CalcGradient(const TrajectoryOptimizerState& state,
+                                       TrajectoryOptimizerWorkspace* workspace,
+                                       EigenPtr<VectorXd> g) const {
+  // Set some aliases
   const double dt = time_step();
   const int nq = plant().num_positions();
-
-  // Compute v and tau
-  // TODO(vincekurtz): wrap all this data into a TrajectoryOptimizerState and
-  // compute ahead of time
-  std::vector<VectorXd> v(num_steps() + 1);
-  std::vector<VectorXd> tau(num_steps());
-  CalcV(q, &v);
-  CalcTau(q, v, workspace, &tau);
-
-  // TODO(vincekurtz) this should also go in the TrajectoryOptimizerState (cache
-  // part) when we make that
-  double dvt_dqt = 1 / time_step();  // assuming no quaternion DoFs
-  double dvt_dqm = -1 / time_step();
+  const std::vector<VectorXd>& q = state.q;
+  const std::vector<VectorXd>& v = state.cache.v;
+  const std::vector<VectorXd>& tau = state.cache.tau;
+  const double dvt_dqt = state.cache.v_partials.dvt_dqt;
+  const double dvt_dqm = state.cache.v_partials.dvt_dqm;
+  const std::vector<MatrixXd>& dtau_dqp = state.cache.id_partials.dtau_dqp;
+  const std::vector<MatrixXd>& dtau_dqt = state.cache.id_partials.dtau_dqt;
+  const std::vector<MatrixXd>& dtau_dqm = state.cache.id_partials.dtau_dqm;
 
   // Set first block of g (derivatives w.r.t. q_0) to zero, since q0 = q_init
   // are constant.
@@ -333,15 +330,13 @@ void TrajectoryOptimizer::CalcGradient(
     }
 
     // Contribution from control cost
-    taum_term =
-        tau[t - 1].transpose() * 2 * prob_.R * dt * id_partials.dtau_dqp[t - 1];
-    taut_term = tau[t].transpose() * 2 * prob_.R * dt * id_partials.dtau_dqt[t];
+    taum_term = tau[t - 1].transpose() * 2 * prob_.R * dt * dtau_dqp[t - 1];
+    taut_term = tau[t].transpose() * 2 * prob_.R * dt * dtau_dqt[t];
     if (t == num_steps() - 1) {
       // There is no constrol input at the final timestep
       taup_term.setZero(nq);
     } else {
-      taup_term = tau[t + 1].transpose() * 2 * prob_.R * dt *
-                  id_partials.dtau_dqm[t + 1];
+      taup_term = tau[t + 1].transpose() * 2 * prob_.R * dt * dtau_dqm[t + 1];
     }
 
     // Put it all together to get the gradient w.r.t q[t]
@@ -352,11 +347,56 @@ void TrajectoryOptimizer::CalcGradient(
   // Last step is different, because there is terminal cost and v[t+1] doesn't
   // exist
   taum_term = tau[num_steps() - 1].transpose() * 2 * prob_.R * dt *
-              id_partials.dtau_dqp[num_steps() - 1];
+              dtau_dqp[num_steps() - 1];
   qt_term = (q[num_steps()] - prob_.q_nom).transpose() * 2 * prob_.Qf_q;
   vt_term =
       (v[num_steps()] - prob_.v_nom).transpose() * 2 * prob_.Qf_v * dvt_dqt;
   g->tail(nq) = qt_term + vt_term + taum_term;
+}
+
+void TrajectoryOptimizer::UpdateState(const std::vector<VectorXd>& q,
+                                      TrajectoryOptimizerWorkspace* workspace,
+                                      TrajectoryOptimizerState* state) const {
+  // Some aliases for things that we'll set
+  std::vector<VectorXd>& v = state->cache.v;
+  std::vector<VectorXd>& a = state->cache.a;
+  std::vector<VectorXd>& tau = state->cache.tau;
+  InverseDynamicsPartials& id_partials = state->cache.id_partials;
+  VelocityPartials& v_partials = state->cache.v_partials;
+
+  // Set the stored generalized positions
+  state->q = q;
+
+  // Compute corresponding generalized velocities
+  // TODO(vincekurtz) consider rename to CalcVAllTimesteps
+  // TODO(vincekurtz) make this & similar functions private
+  // TODO(vincekurtz) use consistent naming scheme
+  //       e.g. CalcVelocities      (all timesteps)
+  //            CalcAccelerations   (all timesteps)
+  //            CalcInverseDynamics (all timesteps)
+  //            CalcSingleStepInverseDynamics (one timestep)
+  //
+  //            CalcVelocityPartials
+  //            CalcInverseDynamicsPartials
+  CalcV(q, &v);
+
+  // Compute corresponding generalized accelerations
+  // TODO(vincekurtz) make a separate function for this
+  for (int t = 0; t < num_steps(); ++t) {
+    a[t] = (v[t + 1] - v[t]) / time_step();
+  }
+
+  // Compute corresponding generalized torques
+  // TODO(vincekurtz) use precomputed accelerations in CalcTau
+  CalcTau(q, v, workspace, &tau);
+
+  // Compute partial derivatives of inverse dynamics d(tau)/d(q)
+  CalcInverseDynamicsPartials(q, v, workspace, &id_partials);
+
+  // Compute partial derivatives of velocities d(v)/d(q)
+  // TODO(vincekurtz): consider quaternion DoFs
+  v_partials.dvt_dqt = 1 / time_step();
+  v_partials.dvt_dqm = -1 / time_step();
 }
 
 }  // namespace traj_opt

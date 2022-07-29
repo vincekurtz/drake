@@ -59,6 +59,8 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcGradientKuka) {
   opt_prob.v_nom.setConstant(-0.1);
 
   // Create an optimizer
+  TrajectoryOptimizerState state(num_steps, plant.num_velocities(),
+                                 plant.num_positions());
   TrajectoryOptimizerWorkspace workspace(plant);
   TrajectoryOptimizer optimizer(&plant, opt_prob);
 
@@ -75,11 +77,8 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcGradientKuka) {
 
   // Compute the gradient with our method
   VectorXd g(plant.num_positions() * (num_steps + 1));
-  std::vector<VectorXd> v(num_steps + 1);
-  optimizer.CalcV(q, &v);
-  InverseDynamicsPartials grad_data(num_steps, 7, 7);
-  optimizer.CalcInverseDynamicsPartials(q, v, &workspace, &grad_data);
-  optimizer.CalcGradient(q, grad_data, &workspace, &g);
+  optimizer.UpdateState(q, &workspace, &state);
+  optimizer.CalcGradient(state, &workspace, &g);
 
   // Looks like we're losing a lot of precision here, but I think that's because
   // it comes from several sources:
@@ -118,6 +117,8 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcGradientPendulum) {
   plant.Finalize();
 
   // Create an optimizer
+  TrajectoryOptimizerState state(num_steps, plant.num_velocities(),
+                                 plant.num_positions());
   TrajectoryOptimizerWorkspace workspace(plant);
   TrajectoryOptimizer optimizer(&plant, opt_prob);
 
@@ -134,11 +135,8 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcGradientPendulum) {
 
   // Compute the gradient with our method
   VectorXd g(plant.num_positions() * (num_steps + 1));
-  InverseDynamicsPartials grad_data(num_steps, 1, 1);
-  std::vector<VectorXd> v(num_steps + 1);
-  optimizer.CalcV(q, &v);
-  optimizer.CalcInverseDynamicsPartials(q, v, &workspace, &grad_data);
-  optimizer.CalcGradient(q, grad_data, &workspace, &g);
+  optimizer.UpdateState(q, &workspace, &state);
+  optimizer.CalcGradient(state, &workspace, &g);
 
   // Compare the two (we don't quite get the theoretical eps^(2/3) accuracy)
   const double kTolerance = pow(std::numeric_limits<double>::epsilon(), 0.5);
