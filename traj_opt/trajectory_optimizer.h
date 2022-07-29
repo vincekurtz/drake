@@ -142,7 +142,7 @@ class TrajectoryOptimizer {
    *          decision variable (q_t[i]).
    */
   void CalcGradient(const std::vector<VectorXd>& q,
-                    const GradientData& grad_data,
+                    const InverseDynamicsPartials& id_partials,
                     TrajectoryOptimizerWorkspace* workspace,
                     EigenPtr<VectorXd> g) const;
 
@@ -165,17 +165,17 @@ class TrajectoryOptimizer {
    *
    *    tau_t = ID(q_{t-1}, q_t, q_{t+1})
    *
-   * and store them in the given GradientData struct.
+   * and store them in the given InverseDynamicsPartials struct.
    *
    * @param q sequence of generalized positions
    * @param v sequence of generalized velocities (computed from q)
    * @param workspace scratch space for intermediate computations
-   * @param grad_data struct for holding dtau/dq
+   * @param id_partials struct for holding dtau/dq
    */
   void CalcInverseDynamicsPartials(const std::vector<VectorXd>& q,
                                    const std::vector<VectorXd>& v,
                                    TrajectoryOptimizerWorkspace* workspace,
-                                   GradientData* grad_data) const;
+                                   InverseDynamicsPartials* id_partials) const;
 
  private:
   /**
@@ -190,11 +190,12 @@ class TrajectoryOptimizer {
    * @param q sequence of generalized positions
    * @param v sequence of generalized velocities (computed from q)
    * @param workspace scratch space for intermediate computations
-   * @param grad_data struct for holding dtau/dq
+   * @param id_partials struct for holding dtau/dq
    */
   void CalcInverseDynamicsPartialsFiniteDiff(
       const std::vector<VectorXd>& q, const std::vector<VectorXd>& v,
-      TrajectoryOptimizerWorkspace* workspace, GradientData* grad_data) const;
+      TrajectoryOptimizerWorkspace* workspace,
+      InverseDynamicsPartials* id_partials) const;
 
   /**
    * Helper function for computing the inverse dynamics

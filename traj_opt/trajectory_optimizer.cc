@@ -120,22 +120,24 @@ void TrajectoryOptimizer::CalcInverseDynamics(
 
 void TrajectoryOptimizer::CalcInverseDynamicsPartials(
     const std::vector<VectorXd>& q, const std::vector<VectorXd>& v,
-    TrajectoryOptimizerWorkspace* workspace, GradientData* grad_data) const {
+    TrajectoryOptimizerWorkspace* workspace,
+    InverseDynamicsPartials* id_partials) const {
   // TODO(vincekurtz): use a solver flag to choose between finite differences
   // and an analytical approximation
-  CalcInverseDynamicsPartialsFiniteDiff(q, v, workspace, grad_data);
+  CalcInverseDynamicsPartialsFiniteDiff(q, v, workspace, id_partials);
 }
 
 void TrajectoryOptimizer::CalcInverseDynamicsPartialsFiniteDiff(
     const std::vector<VectorXd>& q, const std::vector<VectorXd>& v,
-    TrajectoryOptimizerWorkspace* workspace, GradientData* grad_data) const {
-  // Check that grad_data has been allocated correctly.
-  DRAKE_DEMAND(grad_data->size() == num_steps());
+    TrajectoryOptimizerWorkspace* workspace,
+    InverseDynamicsPartials* id_partials) const {
+  // Check that id_partials has been allocated correctly.
+  DRAKE_DEMAND(id_partials->size() == num_steps());
 
   // Get references to the partials that we'll be setting
-  std::vector<MatrixXd>& dtau_dqm = grad_data->dtau_dqm;
-  std::vector<MatrixXd>& dtau_dqt = grad_data->dtau_dqt;
-  std::vector<MatrixXd>& dtau_dqp = grad_data->dtau_dqp;
+  std::vector<MatrixXd>& dtau_dqm = id_partials->dtau_dqm;
+  std::vector<MatrixXd>& dtau_dqt = id_partials->dtau_dqt;
+  std::vector<MatrixXd>& dtau_dqp = id_partials->dtau_dqp;
 
   // Compute tau(q) [all timesteps] using the orignal value of q
   // TODO(vincekurtz): consider passing this as an argument along with q and v,
@@ -285,10 +287,9 @@ void TrajectoryOptimizer::CalcGradientFiniteDiff(
   }
 }
 
-void TrajectoryOptimizer::CalcGradient(const std::vector<VectorXd>& q,
-                                       const GradientData& grad_data,
-                                       TrajectoryOptimizerWorkspace* workspace,
-                                       EigenPtr<VectorXd> g) const {
+void TrajectoryOptimizer::CalcGradient(
+    const std::vector<VectorXd>& q, const InverseDynamicsPartials& id_partials,
+    TrajectoryOptimizerWorkspace* workspace, EigenPtr<VectorXd> g) const {
   const double dt = time_step();
   const int nq = plant().num_positions();
 
@@ -333,14 +334,14 @@ void TrajectoryOptimizer::CalcGradient(const std::vector<VectorXd>& q,
 
     // Contribution from control cost
     taum_term =
-        tau[t - 1].transpose() * 2 * prob_.R * dt * grad_data.dtau_dqp[t - 1];
-    taut_term = tau[t].transpose() * 2 * prob_.R * dt * grad_data.dtau_dqt[t];
+        tau[t - 1].transpose() * 2 * prob_.R * dt * id_partials.dtau_dqp[t - 1];
+    taut_term = tau[t].transpose() * 2 * prob_.R * dt * id_partials.dtau_dqt[t];
     if (t == num_steps() - 1) {
       // There is no constrol input at the final timestep
       taup_term.setZero(nq);
     } else {
-      taup_term =
-          tau[t + 1].transpose() * 2 * prob_.R * dt * grad_data.dtau_dqm[t + 1];
+      taup_term = tau[t + 1].transpose() * 2 * prob_.R * dt *
+                  id_partials.dtau_dqm[t + 1];
     }
 
     // Put it all together to get the gradient w.r.t q[t]
@@ -351,7 +352,7 @@ void TrajectoryOptimizer::CalcGradient(const std::vector<VectorXd>& q,
   // Last step is different, because there is terminal cost and v[t+1] doesn't
   // exist
   taum_term = tau[num_steps() - 1].transpose() * 2 * prob_.R * dt *
-              grad_data.dtau_dqp[num_steps() - 1];
+              id_partials.dtau_dqp[num_steps() - 1];
   qt_term = (q[num_steps()] - prob_.q_nom).transpose() * 2 * prob_.Qf_q;
   vt_term =
       (v[num_steps()] - prob_.v_nom).transpose() * 2 * prob_.Qf_v * dvt_dqt;

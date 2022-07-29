@@ -77,7 +77,7 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcGradientKuka) {
   VectorXd g(plant.num_positions() * (num_steps + 1));
   std::vector<VectorXd> v(num_steps + 1);
   optimizer.CalcV(q, &v);
-  GradientData grad_data(num_steps, 7, 7);
+  InverseDynamicsPartials grad_data(num_steps, 7, 7);
   optimizer.CalcInverseDynamicsPartials(q, v, &workspace, &grad_data);
   optimizer.CalcGradient(q, grad_data, &workspace, &g);
 
@@ -134,7 +134,7 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcGradientPendulum) {
 
   // Compute the gradient with our method
   VectorXd g(plant.num_positions() * (num_steps + 1));
-  GradientData grad_data(num_steps, 1, 1);
+  InverseDynamicsPartials grad_data(num_steps, 1, 1);
   std::vector<VectorXd> v(num_steps + 1);
   optimizer.CalcV(q, &v);
   optimizer.CalcInverseDynamicsPartials(q, v, &workspace, &grad_data);
@@ -174,7 +174,7 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumDtauDq) {
   }
 
   // Compute inverse dynamics partials
-  GradientData grad_data(num_steps, 1, 1);
+  InverseDynamicsPartials grad_data(num_steps, 1, 1);
   std::vector<VectorXd> v(num_steps + 1);
   optimizer.CalcV(q, &v);
   optimizer.CalcInverseDynamicsPartials(q, v, &workspace, &grad_data);
@@ -189,7 +189,7 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumDtauDq) {
   const double b = 0.1;
   const double g = 9.81;
 
-  GradientData grad_data_gt(num_steps, 1, 1);
+  InverseDynamicsPartials grad_data_gt(num_steps, 1, 1);
   for (int t = 0; t < num_steps; ++t) {
     // dtau[t]/dq[t+1]
     grad_data_gt.dtau_dqp[t](0, 0) =
