@@ -62,6 +62,8 @@ double TrajectoryOptimizer::CalcCost(
 double TrajectoryOptimizer::CalcCost(
     const std::vector<VectorXd>& q,
     TrajectoryOptimizerWorkspace* workspace) const {
+  // These are expensive heap allocations: prefer versions of CalcCost that
+  // use precomputed v and tau whenever possible.
   std::vector<VectorXd> v(num_steps() + 1);
   std::vector<VectorXd> tau(num_steps());
 
@@ -254,6 +256,7 @@ void TrajectoryOptimizer::CalcGradientFiniteDiff(
     const std::vector<VectorXd>& q, TrajectoryOptimizerWorkspace* workspace,
     EigenPtr<VectorXd> g) const {
   // Allocate perturbed versions of q
+  // TODO(vincekurtz): consider allocating in workspace
   std::vector<VectorXd> q_plus(q);
   std::vector<VectorXd> q_minus(q);
 

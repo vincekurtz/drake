@@ -73,6 +73,8 @@ class TrajectoryOptimizer {
    * @param tau sequence of generalized forces (consistent with q and v)
    * @param workspace scratch space for intermediate computations
    * @return double the total cost
+   *
+   * TODO(vincekurtz): take a TrajectoryOptimizerState instead of q, v, tau
    */
   double CalcCost(const std::vector<VectorXd>& q,
                   const std::vector<VectorXd>& v,
