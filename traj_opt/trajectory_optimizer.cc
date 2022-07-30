@@ -28,14 +28,14 @@ TrajectoryOptimizer::TrajectoryOptimizer(const MultibodyPlant<double>* plant,
   }
 }
 
-double TrajectoryOptimizer::CalcCost(const std::vector<VectorXd>& q,
-                                     const std::vector<VectorXd>& v,
-                                     const std::vector<VectorXd>& tau) const {
+double TrajectoryOptimizer::CalcCost(
+    const std::vector<VectorXd>& q, const std::vector<VectorXd>& v,
+    const std::vector<VectorXd>& tau,
+    TrajectoryOptimizerWorkspace* workspace) const {
   double cost = 0;
-  // TODO(vincekurtz): add q_err and v_err into the
-  // TrajectoryOptimizerWorkspace, once #17 lands
-  VectorXd q_err;
-  VectorXd v_err;
+
+  VectorXd& q_err = workspace->q_size_tmp;
+  VectorXd& v_err = workspace->v_size_tmp1;
 
   // Running cost
   for (int t = 0; t < num_steps(); ++t) {
@@ -59,14 +59,16 @@ double TrajectoryOptimizer::CalcCost(const std::vector<VectorXd>& q,
   return cost;
 }
 
-double TrajectoryOptimizer::CalcCost(const std::vector<VectorXd>& q, TrajectoryOptimizerWorkspace* workspace) const {
+double TrajectoryOptimizer::CalcCost(
+    const std::vector<VectorXd>& q,
+    TrajectoryOptimizerWorkspace* workspace) const {
   std::vector<VectorXd> v(num_steps() + 1);
   std::vector<VectorXd> tau(num_steps());
 
   CalcV(q, &v);
   CalcTau(q, v, workspace, &tau);
 
-  return CalcCost(q, v, tau);
+  return CalcCost(q, v, tau, workspace);
 }
 
 void TrajectoryOptimizer::CalcV(const std::vector<VectorXd>& q,
@@ -248,20 +250,23 @@ void TrajectoryOptimizer::CalcInverseDynamicsPartialsFiniteDiff(
   }
 }
 
-void TrajectoryOptimizer::CalcGradientFiniteDiff(const std::vector<VectorXd>& q, TrajectoryOptimizerWorkspace* workspace, EigenPtr<VectorXd> g) const {
+void TrajectoryOptimizer::CalcGradientFiniteDiff(
+    const std::vector<VectorXd>& q, TrajectoryOptimizerWorkspace* workspace,
+    EigenPtr<VectorXd> g) const {
   // Allocate perturbed versions of q
   std::vector<VectorXd> q_plus(q);
   std::vector<VectorXd> q_minus(q);
 
-  // Set first block of g (derivatives w.r.t. q_0) to zero, since q0 = q_init are constant.
+  // Set first block of g (derivatives w.r.t. q_0) to zero, since q0 = q_init
+  // are constant.
   g->topRows(plant().num_positions()).setZero();
 
   // Iterate through rows of g using finite differences
   const double eps = cbrt(std::numeric_limits<double>::epsilon());
   double dqt_i;
   int j = plant().num_positions();
-  for (int t=1; t<=num_steps(); ++t ) {
-    for (int i=0; i<plant().num_positions(); ++i) {
+  for (int t = 1; t <= num_steps(); ++t) {
+    for (int i = 0; i < plant().num_positions(); ++i) {
       // Set finite difference step size
       dqt_i = eps * std::max(1.0, std::abs(q[t](i)));
       q_plus[t](i) += dqt_i;
@@ -270,7 +275,7 @@ void TrajectoryOptimizer::CalcGradientFiniteDiff(const std::vector<VectorXd>& q,
       // Set g_j = using central differences
       double L_plus = CalcCost(q_plus, workspace);
       double L_minus = CalcCost(q_minus, workspace);
-      (*g)(j) = (L_plus - L_minus) / (2*dqt_i);
+      (*g)(j) = (L_plus - L_minus) / (2 * dqt_i);
 
       // reset our perturbed Q and move to the next row of g.
       q_plus[t](i) = q[t](i);
@@ -295,7 +300,8 @@ void TrajectoryOptimizer::CalcGradient(const std::vector<VectorXd>& q,
   CalcV(q, &v);
   CalcTau(q, v, workspace, &tau);
 
-  // TODO this should also go in the TrajectoryOptimizerState (cache part)
+  // TODO(vincekurtz) this should also go in the TrajectoryOptimizerState (cache
+  // part)
   double dvt_dqt = 1 / time_step();  // assuming no quaternion DoFs
   double dvt_dqm = -1 / time_step();
 
