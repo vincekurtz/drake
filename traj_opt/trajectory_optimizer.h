@@ -71,11 +71,15 @@ class TrajectoryOptimizer {
    * @param q sequence of generalized positions
    * @param v sequence of generalized velocities (consistent with q)
    * @param tau sequence of generalized forces (consistent with q and v)
+   * @param workspace scratch space for intermediate computations
    * @return double the total cost
+   *
+   * TODO(vincekurtz): take a TrajectoryOptimizerState instead of q, v, tau
    */
   double CalcCost(const std::vector<VectorXd>& q,
                   const std::vector<VectorXd>& v,
-                  const std::vector<VectorXd>& tau) const;
+                  const std::vector<VectorXd>& tau,
+                  TrajectoryOptimizerWorkspace* workspace) const;
 
   /**
    * Convienience function which computes the total cost as a function of q
@@ -149,6 +153,9 @@ class TrajectoryOptimizer {
   /**
    * Compute the gradient of the unconstrained cost L(q) using finite
    * differences.
+   *
+   * Uses central differences, so with a perturbation on the order of eps^(1/3),
+   * we expect errors on the order of eps^(2/3).
    *
    * For testing purposes only.
    *

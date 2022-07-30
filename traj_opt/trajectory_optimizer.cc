@@ -28,14 +28,14 @@ TrajectoryOptimizer::TrajectoryOptimizer(const MultibodyPlant<double>* plant,
   }
 }
 
-double TrajectoryOptimizer::CalcCost(const std::vector<VectorXd>& q,
-                                     const std::vector<VectorXd>& v,
-                                     const std::vector<VectorXd>& tau) const {
+double TrajectoryOptimizer::CalcCost(
+    const std::vector<VectorXd>& q, const std::vector<VectorXd>& v,
+    const std::vector<VectorXd>& tau,
+    TrajectoryOptimizerWorkspace* workspace) const {
   double cost = 0;
-  // TODO(vincekurtz): add q_err and v_err into the
-  // TrajectoryOptimizerWorkspace, once #17 lands
-  VectorXd q_err;
-  VectorXd v_err;
+
+  VectorXd& q_err = workspace->q_size_tmp;
+  VectorXd& v_err = workspace->v_size_tmp1;
 
   // Running cost
   for (int t = 0; t < num_steps(); ++t) {
@@ -62,13 +62,15 @@ double TrajectoryOptimizer::CalcCost(const std::vector<VectorXd>& q,
 double TrajectoryOptimizer::CalcCost(
     const std::vector<VectorXd>& q,
     TrajectoryOptimizerWorkspace* workspace) const {
+  // These are expensive heap allocations: prefer versions of CalcCost that
+  // use precomputed v and tau whenever possible.
   std::vector<VectorXd> v(num_steps() + 1);
   std::vector<VectorXd> tau(num_steps());
 
   CalcV(q, &v);
   CalcTau(q, v, workspace, &tau);
 
-  return CalcCost(q, v, tau);
+  return CalcCost(q, v, tau, workspace);
 }
 
 void TrajectoryOptimizer::CalcV(const std::vector<VectorXd>& q,
@@ -254,6 +256,7 @@ void TrajectoryOptimizer::CalcGradientFiniteDiff(
     const std::vector<VectorXd>& q, TrajectoryOptimizerWorkspace* workspace,
     EigenPtr<VectorXd> g) const {
   // Allocate perturbed versions of q
+  // TODO(vincekurtz): consider allocating in workspace
   std::vector<VectorXd> q_plus(q);
   std::vector<VectorXd> q_minus(q);
 
@@ -301,7 +304,7 @@ void TrajectoryOptimizer::CalcGradient(const std::vector<VectorXd>& q,
   CalcTau(q, v, workspace, &tau);
 
   // TODO(vincekurtz) this should also go in the TrajectoryOptimizerState (cache
-  // part) when we make that
+  // part)
   double dvt_dqt = 1 / time_step();  // assuming no quaternion DoFs
   double dvt_dqm = -1 / time_step();
 

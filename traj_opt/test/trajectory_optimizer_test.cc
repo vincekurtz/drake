@@ -261,8 +261,9 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcCost) {
   v.push_back(Vector2d(-0.1, 0.0));
 
   // Compute the cost and compare with the true value
+  TrajectoryOptimizerWorkspace workspace(plant);
   TrajectoryOptimizer optimizer(&plant, opt_prob);
-  double L = optimizer.CalcCost(q, v, tau);
+  double L = optimizer.CalcCost(q, v, tau, &workspace);
   double L_gt =
       num_steps * dt * (2 * 0.1 + 2 * 0.2 + 2 * 0.5) + 2 * 0.3 + 2 * 0.4;
 
