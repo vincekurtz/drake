@@ -10,18 +10,60 @@ namespace multibody {
 namespace trajopt {
 namespace internal {
 
+/** A sparse representation of a (square) banded penta-diagonal matrix. Denoting
+ with A and B the lower sub-diagonals, with C the matrix's main diagonal and
+ with D and E the upper sub-diagonals, a banded penta-diagonal matrix M of n×n
+ blocks of size k×k each takes the form:
+
+       [ C₀ D₀ E₀ 0  0  0  0  0 ... 0 ]
+       [ B₁ C₁ D₁ E₁ 0  0  0  0 ... 0 ]
+       [ A₂ B₂ C₂ D₂ E₂ 0  0  0 ... 0 ]
+       [              ...             ]
+   M = [              ...             ]
+       [ 0 ... Aᵢ Bᵢ Cᵢ Dᵢ Eᵢ 0 ... 0 ]
+       [              ...             ]
+       [              ...             ]
+       [ 0    ...    0 Aₙ₋₁ Bₙ₋₁ Cₙ₋₁ ]
+
+ Notice that all blocks are of the same size k×k and that our indexing notation
+ is defined such that the i-th block row is formed by blocks Aᵢ, Bᵢ, Cᵢ, Dᵢ and
+ Eᵢ. Notice that blocks A₀, B₀, A₁, Eₙ₋₂, Dₙ₋₁, Eₙ₋₁ are not part of the matrix.
+ However this class does store them and initializes them to zero for convenience
+ when writting alorithms that operate on this matrix. */
 class PentaDiagonalMatrix {
  public:
   DRAKE_DEFAULT_COPY_AND_MOVE_AND_ASSIGN(PentaDiagonalMatrix);
 
+  /* Constructs a pentadiagonal matrix from the given diagonals as described in
+  this class's main documentation. The size n of the matrix is given by the size
+  of the diagonal vectors, all required to be of the same size.
+
+  @pre All vectors A, B, C, D and E must have the same size.
+  @pre All blocks must be square of the same size k×k. This invariant is
+  verified only in Debug builds. 
+  
+  @note Notice that we use pass-by-copy semantics. This is to allow move
+  semantics (with std::move) to avoid unnecessary heap allocation and copies
+  when making a new matrix object (highly recommended if local copies are not
+  needed). */
   PentaDiagonalMatrix(std::vector<Eigen::MatrixXd> A,
                       std::vector<Eigen::MatrixXd> B,
                       std::vector<Eigen::MatrixXd> C,
                       std::vector<Eigen::MatrixXd> D,
                       std::vector<Eigen::MatrixXd> E);
 
-  // Constructor for a symmetric penta-diagonal matrix.
-  // That is, E = A and D = B. C must be symmetric.  
+  /* Convenience constructor for a symmetric penta-diagonal matrix. That is,
+   Eᵢ = Aᵢ₊₂ᵀ and Dᵢ = Bᵢ₊₁ᵀ. Cᵢ must be symmetric.  
+   
+   @pre All vectors A, B, C, D and E must have the same size.
+   @pre All blocks must be square of the same size k×k. This invariant is
+   verified only in Debug builds.
+   @pre Cᵢ must be symmetric.
+
+   @note Notice that we use pass-by-copy semantics. This is to allow move
+   semantics (with std::move) to avoid unnecessary heap allocation and copies
+   when making a new matrix object (highly recommended if local copies are not
+   needed). */
   PentaDiagonalMatrix(std::vector<Eigen::MatrixXd> A,
                       std::vector<Eigen::MatrixXd> B,
                       std::vector<Eigen::MatrixXd> C);
