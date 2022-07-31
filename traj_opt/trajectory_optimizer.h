@@ -204,6 +204,19 @@ class TrajectoryOptimizer {
                                    InverseDynamicsPartials* id_partials) const;
 
   /**
+   * Compute partial derivatives of the generalized velocities
+   *
+   *    v_t = N+(q_t) * (q_t - q_{t-1}) / dt
+   *
+   * and store them in the given VelocityPartials struct
+   *
+   * @param q sequence of generalized positions
+   * @param v_partials struct for holding dv/dq
+   */
+  void CalcVelocityPartials(const std::vector<VectorXd>& q,
+                            VelocityPartials* v_partials) const;
+
+  /**
    * Update the optimizer state with given sequence of generalized positions.
    *
    * This computes everything in the state's cache (v, a, tau, dv_dq, dtau_dq)

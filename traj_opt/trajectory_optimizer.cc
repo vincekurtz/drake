@@ -267,6 +267,16 @@ void TrajectoryOptimizer::CalcInverseDynamicsPartialsFiniteDiff(
   }
 }
 
+void TrajectoryOptimizer::CalcVelocityPartials(
+    const std::vector<VectorXd>&, VelocityPartials* v_partials) const {
+  if (plant().num_velocities() != plant().num_positions()) {
+    throw std::runtime_error("Quaternion DoFs not yet supported");
+  } else {
+    v_partials->dvt_dqt = 1 / time_step();
+    v_partials->dvt_dqm = -1 / time_step();
+  }
+}
+
 void TrajectoryOptimizer::CalcGradientFiniteDiff(
     const std::vector<VectorXd>& q, TrajectoryOptimizerWorkspace* workspace,
     EigenPtr<VectorXd> g) const {
@@ -405,9 +415,7 @@ void TrajectoryOptimizer::UpdateState(const std::vector<VectorXd>& q,
   CalcInverseDynamicsPartials(q, v, workspace, &id_partials);
 
   // Compute partial derivatives of velocities d(v)/d(q)
-  // TODO(vincekurtz): consider quaternion DoFs
-  v_partials.dvt_dqt = 1 / time_step();
-  v_partials.dvt_dqm = -1 / time_step();
+  CalcVelocityPartials(q, &v_partials);
 }
 
 }  // namespace traj_opt
