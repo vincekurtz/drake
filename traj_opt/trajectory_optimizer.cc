@@ -74,7 +74,7 @@ double TrajectoryOptimizer::CalcCost(
 }
 
 void TrajectoryOptimizer::CalcVelocities(const std::vector<VectorXd>& q,
-                                std::vector<VectorXd>* v) const {
+                                         std::vector<VectorXd>* v) const {
   // x = [x0, x1, ..., xT]
   DRAKE_DEMAND(static_cast<int>(q.size()) == num_steps() + 1);
   DRAKE_DEMAND(static_cast<int>(v->size()) == num_steps() + 1);
@@ -104,11 +104,12 @@ void TrajectoryOptimizer::CalcTau(const std::vector<VectorXd>& q,
 
     // All dynamics terms are treated implicitly, i.e.,
     // tau[t] = M(q[t+1]) * a[t] - k(q[t+1],v[t+1]) - f_ext[t+1]
-    CalcInverseDynamics(q[t + 1], v[t + 1], a, workspace, &tau->at(t));
+    CalcInverseDynamicsSingleTimeStep(q[t + 1], v[t + 1], a, workspace,
+                                      &tau->at(t));
   }
 }
 
-void TrajectoryOptimizer::CalcInverseDynamics(
+void TrajectoryOptimizer::CalcInverseDynamicsSingleTimeStep(
     const VectorXd& q, const VectorXd& v, const VectorXd& a,
     TrajectoryOptimizerWorkspace* workspace, VectorXd* tau) const {
   plant().SetPositions(context_.get(), q);
@@ -223,18 +224,20 @@ void TrajectoryOptimizer::CalcInverseDynamicsPartialsFiniteDiff(
       // via finite differencing
       if (t > 0) {
         // tau[t-1] = ID(q[t], v[t], a[t-1])
-        CalcInverseDynamics(q_eps_t, v_eps_t, a_eps_tm, workspace, &tau_eps_tm);
+        CalcInverseDynamicsSingleTimeStep(q_eps_t, v_eps_t, a_eps_tm, workspace,
+                                          &tau_eps_tm);
         dtau_dqp[t - 1].col(i) = (tau_eps_tm - tau[t - 1]) / dq_i;
       }
       if (t < num_steps()) {
         // tau[t] = ID(q[t+1], v[t+1], a[t])
-        CalcInverseDynamics(q[t + 1], v_eps_tp, a_eps_t, workspace, &tau_eps_t);
+        CalcInverseDynamicsSingleTimeStep(q[t + 1], v_eps_tp, a_eps_t,
+                                          workspace, &tau_eps_t);
         dtau_dqt[t].col(i) = (tau_eps_t - tau[t]) / dq_i;
       }
       if (t < num_steps() - 1) {
         // tau[t+1] = ID(q[t+2], v[t+2], a[t+1])
-        CalcInverseDynamics(q[t + 2], v[t + 2], a_eps_tp, workspace,
-                            &tau_eps_tp);
+        CalcInverseDynamicsSingleTimeStep(q[t + 2], v[t + 2], a_eps_tp,
+                                          workspace, &tau_eps_tp);
         dtau_dqm[t + 1].col(i) = (tau_eps_tp - tau[t + 1]) / dq_i;
       }
 

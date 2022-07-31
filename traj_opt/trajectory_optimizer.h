@@ -224,16 +224,17 @@ class TrajectoryOptimizer {
    *
    *  tau = ID(a, v, q, f_ext)
    *
+   * at a single timestep.
+   *
    * @param q generalized position
    * @param v generalized velocity
    * @param a generalized acceleration
    * @param workspace scratch space for intermediate computations
    * @param tau generalized forces
    */
-  void CalcInverseDynamics(const VectorXd& q, const VectorXd& v,
-                           const VectorXd& a,
-                           TrajectoryOptimizerWorkspace* workspace,
-                           VectorXd* tau) const;
+  void CalcInverseDynamicsSingleTimeStep(
+      const VectorXd& q, const VectorXd& v, const VectorXd& a,
+      TrajectoryOptimizerWorkspace* workspace, VectorXd* tau) const;
 
   // A model of the system that we are trying to find an optimal trajectory for.
   const MultibodyPlant<double>* plant_;
