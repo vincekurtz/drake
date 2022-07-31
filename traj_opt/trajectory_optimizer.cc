@@ -80,8 +80,18 @@ void TrajectoryOptimizer::CalcVelocities(const std::vector<VectorXd>& q,
   DRAKE_DEMAND(static_cast<int>(v->size()) == num_steps() + 1);
 
   v->at(0) = prob_.v_init;
-  for (int i = 1; i <= num_steps(); ++i) {
-    v->at(i) = (q[i] - q[i - 1]) / time_step();
+  for (int t = 1; t <= num_steps(); ++t) {
+    v->at(t) = (q[t] - q[t - 1]) / time_step();
+  }
+}
+
+void TrajectoryOptimizer::CalcAccelerations(const std::vector<VectorXd>& v,
+                                            std::vector<VectorXd>* a) const {
+  DRAKE_DEMAND(static_cast<int>(v.size()) == num_steps() + 1);
+  DRAKE_DEMAND(static_cast<int>(a->size()) == num_steps());
+
+  for (int t = 0; t < num_steps(); ++t) {
+    a->at(t) = (v[t + 1] - v[t]) / time_step();
   }
 }
 
@@ -385,10 +395,7 @@ void TrajectoryOptimizer::UpdateState(const std::vector<VectorXd>& q,
   CalcVelocities(q, &v);
 
   // Compute corresponding generalized accelerations
-  // TODO(vincekurtz) make a separate function for this
-  for (int t = 0; t < num_steps(); ++t) {
-    a[t] = (v[t + 1] - v[t]) / time_step();
-  }
+  CalcAccelerations(q, &a);
 
   // Compute corresponding generalized torques
   // TODO(vincekurtz) use precomputed accelerations in CalcTau

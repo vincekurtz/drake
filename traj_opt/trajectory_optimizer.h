@@ -112,6 +112,23 @@ class TrajectoryOptimizer {
                       std::vector<VectorXd>* v) const;
 
   /**
+   * Compute a sequence of generalized accelerations a from a sequence of
+   * generalized velocities,
+   *
+   *    a_t = (v_{t+1} - v_{t})/dt,
+   *
+   * where v is of length (num_steps+1) and a is of length num_steps:
+   *
+   *     v = [v(0), v(1), v(2), ..., v(num_steps)],
+   *     a = [a(0), a(1), a(2), ..., a(num_steps-1)].
+   *
+   * @param v sequence of generalized velocities
+   * @param a sequence of generalized accelerations
+   */
+  void CalcAccelerations(const std::vector<VectorXd>& v,
+                         std::vector<VectorXd>* a) const;
+
+  /**
    * Compute a sequence of generalized forces t from sequences of generalized
    * velocities and positions, where generalized forces are defined by the
    * inverse dynamics,
