@@ -132,15 +132,17 @@ void TrajectoryOptimizer::CalcInverseDynamicsSingleTimeStep(
 
 void TrajectoryOptimizer::CalcInverseDynamicsPartials(
     const std::vector<VectorXd>& q, const std::vector<VectorXd>& v,
-    TrajectoryOptimizerWorkspace* workspace,
+    const std::vector<VectorXd>& a, const std::vector<VectorXd>& tau,
+     TrajectoryOptimizerWorkspace* workspace,
     InverseDynamicsPartials* id_partials) const {
   // TODO(vincekurtz): use a solver flag to choose between finite differences
   // and an analytical approximation
-  CalcInverseDynamicsPartialsFiniteDiff(q, v, workspace, id_partials);
+  CalcInverseDynamicsPartialsFiniteDiff(q, v, a, tau, workspace, id_partials);
 }
 
 void TrajectoryOptimizer::CalcInverseDynamicsPartialsFiniteDiff(
     const std::vector<VectorXd>& q, const std::vector<VectorXd>& v,
+    const std::vector<VectorXd>& a, const std::vector<VectorXd>& tau,
     TrajectoryOptimizerWorkspace* workspace,
     InverseDynamicsPartials* id_partials) const {
   // Check that id_partials has been allocated correctly.
@@ -150,20 +152,6 @@ void TrajectoryOptimizer::CalcInverseDynamicsPartialsFiniteDiff(
   std::vector<MatrixXd>& dtau_dqm = id_partials->dtau_dqm;
   std::vector<MatrixXd>& dtau_dqt = id_partials->dtau_dqt;
   std::vector<MatrixXd>& dtau_dqp = id_partials->dtau_dqp;
-
-  // Compute a(q) [all timesteps] store (unperturbed) accelerations
-  // TODO(vincekurt): put this all in the same object as q, v, and
-  // tau. Possibly with a State[q]/Cache[v,a,tau,dtau/dq] structure.
-  std::vector<VectorXd> a(num_steps());
-  for (int t = 0; t < num_steps(); ++t) {
-    a[t] = (v[t + 1] - v[t]) / time_step();
-  }
-
-  // Compute tau(q) [all timesteps] using the orignal value of q
-  // TODO(vincekurtz): consider passing this as an argument along with q and v,
-  // perhaps combined into a TrajectoryData struct
-  std::vector<VectorXd> tau(num_steps());
-  CalcInverseDynamics(q, v, a, workspace, &tau);
 
   // Get references to perturbed versions of q, v, tau, and a, at (t-1, t, t).
   // These are all of the quantities that change when we perturb q_t.
@@ -402,7 +390,7 @@ void TrajectoryOptimizer::UpdateState(const std::vector<VectorXd>& q,
   CalcInverseDynamics(q, v, a, workspace, &tau);
 
   // Compute partial derivatives of inverse dynamics d(tau)/d(q)
-  CalcInverseDynamicsPartials(q, v, workspace, &id_partials);
+  CalcInverseDynamicsPartials(q, v, a, tau, workspace, &id_partials);
 
   // Compute partial derivatives of velocities d(v)/d(q)
   CalcVelocityPartials(q, &v_partials);

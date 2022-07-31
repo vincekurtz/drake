@@ -198,11 +198,15 @@ class TrajectoryOptimizer {
    *
    * @param q sequence of generalized positions
    * @param v sequence of generalized velocities (computed from q)
+   * @param a sequence of generalized accelerations (computed from q)
+   * @param tau sequence of generalized forces (computed from q)
    * @param workspace scratch space for intermediate computations
    * @param id_partials struct for holding dtau/dq
    */
   void CalcInverseDynamicsPartials(const std::vector<VectorXd>& q,
                                    const std::vector<VectorXd>& v,
+                                   const std::vector<VectorXd>& a,
+                                   const std::vector<VectorXd>& tau,
                                    TrajectoryOptimizerWorkspace* workspace,
                                    InverseDynamicsPartials* id_partials) const;
 
@@ -245,11 +249,14 @@ class TrajectoryOptimizer {
    *
    * @param q sequence of generalized positions
    * @param v sequence of generalized velocities (computed from q)
+   * @param a sequence of generalized accelerations (computed from q)
+   * @param tau sequence of generalized forces (computed from q)
    * @param workspace scratch space for intermediate computations
    * @param id_partials struct for holding dtau/dq
    */
   void CalcInverseDynamicsPartialsFiniteDiff(
       const std::vector<VectorXd>& q, const std::vector<VectorXd>& v,
+      const std::vector<VectorXd>& a, const std::vector<VectorXd>& tau,
       TrajectoryOptimizerWorkspace* workspace,
       InverseDynamicsPartials* id_partials) const;
 

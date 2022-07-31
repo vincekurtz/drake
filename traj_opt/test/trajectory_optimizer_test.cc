@@ -175,8 +175,12 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumDtauDq) {
   // Compute inverse dynamics partials
   InverseDynamicsPartials grad_data(num_steps, 1, 1);
   std::vector<VectorXd> v(num_steps + 1);
+  std::vector<VectorXd> a(num_steps);
+  std::vector<VectorXd> tau(num_steps);
   optimizer.CalcVelocities(q, &v);
-  optimizer.CalcInverseDynamicsPartials(q, v, &workspace, &grad_data);
+  optimizer.CalcAccelerations(v, &a);
+  optimizer.CalcInverseDynamics(q, v, a, &workspace, &tau);
+  optimizer.CalcInverseDynamicsPartials(q, v, a, tau, &workspace, &grad_data);
 
   // Compute ground truth partials from the pendulum model
   //
