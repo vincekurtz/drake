@@ -65,10 +65,12 @@ double TrajectoryOptimizer::CalcCost(
   // These are expensive heap allocations: prefer versions of CalcCost that
   // use precomputed v and tau whenever possible.
   std::vector<VectorXd> v(num_steps() + 1);
+  std::vector<VectorXd> a(num_steps());
   std::vector<VectorXd> tau(num_steps());
 
   CalcVelocities(q, &v);
-  CalcInverseDynamics(q, v, workspace, &tau);
+  CalcAccelerations(v, &a);
+  CalcInverseDynamics(q, v, a, workspace, &tau);
 
   return CalcCost(q, v, tau, workspace);
 }
@@ -97,23 +99,20 @@ void TrajectoryOptimizer::CalcAccelerations(const std::vector<VectorXd>& v,
 
 void TrajectoryOptimizer::CalcInverseDynamics(
     const std::vector<VectorXd>& q, const std::vector<VectorXd>& v,
-    TrajectoryOptimizerWorkspace* workspace, std::vector<VectorXd>* tau) const {
+    const std::vector<VectorXd>& a, TrajectoryOptimizerWorkspace* workspace,
+    std::vector<VectorXd>* tau) const {
   // Generalized forces aren't defined for the last timestep
   // TODO(vincekurtz): additional checks that q_t, v_t, tau_t are the right size
   // for the plant?
   DRAKE_DEMAND(static_cast<int>(q.size()) == num_steps() + 1);
   DRAKE_DEMAND(static_cast<int>(v.size()) == num_steps() + 1);
+  DRAKE_DEMAND(static_cast<int>(a.size()) == num_steps());
   DRAKE_DEMAND(static_cast<int>(tau->size()) == num_steps());
 
   for (int t = 0; t < num_steps(); ++t) {
-    // Acceleration at time t
-    // TODO(vincekurtz): use precomputed accelerations
-    VectorXd& a = workspace->a_size_tmp1;
-    a = (v[t + 1] - v[t]) / time_step();
-
     // All dynamics terms are treated implicitly, i.e.,
     // tau[t] = M(q[t+1]) * a[t] - k(q[t+1],v[t+1]) - f_ext[t+1]
-    CalcInverseDynamicsSingleTimeStep(q[t + 1], v[t + 1], a, workspace,
+    CalcInverseDynamicsSingleTimeStep(q[t + 1], v[t + 1], a[t], workspace,
                                       &tau->at(t));
   }
 }
@@ -152,12 +151,6 @@ void TrajectoryOptimizer::CalcInverseDynamicsPartialsFiniteDiff(
   std::vector<MatrixXd>& dtau_dqt = id_partials->dtau_dqt;
   std::vector<MatrixXd>& dtau_dqp = id_partials->dtau_dqp;
 
-  // Compute tau(q) [all timesteps] using the orignal value of q
-  // TODO(vincekurtz): consider passing this as an argument along with q and v,
-  // perhaps combined into a TrajectoryData struct
-  std::vector<VectorXd> tau(num_steps());
-  CalcInverseDynamics(q, v, workspace, &tau);
-
   // Compute a(q) [all timesteps] store (unperturbed) accelerations
   // TODO(vincekurt): put this all in the same object as q, v, and
   // tau. Possibly with a State[q]/Cache[v,a,tau,dtau/dq] structure.
@@ -165,6 +158,12 @@ void TrajectoryOptimizer::CalcInverseDynamicsPartialsFiniteDiff(
   for (int t = 0; t < num_steps(); ++t) {
     a[t] = (v[t + 1] - v[t]) / time_step();
   }
+
+  // Compute tau(q) [all timesteps] using the orignal value of q
+  // TODO(vincekurtz): consider passing this as an argument along with q and v,
+  // perhaps combined into a TrajectoryData struct
+  std::vector<VectorXd> tau(num_steps());
+  CalcInverseDynamics(q, v, a, workspace, &tau);
 
   // Get references to perturbed versions of q, v, tau, and a, at (t-1, t, t).
   // These are all of the quantities that change when we perturb q_t.
@@ -394,22 +393,13 @@ void TrajectoryOptimizer::UpdateState(const std::vector<VectorXd>& q,
 
   // Compute corresponding generalized velocities
   // TODO(vincekurtz) make this & similar functions private
-  // TODO(vincekurtz) use consistent naming scheme
-  //       e.g. CalcVelocities      (all timesteps)
-  //            CalcAccelerations   (all timesteps)
-  //            CalcInverseDynamics (all timesteps)
-  //            CalcInverseDynamicsOneTimeStep (one timestep)
-  //
-  //            CalcVelocityPartials
-  //            CalcInverseDynamicsPartials
   CalcVelocities(q, &v);
 
   // Compute corresponding generalized accelerations
-  CalcAccelerations(q, &a);
+  CalcAccelerations(v, &a);
 
   // Compute corresponding generalized torques
-  // TODO(vincekurtz) use precomputed accelerations in CalcTau
-  CalcInverseDynamics(q, v, workspace, &tau);
+  CalcInverseDynamics(q, v, a, workspace, &tau);
 
   // Compute partial derivatives of inverse dynamics d(tau)/d(q)
   CalcInverseDynamicsPartials(q, v, workspace, &id_partials);

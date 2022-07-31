@@ -327,11 +327,13 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumCalcInverseDynamics) {
 
   // Compute tau from q and v
   std::vector<VectorXd> tau(num_steps, VectorXd(1));
+  std::vector<VectorXd> a(num_steps, VectorXd(1));
   {
     // It appears, via trial and error, that CalcInverseDynamics makes exactly
     // 15 allocations for this example.
     LimitMalloc guard({.max_num_allocations = 15});
-    optimizer.CalcInverseDynamics(q, v, &workspace, &tau);
+    optimizer.CalcAccelerations(v, &a);
+    optimizer.CalcInverseDynamics(q, v, a, &workspace, &tau);
   }
 
   // Check that our computed values match the true (recorded) ones
