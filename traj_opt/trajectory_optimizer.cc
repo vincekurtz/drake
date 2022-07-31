@@ -67,13 +67,13 @@ double TrajectoryOptimizer::CalcCost(
   std::vector<VectorXd> v(num_steps() + 1);
   std::vector<VectorXd> tau(num_steps());
 
-  CalcV(q, &v);
+  CalcVelocities(q, &v);
   CalcTau(q, v, workspace, &tau);
 
   return CalcCost(q, v, tau, workspace);
 }
 
-void TrajectoryOptimizer::CalcV(const std::vector<VectorXd>& q,
+void TrajectoryOptimizer::CalcVelocities(const std::vector<VectorXd>& q,
                                 std::vector<VectorXd>* v) const {
   // x = [x0, x1, ..., xT]
   DRAKE_DEMAND(static_cast<int>(q.size()) == num_steps() + 1);
@@ -371,17 +371,16 @@ void TrajectoryOptimizer::UpdateState(const std::vector<VectorXd>& q,
   state->q = q;
 
   // Compute corresponding generalized velocities
-  // TODO(vincekurtz) consider rename to CalcVAllTimesteps
   // TODO(vincekurtz) make this & similar functions private
   // TODO(vincekurtz) use consistent naming scheme
   //       e.g. CalcVelocities      (all timesteps)
   //            CalcAccelerations   (all timesteps)
   //            CalcInverseDynamics (all timesteps)
-  //            CalcSingleStepInverseDynamics (one timestep)
+  //            CalcInverseDynamicsOneTimeStep (one timestep)
   //
   //            CalcVelocityPartials
   //            CalcInverseDynamicsPartials
-  CalcV(q, &v);
+  CalcVelocities(q, &v);
 
   // Compute corresponding generalized accelerations
   // TODO(vincekurtz) make a separate function for this

@@ -108,7 +108,8 @@ class TrajectoryOptimizer {
    * @param q sequence of generalized positions
    * @param v sequence of generalized velocities
    */
-  void CalcV(const std::vector<VectorXd>& q, std::vector<VectorXd>* v) const;
+  void CalcVelocities(const std::vector<VectorXd>& q,
+                      std::vector<VectorXd>* v) const;
 
   /**
    * Compute a sequence of generalized forces t from sequences of generalized

@@ -175,7 +175,7 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumDtauDq) {
   // Compute inverse dynamics partials
   InverseDynamicsPartials grad_data(num_steps, 1, 1);
   std::vector<VectorXd> v(num_steps + 1);
-  optimizer.CalcV(q, &v);
+  optimizer.CalcVelocities(q, &v);
   optimizer.CalcInverseDynamicsPartials(q, v, &workspace, &grad_data);
 
   // Compute ground truth partials from the pendulum model
@@ -348,7 +348,7 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumCalcTau) {
  *   v_t = (q_t - q_{t-1})/dt
  *
  */
-GTEST_TEST(TrajectoryOptimizerTest, CalcV) {
+GTEST_TEST(TrajectoryOptimizerTest, CalcVelocities) {
   const int num_steps = 5;
   const double dt = 1e-2;
 
@@ -371,7 +371,7 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcV) {
 
   // Compute v from q
   std::vector<VectorXd> v(num_steps + 1);
-  optimizer.CalcV(q, &v);
+  optimizer.CalcVelocities(q, &v);
 
   // Check that our computed v is correct
   const double kTolerance = std::numeric_limits<double>::epsilon() / dt;
