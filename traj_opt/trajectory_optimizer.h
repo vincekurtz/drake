@@ -53,6 +53,28 @@ class TrajectoryOptimizer {
   const MultibodyPlant<double>& plant() const { return *plant_; }
 
   /**
+   * Create a state object which contains the decision variables (generalized
+   * positions at each timestep), along with a cache of other things that are
+   * computed from positions, such as velocities, accelerations, forces, and
+   * various derivatives.
+   *
+   * @return TrajectoryOptimizerState
+   */
+  TrajectoryOptimizerState ConstructState() const {
+    return TrajectoryOptimizerState(num_steps(), plant().num_velocities(),
+                                    plant().num_positions());
+  }
+
+  /**
+   * Create a scratch space for intermediate computations.
+   *
+   * @return TrajectoryOptimizerWorkspace
+   */
+  TrajectoryOptimizerWorkspace ConstructWorkspace() const {
+    return TrajectoryOptimizerWorkspace(plant());
+  }
+
+  /**
    * Compute and return the total (unconstrained) cost of the optimization
    * problem,
    *
