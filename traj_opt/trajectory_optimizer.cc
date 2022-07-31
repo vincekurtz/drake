@@ -68,7 +68,7 @@ double TrajectoryOptimizer::CalcCost(
   std::vector<VectorXd> tau(num_steps());
 
   CalcVelocities(q, &v);
-  CalcTau(q, v, workspace, &tau);
+  CalcInverseDynamics(q, v, workspace, &tau);
 
   return CalcCost(q, v, tau, workspace);
 }
@@ -85,10 +85,9 @@ void TrajectoryOptimizer::CalcVelocities(const std::vector<VectorXd>& q,
   }
 }
 
-void TrajectoryOptimizer::CalcTau(const std::vector<VectorXd>& q,
-                                  const std::vector<VectorXd>& v,
-                                  TrajectoryOptimizerWorkspace* workspace,
-                                  std::vector<VectorXd>* tau) const {
+void TrajectoryOptimizer::CalcInverseDynamics(
+    const std::vector<VectorXd>& q, const std::vector<VectorXd>& v,
+    TrajectoryOptimizerWorkspace* workspace, std::vector<VectorXd>* tau) const {
   // Generalized forces aren't defined for the last timestep
   // TODO(vincekurtz): additional checks that q_t, v_t, tau_t are the right size
   // for the plant?
@@ -147,7 +146,7 @@ void TrajectoryOptimizer::CalcInverseDynamicsPartialsFiniteDiff(
   // TODO(vincekurtz): consider passing this as an argument along with q and v,
   // perhaps combined into a TrajectoryData struct
   std::vector<VectorXd> tau(num_steps());
-  CalcTau(q, v, workspace, &tau);
+  CalcInverseDynamics(q, v, workspace, &tau);
 
   // Compute a(q) [all timesteps] store (unperturbed) accelerations
   // TODO(vincekurt): put this all in the same object as q, v, and
@@ -393,7 +392,7 @@ void TrajectoryOptimizer::UpdateState(const std::vector<VectorXd>& q,
 
   // Compute corresponding generalized torques
   // TODO(vincekurtz) use precomputed accelerations in CalcTau
-  CalcTau(q, v, workspace, &tau);
+  CalcInverseDynamics(q, v, workspace, &tau);
 
   // Compute partial derivatives of inverse dynamics d(tau)/d(q)
   CalcInverseDynamicsPartials(q, v, workspace, &id_partials);

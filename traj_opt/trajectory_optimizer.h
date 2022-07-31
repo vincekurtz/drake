@@ -135,9 +135,10 @@ class TrajectoryOptimizer {
    * @param workspace scratch space for intermediate computations
    * @param tau sequence of generalized forces
    */
-  void CalcTau(const std::vector<VectorXd>& q, const std::vector<VectorXd>& v,
-               TrajectoryOptimizerWorkspace* workspace,
-               std::vector<VectorXd>* tau) const;
+  void CalcInverseDynamics(const std::vector<VectorXd>& q,
+                           const std::vector<VectorXd>& v,
+                           TrajectoryOptimizerWorkspace* workspace,
+                           std::vector<VectorXd>* tau) const;
 
   /**
    * Compute the gradient of the unconstrained cost L(q).

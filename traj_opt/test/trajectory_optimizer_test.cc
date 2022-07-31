@@ -278,7 +278,7 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcCost) {
  * where a_t = (v_{t+1}-v_t)/dt.
  *
  */
-GTEST_TEST(TrajectoryOptimizerTest, PendulumCalcTau) {
+GTEST_TEST(TrajectoryOptimizerTest, PendulumCalcInverseDynamics) {
   const int num_steps = 5;
   const double dt = 1e-2;
 
@@ -331,7 +331,7 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumCalcTau) {
     // It appears, via trial and error, that CalcInverseDynamics makes exactly
     // 15 allocations for this example.
     LimitMalloc guard({.max_num_allocations = 15});
-    optimizer.CalcTau(q, v, &workspace, &tau);
+    optimizer.CalcInverseDynamics(q, v, &workspace, &tau);
   }
 
   // Check that our computed values match the true (recorded) ones
