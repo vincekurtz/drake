@@ -28,8 +28,9 @@ TrajectoryOptimizer::TrajectoryOptimizer(const MultibodyPlant<double>* plant,
   }
 }
 
-double TrajectoryOptimizer::CalcCost(const TrajectoryOptimizerState& state,
-                TrajectoryOptimizerWorkspace* workspace) const {
+double TrajectoryOptimizer::CalcCost(
+    const TrajectoryOptimizerState& state,
+    TrajectoryOptimizerWorkspace* workspace) const {
   if (!state.cache().up_to_date) UpdateCache(state, workspace);
   return CalcCost(state.q(), state.cache().v, state.cache().tau, workspace);
 }
@@ -265,8 +266,13 @@ void TrajectoryOptimizer::CalcVelocityPartials(
   if (plant().num_velocities() != plant().num_positions()) {
     throw std::runtime_error("Quaternion DoFs not yet supported");
   } else {
-    v_partials->dvt_dqt = 1 / time_step();
-    v_partials->dvt_dqm = -1 / time_step();
+    const int nq = plant().num_positions();
+    for (int t = 0; t <= num_steps(); ++t) {
+      v_partials->dvt_dqt[t] = 1 / time_step() * MatrixXd::Identity(nq, nq);
+      if (t > 0) {
+        v_partials->dvt_dqm[t] = -1 / time_step() * MatrixXd::Identity(nq, nq);
+      }
+    }
   }
 }
 
@@ -318,8 +324,8 @@ void TrajectoryOptimizer::CalcGradient(const TrajectoryOptimizerState& state,
   const std::vector<VectorXd>& q = state.q();
   const std::vector<VectorXd>& v = state.cache().v;
   const std::vector<VectorXd>& tau = state.cache().tau;
-  const double dvt_dqt = state.cache().v_partials.dvt_dqt;
-  const double dvt_dqm = state.cache().v_partials.dvt_dqm;
+  const std::vector<MatrixXd>& dvt_dqt = state.cache().v_partials.dvt_dqt;
+  const std::vector<MatrixXd>& dvt_dqm = state.cache().v_partials.dvt_dqm;
   const std::vector<MatrixXd>& dtau_dqp = state.cache().id_partials.dtau_dqp;
   const std::vector<MatrixXd>& dtau_dqt = state.cache().id_partials.dtau_dqt;
   const std::vector<MatrixXd>& dtau_dqm = state.cache().id_partials.dtau_dqm;
@@ -341,13 +347,14 @@ void TrajectoryOptimizer::CalcGradient(const TrajectoryOptimizerState& state,
     qt_term = (q[t] - prob_.q_nom).transpose() * 2 * prob_.Qq * dt;
 
     // Contribution from velocity cost
-    vt_term = (v[t] - prob_.v_nom).transpose() * 2 * prob_.Qv * dt * dvt_dqt;
+    vt_term = (v[t] - prob_.v_nom).transpose() * 2 * prob_.Qv * dt * dvt_dqt[t];
     if (t == num_steps() - 1) {
       // The terminal cost needs to be handled differently
-      vp_term = (v[t + 1] - prob_.v_nom).transpose() * 2 * prob_.Qf_v * dvt_dqm;
+      vp_term = (v[t + 1] - prob_.v_nom).transpose() * 2 * prob_.Qf_v *
+                dvt_dqm[t + 1];
     } else {
-      vp_term =
-          (v[t + 1] - prob_.v_nom).transpose() * 2 * prob_.Qv * dt * dvt_dqm;
+      vp_term = (v[t + 1] - prob_.v_nom).transpose() * 2 * prob_.Qv * dt *
+                dvt_dqm[t + 1];
     }
 
     // Contribution from control cost
@@ -370,8 +377,8 @@ void TrajectoryOptimizer::CalcGradient(const TrajectoryOptimizerState& state,
   taum_term = tau[num_steps() - 1].transpose() * 2 * prob_.R * dt *
               dtau_dqp[num_steps() - 1];
   qt_term = (q[num_steps()] - prob_.q_nom).transpose() * 2 * prob_.Qf_q;
-  vt_term =
-      (v[num_steps()] - prob_.v_nom).transpose() * 2 * prob_.Qf_v * dvt_dqt;
+  vt_term = (v[num_steps()] - prob_.v_nom).transpose() * 2 * prob_.Qf_v *
+            dvt_dqt[num_steps()];
   g->tail(nq) = qt_term + vt_term + taum_term;
 }
 

@@ -132,11 +132,11 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcGradientKuka) {
 
   // Looks like we're losing a lot of precision here, but I think that's because
   // it comes from several sources:
-  //    1) central finite differences give us eps^(2/3)
+  //    1) finite differences give us eps^(1/2)
   //    2) computing v(q) gives us a factor of 1/dt
   //    3) computing tau(v(q)) gives us an additional factor of 1/dt
   const double kTolerance =
-      pow(std::numeric_limits<double>::epsilon(), 2. / 3.) / dt / dt;
+      pow(std::numeric_limits<double>::epsilon(), 1. / 2.) / dt / dt;
   EXPECT_TRUE(
       CompareMatrices(g, g_gt, kTolerance, MatrixCompareType::relative));
 }
@@ -188,7 +188,7 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcGradientPendulum) {
   VectorXd g(plant.num_positions() * (num_steps + 1));
   optimizer.CalcGradient(state, &workspace, &g);
 
-  // Compare the two (we don't quite get the theoretical eps^(2/3) accuracy)
+  // Compare the two
   const double kTolerance = pow(std::numeric_limits<double>::epsilon(), 0.5);
   EXPECT_TRUE(
       CompareMatrices(g, g_gt, kTolerance, MatrixCompareType::relative));

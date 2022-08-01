@@ -18,8 +18,24 @@ using Eigen::VectorXd;
  * different for each timestep, and include a factor of N+(q).
  */
 struct VelocityPartials {
-  double dvt_dqt;
-  double dvt_dqm;
+  VelocityPartials(const int num_steps, const int nv, const int nq) {
+    dvt_dqt.assign(num_steps + 1, MatrixXd(nv, nq));
+    dvt_dqm.assign(num_steps + 1, MatrixXd(nv, nq));
+
+    // Derivatives w.r.t. q(-1) are undefined
+    dvt_dqm[0].setConstant(nv, nq, NAN);
+  }
+  // Partials of v_t w.r.t. q_t at each time step:
+  //
+  //    [d(v_0)/d(q_0), d(v_1)/d(q_1), ... , d(v_{num_steps})/d(q_{num_steps}) ]
+  //
+  std::vector<MatrixXd> dvt_dqt;
+
+  // Partials of v_t w.r.t. q_{t-1} at each time step:
+  //
+  //    [NaN, d(v_1)/d(q_0), ... , d(v_{num_steps})/d(q_{num_steps-1}) ]
+  //
+  std::vector<MatrixXd> dvt_dqm;
 };
 
 /**
@@ -93,7 +109,7 @@ struct InverseDynamicsPartials {
  */
 struct TrajectoryOptimizerCache {
   TrajectoryOptimizerCache(const int num_steps, const int nv, const int nq)
-      : id_partials(num_steps, nv, nq) {
+      : v_partials(num_steps, nv, nq), id_partials(num_steps, nv, nq) {
     v.assign(num_steps + 1, VectorXd(nv));
     a.assign(num_steps, VectorXd(nv));
     tau.assign(num_steps, VectorXd(nv));
