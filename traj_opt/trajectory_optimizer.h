@@ -60,8 +60,8 @@ class TrajectoryOptimizer {
    *
    * @return TrajectoryOptimizerState
    */
-  TrajectoryOptimizerState ConstructState() const {
-    return TrajectoryOptimizerState(num_steps(), plant().num_velocities(),
+  TrajectoryOptimizerState<double> ConstructState() const {
+    return TrajectoryOptimizerState<double>(num_steps(), plant().num_velocities(),
                                     plant().num_positions());
   }
 
@@ -190,7 +190,7 @@ class TrajectoryOptimizer {
    * @param g a single VectorXd containing the partials of L w.r.t. each
    *          decision variable (q_t[i]).
    */
-  void CalcGradient(const TrajectoryOptimizerState& state,
+  void CalcGradient(const TrajectoryOptimizerState<double>& state,
                     TrajectoryOptimizerWorkspace<double>* workspace,
                     EigenPtr<VectorXd> g) const;
 
@@ -257,7 +257,7 @@ class TrajectoryOptimizer {
    */
   void UpdateState(const std::vector<VectorXd>& q,
                    TrajectoryOptimizerWorkspace<double>* workspace,
-                   TrajectoryOptimizerState* state) const;
+                   TrajectoryOptimizerState<double>* state) const;
 
  private:
   /**

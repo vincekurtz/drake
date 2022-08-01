@@ -301,7 +301,7 @@ void TrajectoryOptimizer::CalcGradientFiniteDiff(
   }
 }
 
-void TrajectoryOptimizer::CalcGradient(const TrajectoryOptimizerState& state,
+void TrajectoryOptimizer::CalcGradient(const TrajectoryOptimizerState<double>& state,
                                        TrajectoryOptimizerWorkspace<double>* workspace,
                                        EigenPtr<VectorXd> g) const {
   // Set some aliases
@@ -369,7 +369,7 @@ void TrajectoryOptimizer::CalcGradient(const TrajectoryOptimizerState& state,
 
 void TrajectoryOptimizer::UpdateState(const std::vector<VectorXd>& q,
                                       TrajectoryOptimizerWorkspace<double>* workspace,
-                                      TrajectoryOptimizerState* state) const {
+                                      TrajectoryOptimizerState<double>* state) const {
   // Some aliases for things that we'll set
   std::vector<VectorXd>& v = state->cache.v;
   std::vector<VectorXd>& a = state->cache.a;

@@ -90,30 +90,31 @@ struct InverseDynamicsPartials {
   std::vector<MatrixX<T>> dtau_dqp;
 };
 
+template <typename T>
 struct TrajectoryOptimizerCache {
   TrajectoryOptimizerCache(const int num_steps, const int nv, const int nq)
       : id_partials(num_steps, nv, nq) {
-    v.assign(num_steps + 1, VectorXd(nv));
-    a.assign(num_steps, VectorXd(nv));
-    tau.assign(num_steps, VectorXd(nv));
+    v.assign(num_steps + 1, VectorX<T>(nv));
+    a.assign(num_steps, VectorX<T>(nv));
+    tau.assign(num_steps, VectorX<T>(nv));
   }
   // Generalized velocities at each timestep
   // [v(0), v(1), ..., v(num_steps)]
-  std::vector<VectorXd> v;
+  std::vector<VectorX<T>> v;
 
   // Generalized accelerations at each timestep
   // [a(0), a(1), ..., a(num_steps-1)]
-  std::vector<VectorXd> a;
+  std::vector<VectorX<T>> a;
 
   // Generalized forces at each timestep
   // [tau(0), tau(1), ..., tau(num_steps-1)]
-  std::vector<VectorXd> tau;
+  std::vector<VectorX<T>> tau;
 
   // Storage for dv(t)/dq(t) and dv(t)/dq(t-1)
-  VelocityPartials<double> v_partials;
+  VelocityPartials<T> v_partials;
 
   // Storage for dtau(t)/dq(t-1), dtau(t)/dq(t), and dtau(t)/dq(t+1)
-  InverseDynamicsPartials<double> id_partials;
+  InverseDynamicsPartials<T> id_partials;
 };
 
 /**
@@ -124,6 +125,7 @@ struct TrajectoryOptimizerCache {
  * computed from q, such as generalized velocities and forces at each timesteps,
  * relevant dynamics partials, etc.
  */
+template <typename T>
 struct TrajectoryOptimizerState {
   /**
    * Constructor which allocates things of the proper sizes.
@@ -134,24 +136,28 @@ struct TrajectoryOptimizerState {
    */
   TrajectoryOptimizerState(const int num_steps, const int nv, const int nq)
       : cache(num_steps, nv, nq) {
-    q.assign(num_steps, VectorXd(nq));
+    q.assign(num_steps, VectorX<T>(nq));
   }
 
   // Sequence of generalized velocities at each timestep,
   // [q(0), q(1), ..., q(num_steps)]
   // TODO(vincekurtz): consider storing as a single VectorXd for better memory
   // layout.
-  std::vector<VectorXd> q;
+  std::vector<VectorX<T>> q;
 
   // Storage for all other quantities that are computed from q, and are useful
   // for our calculations
-  TrajectoryOptimizerCache cache;
+  TrajectoryOptimizerCache<T> cache;
 };
 
 }  // namespace traj_opt
 }  // namespace drake
 
 DRAKE_DEFINE_CLASS_TEMPLATE_INSTANTIATIONS_ON_DEFAULT_NONSYMBOLIC_SCALARS(
+  struct ::drake::traj_opt::VelocityPartials)
+DRAKE_DEFINE_CLASS_TEMPLATE_INSTANTIATIONS_ON_DEFAULT_NONSYMBOLIC_SCALARS(
   struct ::drake::traj_opt::InverseDynamicsPartials)
 DRAKE_DEFINE_CLASS_TEMPLATE_INSTANTIATIONS_ON_DEFAULT_NONSYMBOLIC_SCALARS(
-  struct ::drake::traj_opt::VelocityPartials)
+  struct ::drake::traj_opt::TrajectoryOptimizerCache)
+DRAKE_DEFINE_CLASS_TEMPLATE_INSTANTIATIONS_ON_DEFAULT_NONSYMBOLIC_SCALARS(
+  struct ::drake::traj_opt::TrajectoryOptimizerState)
