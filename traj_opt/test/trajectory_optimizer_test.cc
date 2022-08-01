@@ -9,9 +9,11 @@
 #include "drake/common/test_utilities/limit_malloc.h"
 #include "drake/multibody/parsing/parser.h"
 #include "drake/multibody/plant/multibody_plant.h"
-#include "drake/traj_opt/problem_data.h"
+#include "drake/traj_opt/inverse_dynamics_partials.h"
 #include "drake/traj_opt/problem_definition.h"
+#include "drake/traj_opt/trajectory_optimizer_state.h"
 #include "drake/traj_opt/trajectory_optimizer_workspace.h"
+#include "drake/traj_opt/velocity_partials.h"
 
 namespace drake {
 namespace traj_opt {
