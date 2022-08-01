@@ -29,10 +29,10 @@ TrajectoryOptimizer::TrajectoryOptimizer(const MultibodyPlant<double>* plant,
 }
 
 double TrajectoryOptimizer::CalcCost(
-    const TrajectoryOptimizerState& state,
-    TrajectoryOptimizerWorkspace* workspace) const {
-  if (!state.cache().up_to_date) UpdateCache(state, workspace);
-  return CalcCost(state.q(), state.cache().v, state.cache().tau, workspace);
+    const TrajectoryOptimizerState& state) const {
+  if (!state.cache().up_to_date) UpdateCache(state);
+  return CalcCost(state.q(), state.cache().v, state.cache().tau,
+                  &state.workspace);
 }
 
 double TrajectoryOptimizer::CalcCost(
@@ -314,9 +314,8 @@ void TrajectoryOptimizer::CalcGradientFiniteDiff(
 }
 
 void TrajectoryOptimizer::CalcGradient(const TrajectoryOptimizerState& state,
-                                       TrajectoryOptimizerWorkspace* workspace,
                                        EigenPtr<VectorXd> g) const {
-  if (!state.cache().up_to_date) UpdateCache(state, workspace);
+  if (!state.cache().up_to_date) UpdateCache(state);
 
   // Set some aliases
   const double dt = time_step();
@@ -329,6 +328,7 @@ void TrajectoryOptimizer::CalcGradient(const TrajectoryOptimizerState& state,
   const std::vector<MatrixXd>& dtau_dqp = state.cache().id_partials.dtau_dqp;
   const std::vector<MatrixXd>& dtau_dqt = state.cache().id_partials.dtau_dqt;
   const std::vector<MatrixXd>& dtau_dqm = state.cache().id_partials.dtau_dqm;
+  TrajectoryOptimizerWorkspace* workspace = &state.workspace;
 
   // Set first block of g (derivatives w.r.t. q_0) to zero, since q0 = q_init
   // are constant.
@@ -383,9 +383,9 @@ void TrajectoryOptimizer::CalcGradient(const TrajectoryOptimizerState& state,
 }
 
 void TrajectoryOptimizer::UpdateCache(
-    const TrajectoryOptimizerState& state,
-    TrajectoryOptimizerWorkspace* workspace) const {
+    const TrajectoryOptimizerState& state) const {
   TrajectoryOptimizerCache& cache = state.mutable_cache();
+  TrajectoryOptimizerWorkspace* workspace = &state.workspace;
 
   // Some aliases for things that we'll set
   std::vector<VectorXd>& v = cache.v;

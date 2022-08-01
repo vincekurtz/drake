@@ -63,17 +63,7 @@ class TrajectoryOptimizer {
    * @return TrajectoryOptimizerState
    */
   TrajectoryOptimizerState CreateState() const {
-    return TrajectoryOptimizerState(num_steps(), plant().num_velocities(),
-                                    plant().num_positions());
-  }
-
-  /**
-   * Create a scratch space for intermediate computations.
-   *
-   * @return TrajectoryOptimizerWorkspace
-   */
-  TrajectoryOptimizerWorkspace CreateWorkspace() const {
-    return TrajectoryOptimizerWorkspace(num_steps(), plant());
+    return TrajectoryOptimizerState(num_steps(), plant());
   }
 
   /**
@@ -81,10 +71,8 @@ class TrajectoryOptimizer {
    * to correspond to the state's generalized positions q.
    *
    * @param state optimizer state to update.
-   * @param workspace scratch space for intermediate computations
    */
-  void UpdateCache(const TrajectoryOptimizerState& state,
-                   TrajectoryOptimizerWorkspace* workspace) const;
+  void UpdateCache(const TrajectoryOptimizerState& state) const;
 
   /**
    * Compute and return the total (unconstrained) cost of the optimization
@@ -105,19 +93,16 @@ class TrajectoryOptimizer {
    * @param state optimizer state, including q, v, and tau
    * @return double, total cost
    */
-  double CalcCost(const TrajectoryOptimizerState& state,
-                  TrajectoryOptimizerWorkspace* workspace) const;
+  double CalcCost(const TrajectoryOptimizerState& state) const;
 
   /**
    * Compute the gradient of the unconstrained cost L(q).
    *
    * @param state optimizer state, including q, v, tau, gradients, etc.
-   * @param workspace scratch space for intermediate computations
    * @param g a single VectorXd containing the partials of L w.r.t. each
    *          decision variable (q_t[i]).
    */
   void CalcGradient(const TrajectoryOptimizerState& state,
-                    TrajectoryOptimizerWorkspace* workspace,
                     EigenPtr<VectorXd> g) const;
 
  private:

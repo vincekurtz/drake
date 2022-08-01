@@ -3,13 +3,16 @@
 #include <vector>
 
 #include "drake/common/eigen_types.h"
+#include "drake/multibody/plant/multibody_plant.h"
 #include "drake/traj_opt/inverse_dynamics_partials.h"
+#include "drake/traj_opt/trajectory_optimizer_workspace.h"
 #include "drake/traj_opt/velocity_partials.h"
 
 namespace drake {
 namespace traj_opt {
 
 using Eigen::VectorXd;
+using multibody::MultibodyPlant;
 
 /**
  * Struct for holding quantities that are computed from the optimizer state (q),
@@ -62,9 +65,11 @@ class TrajectoryOptimizerState {
    * @param nv number of multibody velocities
    * @param nq number of multipody positions
    */
-  TrajectoryOptimizerState(const int num_steps, const int nv, const int nq)
-      : cache_(num_steps, nv, nq) {
-    q_.assign(num_steps + 1, VectorXd(nq));
+  TrajectoryOptimizerState(const int num_steps,
+                           const MultibodyPlant<double>& plant)
+      : workspace(num_steps, plant),
+        cache_(num_steps, plant.num_velocities(), plant.num_positions()) {
+    q_.assign(num_steps + 1, VectorXd(plant.num_positions()));
   }
 
   /**
@@ -93,13 +98,18 @@ class TrajectoryOptimizerState {
   const TrajectoryOptimizerCache& cache() const { return cache_; }
 
   /**
-   *
    * Get a mutable copy of the cache, containing other values computed from q,
    * such as generalized velocities, forces, and various dynamics derivatives.
    *
    * @return TrajectoryOptimizerCache&
    */
   TrajectoryOptimizerCache& mutable_cache() const { return cache_; }
+
+  /**
+   * Scratch space for intermediate computations, to avoid expensive
+   * allocations.
+   */
+  mutable TrajectoryOptimizerWorkspace workspace;
 
  private:
   // Sequence of generalized velocities at each timestep,

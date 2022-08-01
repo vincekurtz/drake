@@ -80,8 +80,10 @@ drake_cc_library(
     ],
     deps = [
         ":inverse_dynamics_partials",
+        ":trajectory_optimizer_workspace",
         ":velocity_partials",
         "//common:essential",
+        "//multibody/plant",
     ],
 )
 

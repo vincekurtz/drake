@@ -113,7 +113,7 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcGradientKuka) {
   // Create an optimizer
   TrajectoryOptimizer optimizer(&plant, opt_prob);
   TrajectoryOptimizerState state = optimizer.CreateState();
-  TrajectoryOptimizerWorkspace workspace = optimizer.CreateWorkspace();
+  TrajectoryOptimizerWorkspace workspace(num_steps, plant);
 
   // Make some fake data
   std::vector<VectorXd> q(num_steps + 1);
@@ -130,7 +130,7 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcGradientKuka) {
 
   // Compute the gradient with our method
   VectorXd g(plant.num_positions() * (num_steps + 1));
-  optimizer.CalcGradient(state, &workspace, &g);
+  optimizer.CalcGradient(state, &g);
 
   // Looks like we're losing a lot of precision here, but I think that's because
   // it comes from several sources:
@@ -171,7 +171,7 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcGradientPendulum) {
   // Create an optimizer
   TrajectoryOptimizer optimizer(&plant, opt_prob);
   TrajectoryOptimizerState state = optimizer.CreateState();
-  TrajectoryOptimizerWorkspace workspace = optimizer.CreateWorkspace();
+  TrajectoryOptimizerWorkspace workspace(num_steps, plant);
 
   // Make some fake data
   std::vector<VectorXd> q(num_steps + 1);
@@ -188,7 +188,7 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcGradientPendulum) {
 
   // Compute the gradient with our method
   VectorXd g(plant.num_positions() * (num_steps + 1));
-  optimizer.CalcGradient(state, &workspace, &g);
+  optimizer.CalcGradient(state, &g);
 
   // Compare the two
   const double kTolerance = pow(std::numeric_limits<double>::epsilon(), 0.5);
@@ -214,7 +214,7 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumDtauDq) {
   opt_prob.v_init = Vector1d(0.1);
   opt_prob.num_steps = num_steps;
   TrajectoryOptimizer optimizer(&plant, opt_prob);
-  TrajectoryOptimizerWorkspace workspace = optimizer.CreateWorkspace();
+  TrajectoryOptimizerWorkspace workspace(num_steps, plant);
 
   // Create some fake data
   std::vector<VectorXd> q;
@@ -281,6 +281,53 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumDtauDq) {
 }
 
 /**
+ * Quick sanity check on our computation of costs using the state abstraction.
+ */
+GTEST_TEST(TrajectoryOptimizerTest, CalcCostFromState) {
+  const int num_steps = 10;
+  const double dt = 1e-3;
+
+  // Set up a system model
+  MultibodyPlant<double> plant(dt);
+  const std::string urdf_file =
+      FindResourceOrThrow("drake/examples/pendulum/Pendulum.urdf");
+  Parser(&plant).AddAllModelsFromFile(urdf_file);
+  plant.Finalize();
+
+  // Set up a toy optimization problem
+  ProblemDefinition opt_prob;
+  opt_prob.num_steps = num_steps;
+  opt_prob.q_init = Vector1d(0.0);
+  opt_prob.v_init = Vector1d(-0.1);
+  opt_prob.Qq = 0.0 * MatrixXd::Identity(1, 1);
+  opt_prob.Qv = 1.0 * MatrixXd::Identity(1, 1);
+  opt_prob.Qf_q = 0.0 * MatrixXd::Identity(1, 1);
+  opt_prob.Qf_v = 1.0 * MatrixXd::Identity(1, 1);
+  opt_prob.R = 0.0 * MatrixXd::Identity(1, 1);
+  opt_prob.q_nom = Vector1d(0.1);
+  opt_prob.v_nom = Vector1d(0.9);
+
+  // Create some fake data
+  std::vector<VectorXd> q;
+  q.push_back(opt_prob.q_init);
+  for (int t = 1; t <= num_steps; ++t) {
+    q.push_back(Vector1d(0.0 - 0.1 * dt * t));
+  }
+
+  // Create an optimizer
+  TrajectoryOptimizer optimizer(&plant, opt_prob);
+  TrajectoryOptimizerState state = optimizer.CreateState();
+  state.set_q(q);
+
+  // Evaluate the cost
+  double L = optimizer.CalcCost(state);
+  double L_gt = num_steps * dt + 1;
+
+  const double kTolerance = std::numeric_limits<double>::epsilon() / dt;
+  EXPECT_NEAR(L, L_gt, kTolerance);
+}
+
+/**
  * Test our computation of the total cost L(q)
  */
 GTEST_TEST(TrajectoryOptimizerTest, CalcCost) {
@@ -318,7 +365,7 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcCost) {
 
   // Compute the cost and compare with the true value
   TrajectoryOptimizer optimizer(&plant, opt_prob);
-  TrajectoryOptimizerWorkspace workspace = optimizer.CreateWorkspace();
+  TrajectoryOptimizerWorkspace workspace(num_steps, plant);
   double L =
       TrajectoryOptimizerTester::CalcCost(optimizer, q, v, tau, &workspace);
   double L_gt =
@@ -381,7 +428,7 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumCalcInverseDynamics) {
   ProblemDefinition opt_prob;
   opt_prob.num_steps = num_steps;
   TrajectoryOptimizer optimizer(&plant, opt_prob);
-  TrajectoryOptimizerWorkspace workspace = optimizer.CreateWorkspace();
+  TrajectoryOptimizerWorkspace workspace(num_steps, plant);
 
   // Compute tau from q and v
   std::vector<VectorXd> tau(num_steps, VectorXd(1));
