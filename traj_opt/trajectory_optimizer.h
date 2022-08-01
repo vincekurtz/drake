@@ -67,14 +67,6 @@ class TrajectoryOptimizer {
   }
 
   /**
-   * Compute everything in the state's cache (v, a, tau, dv_dq, dtau_dq)
-   * to correspond to the state's generalized positions q.
-   *
-   * @param state optimizer state to update.
-   */
-  void UpdateCache(const TrajectoryOptimizerState<T>& state) const;
-
-  /**
    * Compute and return the total (unconstrained) cost of the optimization
    * problem,
    *
@@ -99,7 +91,7 @@ class TrajectoryOptimizer {
    * Compute the gradient of the unconstrained cost L(q).
    *
    * @param state optimizer state, including q, v, tau, gradients, etc.
-   * @param g a single VectorX<T> containing the partials of L w.r.t. each
+   * @param g a single VectorXd containing the partials of L w.r.t. each
    *          decision variable (q_t[i]).
    */
   void CalcGradient(const TrajectoryOptimizerState<T>& state,
@@ -110,7 +102,17 @@ class TrajectoryOptimizer {
   friend class TrajectoryOptimizerTester;
 
   /**
+   * Compute everything in the state's cache (v, a, tau, dv_dq, dtau_dq)
+   * to correspond to the state's generalized positions q.
+   *
+   * @param state optimizer state to update.
+   */
+  void UpdateCache(const TrajectoryOptimizerState<T>& state) const;
+
+  /**
    * Compute the total cost of the unconstrained problem.
+   *
+   * This is for (finite-differences) testing purposes only.
    *
    * @param q sequence of generalized positions
    * @param v sequence of generalized velocities (consistent with q)
@@ -118,21 +120,10 @@ class TrajectoryOptimizer {
    * @param workspace scratch space for intermediate computations
    * @return double, total cost
    */
-  T CalcCost(const std::vector<VectorX<T>>& q, const std::vector<VectorX<T>>& v,
-             const std::vector<VectorX<T>>& tau,
-             TrajectoryOptimizerWorkspace<T>* workspace) const;
-
-  /**
-   * Convienience function which computes the total cost as a function of q
-   * directly, and includes the intermediate computation of v(q) and tau(q).
-   *
-   * This is for (finite-differences) testing purposes only.
-   *
-   * @param q sequence of generalized positions
-   * @return double the total cost
-   */
   T CalcCost(const std::vector<VectorX<T>>& q,
-             TrajectoryOptimizerWorkspace<T>* workspace) const;
+                  const std::vector<VectorX<T>>& v,
+                  const std::vector<VectorX<T>>& tau,
+                  TrajectoryOptimizerWorkspace<T>* workspace) const;
 
   /**
    * Compute a sequence of generalized velocities v from a sequence of
@@ -288,8 +279,7 @@ class TrajectoryOptimizer {
    * @param g a single VectorX<T> containing the partials of L w.r.t. each
    *          decision variable (q_t[i]).
    */
-  void CalcGradientFiniteDiff(const std::vector<VectorX<T>>& q,
-                              TrajectoryOptimizerWorkspace<T>* workspace,
+  void CalcGradientFiniteDiff(const TrajectoryOptimizerState<T>& state,
                               EigenPtr<VectorX<T>> g) const;
 
   // A model of the system that we are trying to find an optimal trajectory for.

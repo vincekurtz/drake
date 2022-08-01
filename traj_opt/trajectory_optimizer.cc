@@ -69,25 +69,8 @@ T TrajectoryOptimizer<T>::CalcCost(
 }
 
 template <typename T>
-T TrajectoryOptimizer<T>::CalcCost(
-    const std::vector<VectorX<T>>& q,
-    TrajectoryOptimizerWorkspace<T>* workspace) const {
-  // These are expensive heap allocations: prefer versions of CalcCost that
-  // use precomputed v and tau whenever possible.
-  std::vector<VectorX<T>> v(num_steps() + 1);
-  std::vector<VectorX<T>> a(num_steps());
-  std::vector<VectorX<T>> tau(num_steps());
-
-  CalcVelocities(q, &v);
-  CalcAccelerations(v, &a);
-  CalcInverseDynamics(q, v, a, workspace, &tau);
-
-  return CalcCost(q, v, tau, workspace);
-}
-
-template <typename T>
 void TrajectoryOptimizer<T>::CalcVelocities(const std::vector<VectorX<T>>& q,
-                                            std::vector<VectorX<T>>* v) const {
+                                         std::vector<VectorX<T>>* v) const {
   // x = [x0, x1, ..., xT]
   DRAKE_DEMAND(static_cast<int>(q.size()) == num_steps() + 1);
   DRAKE_DEMAND(static_cast<int>(v->size()) == num_steps() + 1);
@@ -291,15 +274,19 @@ void TrajectoryOptimizer<T>::CalcVelocityPartials(
 
 template <typename T>
 void TrajectoryOptimizer<T>::CalcGradientFiniteDiff(
-    const std::vector<VectorX<T>>& q,
-    TrajectoryOptimizerWorkspace<T>* workspace, EigenPtr<VectorX<T>> g) const {
-  using std::abs;
+    const TrajectoryOptimizerState<T>& state,
+    EigenPtr<VectorX<T>> g) const {
   using std::max;
+  using std::abs;
+    
   // Perturbed versions of q
-  std::vector<VectorX<T>>& q_plus = workspace->q_sequence_tmp1;
-  std::vector<VectorX<T>>& q_minus = workspace->q_sequence_tmp2;
-  q_plus = q;
-  q_minus = q;
+  std::vector<VectorX<T>>& q_plus = state.workspace.q_sequence_tmp1;
+  std::vector<VectorX<T>>& q_minus = state.workspace.q_sequence_tmp2;
+  q_plus = state.q();
+  q_minus = state.q();
+
+  // non-constant copy of state that we can perturb
+  TrajectoryOptimizerState<T> state_eps(state);
 
   // Set first block of g (derivatives w.r.t. q_0) to zero, since q0 = q_init
   // are constant.
@@ -312,18 +299,20 @@ void TrajectoryOptimizer<T>::CalcGradientFiniteDiff(
   for (int t = 1; t <= num_steps(); ++t) {
     for (int i = 0; i < plant().num_positions(); ++i) {
       // Set finite difference step size
-      dqt_i = eps * max(1.0, abs(q[t](i)));
+      dqt_i = eps * max(1.0, abs(state.q()[t](i)));
       q_plus[t](i) += dqt_i;
       q_minus[t](i) -= dqt_i;
 
       // Set g_j = using central differences
-      T L_plus = CalcCost(q_plus, workspace);
-      T L_minus = CalcCost(q_minus, workspace);
+      state_eps.set_q(q_plus);
+      T L_plus = CalcCost(state_eps);
+      state_eps.set_q(q_minus);
+      T L_minus = CalcCost(state_eps);
       (*g)(j) = (L_plus - L_minus) / (2 * dqt_i);
 
       // reset our perturbed Q and move to the next row of g.
-      q_plus[t](i) = q[t](i);
-      q_minus[t](i) = q[t](i);
+      q_plus[t](i) = state.q()[t](i);
+      q_minus[t](i) = state.q()[t](i);
       ++j;
     }
   }
@@ -405,7 +394,7 @@ template <typename T>
 void TrajectoryOptimizer<T>::UpdateCache(
     const TrajectoryOptimizerState<T>& state) const {
   TrajectoryOptimizerCache<T>& cache = state.mutable_cache();
-  TrajectoryOptimizerWorkspace<T>* workspace = &state.workspace;
+  TrajectoryOptimizerWorkspace<T>& workspace = state.workspace;
 
   // Some aliases for things that we'll set
   std::vector<VectorX<T>>& v = cache.v;
@@ -425,10 +414,10 @@ void TrajectoryOptimizer<T>::UpdateCache(
   CalcAccelerations(v, &a);
 
   // Compute corresponding generalized torques
-  CalcInverseDynamics(q, v, a, workspace, &tau);
+  CalcInverseDynamics(q, v, a, &workspace, &tau);
 
   // Compute partial derivatives of inverse dynamics d(tau)/d(q)
-  CalcInverseDynamicsPartials(q, v, a, tau, workspace, &id_partials);
+  CalcInverseDynamicsPartials(q, v, a, tau, &workspace, &id_partials);
 
   // Compute partial derivatives of velocities d(v)/d(q)
   CalcVelocityPartials(q, &v_partials);
