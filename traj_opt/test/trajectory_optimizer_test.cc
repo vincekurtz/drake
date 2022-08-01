@@ -113,6 +113,7 @@ GTEST_TEST(TrajectoryOptimizerTest, AutodiffGradient) {
   for (int t = 1; t <= num_steps; ++t) {
     q[t] = q[t - 1] + 0.1 * dt * MatrixXd::Identity(1, 1);
   }
+  state.set_q(q);
 
   // Compute the gradient analytically
   VectorXd g(plant.num_positions() * (num_steps + 1));
@@ -125,26 +126,29 @@ GTEST_TEST(TrajectoryOptimizerTest, AutodiffGradient) {
   TrajectoryOptimizerState<AutoDiffXd> state_ad = optimizer_ad.CreateState();
   TrajectoryOptimizerWorkspace<AutoDiffXd> workspace_ad(num_steps, *plant_ad);
 
-  VectorXd q_vec(num_steps + 1);
-  for (int t=0; t <= num_steps; ++t) {
-    q_vec[t] = q[t](0);
-  }
-
-  VectorX<AutoDiffXd> q_ad_vec = math::InitializeAutoDiff(q_vec);
   std::vector<VectorX<AutoDiffXd>> q_ad(num_steps + 1);
   for (int t = 0; t <= num_steps; ++t) {
-    std::cout << t << std::endl;
-    std::cout << q_ad_vec[t] << std::endl;
+    if (t == 2) {
+      q_ad[t] = math::InitializeAutoDiff(q[t]);
+    } else {
+      q_ad[t] = q[t];
+    }
   }
-  //optimizer_ad.UpdateState(q_ad, &workspace_ad, &state_ad);
+  state_ad.set_q(q_ad);
 
-  //AutoDiffXd cost = optimizer_ad.CalcCost(q_ad, state_ad.cache.v, state_ad.cache.tau, &workspace_ad);
-  //std::cout << cost.derivatives()(0) << std::endl;
-  //std::cout << cost.derivatives()(1) << std::endl;
-  //std::cout << cost.derivatives()(2) << std::endl;
-
-  //std::cout << std::endl;
-  //std::cout << g << std::endl;
+  double cost = optimizer.CalcCost(state);
+  AutoDiffXd cost_ad = optimizer_ad.CalcCost(state_ad);
+  std::cout << cost << std::endl;
+  std::cout << cost_ad << std::endl;
+  std::cout << std::endl;
+  std::cout << "derivatives size" << std::endl;
+  std::cout << cost_ad.derivatives().size() << std::endl;
+  std::cout << std::endl;
+  std::cout << "derivatives" << std::endl;
+  std::cout << cost_ad.derivatives() << std::endl;
+  std::cout << std::endl;
+  std::cout << "g: " << std::endl;
+  std::cout << g << std::endl;
 
   // Compare the two (we don't quite get the theoretical eps^(2/3) accuracy)
   //const double kTolerance = pow(std::numeric_limits<double>::epsilon(), 0.5);
