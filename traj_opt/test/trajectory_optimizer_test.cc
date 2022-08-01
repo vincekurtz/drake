@@ -15,6 +15,56 @@
 
 namespace drake {
 namespace traj_opt {
+
+class TrajectoryOptimizerTester {
+ public:
+  TrajectoryOptimizerTester() = delete;
+
+  static double CalcCost(const TrajectoryOptimizer& optimizer,
+                         const std::vector<VectorXd>& q,
+                         const std::vector<VectorXd>& v,
+                         const std::vector<VectorXd>& tau,
+                         TrajectoryOptimizerWorkspace* workspace) {
+    return optimizer.CalcCost(q, v, tau, workspace);
+  }
+
+  static void CalcVelocities(const TrajectoryOptimizer& optimizer,
+                             const std::vector<VectorXd>& q,
+                             std::vector<VectorXd>* v) {
+    optimizer.CalcVelocities(q, v);
+  }
+
+  static void CalcAccelerations(const TrajectoryOptimizer& optimizer,
+                                const std::vector<VectorXd>& v,
+                                std::vector<VectorXd>* a) {
+    optimizer.CalcAccelerations(v, a);
+  }
+
+  static void CalcInverseDynamics(const TrajectoryOptimizer& optimizer,
+                                  const std::vector<VectorXd>& q,
+                                  const std::vector<VectorXd>& v,
+                                  const std::vector<VectorXd>& a,
+                                  TrajectoryOptimizerWorkspace* workspace,
+                                  std::vector<VectorXd>* tau) {
+    optimizer.CalcInverseDynamics(q, v, a, workspace, tau);
+  }
+
+  static void CalcInverseDynamicsPartials(
+      const TrajectoryOptimizer& optimizer, const std::vector<VectorXd>& q,
+      const std::vector<VectorXd>& v, const std::vector<VectorXd>& a,
+      const std::vector<VectorXd>& tau, TrajectoryOptimizerWorkspace* workspace,
+      InverseDynamicsPartials* id_partials) {
+    optimizer.CalcInverseDynamicsPartials(q, v, a, tau, workspace, id_partials);
+  }
+
+  static void CalcGradientFiniteDiff(const TrajectoryOptimizer& optimizer,
+                                     const std::vector<VectorXd>& q,
+                                     TrajectoryOptimizerWorkspace* workspace,
+                                     EigenPtr<VectorXd> g) {
+    optimizer.CalcGradientFiniteDiff(q, workspace, g);
+  }
+};
+
 namespace internal {
 
 using Eigen::Matrix2d;
@@ -25,20 +75,6 @@ using multibody::DiscreteContactSolver;
 using multibody::MultibodyPlant;
 using multibody::Parser;
 using test::LimitMalloc;
-
-class TrajectoryOptimizerTester {
- public:
-  TrajectoryOptimizerTester() = delete;
-
-  static void CalcInverseDynamicsPartials(
-      const TrajectoryOptimizer& optimizer,
-      const std::vector<VectorXd>& q, const std::vector<VectorXd>& v,
-      const std::vector<VectorXd>& a, const std::vector<VectorXd>& tau,
-      TrajectoryOptimizerWorkspace* workspace,
-      InverseDynamicsPartials* id_partials) {
-    optimizer.CalcInverseDynamicsPartials(q, v, a, tau, workspace, id_partials);
-  }
-};
 
 GTEST_TEST(TrajectoryOptimizerTest, CalcGradientKuka) {
   const int num_steps = 3;
@@ -87,7 +123,8 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcGradientKuka) {
 
   // Compute the ("ground truth") gradient with finite differences
   VectorXd g_gt(plant.num_positions() * (num_steps + 1));
-  optimizer.CalcGradientFiniteDiff(q, &workspace, &g_gt);
+  TrajectoryOptimizerTester::CalcGradientFiniteDiff(optimizer, q, &workspace,
+                                                    &g_gt);
 
   // Compute the gradient with our method
   VectorXd g(plant.num_positions() * (num_steps + 1));
@@ -144,7 +181,8 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcGradientPendulum) {
 
   // Compute the ("ground truth") gradient with finite differences
   VectorXd g_gt(plant.num_positions() * (num_steps + 1));
-  optimizer.CalcGradientFiniteDiff(q, &workspace, &g_gt);
+  TrajectoryOptimizerTester::CalcGradientFiniteDiff(optimizer, q, &workspace,
+                                                    &g_gt);
 
   // Compute the gradient with our method
   VectorXd g(plant.num_positions() * (num_steps + 1));
@@ -188,9 +226,10 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumDtauDq) {
   std::vector<VectorXd> v(num_steps + 1);
   std::vector<VectorXd> a(num_steps);
   std::vector<VectorXd> tau(num_steps);
-  optimizer.CalcVelocities(q, &v);
-  optimizer.CalcAccelerations(v, &a);
-  optimizer.CalcInverseDynamics(q, v, a, &workspace, &tau);
+  TrajectoryOptimizerTester::CalcVelocities(optimizer, q, &v);
+  TrajectoryOptimizerTester::CalcAccelerations(optimizer, v, &a);
+  TrajectoryOptimizerTester::CalcInverseDynamics(optimizer, q, v, a, &workspace,
+                                                 &tau);
   TrajectoryOptimizerTester::CalcInverseDynamicsPartials(
       optimizer, q, v, a, tau, &workspace, &grad_data);
 
@@ -278,7 +317,8 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcCost) {
   // Compute the cost and compare with the true value
   TrajectoryOptimizer optimizer(&plant, opt_prob);
   TrajectoryOptimizerWorkspace workspace = optimizer.CreateWorkspace();
-  double L = optimizer.CalcCost(q, v, tau, &workspace);
+  double L =
+      TrajectoryOptimizerTester::CalcCost(optimizer, q, v, tau, &workspace);
   double L_gt =
       num_steps * dt * (2 * 0.1 + 2 * 0.2 + 2 * 0.5) + 2 * 0.3 + 2 * 0.4;
 
@@ -348,8 +388,9 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumCalcInverseDynamics) {
     // It appears, via trial and error, that CalcInverseDynamics makes exactly
     // 15 allocations for this example.
     LimitMalloc guard({.max_num_allocations = 15});
-    optimizer.CalcAccelerations(v, &a);
-    optimizer.CalcInverseDynamics(q, v, a, &workspace, &tau);
+    TrajectoryOptimizerTester::CalcAccelerations(optimizer, v, &a);
+    TrajectoryOptimizerTester::CalcInverseDynamics(optimizer, q, v, a,
+                                                   &workspace, &tau);
   }
 
   // Check that our computed values match the true (recorded) ones
@@ -389,7 +430,7 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcVelocities) {
 
   // Compute v from q
   std::vector<VectorXd> v(num_steps + 1);
-  optimizer.CalcVelocities(q, &v);
+  TrajectoryOptimizerTester::CalcVelocities(optimizer, q, &v);
 
   // Check that our computed v is correct
   const double kTolerance = std::numeric_limits<double>::epsilon() / dt;

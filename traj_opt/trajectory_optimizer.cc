@@ -28,17 +28,11 @@ TrajectoryOptimizer::TrajectoryOptimizer(const MultibodyPlant<double>* plant,
   }
 }
 
-/*
-  state = trajopt.MakeState();
-  state.SetQ(q_guess);   // state.up_to_date = false;
-  double cost = trajopt.CalcCost(state);
-
-*/
-//double CalcCost(const TrajectoryOptimizerState& state) const {
-//  if (!state.cache().up_do_date) UpdateCache(state, &state.mutable_cache());
-//
-//
-//}
+double TrajectoryOptimizer::CalcCost(const TrajectoryOptimizerState& state,
+                TrajectoryOptimizerWorkspace* workspace) const {
+  if (!state.cache().up_to_date) UpdateCache(state, workspace);
+  return CalcCost(state.q(), state.cache().v, state.cache().tau, workspace);
+}
 
 double TrajectoryOptimizer::CalcCost(
     const std::vector<VectorXd>& q, const std::vector<VectorXd>& v,
@@ -316,9 +310,7 @@ void TrajectoryOptimizer::CalcGradientFiniteDiff(
 void TrajectoryOptimizer::CalcGradient(const TrajectoryOptimizerState& state,
                                        TrajectoryOptimizerWorkspace* workspace,
                                        EigenPtr<VectorXd> g) const {
-  if (!state.cache().up_to_date) {
-    UpdateCache(state, workspace);
-  }
+  if (!state.cache().up_to_date) UpdateCache(state, workspace);
 
   // Set some aliases
   const double dt = time_step();

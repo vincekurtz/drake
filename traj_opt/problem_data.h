@@ -89,7 +89,7 @@ struct InverseDynamicsPartials {
 };
 
 /**
- * Struct for holding quantities that are computed from the optimizer state, 
+ * Struct for holding quantities that are computed from the optimizer state,
  */
 struct TrajectoryOptimizerCache {
   TrajectoryOptimizerCache(const int num_steps, const int nv, const int nq)
@@ -139,22 +139,22 @@ class TrajectoryOptimizerState {
    */
   TrajectoryOptimizerState(const int num_steps, const int nv, const int nq)
       : cache_(num_steps, nv, nq) {
-    q_.assign(num_steps+1, VectorXd(nq));
+    q_.assign(num_steps + 1, VectorXd(nq));
   }
 
   /**
    * Getter for the sequence of generalized velocities.
-   * 
+   *
    * @return const std::vector<VectorXd>& q
    */
   const std::vector<VectorXd>& q() const { return q_; }
 
   /**
-   * Setter for the sequence of generalized velocities. Invalidates the cache. 
-   * 
-   * @param q 
+   * Setter for the sequence of generalized velocities. Invalidates the cache.
+   *
+   * @param q
    */
-  void set_q(std::vector<VectorXd>& q) {
+  void set_q(const std::vector<VectorXd>& q) {
     q_ = q;
     cache_.up_to_date = false;
   }
@@ -168,11 +168,11 @@ class TrajectoryOptimizerState {
   const TrajectoryOptimizerCache& cache() const { return cache_; }
 
   /**
-   * 
-   * Get a mutable copy of the cache, containing other values computed from q, such as
-   * generalized velocities, forces, and various dynamics derivatives.
-   * 
-   * @return TrajectoryOptimizerCache& 
+   *
+   * Get a mutable copy of the cache, containing other values computed from q,
+   * such as generalized velocities, forces, and various dynamics derivatives.
+   *
+   * @return TrajectoryOptimizerCache&
    */
   TrajectoryOptimizerCache& mutable_cache() const { return cache_; }
 
