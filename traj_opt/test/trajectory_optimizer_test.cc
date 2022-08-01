@@ -81,7 +81,7 @@ using test::LimitMalloc;
 GTEST_TEST(TrajectoryOptimizerTest, AutodiffGradient) {
   // Test our gradient computations using autodiff
   const int num_steps = 5;
-  const double dt = 1e-3;
+  const double dt = 1e-2;
 
   ProblemDefinition opt_prob;
   opt_prob.num_steps = num_steps;
@@ -128,33 +128,18 @@ GTEST_TEST(TrajectoryOptimizerTest, AutodiffGradient) {
 
   std::vector<VectorX<AutoDiffXd>> q_ad(num_steps + 1);
   for (int t = 0; t <= num_steps; ++t) {
-    if (t == 2) {
-      q_ad[t] = math::InitializeAutoDiff(q[t]);
-    } else {
-      q_ad[t] = q[t];
-    }
+    q_ad[t] = math::InitializeAutoDiff(q[t], num_steps+1, t);
   }
   state_ad.set_q(q_ad);
 
-  double cost = optimizer.CalcCost(state);
   AutoDiffXd cost_ad = optimizer_ad.CalcCost(state_ad);
-  std::cout << cost << std::endl;
-  std::cout << cost_ad << std::endl;
-  std::cout << std::endl;
-  std::cout << "derivatives size" << std::endl;
-  std::cout << cost_ad.derivatives().size() << std::endl;
-  std::cout << std::endl;
-  std::cout << "derivatives" << std::endl;
-  std::cout << cost_ad.derivatives() << std::endl;
-  std::cout << std::endl;
-  std::cout << "g: " << std::endl;
-  std::cout << g << std::endl;
+  VectorXd g_ad = cost_ad.derivatives();
 
-  // Compare the two (we don't quite get the theoretical eps^(2/3) accuracy)
-  //const double kTolerance = pow(std::numeric_limits<double>::epsilon(), 0.5);
-  //EXPECT_TRUE(
-  //    CompareMatrices(g, g_gt, kTolerance, MatrixCompareType::relative));
-  
+  // We neglect the top row of the gradient, since we are setting it to zero. 
+  const double kTolerance = sqrt(std::numeric_limits<double>::epsilon());
+  EXPECT_TRUE(CompareMatrices(g.bottomRows(num_steps),
+                              g_ad.bottomRows(num_steps), kTolerance,
+                              MatrixCompareType::relative));
 }
 
 GTEST_TEST(TrajectoryOptimizerTest, CalcGradientKuka) {
