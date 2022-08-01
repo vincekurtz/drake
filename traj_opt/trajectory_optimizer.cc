@@ -34,12 +34,11 @@ TrajectoryOptimizer::TrajectoryOptimizer(const MultibodyPlant<double>* plant,
   double cost = trajopt.CalcCost(state);
 
 */
-
-double CalcCost(const TrajectoryOptimizerState& state) const {
-  if (!state.cache().up_do_date) UpdateCache(state, &state.mutable_cache());
-
-
-}
+//double CalcCost(const TrajectoryOptimizerState& state) const {
+//  if (!state.cache().up_do_date) UpdateCache(state, &state.mutable_cache());
+//
+//
+//}
 
 double TrajectoryOptimizer::CalcCost(
     const std::vector<VectorXd>& q, const std::vector<VectorXd>& v,
@@ -317,17 +316,21 @@ void TrajectoryOptimizer::CalcGradientFiniteDiff(
 void TrajectoryOptimizer::CalcGradient(const TrajectoryOptimizerState& state,
                                        TrajectoryOptimizerWorkspace* workspace,
                                        EigenPtr<VectorXd> g) const {
+  if (!state.cache().up_to_date) {
+    UpdateCache(state, workspace);
+  }
+
   // Set some aliases
   const double dt = time_step();
   const int nq = plant().num_positions();
-  const std::vector<VectorXd>& q = state.q;
-  const std::vector<VectorXd>& v = state.cache.v;
-  const std::vector<VectorXd>& tau = state.cache.tau;
-  const double dvt_dqt = state.cache.v_partials.dvt_dqt;
-  const double dvt_dqm = state.cache.v_partials.dvt_dqm;
-  const std::vector<MatrixXd>& dtau_dqp = state.cache.id_partials.dtau_dqp;
-  const std::vector<MatrixXd>& dtau_dqt = state.cache.id_partials.dtau_dqt;
-  const std::vector<MatrixXd>& dtau_dqm = state.cache.id_partials.dtau_dqm;
+  const std::vector<VectorXd>& q = state.q();
+  const std::vector<VectorXd>& v = state.cache().v;
+  const std::vector<VectorXd>& tau = state.cache().tau;
+  const double dvt_dqt = state.cache().v_partials.dvt_dqt;
+  const double dvt_dqm = state.cache().v_partials.dvt_dqm;
+  const std::vector<MatrixXd>& dtau_dqp = state.cache().id_partials.dtau_dqp;
+  const std::vector<MatrixXd>& dtau_dqt = state.cache().id_partials.dtau_dqt;
+  const std::vector<MatrixXd>& dtau_dqm = state.cache().id_partials.dtau_dqm;
 
   // Set first block of g (derivatives w.r.t. q_0) to zero, since q0 = q_init
   // are constant.
@@ -380,17 +383,20 @@ void TrajectoryOptimizer::CalcGradient(const TrajectoryOptimizerState& state,
   g->tail(nq) = qt_term + vt_term + taum_term;
 }
 
-void TrajectoryOptimizer::UpdateCache(const TrajectoryOptimizerState& state,
-                                      TrajectoryOptimizerCache* cache) const {
-  // Some aliases for things that we'll set
-  std::vector<VectorXd>& v = cache->v;
-  std::vector<VectorXd>& a = cache->a;
-  std::vector<VectorXd>& tau = tau;
-  InverseDynamicsPartials& id_partials = state->cache.id_partials;
-  VelocityPartials& v_partials = state->cache.v_partials;
+void TrajectoryOptimizer::UpdateCache(
+    const TrajectoryOptimizerState& state,
+    TrajectoryOptimizerWorkspace* workspace) const {
+  TrajectoryOptimizerCache& cache = state.mutable_cache();
 
-  // Set the stored generalized positions
-  state->q = q;
+  // Some aliases for things that we'll set
+  std::vector<VectorXd>& v = cache.v;
+  std::vector<VectorXd>& a = cache.a;
+  std::vector<VectorXd>& tau = cache.tau;
+  InverseDynamicsPartials& id_partials = cache.id_partials;
+  VelocityPartials& v_partials = cache.v_partials;
+
+  // The generalized positions that everything is computed from
+  const std::vector<VectorXd>& q = state.q();
 
   // Compute corresponding generalized velocities
   // TODO(vincekurtz) consider making this & similar functions private
@@ -408,7 +414,8 @@ void TrajectoryOptimizer::UpdateCache(const TrajectoryOptimizerState& state,
   // Compute partial derivatives of velocities d(v)/d(q)
   CalcVelocityPartials(q, &v_partials);
 
-  cache->up_to_date = true;
+  // Set cache invalidation flag
+  cache.up_to_date = true;
 }
 
 }  // namespace traj_opt

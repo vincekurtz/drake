@@ -28,14 +28,14 @@ using test::LimitMalloc;
 
 class TrajectoryOptimizerTester {
  public:
-  SceneGraphTester() = delete;
+  TrajectoryOptimizerTester() = delete;
 
   static void CalcInverseDynamicsPartials(
-      const TrajectoryOptimizerTester& optimizer,
+      const TrajectoryOptimizer& optimizer,
       const std::vector<VectorXd>& q, const std::vector<VectorXd>& v,
       const std::vector<VectorXd>& a, const std::vector<VectorXd>& tau,
       TrajectoryOptimizerWorkspace* workspace,
-      InverseDynamicsPartials* id_partials) const {
+      InverseDynamicsPartials* id_partials) {
     optimizer.CalcInverseDynamicsPartials(q, v, a, tau, workspace, id_partials);
   }
 };
@@ -83,6 +83,7 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcGradientKuka) {
   for (int t = 1; t <= num_steps; ++t) {
     q[t] = q[t - 1] + 0.1 * dt * MatrixXd::Identity(7, 7);
   }
+  state.set_q(q);
 
   // Compute the ("ground truth") gradient with finite differences
   VectorXd g_gt(plant.num_positions() * (num_steps + 1));
@@ -90,7 +91,6 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcGradientKuka) {
 
   // Compute the gradient with our method
   VectorXd g(plant.num_positions() * (num_steps + 1));
-  optimizer.UpdateState(q, &workspace, &state);
   optimizer.CalcGradient(state, &workspace, &g);
 
   // Looks like we're losing a lot of precision here, but I think that's because
@@ -140,6 +140,7 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcGradientPendulum) {
   for (int t = 1; t <= num_steps; ++t) {
     q[t] = q[t - 1] + 0.1 * dt * MatrixXd::Identity(1, 1);
   }
+  state.set_q(q);
 
   // Compute the ("ground truth") gradient with finite differences
   VectorXd g_gt(plant.num_positions() * (num_steps + 1));
@@ -147,7 +148,6 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcGradientPendulum) {
 
   // Compute the gradient with our method
   VectorXd g(plant.num_positions() * (num_steps + 1));
-  optimizer.UpdateState(q, &workspace, &state);
   optimizer.CalcGradient(state, &workspace, &g);
 
   // Compare the two (we don't quite get the theoretical eps^(2/3) accuracy)

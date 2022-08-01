@@ -65,10 +65,13 @@ class TrajectoryOptimizer {
                                     plant().num_positions());
   }
 
-  double CalcCost(const TrajectoryOptimizerState& state) const;
-
-  void CalcGradient(const TrajectoryOptimizerState& state,
-                    EigenPtr<VectorXd> g) const;
+  /**
+   * Compute the total cost of the unconstrained problem. 
+   * 
+   * @param state optimizer state, including q, v, tau, gradients, etc.
+   * @return double
+   */
+  //double CalcCost(const TrajectoryOptimizerState& state) const;
 
   /**
    * Create a scratch space for intermediate computations.
@@ -251,18 +254,14 @@ class TrajectoryOptimizer {
                             VelocityPartials* v_partials) const;
 
   /**
-   * Update the optimizer state with given sequence of generalized positions.
+   * Compute everything in the state's cache (v, a, tau, dv_dq, dtau_dq)
+   * to correspond to the state's generalized positions q.
    *
-   * This computes everything in the state's cache (v, a, tau, dv_dq, dtau_dq)
-   * to correspond to the given generalized positions q.
-   *
-   * @param q new generalized positions
-   * @param workspace scratch space for intermediate computations
    * @param state optimizer state to update.
+   * @param workspace scratch space for intermediate computations
    */
-  void UpdateState(const std::vector<VectorXd>& q,
-                   TrajectoryOptimizerWorkspace* workspace,
-                   TrajectoryOptimizerState* state) const;
+  void UpdateCache(const TrajectoryOptimizerState& state,
+                   TrajectoryOptimizerWorkspace* workspace) const;
 
  private:
   // Friend class to facilitate testing.

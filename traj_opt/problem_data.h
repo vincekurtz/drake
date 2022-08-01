@@ -88,6 +88,9 @@ struct InverseDynamicsPartials {
   std::vector<MatrixXd> dtau_dqp;
 };
 
+/**
+ * Struct for holding quantities that are computed from the optimizer state, 
+ */
 struct TrajectoryOptimizerCache {
   TrajectoryOptimizerCache(const int num_steps, const int nv, const int nq)
       : id_partials(num_steps, nv, nq) {
@@ -112,6 +115,9 @@ struct TrajectoryOptimizerCache {
 
   // Storage for dtau(t)/dq(t-1), dtau(t)/dq(t), and dtau(t)/dq(t+1)
   InverseDynamicsPartials id_partials;
+
+  // Flag for cache invalidation
+  bool up_to_date{false};
 };
 
 /**
@@ -123,7 +129,7 @@ struct TrajectoryOptimizerCache {
  * relevant dynamics partials, etc.
  */
 class TrajectoryOptimizerState {
-  public:
+ public:
   /**
    * Constructor which allocates things of the proper sizes.
    *
@@ -132,21 +138,45 @@ class TrajectoryOptimizerState {
    * @param nq number of multipody positions
    */
   TrajectoryOptimizerState(const int num_steps, const int nv, const int nq)
-      : cache(num_steps, nv, nq) {
-    q.assign(num_steps, VectorXd(nq));
+      : cache_(num_steps, nv, nq) {
+    q_.assign(num_steps+1, VectorXd(nq));
   }
 
+  /**
+   * Getter for the sequence of generalized velocities.
+   * 
+   * @return const std::vector<VectorXd>& q
+   */
   const std::vector<VectorXd>& q() const { return q_; }
-  void SetQ(std::vector<VectorXd>& q) {
+
+  /**
+   * Setter for the sequence of generalized velocities. Invalidates the cache. 
+   * 
+   * @param q 
+   */
+  void set_q(std::vector<VectorXd>& q) {
     q_ = q;
     cache_.up_to_date = false;
   }
 
+  /**
+   * Getter for the cache, containing other values computed from q, such as
+   * generalized velocities, forces, and various dynamics derivatives.
+   *
+   * @return const TrajectoryOptimizerCache& cache
+   */
   const TrajectoryOptimizerCache& cache() const { return cache_; }
+
+  /**
+   * 
+   * Get a mutable copy of the cache, containing other values computed from q, such as
+   * generalized velocities, forces, and various dynamics derivatives.
+   * 
+   * @return TrajectoryOptimizerCache& 
+   */
   TrajectoryOptimizerCache& mutable_cache() const { return cache_; }
 
-  private:
-
+ private:
   // Sequence of generalized velocities at each timestep,
   // [q(0), q(1), ..., q(num_steps)]
   // TODO(vincekurtz): consider storing as a single VectorXd for better memory
