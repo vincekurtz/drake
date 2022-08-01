@@ -26,6 +26,83 @@ using multibody::MultibodyPlant;
 using multibody::Parser;
 using test::LimitMalloc;
 
+GTEST_TEST(TrajectoryOptimizerTest, AutodiffGradient) {
+  // Test our gradient computations using autodiff
+  const int num_steps = 5;
+  const double dt = 1e-3;
+
+  ProblemDefinition opt_prob;
+  opt_prob.num_steps = num_steps;
+  opt_prob.q_init = Vector1d(0.1);
+  opt_prob.v_init = Vector1d(0.0);
+  opt_prob.Qq = 0.1 * MatrixXd::Identity(1, 1);
+  opt_prob.Qv = 0.2 * MatrixXd::Identity(1, 1);
+  opt_prob.Qf_q = 0.3 * MatrixXd::Identity(1, 1);
+  opt_prob.Qf_v = 0.4 * MatrixXd::Identity(1, 1);
+  opt_prob.R = 0.5 * MatrixXd::Identity(1, 1);
+  opt_prob.q_nom = Vector1d(0.1);
+  opt_prob.v_nom = Vector1d(-0.1);
+
+  // Create a pendulum model
+  MultibodyPlant<double> plant(dt);
+  const std::string urdf_file =
+      FindResourceOrThrow("drake/examples/pendulum/Pendulum.urdf");
+  Parser(&plant).AddAllModelsFromFile(urdf_file);
+  plant.Finalize();
+
+  // Create an optimizer
+  TrajectoryOptimizer<double> optimizer(&plant, opt_prob);
+  TrajectoryOptimizerState<double> state = optimizer.ConstructState();
+  TrajectoryOptimizerWorkspace<double> workspace =
+      optimizer.ConstructWorkspace();
+
+  // Make some fake data
+  std::vector<VectorXd> q(num_steps + 1);
+  q[0] = opt_prob.q_init;
+  for (int t = 1; t <= num_steps; ++t) {
+    q[t] = q[t - 1] + 0.1 * dt * MatrixXd::Identity(1, 1);
+  }
+
+  // Compute the gradient analytically
+  VectorXd g(plant.num_positions() * (num_steps + 1));
+  optimizer.UpdateState(q, &workspace, &state);
+  optimizer.CalcGradient(state, &workspace, &g);
+
+  // Compute the gradient using autodiff
+  std::unique_ptr<MultibodyPlant<AutoDiffXd>> plant_ad =
+      systems::System<double>::ToAutoDiffXd(plant);
+  TrajectoryOptimizer<AutoDiffXd> optimizer_ad(plant_ad.get(), opt_prob);
+  TrajectoryOptimizerState<AutoDiffXd> state_ad = optimizer_ad.ConstructState();
+  TrajectoryOptimizerWorkspace<AutoDiffXd> workspace_ad = optimizer_ad.ConstructWorkspace();
+
+  VectorXd q_vec(num_steps + 1);
+  for (int t=0; t <= num_steps; ++t) {
+    q_vec[t] = q[t](0);
+  }
+
+  VectorX<AutoDiffXd> q_ad_vec = math::InitializeAutoDiff(q_vec);
+  std::vector<VectorX<AutoDiffXd>> q_ad(num_steps + 1);
+  for (int t = 0; t <= num_steps; ++t) {
+    std::cout << t << std::endl;
+    std::cout << q_ad_vec[t] << std::endl;
+  }
+  //optimizer_ad.UpdateState(q_ad, &workspace_ad, &state_ad);
+
+  //AutoDiffXd cost = optimizer_ad.CalcCost(q_ad, state_ad.cache.v, state_ad.cache.tau, &workspace_ad);
+  //std::cout << cost.derivatives()(0) << std::endl;
+  //std::cout << cost.derivatives()(1) << std::endl;
+  //std::cout << cost.derivatives()(2) << std::endl;
+
+  //std::cout << std::endl;
+  //std::cout << g << std::endl;
+
+  // Compare the two (we don't quite get the theoretical eps^(2/3) accuracy)
+  //const double kTolerance = pow(std::numeric_limits<double>::epsilon(), 0.5);
+  //EXPECT_TRUE(
+  //    CompareMatrices(g, g_gt, kTolerance, MatrixCompareType::relative));
+  
+}
+
 GTEST_TEST(TrajectoryOptimizerTest, CalcGradientKuka) {
   const int num_steps = 3;
   const double dt = 1e-2;
