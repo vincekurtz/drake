@@ -66,22 +66,6 @@ double TrajectoryOptimizer::CalcCost(
   return cost;
 }
 
-double TrajectoryOptimizer::CalcCost(
-    const std::vector<VectorXd>& q,
-    TrajectoryOptimizerWorkspace* workspace) const {
-  // These are expensive heap allocations: prefer versions of CalcCost that
-  // use precomputed v and tau whenever possible.
-  std::vector<VectorXd> v(num_steps() + 1);
-  std::vector<VectorXd> a(num_steps());
-  std::vector<VectorXd> tau(num_steps());
-
-  CalcVelocities(q, &v);
-  CalcAccelerations(v, &a);
-  CalcInverseDynamics(q, v, a, workspace, &tau);
-
-  return CalcCost(q, v, tau, workspace);
-}
-
 void TrajectoryOptimizer::CalcVelocities(const std::vector<VectorXd>& q,
                                          std::vector<VectorXd>* v) const {
   // x = [x0, x1, ..., xT]
@@ -277,13 +261,16 @@ void TrajectoryOptimizer::CalcVelocityPartials(
 }
 
 void TrajectoryOptimizer::CalcGradientFiniteDiff(
-    const std::vector<VectorXd>& q, TrajectoryOptimizerWorkspace* workspace,
+    const TrajectoryOptimizerState& state,
     EigenPtr<VectorXd> g) const {
   // Perturbed versions of q
-  std::vector<VectorXd>& q_plus = workspace->q_sequence_tmp1;
-  std::vector<VectorXd>& q_minus = workspace->q_sequence_tmp2;
-  q_plus = q;
-  q_minus = q;
+  std::vector<VectorXd>& q_plus = state.workspace.q_sequence_tmp1;
+  std::vector<VectorXd>& q_minus = state.workspace.q_sequence_tmp2;
+  q_plus = state.q();
+  q_minus = state.q();
+
+  // non-constant copy of state that we can perturb
+  TrajectoryOptimizerState state_eps(state);
 
   // Set first block of g (derivatives w.r.t. q_0) to zero, since q0 = q_init
   // are constant.
@@ -296,18 +283,20 @@ void TrajectoryOptimizer::CalcGradientFiniteDiff(
   for (int t = 1; t <= num_steps(); ++t) {
     for (int i = 0; i < plant().num_positions(); ++i) {
       // Set finite difference step size
-      dqt_i = eps * std::max(1.0, std::abs(q[t](i)));
+      dqt_i = eps * std::max(1.0, std::abs(state.q()[t](i)));
       q_plus[t](i) += dqt_i;
       q_minus[t](i) -= dqt_i;
 
       // Set g_j = using central differences
-      double L_plus = CalcCost(q_plus, workspace);
-      double L_minus = CalcCost(q_minus, workspace);
+      state_eps.set_q(q_plus);
+      double L_plus = CalcCost(state_eps);
+      state_eps.set_q(q_minus);
+      double L_minus = CalcCost(state_eps);
       (*g)(j) = (L_plus - L_minus) / (2 * dqt_i);
 
       // reset our perturbed Q and move to the next row of g.
-      q_plus[t](i) = q[t](i);
-      q_minus[t](i) = q[t](i);
+      q_plus[t](i) = state.q()[t](i);
+      q_minus[t](i) = state.q()[t](i);
       ++j;
     }
   }

@@ -60,10 +60,9 @@ class TrajectoryOptimizerTester {
   }
 
   static void CalcGradientFiniteDiff(const TrajectoryOptimizer& optimizer,
-                                     const std::vector<VectorXd>& q,
-                                     TrajectoryOptimizerWorkspace* workspace,
+                                     const TrajectoryOptimizerState& state,
                                      EigenPtr<VectorXd> g) {
-    optimizer.CalcGradientFiniteDiff(q, workspace, g);
+    optimizer.CalcGradientFiniteDiff(state, g);
   }
 };
 
@@ -125,8 +124,7 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcGradientKuka) {
 
   // Compute the ("ground truth") gradient with finite differences
   VectorXd g_gt(plant.num_positions() * (num_steps + 1));
-  TrajectoryOptimizerTester::CalcGradientFiniteDiff(optimizer, q, &workspace,
-                                                    &g_gt);
+  TrajectoryOptimizerTester::CalcGradientFiniteDiff(optimizer, state, &g_gt);
 
   // Compute the gradient with our method
   VectorXd g(plant.num_positions() * (num_steps + 1));
@@ -183,8 +181,7 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcGradientPendulum) {
 
   // Compute the ("ground truth") gradient with finite differences
   VectorXd g_gt(plant.num_positions() * (num_steps + 1));
-  TrajectoryOptimizerTester::CalcGradientFiniteDiff(optimizer, q, &workspace,
-                                                    &g_gt);
+  TrajectoryOptimizerTester::CalcGradientFiniteDiff(optimizer, state, &g_gt);
 
   // Compute the gradient with our method
   VectorXd g(plant.num_positions() * (num_steps + 1));
