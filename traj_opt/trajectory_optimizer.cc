@@ -134,7 +134,7 @@ void TrajectoryOptimizer::CalcInverseDynamicsPartials(
     const std::vector<VectorXd>& q, const std::vector<VectorXd>& v,
     const std::vector<VectorXd>& a, const std::vector<VectorXd>& tau,
     TrajectoryOptimizerWorkspace<double>* workspace,
-    InverseDynamicsPartials* id_partials) const {
+    InverseDynamicsPartials<double>* id_partials) const {
   // TODO(vincekurtz): use a solver flag to choose between finite differences
   // and an analytical approximation
   CalcInverseDynamicsPartialsFiniteDiff(q, v, a, tau, workspace, id_partials);
@@ -144,7 +144,7 @@ void TrajectoryOptimizer::CalcInverseDynamicsPartialsFiniteDiff(
     const std::vector<VectorXd>& q, const std::vector<VectorXd>& v,
     const std::vector<VectorXd>& a, const std::vector<VectorXd>& tau,
     TrajectoryOptimizerWorkspace<double>* workspace,
-    InverseDynamicsPartials* id_partials) const {
+    InverseDynamicsPartials<double>* id_partials) const {
   // Check that id_partials has been allocated correctly.
   DRAKE_DEMAND(id_partials->size() == num_steps());
 
@@ -374,7 +374,7 @@ void TrajectoryOptimizer::UpdateState(const std::vector<VectorXd>& q,
   std::vector<VectorXd>& v = state->cache.v;
   std::vector<VectorXd>& a = state->cache.a;
   std::vector<VectorXd>& tau = state->cache.tau;
-  InverseDynamicsPartials& id_partials = state->cache.id_partials;
+  InverseDynamicsPartials<double>& id_partials = state->cache.id_partials;
   VelocityPartials& v_partials = state->cache.v_partials;
 
   // Set the stored generalized positions

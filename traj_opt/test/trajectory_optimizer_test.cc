@@ -170,7 +170,7 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumDtauDq) {
   }
 
   // Compute inverse dynamics partials
-  InverseDynamicsPartials grad_data(num_steps, 1, 1);
+  InverseDynamicsPartials<double> grad_data(num_steps, 1, 1);
   std::vector<VectorXd> v(num_steps + 1);
   std::vector<VectorXd> a(num_steps);
   std::vector<VectorXd> tau(num_steps);
@@ -189,7 +189,7 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumDtauDq) {
   const double b = 0.1;
   const double g = 9.81;
 
-  InverseDynamicsPartials grad_data_gt(num_steps, 1, 1);
+  InverseDynamicsPartials<double> grad_data_gt(num_steps, 1, 1);
   for (int t = 0; t < num_steps; ++t) {
     // dtau[t]/dq[t+1]
     grad_data_gt.dtau_dqp[t](0, 0) =

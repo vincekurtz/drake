@@ -230,7 +230,7 @@ class TrajectoryOptimizer {
                                    const std::vector<VectorXd>& a,
                                    const std::vector<VectorXd>& tau,
                                    TrajectoryOptimizerWorkspace<double>* workspace,
-                                   InverseDynamicsPartials* id_partials) const;
+                                   InverseDynamicsPartials<double>* id_partials) const;
 
   /**
    * Compute partial derivatives of the generalized velocities
@@ -280,7 +280,7 @@ class TrajectoryOptimizer {
       const std::vector<VectorXd>& q, const std::vector<VectorXd>& v,
       const std::vector<VectorXd>& a, const std::vector<VectorXd>& tau,
       TrajectoryOptimizerWorkspace<double>* workspace,
-      InverseDynamicsPartials* id_partials) const;
+      InverseDynamicsPartials<double>* id_partials) const;
 
   /**
    * Helper function for computing the inverse dynamics
