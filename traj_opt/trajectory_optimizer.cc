@@ -31,7 +31,7 @@ TrajectoryOptimizer::TrajectoryOptimizer(const MultibodyPlant<double>* plant,
 double TrajectoryOptimizer::CalcCost(
     const std::vector<VectorXd>& q, const std::vector<VectorXd>& v,
     const std::vector<VectorXd>& tau,
-    TrajectoryOptimizerWorkspace* workspace) const {
+    TrajectoryOptimizerWorkspace<double>* workspace) const {
   double cost = 0;
 
   VectorXd& q_err = workspace->q_size_tmp;
@@ -61,7 +61,7 @@ double TrajectoryOptimizer::CalcCost(
 
 double TrajectoryOptimizer::CalcCost(
     const std::vector<VectorXd>& q,
-    TrajectoryOptimizerWorkspace* workspace) const {
+    TrajectoryOptimizerWorkspace<double>* workspace) const {
   // These are expensive heap allocations: prefer versions of CalcCost that
   // use precomputed v and tau whenever possible.
   std::vector<VectorXd> v(num_steps() + 1);
@@ -99,7 +99,7 @@ void TrajectoryOptimizer::CalcAccelerations(const std::vector<VectorXd>& v,
 
 void TrajectoryOptimizer::CalcInverseDynamics(
     const std::vector<VectorXd>& q, const std::vector<VectorXd>& v,
-    const std::vector<VectorXd>& a, TrajectoryOptimizerWorkspace* workspace,
+    const std::vector<VectorXd>& a, TrajectoryOptimizerWorkspace<double>* workspace,
     std::vector<VectorXd>* tau) const {
   // Generalized forces aren't defined for the last timestep
   // TODO(vincekurtz): additional checks that q_t, v_t, tau_t are the right size
@@ -119,7 +119,7 @@ void TrajectoryOptimizer::CalcInverseDynamics(
 
 void TrajectoryOptimizer::CalcInverseDynamicsSingleTimeStep(
     const VectorXd& q, const VectorXd& v, const VectorXd& a,
-    TrajectoryOptimizerWorkspace* workspace, VectorXd* tau) const {
+    TrajectoryOptimizerWorkspace<double>* workspace, VectorXd* tau) const {
   plant().SetPositions(context_.get(), q);
   plant().SetVelocities(context_.get(), v);
   plant().CalcForceElementsContribution(*context_, &workspace->f_ext);
@@ -133,7 +133,7 @@ void TrajectoryOptimizer::CalcInverseDynamicsSingleTimeStep(
 void TrajectoryOptimizer::CalcInverseDynamicsPartials(
     const std::vector<VectorXd>& q, const std::vector<VectorXd>& v,
     const std::vector<VectorXd>& a, const std::vector<VectorXd>& tau,
-    TrajectoryOptimizerWorkspace* workspace,
+    TrajectoryOptimizerWorkspace<double>* workspace,
     InverseDynamicsPartials* id_partials) const {
   // TODO(vincekurtz): use a solver flag to choose between finite differences
   // and an analytical approximation
@@ -143,7 +143,7 @@ void TrajectoryOptimizer::CalcInverseDynamicsPartials(
 void TrajectoryOptimizer::CalcInverseDynamicsPartialsFiniteDiff(
     const std::vector<VectorXd>& q, const std::vector<VectorXd>& v,
     const std::vector<VectorXd>& a, const std::vector<VectorXd>& tau,
-    TrajectoryOptimizerWorkspace* workspace,
+    TrajectoryOptimizerWorkspace<double>* workspace,
     InverseDynamicsPartials* id_partials) const {
   // Check that id_partials has been allocated correctly.
   DRAKE_DEMAND(id_partials->size() == num_steps());
@@ -265,7 +265,7 @@ void TrajectoryOptimizer::CalcVelocityPartials(
 }
 
 void TrajectoryOptimizer::CalcGradientFiniteDiff(
-    const std::vector<VectorXd>& q, TrajectoryOptimizerWorkspace* workspace,
+    const std::vector<VectorXd>& q, TrajectoryOptimizerWorkspace<double>* workspace,
     EigenPtr<VectorXd> g) const {
   // Perturbed versions of q
   std::vector<VectorXd>& q_plus = workspace->q_sequence_tmp1;
@@ -302,7 +302,7 @@ void TrajectoryOptimizer::CalcGradientFiniteDiff(
 }
 
 void TrajectoryOptimizer::CalcGradient(const TrajectoryOptimizerState& state,
-                                       TrajectoryOptimizerWorkspace* workspace,
+                                       TrajectoryOptimizerWorkspace<double>* workspace,
                                        EigenPtr<VectorXd> g) const {
   // Set some aliases
   const double dt = time_step();
@@ -368,7 +368,7 @@ void TrajectoryOptimizer::CalcGradient(const TrajectoryOptimizerState& state,
 }
 
 void TrajectoryOptimizer::UpdateState(const std::vector<VectorXd>& q,
-                                      TrajectoryOptimizerWorkspace* workspace,
+                                      TrajectoryOptimizerWorkspace<double>* workspace,
                                       TrajectoryOptimizerState* state) const {
   // Some aliases for things that we'll set
   std::vector<VectorXd>& v = state->cache.v;
