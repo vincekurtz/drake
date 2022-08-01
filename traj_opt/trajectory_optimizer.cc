@@ -374,7 +374,7 @@ void TrajectoryOptimizer::CalcGradient(const TrajectoryOptimizerState& state,
 void TrajectoryOptimizer::UpdateCache(
     const TrajectoryOptimizerState& state) const {
   TrajectoryOptimizerCache& cache = state.mutable_cache();
-  TrajectoryOptimizerWorkspace* workspace = &state.workspace;
+  TrajectoryOptimizerWorkspace& workspace = state.workspace;
 
   // Some aliases for things that we'll set
   std::vector<VectorXd>& v = cache.v;
@@ -394,10 +394,10 @@ void TrajectoryOptimizer::UpdateCache(
   CalcAccelerations(v, &a);
 
   // Compute corresponding generalized torques
-  CalcInverseDynamics(q, v, a, workspace, &tau);
+  CalcInverseDynamics(q, v, a, &workspace, &tau);
 
   // Compute partial derivatives of inverse dynamics d(tau)/d(q)
-  CalcInverseDynamicsPartials(q, v, a, tau, workspace, &id_partials);
+  CalcInverseDynamicsPartials(q, v, a, tau, &workspace, &id_partials);
 
   // Compute partial derivatives of velocities d(v)/d(q)
   CalcVelocityPartials(q, &v_partials);
