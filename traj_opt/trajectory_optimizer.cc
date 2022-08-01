@@ -255,7 +255,7 @@ void TrajectoryOptimizer::CalcInverseDynamicsPartialsFiniteDiff(
 }
 
 void TrajectoryOptimizer::CalcVelocityPartials(
-    const std::vector<VectorXd>&, VelocityPartials* v_partials) const {
+    const std::vector<VectorXd>&, VelocityPartials<double>* v_partials) const {
   if (plant().num_velocities() != plant().num_positions()) {
     throw std::runtime_error("Quaternion DoFs not yet supported");
   } else {
@@ -375,7 +375,7 @@ void TrajectoryOptimizer::UpdateState(const std::vector<VectorXd>& q,
   std::vector<VectorXd>& a = state->cache.a;
   std::vector<VectorXd>& tau = state->cache.tau;
   InverseDynamicsPartials<double>& id_partials = state->cache.id_partials;
-  VelocityPartials& v_partials = state->cache.v_partials;
+  VelocityPartials<double>& v_partials = state->cache.v_partials;
 
   // Set the stored generalized positions
   state->q = q;

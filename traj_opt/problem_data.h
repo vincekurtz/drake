@@ -17,9 +17,10 @@ using Eigen::VectorXd;
  * TODO(vincekurtz): extend to quaternion DoFs, where these quantities are
  * different for each timestep, and include a factor of N+(q).
  */
+template <typename T>
 struct VelocityPartials {
-  double dvt_dqt;
-  double dvt_dqm;
+  T dvt_dqt;
+  T dvt_dqm;
 };
 
 /**
@@ -109,7 +110,7 @@ struct TrajectoryOptimizerCache {
   std::vector<VectorXd> tau;
 
   // Storage for dv(t)/dq(t) and dv(t)/dq(t-1)
-  VelocityPartials v_partials;
+  VelocityPartials<double> v_partials;
 
   // Storage for dtau(t)/dq(t-1), dtau(t)/dq(t), and dtau(t)/dq(t+1)
   InverseDynamicsPartials<double> id_partials;
@@ -151,5 +152,6 @@ struct TrajectoryOptimizerState {
 }  // namespace drake
 
 DRAKE_DEFINE_CLASS_TEMPLATE_INSTANTIATIONS_ON_DEFAULT_NONSYMBOLIC_SCALARS(
-  class ::drake::traj_opt::InverseDynamicsPartials
-)
+  struct ::drake::traj_opt::InverseDynamicsPartials)
+DRAKE_DEFINE_CLASS_TEMPLATE_INSTANTIATIONS_ON_DEFAULT_NONSYMBOLIC_SCALARS(
+  struct ::drake::traj_opt::VelocityPartials)

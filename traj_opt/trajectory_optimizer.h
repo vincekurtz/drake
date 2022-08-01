@@ -243,7 +243,7 @@ class TrajectoryOptimizer {
    * @param v_partials struct for holding dv/dq
    */
   void CalcVelocityPartials(const std::vector<VectorXd>& q,
-                            VelocityPartials* v_partials) const;
+                            VelocityPartials<double>* v_partials) const;
 
   /**
    * Update the optimizer state with given sequence of generalized positions.
