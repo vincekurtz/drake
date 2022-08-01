@@ -39,10 +39,8 @@ struct TrajectoryOptimizerWorkspace {
     a_size_tmp3.resize(nq);
 
     // Allocate sequences
-    for (int t = 0; t <= num_steps; ++t) {
-      q_sequence_tmp1.push_back(VectorX<T>(nq));
-      q_sequence_tmp2.push_back(VectorX<T>(nq));
-    }
+    q_sequence_tmp1.assign(num_steps, VectorX<T>(nq));
+    q_sequence_tmp2.assign(num_steps, VectorX<T>(nq));
   }
 
   // Storage for multibody forces
