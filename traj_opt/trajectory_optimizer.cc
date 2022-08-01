@@ -28,6 +28,19 @@ TrajectoryOptimizer::TrajectoryOptimizer(const MultibodyPlant<double>* plant,
   }
 }
 
+/*
+  state = trajopt.MakeState();
+  state.SetQ(q_guess);   // state.up_to_date = false;
+  double cost = trajopt.CalcCost(state);
+
+*/
+
+double CalcCost(const TrajectoryOptimizerState& state) const {
+  if (!state.cache().up_do_date) UpdateCache(state, &state.mutable_cache());
+
+
+}
+
 double TrajectoryOptimizer::CalcCost(
     const std::vector<VectorXd>& q, const std::vector<VectorXd>& v,
     const std::vector<VectorXd>& tau,
@@ -367,13 +380,12 @@ void TrajectoryOptimizer::CalcGradient(const TrajectoryOptimizerState& state,
   g->tail(nq) = qt_term + vt_term + taum_term;
 }
 
-void TrajectoryOptimizer::UpdateState(const std::vector<VectorXd>& q,
-                                      TrajectoryOptimizerWorkspace* workspace,
-                                      TrajectoryOptimizerState* state) const {
+void TrajectoryOptimizer::UpdateCache(const TrajectoryOptimizerState& state,
+                                      TrajectoryOptimizerCache* cache) const {
   // Some aliases for things that we'll set
-  std::vector<VectorXd>& v = state->cache.v;
-  std::vector<VectorXd>& a = state->cache.a;
-  std::vector<VectorXd>& tau = state->cache.tau;
+  std::vector<VectorXd>& v = cache->v;
+  std::vector<VectorXd>& a = cache->a;
+  std::vector<VectorXd>& tau = tau;
   InverseDynamicsPartials& id_partials = state->cache.id_partials;
   VelocityPartials& v_partials = state->cache.v_partials;
 
@@ -395,6 +407,8 @@ void TrajectoryOptimizer::UpdateState(const std::vector<VectorXd>& q,
 
   // Compute partial derivatives of velocities d(v)/d(q)
   CalcVelocityPartials(q, &v_partials);
+
+  cache->up_to_date = true;
 }
 
 }  // namespace traj_opt

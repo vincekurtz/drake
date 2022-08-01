@@ -65,6 +65,11 @@ class TrajectoryOptimizer {
                                     plant().num_positions());
   }
 
+  double CalcCost(const TrajectoryOptimizerState& state) const;
+
+  void CalcGradient(const TrajectoryOptimizerState& state,
+                    EigenPtr<VectorXd> g) const;
+
   /**
    * Create a scratch space for intermediate computations.
    *
@@ -260,6 +265,9 @@ class TrajectoryOptimizer {
                    TrajectoryOptimizerState* state) const;
 
  private:
+  // Friend class to facilitate testing.
+  friend class TrajectoryOptimizerTester;
+
   /**
    * Compute partial derivatives of the inverse dynamics
    *

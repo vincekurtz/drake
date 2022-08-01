@@ -122,7 +122,8 @@ struct TrajectoryOptimizerCache {
  * computed from q, such as generalized velocities and forces at each timesteps,
  * relevant dynamics partials, etc.
  */
-struct TrajectoryOptimizerState {
+class TrajectoryOptimizerState {
+  public:
   /**
    * Constructor which allocates things of the proper sizes.
    *
@@ -135,15 +136,26 @@ struct TrajectoryOptimizerState {
     q.assign(num_steps, VectorXd(nq));
   }
 
+  const std::vector<VectorXd>& q() const { return q_; }
+  void SetQ(std::vector<VectorXd>& q) {
+    q_ = q;
+    cache_.up_to_date = false;
+  }
+
+  const TrajectoryOptimizerCache& cache() const { return cache_; }
+  TrajectoryOptimizerCache& mutable_cache() const { return cache_; }
+
+  private:
+
   // Sequence of generalized velocities at each timestep,
   // [q(0), q(1), ..., q(num_steps)]
   // TODO(vincekurtz): consider storing as a single VectorXd for better memory
   // layout.
-  std::vector<VectorXd> q;
+  std::vector<VectorXd> q_;
 
   // Storage for all other quantities that are computed from q, and are useful
   // for our calculations
-  TrajectoryOptimizerCache cache;
+  mutable TrajectoryOptimizerCache cache_;
 };
 
 }  // namespace traj_opt

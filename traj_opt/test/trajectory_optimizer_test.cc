@@ -26,6 +26,20 @@ using multibody::MultibodyPlant;
 using multibody::Parser;
 using test::LimitMalloc;
 
+class TrajectoryOptimizerTester {
+ public:
+  SceneGraphTester() = delete;
+
+  static void CalcInverseDynamicsPartials(
+      const TrajectoryOptimizerTester& optimizer,
+      const std::vector<VectorXd>& q, const std::vector<VectorXd>& v,
+      const std::vector<VectorXd>& a, const std::vector<VectorXd>& tau,
+      TrajectoryOptimizerWorkspace* workspace,
+      InverseDynamicsPartials* id_partials) const {
+    optimizer.CalcInverseDynamicsPartials(q, v, a, tau, workspace, id_partials);
+  }
+};
+
 GTEST_TEST(TrajectoryOptimizerTest, CalcGradientKuka) {
   const int num_steps = 3;
   const double dt = 1e-2;
@@ -177,7 +191,8 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumDtauDq) {
   optimizer.CalcVelocities(q, &v);
   optimizer.CalcAccelerations(v, &a);
   optimizer.CalcInverseDynamics(q, v, a, &workspace, &tau);
-  optimizer.CalcInverseDynamicsPartials(q, v, a, tau, &workspace, &grad_data);
+  TrajectoryOptimizerTester::CalcInverseDynamicsPartials(
+      optimizer, q, v, a, tau, &workspace, &grad_data);
 
   // Compute ground truth partials from the pendulum model
   //
