@@ -67,14 +67,6 @@ class TrajectoryOptimizer {
   }
 
   /**
-   * Compute everything in the state's cache (v, a, tau, dv_dq, dtau_dq)
-   * to correspond to the state's generalized positions q.
-   *
-   * @param state optimizer state to update.
-   */
-  void UpdateCache(const TrajectoryOptimizerState& state) const;
-
-  /**
    * Compute and return the total (unconstrained) cost of the optimization
    * problem,
    *
@@ -108,6 +100,14 @@ class TrajectoryOptimizer {
  private:
   // Friend class to facilitate testing.
   friend class TrajectoryOptimizerTester;
+
+  /**
+   * Compute everything in the state's cache (v, a, tau, dv_dq, dtau_dq)
+   * to correspond to the state's generalized positions q.
+   *
+   * @param state optimizer state to update.
+   */
+  void UpdateCache(const TrajectoryOptimizerState& state) const;
 
   /**
    * Compute the total cost of the unconstrained problem.
