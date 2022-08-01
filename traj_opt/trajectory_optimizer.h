@@ -71,7 +71,7 @@ class TrajectoryOptimizer {
    * @return TrajectoryOptimizerWorkspace
    */
   TrajectoryOptimizerWorkspace ConstructWorkspace() const {
-    return TrajectoryOptimizerWorkspace(plant());
+    return TrajectoryOptimizerWorkspace(num_steps(), plant());
   }
 
   /**

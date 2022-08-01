@@ -133,7 +133,7 @@ void TrajectoryOptimizer::CalcInverseDynamicsSingleTimeStep(
 void TrajectoryOptimizer::CalcInverseDynamicsPartials(
     const std::vector<VectorXd>& q, const std::vector<VectorXd>& v,
     const std::vector<VectorXd>& a, const std::vector<VectorXd>& tau,
-     TrajectoryOptimizerWorkspace* workspace,
+    TrajectoryOptimizerWorkspace* workspace,
     InverseDynamicsPartials* id_partials) const {
   // TODO(vincekurtz): use a solver flag to choose between finite differences
   // and an analytical approximation
@@ -267,10 +267,11 @@ void TrajectoryOptimizer::CalcVelocityPartials(
 void TrajectoryOptimizer::CalcGradientFiniteDiff(
     const std::vector<VectorXd>& q, TrajectoryOptimizerWorkspace* workspace,
     EigenPtr<VectorXd> g) const {
-  // Allocate perturbed versions of q
-  // TODO(vincekurtz): consider allocating in workspace
-  std::vector<VectorXd> q_plus(q);
-  std::vector<VectorXd> q_minus(q);
+  // Perturbed versions of q
+  std::vector<VectorXd>& q_plus = workspace->q_sequence_tmp1;
+  std::vector<VectorXd>& q_minus = workspace->q_sequence_tmp2;
+  q_plus = q;
+  q_minus = q;
 
   // Set first block of g (derivatives w.r.t. q_0) to zero, since q0 = q_init
   // are constant.
@@ -380,7 +381,7 @@ void TrajectoryOptimizer::UpdateState(const std::vector<VectorXd>& q,
   state->q = q;
 
   // Compute corresponding generalized velocities
-  // TODO(vincekurtz) make this & similar functions private
+  // TODO(vincekurtz) consider making this & similar functions private
   CalcVelocities(q, &v);
 
   // Compute corresponding generalized accelerations
