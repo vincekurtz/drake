@@ -60,7 +60,7 @@ class TrajectoryOptimizer {
    *
    * @return TrajectoryOptimizerState
    */
-  TrajectoryOptimizerState ConstructState() const {
+  TrajectoryOptimizerState CreateState() const {
     return TrajectoryOptimizerState(num_steps(), plant().num_velocities(),
                                     plant().num_positions());
   }
@@ -70,7 +70,7 @@ class TrajectoryOptimizer {
    *
    * @return TrajectoryOptimizerWorkspace
    */
-  TrajectoryOptimizerWorkspace ConstructWorkspace() const {
+  TrajectoryOptimizerWorkspace CreateWorkspace() const {
     return TrajectoryOptimizerWorkspace(num_steps(), plant());
   }
 

@@ -60,8 +60,8 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcGradientKuka) {
 
   // Create an optimizer
   TrajectoryOptimizer optimizer(&plant, opt_prob);
-  TrajectoryOptimizerState state = optimizer.ConstructState();
-  TrajectoryOptimizerWorkspace workspace = optimizer.ConstructWorkspace();
+  TrajectoryOptimizerState state = optimizer.CreateState();
+  TrajectoryOptimizerWorkspace workspace = optimizer.CreateWorkspace();
 
   // Make some fake data
   std::vector<VectorXd> q(num_steps + 1);
@@ -117,8 +117,8 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcGradientPendulum) {
 
   // Create an optimizer
   TrajectoryOptimizer optimizer(&plant, opt_prob);
-  TrajectoryOptimizerState state = optimizer.ConstructState();
-  TrajectoryOptimizerWorkspace workspace = optimizer.ConstructWorkspace();
+  TrajectoryOptimizerState state = optimizer.CreateState();
+  TrajectoryOptimizerWorkspace workspace = optimizer.CreateWorkspace();
 
   // Make some fake data
   std::vector<VectorXd> q(num_steps + 1);
@@ -160,7 +160,7 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumDtauDq) {
   opt_prob.v_init = Vector1d(0.1);
   opt_prob.num_steps = num_steps;
   TrajectoryOptimizer optimizer(&plant, opt_prob);
-  TrajectoryOptimizerWorkspace workspace = optimizer.ConstructWorkspace();
+  TrajectoryOptimizerWorkspace workspace = optimizer.CreateWorkspace();
 
   // Create some fake data
   std::vector<VectorXd> q;
@@ -262,7 +262,7 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcCost) {
 
   // Compute the cost and compare with the true value
   TrajectoryOptimizer optimizer(&plant, opt_prob);
-  TrajectoryOptimizerWorkspace workspace = optimizer.ConstructWorkspace();
+  TrajectoryOptimizerWorkspace workspace = optimizer.CreateWorkspace();
   double L = optimizer.CalcCost(q, v, tau, &workspace);
   double L_gt =
       num_steps * dt * (2 * 0.1 + 2 * 0.2 + 2 * 0.5) + 2 * 0.3 + 2 * 0.4;
@@ -324,7 +324,7 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumCalcInverseDynamics) {
   ProblemDefinition opt_prob;
   opt_prob.num_steps = num_steps;
   TrajectoryOptimizer optimizer(&plant, opt_prob);
-  TrajectoryOptimizerWorkspace workspace = optimizer.ConstructWorkspace();
+  TrajectoryOptimizerWorkspace workspace = optimizer.CreateWorkspace();
 
   // Compute tau from q and v
   std::vector<VectorXd> tau(num_steps, VectorXd(1));
