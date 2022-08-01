@@ -59,9 +59,10 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcGradientKuka) {
   opt_prob.v_nom.setConstant(-0.1);
 
   // Create an optimizer
-  TrajectoryOptimizer optimizer(&plant, opt_prob);
-  TrajectoryOptimizerState state = optimizer.ConstructState();
-  TrajectoryOptimizerWorkspace<double> workspace = optimizer.ConstructWorkspace();
+  TrajectoryOptimizer<double> optimizer(&plant, opt_prob);
+  TrajectoryOptimizerState<double> state = optimizer.ConstructState();
+  TrajectoryOptimizerWorkspace<double> workspace =
+      optimizer.ConstructWorkspace();
 
   // Make some fake data
   std::vector<VectorXd> q(num_steps + 1);
@@ -116,9 +117,10 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcGradientPendulum) {
   plant.Finalize();
 
   // Create an optimizer
-  TrajectoryOptimizer optimizer(&plant, opt_prob);
-  TrajectoryOptimizerState state = optimizer.ConstructState();
-  TrajectoryOptimizerWorkspace<double> workspace = optimizer.ConstructWorkspace();
+  TrajectoryOptimizer<double> optimizer(&plant, opt_prob);
+  TrajectoryOptimizerState<double> state = optimizer.ConstructState();
+  TrajectoryOptimizerWorkspace<double> workspace =
+      optimizer.ConstructWorkspace();
 
   // Make some fake data
   std::vector<VectorXd> q(num_steps + 1);
@@ -159,8 +161,9 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumDtauDq) {
   opt_prob.q_init = Vector1d(0.0);
   opt_prob.v_init = Vector1d(0.1);
   opt_prob.num_steps = num_steps;
-  TrajectoryOptimizer optimizer(&plant, opt_prob);
-  TrajectoryOptimizerWorkspace<double> workspace = optimizer.ConstructWorkspace();
+  TrajectoryOptimizer<double> optimizer(&plant, opt_prob);
+  TrajectoryOptimizerWorkspace<double> workspace =
+      optimizer.ConstructWorkspace();
 
   // Create some fake data
   std::vector<VectorXd> q;
@@ -261,8 +264,9 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcCost) {
   v.push_back(Vector2d(-0.1, 0.0));
 
   // Compute the cost and compare with the true value
-  TrajectoryOptimizer optimizer(&plant, opt_prob);
-  TrajectoryOptimizerWorkspace<double> workspace = optimizer.ConstructWorkspace();
+  TrajectoryOptimizer<double> optimizer(&plant, opt_prob);
+  TrajectoryOptimizerWorkspace<double> workspace =
+      optimizer.ConstructWorkspace();
   double L = optimizer.CalcCost(q, v, tau, &workspace);
   double L_gt =
       num_steps * dt * (2 * 0.1 + 2 * 0.2 + 2 * 0.5) + 2 * 0.3 + 2 * 0.4;
@@ -323,8 +327,9 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumCalcInverseDynamics) {
   // Create a trajectory optimizer object
   ProblemDefinition opt_prob;
   opt_prob.num_steps = num_steps;
-  TrajectoryOptimizer optimizer(&plant, opt_prob);
-  TrajectoryOptimizerWorkspace<double> workspace = optimizer.ConstructWorkspace();
+  TrajectoryOptimizer<double> optimizer(&plant, opt_prob);
+  TrajectoryOptimizerWorkspace<double> workspace =
+      optimizer.ConstructWorkspace();
 
   // Compute tau from q and v
   std::vector<VectorXd> tau(num_steps, VectorXd(1));
@@ -362,7 +367,7 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcVelocities) {
   opt_prob.q_init = Vector2d(0.1, 0.2);
   opt_prob.v_init = Vector2d(0.5 / dt, 1.5 / dt);
   opt_prob.num_steps = num_steps;
-  TrajectoryOptimizer optimizer(&plant, opt_prob);
+  TrajectoryOptimizer<double> optimizer(&plant, opt_prob);
 
   // Construct a std::vector of generalized positions (q)
   // where q(t) = [0.1 + 0.5*t]

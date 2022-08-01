@@ -12,10 +12,10 @@
 namespace drake {
 namespace traj_opt {
 
-using Eigen::VectorXd;
 using multibody::MultibodyPlant;
 using systems::Context;
 
+template <typename T>
 class TrajectoryOptimizer {
  public:
   /**
@@ -26,7 +26,7 @@ class TrajectoryOptimizer {
    * @param prob Problem definition, including cost, initial and target states,
    *             etc.
    */
-  TrajectoryOptimizer(const MultibodyPlant<double>* plant,
+  TrajectoryOptimizer(const MultibodyPlant<T>* plant,
                       const ProblemDefinition& prob);
 
   /**
@@ -48,9 +48,9 @@ class TrajectoryOptimizer {
    * Convienience function to get a const reference to the multibody plant that
    * we are optimizing over.
    *
-   * @return const MultibodyPlant<double>&, the plant we're optimizing over.
+   * @return const MultibodyPlant<T>&, the plant we're optimizing over.
    */
-  const MultibodyPlant<double>& plant() const { return *plant_; }
+  const MultibodyPlant<T>& plant() const { return *plant_; }
 
   /**
    * Create a state object which contains the decision variables (generalized
@@ -60,9 +60,9 @@ class TrajectoryOptimizer {
    *
    * @return TrajectoryOptimizerState
    */
-  TrajectoryOptimizerState<double> ConstructState() const {
-    return TrajectoryOptimizerState<double>(num_steps(), plant().num_velocities(),
-                                    plant().num_positions());
+  TrajectoryOptimizerState<T> ConstructState() const {
+    return TrajectoryOptimizerState<T>(num_steps(), plant().num_velocities(),
+                                       plant().num_positions());
   }
 
   /**
@@ -70,8 +70,8 @@ class TrajectoryOptimizer {
    *
    * @return TrajectoryOptimizerWorkspace
    */
-  TrajectoryOptimizerWorkspace<double> ConstructWorkspace() const {
-    return TrajectoryOptimizerWorkspace(num_steps(), plant());
+  TrajectoryOptimizerWorkspace<T> ConstructWorkspace() const {
+    return TrajectoryOptimizerWorkspace<T>(num_steps(), plant());
   }
 
   /**
@@ -98,10 +98,9 @@ class TrajectoryOptimizer {
    *
    * TODO(vincekurtz): take a TrajectoryOptimizerState instead of q, v, tau
    */
-  double CalcCost(const std::vector<VectorXd>& q,
-                  const std::vector<VectorXd>& v,
-                  const std::vector<VectorXd>& tau,
-                  TrajectoryOptimizerWorkspace<double>* workspace) const;
+  T CalcCost(const std::vector<VectorX<T>>& q, const std::vector<VectorX<T>>& v,
+             const std::vector<VectorX<T>>& tau,
+             TrajectoryOptimizerWorkspace<T>* workspace) const;
 
   /**
    * Convienience function which computes the total cost as a function of q
@@ -110,8 +109,8 @@ class TrajectoryOptimizer {
    * @param q sequence of generalized positions
    * @return double the total cost
    */
-  double CalcCost(const std::vector<VectorXd>& q,
-                  TrajectoryOptimizerWorkspace<double>* workspace) const;
+  T CalcCost(const std::vector<VectorX<T>>& q,
+             TrajectoryOptimizerWorkspace<T>* workspace) const;
 
   /**
    * Compute a sequence of generalized velocities v from a sequence of
@@ -130,8 +129,8 @@ class TrajectoryOptimizer {
    * @param q sequence of generalized positions
    * @param v sequence of generalized velocities
    */
-  void CalcVelocities(const std::vector<VectorXd>& q,
-                      std::vector<VectorXd>* v) const;
+  void CalcVelocities(const std::vector<VectorX<T>>& q,
+                      std::vector<VectorX<T>>* v) const;
 
   /**
    * Compute a sequence of generalized accelerations a from a sequence of
@@ -147,8 +146,8 @@ class TrajectoryOptimizer {
    * @param v sequence of generalized velocities
    * @param a sequence of generalized accelerations
    */
-  void CalcAccelerations(const std::vector<VectorXd>& v,
-                         std::vector<VectorXd>* a) const;
+  void CalcAccelerations(const std::vector<VectorX<T>>& v,
+                         std::vector<VectorX<T>>* a) const;
 
   /**
    * Compute a sequence of generalized forces t from sequences of generalized
@@ -176,11 +175,11 @@ class TrajectoryOptimizer {
    * @param workspace scratch space for intermediate computations
    * @param tau sequence of generalized forces
    */
-  void CalcInverseDynamics(const std::vector<VectorXd>& q,
-                           const std::vector<VectorXd>& v,
-                           const std::vector<VectorXd>& a,
-                           TrajectoryOptimizerWorkspace<double>* workspace,
-                           std::vector<VectorXd>* tau) const;
+  void CalcInverseDynamics(const std::vector<VectorX<T>>& q,
+                           const std::vector<VectorX<T>>& v,
+                           const std::vector<VectorX<T>>& a,
+                           TrajectoryOptimizerWorkspace<T>* workspace,
+                           std::vector<VectorX<T>>* tau) const;
 
   /**
    * Compute the gradient of the unconstrained cost L(q).
@@ -190,9 +189,9 @@ class TrajectoryOptimizer {
    * @param g a single VectorXd containing the partials of L w.r.t. each
    *          decision variable (q_t[i]).
    */
-  void CalcGradient(const TrajectoryOptimizerState<double>& state,
-                    TrajectoryOptimizerWorkspace<double>* workspace,
-                    EigenPtr<VectorXd> g) const;
+  void CalcGradient(const TrajectoryOptimizerState<T>& state,
+                    TrajectoryOptimizerWorkspace<T>* workspace,
+                    EigenPtr<VectorX<T>> g) const;
 
   /**
    * Compute the gradient of the unconstrained cost L(q) using finite
@@ -207,9 +206,9 @@ class TrajectoryOptimizer {
    * @param g a single VectorXd containing the partials of L w.r.t. each
    *          decision variable (q_t[i]).
    */
-  void CalcGradientFiniteDiff(const std::vector<VectorXd>& q,
-                              TrajectoryOptimizerWorkspace<double>* workspace,
-                              EigenPtr<VectorXd> g) const;
+  void CalcGradientFiniteDiff(const std::vector<VectorX<T>>& q,
+                              TrajectoryOptimizerWorkspace<T>* workspace,
+                              EigenPtr<VectorX<T>> g) const;
 
   /**
    * Compute partial derivatives of the inverse dynamics
@@ -225,12 +224,11 @@ class TrajectoryOptimizer {
    * @param workspace scratch space for intermediate computations
    * @param id_partials struct for holding dtau/dq
    */
-  void CalcInverseDynamicsPartials(const std::vector<VectorXd>& q,
-                                   const std::vector<VectorXd>& v,
-                                   const std::vector<VectorXd>& a,
-                                   const std::vector<VectorXd>& tau,
-                                   TrajectoryOptimizerWorkspace<double>* workspace,
-                                   InverseDynamicsPartials<double>* id_partials) const;
+  void CalcInverseDynamicsPartials(
+      const std::vector<VectorX<T>>& q, const std::vector<VectorX<T>>& v,
+      const std::vector<VectorX<T>>& a, const std::vector<VectorX<T>>& tau,
+      TrajectoryOptimizerWorkspace<T>* workspace,
+      InverseDynamicsPartials<T>* id_partials) const;
 
   /**
    * Compute partial derivatives of the generalized velocities
@@ -242,8 +240,8 @@ class TrajectoryOptimizer {
    * @param q sequence of generalized positions
    * @param v_partials struct for holding dv/dq
    */
-  void CalcVelocityPartials(const std::vector<VectorXd>& q,
-                            VelocityPartials<double>* v_partials) const;
+  void CalcVelocityPartials(const std::vector<VectorX<T>>& q,
+                            VelocityPartials<T>* v_partials) const;
 
   /**
    * Update the optimizer state with given sequence of generalized positions.
@@ -255,9 +253,9 @@ class TrajectoryOptimizer {
    * @param workspace scratch space for intermediate computations
    * @param state optimizer state to update.
    */
-  void UpdateState(const std::vector<VectorXd>& q,
-                   TrajectoryOptimizerWorkspace<double>* workspace,
-                   TrajectoryOptimizerState<double>* state) const;
+  void UpdateState(const std::vector<VectorX<T>>& q,
+                   TrajectoryOptimizerWorkspace<T>* workspace,
+                   TrajectoryOptimizerState<T>* state) const;
 
  private:
   /**
@@ -277,10 +275,10 @@ class TrajectoryOptimizer {
    * @param id_partials struct for holding dtau/dq
    */
   void CalcInverseDynamicsPartialsFiniteDiff(
-      const std::vector<VectorXd>& q, const std::vector<VectorXd>& v,
-      const std::vector<VectorXd>& a, const std::vector<VectorXd>& tau,
-      TrajectoryOptimizerWorkspace<double>* workspace,
-      InverseDynamicsPartials<double>* id_partials) const;
+      const std::vector<VectorX<T>>& q, const std::vector<VectorX<T>>& v,
+      const std::vector<VectorX<T>>& a, const std::vector<VectorX<T>>& tau,
+      TrajectoryOptimizerWorkspace<T>* workspace,
+      InverseDynamicsPartials<T>* id_partials) const;
 
   /**
    * Helper function for computing the inverse dynamics
@@ -296,21 +294,21 @@ class TrajectoryOptimizer {
    * @param tau generalized forces
    */
   void CalcInverseDynamicsSingleTimeStep(
-      const VectorXd& q, const VectorXd& v, const VectorXd& a,
-      TrajectoryOptimizerWorkspace<double>* workspace, VectorXd* tau) const;
+      const VectorX<T>& q, const VectorX<T>& v, const VectorX<T>& a,
+      TrajectoryOptimizerWorkspace<T>* workspace, VectorX<T>* tau) const;
 
   // A model of the system that we are trying to find an optimal trajectory for.
-  const MultibodyPlant<double>* plant_;
+  const MultibodyPlant<T>* plant_;
 
   // A context corresponding to plant_, to enable dynamics computations.
-  std::unique_ptr<Context<double>> context_;
+  std::unique_ptr<Context<T>> context_;
 
   // Stores the problem definition, including cost, time horizon, initial state,
   // target state, etc.
   const ProblemDefinition prob_;
 
   // Joint damping coefficients for the plant under consideration
-  VectorXd joint_damping_;
+  VectorX<T> joint_damping_;
 };
 
 }  // namespace traj_opt

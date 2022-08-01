@@ -7,9 +7,6 @@
 namespace drake {
 namespace traj_opt {
 
-using Eigen::MatrixXd;
-using Eigen::VectorXd;
-
 /**
  * Struct storing gradients of generalized velocities (v) with respect to
  * generalized positions (q).
@@ -154,10 +151,10 @@ struct TrajectoryOptimizerState {
 }  // namespace drake
 
 DRAKE_DEFINE_CLASS_TEMPLATE_INSTANTIATIONS_ON_DEFAULT_NONSYMBOLIC_SCALARS(
-  struct ::drake::traj_opt::VelocityPartials)
+    struct ::drake::traj_opt::VelocityPartials)
 DRAKE_DEFINE_CLASS_TEMPLATE_INSTANTIATIONS_ON_DEFAULT_NONSYMBOLIC_SCALARS(
-  struct ::drake::traj_opt::InverseDynamicsPartials)
+    struct ::drake::traj_opt::InverseDynamicsPartials)
 DRAKE_DEFINE_CLASS_TEMPLATE_INSTANTIATIONS_ON_DEFAULT_NONSYMBOLIC_SCALARS(
-  struct ::drake::traj_opt::TrajectoryOptimizerCache)
+    struct ::drake::traj_opt::TrajectoryOptimizerCache)
 DRAKE_DEFINE_CLASS_TEMPLATE_INSTANTIATIONS_ON_DEFAULT_NONSYMBOLIC_SCALARS(
-  struct ::drake::traj_opt::TrajectoryOptimizerState)
+    struct ::drake::traj_opt::TrajectoryOptimizerState)
