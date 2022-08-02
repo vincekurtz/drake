@@ -38,6 +38,3 @@ struct VelocityPartials {
 
 }  // namespace traj_opt
 }  // namespace drake
-
-DRAKE_DEFINE_CLASS_TEMPLATE_INSTANTIATIONS_ON_DEFAULT_NONSYMBOLIC_SCALARS(
-    struct ::drake::traj_opt::VelocityPartials)
