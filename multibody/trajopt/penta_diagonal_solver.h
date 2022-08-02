@@ -17,6 +17,7 @@ enum class PentaDiagonalFactorizationStatus {
   kFailure = 1,
 };
 
+/// WIP: document this class.
 template <int kBlockSize = Eigen::Dynamic>
 class PentaDiagonalFactorization {
  public:
