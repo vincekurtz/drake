@@ -78,6 +78,67 @@ using multibody::MultibodyPlant;
 using multibody::Parser;
 using test::LimitMalloc;
 
+/**
+ * Test our (dense algebra) computation of the Hessian by comparing
+ * with autodiff. 
+ */
+GTEST_TEST(TrajectoryOptimizerTest, DenseHessian) {
+  // Define an optimization problem.
+  const int num_steps = 5;
+  const double dt = 1e-2;
+
+  ProblemDefinition opt_prob;
+  opt_prob.num_steps = num_steps;
+  opt_prob.q_init = Vector1d(0.1);
+  opt_prob.v_init = Vector1d(0.0);
+  opt_prob.Qq = 0.1 * MatrixXd::Identity(1, 1);
+  opt_prob.Qv = 0.2 * MatrixXd::Identity(1, 1);
+  opt_prob.Qf_q = 0.3 * MatrixXd::Identity(1, 1);
+  opt_prob.Qf_v = 0.4 * MatrixXd::Identity(1, 1);
+  opt_prob.R = 0.5 * MatrixXd::Identity(1, 1);
+  opt_prob.q_nom = Vector1d(0.1);
+  opt_prob.v_nom = Vector1d(-0.1);
+
+  // Create a pendulum model
+  MultibodyPlant<double> plant(dt);
+  const std::string urdf_file =
+      FindResourceOrThrow("drake/examples/pendulum/Pendulum.urdf");
+  Parser(&plant).AddAllModelsFromFile(urdf_file);
+  plant.Finalize();
+
+  // Create an optimizer
+  TrajectoryOptimizer<double> optimizer(&plant, opt_prob);
+  TrajectoryOptimizerState<double> state = optimizer.CreateState();
+
+  // Make some fake data
+  std::vector<VectorXd> q(num_steps + 1);
+  q[0] = opt_prob.q_init;
+  for (int t = 1; t <= num_steps; ++t) {
+    q[t] = q[t - 1] + 0.1 * dt * MatrixXd::Identity(1, 1);
+  }
+  state.set_q(q);
+
+  // Compute the Hessian using autodiff
+  std::unique_ptr<MultibodyPlant<AutoDiffXd>> plant_ad =
+      systems::System<double>::ToAutoDiffXd(plant);
+  TrajectoryOptimizer<AutoDiffXd> optimizer_ad(plant_ad.get(), opt_prob);
+  TrajectoryOptimizerState<AutoDiffXd> state_ad = optimizer_ad.CreateState();
+
+  std::vector<VectorX<AutoDiffXd>> q_ad(num_steps + 1);
+  for (int t = 0; t <= num_steps; ++t) {
+    q_ad[t] = math::InitializeAutoDiff(q[t], num_steps + 1, t);
+  }
+  state_ad.set_q(q_ad);
+
+  VectorX<AutoDiffXd> g_ad(plant.num_positions() * (num_steps + 1));
+  optimizer_ad.CalcGradient(state_ad, &g_ad);
+
+  std::cout << math::ExtractValue(g_ad) << std::endl;
+  std::cout << std::endl;
+  std::cout << math::ExtractGradient(g_ad) << std::endl;
+
+}
+
 GTEST_TEST(TrajectoryOptimizerTest, AutodiffGradient) {
   // Test our gradient computations using autodiff
   const int num_steps = 5;
