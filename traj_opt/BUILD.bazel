@@ -111,6 +111,7 @@ drake_cc_googletest(
     data = [
         "//examples/pendulum:prod_models",
         "//manipulation/models/iiwa_description:models",
+        "//multibody/benchmarks/acrobot:models",
     ],
     deps = [
         ":inverse_dynamics_partials",
