@@ -389,6 +389,72 @@ void TrajectoryOptimizer<T>::CalcGradient(
 }
 
 template <typename T>
+void TrajectoryOptimizer<T>::CalcDenseHessian(
+    const TrajectoryOptimizerState<T>& state, EigenPtr<MatrixX<T>> H) const {
+  // Size checks
+  const int num_vars = plant().num_positions() * (num_steps() + 1);
+  DRAKE_DEMAND(H->rows() == num_vars);
+  DRAKE_DEMAND(H->cols() == num_vars);
+
+  // Make sure the cache is up to date
+  if (!state.cache().up_to_date) UpdateCache(state);
+  const TrajectoryOptimizerCache<T>& cache = state.cache();
+
+  // Some convienient aliases
+  const double dt = time_step();
+  const int nq = plant().num_positions();
+  const MatrixX<T>& Qq = 2 * prob_.Qq * dt;
+  const MatrixX<T>& Qv = 2 * prob_.Qv * dt;
+  const MatrixX<T>& R = 2 * prob_.R * dt;
+  const std::vector<MatrixX<T>>& dvt_dqt = cache.v_partials.dvt_dqt;
+  const std::vector<MatrixX<T>>& dvt_dqm = cache.v_partials.dvt_dqm;
+  const std::vector<MatrixX<T>>& dtau_dqp = cache.id_partials.dtau_dqp;
+  const std::vector<MatrixX<T>>& dtau_dqt = cache.id_partials.dtau_dqt;
+  const std::vector<MatrixX<T>>& dtau_dqm = cache.id_partials.dtau_dqm;
+  //TrajectoryOptimizerWorkspace<T> workspace = state.workspace;
+
+  // The Hessian is a block penta-diagonal matrix, so we'll set all entries to
+  // zero to start.
+  H->setZero();
+
+  // We overwrite the first row and column, since q0 is fixed
+  H->block(0, 0, nq, nq) = MatrixX<T>::Identity(nq, nq);
+
+  // Fill in the rest of the non-zero blocks
+  for (int t = 1; t < num_steps(); ++t) {
+    // dg_t/dq_t
+    Eigen::Ref<MatrixX<T>> dgt_dqt = H->block(t*nq, t*nq, nq, nq);
+    dgt_dqt = Qq;
+    dgt_dqt += dvt_dqt[t].transpose() * Qv * dvt_dqt[t];
+    dgt_dqt += dvt_dqm[t+1].transpose() * Qv * dvt_dqm[t+1];
+    dgt_dqt += dtau_dqp[t-1].transpose() * R * dtau_dqp[t-1];
+    dgt_dqt += dtau_dqt[t].transpose() * R * dtau_dqt[t];
+    if (t < num_steps() -1) {
+      dgt_dqt += dtau_dqm[t+1].transpose() * R * dtau_dqm[t+1];
+    }
+
+    // dg_t/dq_{t+1}
+    Eigen::Ref<MatrixX<T>> dgt_dqp = H->block(t*nq, (t+1)*nq, nq, nq);
+    dgt_dqp = dvt_dqt[t+1].transpose() * Qv * dvt_dqm[t+1];
+    dgt_dqp += dtau_dqp[t].transpose() * R * dtau_dqt[t];
+    if (t < num_steps() - 1) {
+      dgt_dqp += dtau_dqt[t+1].transpose() * R * dtau_dqm[t+1];
+    }
+
+    // dg_t/dq_{t+2}
+    if (t < num_steps() - 1) {
+      Eigen::Ref<MatrixX<T>> dgt_dqpp = H->block(t*nq, (t+2)*nq, nq, nq);
+      dgt_dqpp = dtau_dqp[t+1].transpose() * R * dtau_dqm[t+1];
+    }
+
+  }
+
+  // Terminal cost is different, so we'll handle that separately
+
+  // We know the Hessian is symmetric, so we'll just copy over the relevant blocks.
+}
+
+template <typename T>
 void TrajectoryOptimizer<T>::UpdateCache(
     const TrajectoryOptimizerState<T>& state) const {
   TrajectoryOptimizerCache<T>& cache = state.mutable_cache();

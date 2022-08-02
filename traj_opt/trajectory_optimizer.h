@@ -97,6 +97,16 @@ class TrajectoryOptimizer {
   void CalcGradient(const TrajectoryOptimizerState<T>& state,
                     EigenPtr<VectorX<T>> g) const;
 
+  /**
+   * Compute the Hessian of the unconstrained cost L(q) as a dense matrix.
+   *
+   * @param state optimizer state, including q, v, tau, gradients, etc.
+   * @param H a single MatrixXd containing the second-order derivatives of
+   *          the total cost L(q).
+   */
+  void CalcDenseHessian(const TrajectoryOptimizerState<T>& state,
+                        EigenPtr<MatrixX<T>> H) const;
+
  private:
   // Friend class to facilitate testing.
   friend class TrajectoryOptimizerTester;

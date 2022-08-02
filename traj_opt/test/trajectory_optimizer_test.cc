@@ -93,9 +93,9 @@ GTEST_TEST(TrajectoryOptimizerTest, DenseHessian) {
   opt_prob.v_init = Vector1d(0.0);
   opt_prob.Qq = 0.1 * MatrixXd::Identity(1, 1);
   opt_prob.Qv = 0.2 * MatrixXd::Identity(1, 1);
-  opt_prob.Qf_q = 0.3 * MatrixXd::Identity(1, 1);
-  opt_prob.Qf_v = 0.4 * MatrixXd::Identity(1, 1);
-  opt_prob.R = 0.5 * MatrixXd::Identity(1, 1);
+  opt_prob.Qf_q = 0.0 * MatrixXd::Identity(1, 1);
+  opt_prob.Qf_v = 0.0 * MatrixXd::Identity(1, 1);
+  opt_prob.R = 0.05 * MatrixXd::Identity(1, 1);
   opt_prob.q_nom = Vector1d(0.1);
   opt_prob.v_nom = Vector1d(-0.1);
 
@@ -118,6 +118,11 @@ GTEST_TEST(TrajectoryOptimizerTest, DenseHessian) {
   }
   state.set_q(q);
 
+  // Compute the Hessian analytically
+  const int num_vars = plant.num_positions() * (num_steps + 1);
+  MatrixXd H(num_vars, num_vars);
+  optimizer.CalcDenseHessian(state, &H);
+
   // Compute the Hessian using autodiff
   std::unique_ptr<MultibodyPlant<AutoDiffXd>> plant_ad =
       systems::System<double>::ToAutoDiffXd(plant);
@@ -130,12 +135,13 @@ GTEST_TEST(TrajectoryOptimizerTest, DenseHessian) {
   }
   state_ad.set_q(q_ad);
 
-  VectorX<AutoDiffXd> g_ad(plant.num_positions() * (num_steps + 1));
+  VectorX<AutoDiffXd> g_ad(num_vars);
   optimizer_ad.CalcGradient(state_ad, &g_ad);
+  MatrixXd H_ad = math::ExtractGradient(g_ad);
 
-  std::cout << math::ExtractValue(g_ad) << std::endl;
+  std::cout << H << std::endl;
   std::cout << std::endl;
-  std::cout << math::ExtractGradient(g_ad) << std::endl;
+  std::cout << H_ad << std::endl;
 
 }
 
