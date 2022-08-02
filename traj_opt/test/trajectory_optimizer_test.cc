@@ -42,26 +42,27 @@ class TrajectoryOptimizerTester {
     optimizer.CalcAccelerations(v, a);
   }
 
-  static void CalcInverseDynamics(const TrajectoryOptimizer<double>& optimizer,
-                                  const std::vector<VectorXd>& q,
-                                  const std::vector<VectorXd>& v,
-                                  const std::vector<VectorXd>& a,
-                                  TrajectoryOptimizerWorkspace<double>* workspace,
-                                  std::vector<VectorXd>* tau) {
+  static void CalcInverseDynamics(
+      const TrajectoryOptimizer<double>& optimizer,
+      const std::vector<VectorXd>& q, const std::vector<VectorXd>& v,
+      const std::vector<VectorXd>& a,
+      TrajectoryOptimizerWorkspace<double>* workspace,
+      std::vector<VectorXd>* tau) {
     optimizer.CalcInverseDynamics(q, v, a, workspace, tau);
   }
 
   static void CalcInverseDynamicsPartials(
-      const TrajectoryOptimizer<double>& optimizer, const std::vector<VectorXd>& q,
-      const std::vector<VectorXd>& v, const std::vector<VectorXd>& a,
-      const std::vector<VectorXd>& tau, TrajectoryOptimizerWorkspace<double>* workspace,
+      const TrajectoryOptimizer<double>& optimizer,
+      const std::vector<VectorXd>& q, const std::vector<VectorXd>& v,
+      const std::vector<VectorXd>& a, const std::vector<VectorXd>& tau,
+      TrajectoryOptimizerWorkspace<double>* workspace,
       InverseDynamicsPartials<double>* id_partials) {
     optimizer.CalcInverseDynamicsPartials(q, v, a, tau, workspace, id_partials);
   }
 
-  static void CalcGradientFiniteDiff(const TrajectoryOptimizer<double>& optimizer,
-                                     const TrajectoryOptimizerState<double>& state,
-                                     EigenPtr<VectorXd> g) {
+  static void CalcGradientFiniteDiff(
+      const TrajectoryOptimizer<double>& optimizer,
+      const TrajectoryOptimizerState<double>& state, EigenPtr<VectorXd> g) {
     optimizer.CalcGradientFiniteDiff(state, g);
   }
 };
@@ -127,14 +128,14 @@ GTEST_TEST(TrajectoryOptimizerTest, AutodiffGradient) {
 
   std::vector<VectorX<AutoDiffXd>> q_ad(num_steps + 1);
   for (int t = 0; t <= num_steps; ++t) {
-    q_ad[t] = math::InitializeAutoDiff(q[t], num_steps+1, t);
+    q_ad[t] = math::InitializeAutoDiff(q[t], num_steps + 1, t);
   }
   state_ad.set_q(q_ad);
 
   AutoDiffXd cost_ad = optimizer_ad.CalcCost(state_ad);
   VectorXd g_ad = cost_ad.derivatives();
 
-  // We neglect the top row of the gradient, since we are setting it to zero. 
+  // We neglect the top row of the gradient, since we are setting it to zero.
   const double kTolerance = sqrt(std::numeric_limits<double>::epsilon());
   EXPECT_TRUE(CompareMatrices(g.bottomRows(num_steps),
                               g_ad.bottomRows(num_steps), kTolerance,

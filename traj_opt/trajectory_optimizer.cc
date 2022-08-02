@@ -70,7 +70,7 @@ T TrajectoryOptimizer<T>::CalcCost(
 
 template <typename T>
 void TrajectoryOptimizer<T>::CalcVelocities(const std::vector<VectorX<T>>& q,
-                                         std::vector<VectorX<T>>* v) const {
+                                            std::vector<VectorX<T>>* v) const {
   // x = [x0, x1, ..., xT]
   DRAKE_DEMAND(static_cast<int>(q.size()) == num_steps() + 1);
   DRAKE_DEMAND(static_cast<int>(v->size()) == num_steps() + 1);
@@ -274,11 +274,10 @@ void TrajectoryOptimizer<T>::CalcVelocityPartials(
 
 template <typename T>
 void TrajectoryOptimizer<T>::CalcGradientFiniteDiff(
-    const TrajectoryOptimizerState<T>& state,
-    EigenPtr<VectorX<T>> g) const {
-  using std::max;
+    const TrajectoryOptimizerState<T>& state, EigenPtr<VectorX<T>> g) const {
   using std::abs;
-    
+  using std::max;
+
   // Perturbed versions of q
   std::vector<VectorX<T>>& q_plus = state.workspace.q_sequence_tmp1;
   std::vector<VectorX<T>>& q_minus = state.workspace.q_sequence_tmp2;
@@ -320,8 +319,7 @@ void TrajectoryOptimizer<T>::CalcGradientFiniteDiff(
 
 template <typename T>
 void TrajectoryOptimizer<T>::CalcGradient(
-    const TrajectoryOptimizerState<T>& state,
-    EigenPtr<VectorX<T>> g) const {
+    const TrajectoryOptimizerState<T>& state, EigenPtr<VectorX<T>> g) const {
   if (!state.cache().up_to_date) UpdateCache(state);
   const TrajectoryOptimizerCache<T>& cache = state.cache();
 
