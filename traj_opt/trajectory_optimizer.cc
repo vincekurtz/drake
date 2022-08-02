@@ -406,6 +406,8 @@ void TrajectoryOptimizer<T>::CalcDenseHessian(
   const MatrixX<T>& Qq = 2 * prob_.Qq * dt;
   const MatrixX<T>& Qv = 2 * prob_.Qv * dt;
   const MatrixX<T>& R = 2 * prob_.R * dt;
+  const MatrixX<T>& Qf_q = 2 * prob_.Qf_q;
+  const MatrixX<T>& Qf_v = 2 * prob_.Qf_v;
   const std::vector<MatrixX<T>>& dvt_dqt = cache.v_partials.dvt_dqt;
   const std::vector<MatrixX<T>>& dvt_dqm = cache.v_partials.dvt_dqm;
   const std::vector<MatrixX<T>>& dtau_dqp = cache.id_partials.dtau_dqp;
@@ -426,19 +428,23 @@ void TrajectoryOptimizer<T>::CalcDenseHessian(
     Eigen::Ref<MatrixX<T>> dgt_dqt = H->block(t*nq, t*nq, nq, nq);
     dgt_dqt = Qq;
     dgt_dqt += dvt_dqt[t].transpose() * Qv * dvt_dqt[t];
-    dgt_dqt += dvt_dqm[t+1].transpose() * Qv * dvt_dqm[t+1];
     dgt_dqt += dtau_dqp[t-1].transpose() * R * dtau_dqp[t-1];
     dgt_dqt += dtau_dqt[t].transpose() * R * dtau_dqt[t];
     if (t < num_steps() -1) {
       dgt_dqt += dtau_dqm[t+1].transpose() * R * dtau_dqm[t+1];
+      dgt_dqt += dvt_dqm[t+1].transpose() * Qv * dvt_dqm[t+1];
+    } else {
+      dgt_dqt += dvt_dqm[t+1].transpose() * Qf_v * dvt_dqm[t+1];
     }
 
     // dg_t/dq_{t+1}
     Eigen::Ref<MatrixX<T>> dgt_dqp = H->block(t*nq, (t+1)*nq, nq, nq);
-    dgt_dqp = dvt_dqt[t+1].transpose() * Qv * dvt_dqm[t+1];
-    dgt_dqp += dtau_dqp[t].transpose() * R * dtau_dqt[t];
+    dgt_dqp = dtau_dqp[t].transpose() * R * dtau_dqt[t];
     if (t < num_steps() - 1) {
       dgt_dqp += dtau_dqt[t+1].transpose() * R * dtau_dqm[t+1];
+      dgt_dqp += dvt_dqt[t+1].transpose() * Qv * dvt_dqm[t+1];
+    } else {
+      dgt_dqp += dvt_dqt[t+1].transpose() * Qf_v * dvt_dqm[t+1];
     }
 
     // dg_t/dq_{t+2}
@@ -449,9 +455,23 @@ void TrajectoryOptimizer<T>::CalcDenseHessian(
 
   }
 
-  // Terminal cost is different, so we'll handle that separately
+  // Terminal cost
+  Eigen::Ref<MatrixX<T>> dgT_dqT =
+      H->block(num_steps() * nq, num_steps() * nq, nq, nq);
+  dgT_dqT = Qf_q;
+  dgT_dqT += dvt_dqt[num_steps()].transpose() * Qf_v * dvt_dqt[num_steps()];
+  dgT_dqT += dtau_dqp[num_steps()-1].transpose() * R * dtau_dqp[num_steps()-1];
 
-  // We know the Hessian is symmetric, so we'll just copy over the relevant blocks.
+  // We know the Hessian is symmetric, so we'll just copy over the relevant
+  // blocks.
+  for (int t = 1; t < num_steps(); ++t) {
+    H->block((t + 1) * nq, t * nq, nq, nq) =
+        H->block(t * nq, (t + 1) * nq, nq, nq);
+  }
+  for (int t = 1; t < num_steps() - 1; ++t) {
+    H->block((t + 2) * nq, t * nq, nq, nq) =
+        H->block(t * nq, (t + 2) * nq, nq, nq);
+  }
 }
 
 template <typename T>

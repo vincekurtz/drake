@@ -93,8 +93,8 @@ GTEST_TEST(TrajectoryOptimizerTest, DenseHessian) {
   opt_prob.v_init = Vector1d(0.0);
   opt_prob.Qq = 0.1 * MatrixXd::Identity(1, 1);
   opt_prob.Qv = 0.2 * MatrixXd::Identity(1, 1);
-  opt_prob.Qf_q = 0.0 * MatrixXd::Identity(1, 1);
-  opt_prob.Qf_v = 0.0 * MatrixXd::Identity(1, 1);
+  opt_prob.Qf_q = 0.3 * MatrixXd::Identity(1, 1);
+  opt_prob.Qf_v = 0.4 * MatrixXd::Identity(1, 1);
   opt_prob.R = 0.05 * MatrixXd::Identity(1, 1);
   opt_prob.q_nom = Vector1d(0.1);
   opt_prob.v_nom = Vector1d(-0.1);
