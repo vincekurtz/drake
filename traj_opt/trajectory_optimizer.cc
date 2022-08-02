@@ -413,7 +413,7 @@ void TrajectoryOptimizer<T>::CalcDenseHessian(
   const std::vector<MatrixX<T>>& dtau_dqp = cache.id_partials.dtau_dqp;
   const std::vector<MatrixX<T>>& dtau_dqt = cache.id_partials.dtau_dqt;
   const std::vector<MatrixX<T>>& dtau_dqm = cache.id_partials.dtau_dqm;
-  //TrajectoryOptimizerWorkspace<T> workspace = state.workspace;
+  // TrajectoryOptimizerWorkspace<T> workspace = state.workspace;
 
   // The Hessian is a block penta-diagonal matrix, so we'll set all entries to
   // zero to start.
@@ -425,34 +425,33 @@ void TrajectoryOptimizer<T>::CalcDenseHessian(
   // Fill in the rest of the non-zero blocks
   for (int t = 1; t < num_steps(); ++t) {
     // dg_t/dq_t
-    Eigen::Ref<MatrixX<T>> dgt_dqt = H->block(t*nq, t*nq, nq, nq);
+    Eigen::Ref<MatrixX<T>> dgt_dqt = H->block(t * nq, t * nq, nq, nq);
     dgt_dqt = Qq;
     dgt_dqt += dvt_dqt[t].transpose() * Qv * dvt_dqt[t];
-    dgt_dqt += dtau_dqp[t-1].transpose() * R * dtau_dqp[t-1];
+    dgt_dqt += dtau_dqp[t - 1].transpose() * R * dtau_dqp[t - 1];
     dgt_dqt += dtau_dqt[t].transpose() * R * dtau_dqt[t];
-    if (t < num_steps() -1) {
-      dgt_dqt += dtau_dqm[t+1].transpose() * R * dtau_dqm[t+1];
-      dgt_dqt += dvt_dqm[t+1].transpose() * Qv * dvt_dqm[t+1];
+    if (t < num_steps() - 1) {
+      dgt_dqt += dtau_dqm[t + 1].transpose() * R * dtau_dqm[t + 1];
+      dgt_dqt += dvt_dqm[t + 1].transpose() * Qv * dvt_dqm[t + 1];
     } else {
-      dgt_dqt += dvt_dqm[t+1].transpose() * Qf_v * dvt_dqm[t+1];
+      dgt_dqt += dvt_dqm[t + 1].transpose() * Qf_v * dvt_dqm[t + 1];
     }
 
     // dg_t/dq_{t+1}
-    Eigen::Ref<MatrixX<T>> dgt_dqp = H->block(t*nq, (t+1)*nq, nq, nq);
+    Eigen::Ref<MatrixX<T>> dgt_dqp = H->block(t * nq, (t + 1) * nq, nq, nq);
     dgt_dqp = dtau_dqp[t].transpose() * R * dtau_dqt[t];
     if (t < num_steps() - 1) {
-      dgt_dqp += dtau_dqt[t+1].transpose() * R * dtau_dqm[t+1];
-      dgt_dqp += dvt_dqt[t+1].transpose() * Qv * dvt_dqm[t+1];
+      dgt_dqp += dtau_dqt[t + 1].transpose() * R * dtau_dqm[t + 1];
+      dgt_dqp += dvt_dqt[t + 1].transpose() * Qv * dvt_dqm[t + 1];
     } else {
-      dgt_dqp += dvt_dqt[t+1].transpose() * Qf_v * dvt_dqm[t+1];
+      dgt_dqp += dvt_dqt[t + 1].transpose() * Qf_v * dvt_dqm[t + 1];
     }
 
     // dg_t/dq_{t+2}
     if (t < num_steps() - 1) {
-      Eigen::Ref<MatrixX<T>> dgt_dqpp = H->block(t*nq, (t+2)*nq, nq, nq);
-      dgt_dqpp = dtau_dqp[t+1].transpose() * R * dtau_dqm[t+1];
+      Eigen::Ref<MatrixX<T>> dgt_dqpp = H->block(t * nq, (t + 2) * nq, nq, nq);
+      dgt_dqpp = dtau_dqp[t + 1].transpose() * R * dtau_dqm[t + 1];
     }
-
   }
 
   // Terminal cost
@@ -460,7 +459,8 @@ void TrajectoryOptimizer<T>::CalcDenseHessian(
       H->block(num_steps() * nq, num_steps() * nq, nq, nq);
   dgT_dqT = Qf_q;
   dgT_dqT += dvt_dqt[num_steps()].transpose() * Qf_v * dvt_dqt[num_steps()];
-  dgT_dqT += dtau_dqp[num_steps()-1].transpose() * R * dtau_dqp[num_steps()-1];
+  dgT_dqT +=
+      dtau_dqp[num_steps() - 1].transpose() * R * dtau_dqp[num_steps() - 1];
 
   // We know the Hessian is symmetric, so we'll just copy over the relevant
   // blocks.

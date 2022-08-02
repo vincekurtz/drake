@@ -80,9 +80,9 @@ using test::LimitMalloc;
 
 /**
  * Test our (dense algebra) computation of the Hessian by comparing
- * with autodiff. 
+ * with autodiff.
  */
-GTEST_TEST(TrajectoryOptimizerTest, DenseHessian) {
+GTEST_TEST(TrajectoryOptimizerTest, DenseHessianPendulum) {
   // Define an optimization problem.
   const int num_steps = 5;
   const double dt = 1e-2;
@@ -119,7 +119,8 @@ GTEST_TEST(TrajectoryOptimizerTest, DenseHessian) {
   state.set_q(q);
 
   // Compute the Hessian analytically
-  const int num_vars = plant.num_positions() * (num_steps + 1);
+  const int nq = plant.num_positions();
+  const int num_vars = nq * (num_steps + 1);
   MatrixXd H(num_vars, num_vars);
   optimizer.CalcDenseHessian(state, &H);
 
@@ -139,10 +140,13 @@ GTEST_TEST(TrajectoryOptimizerTest, DenseHessian) {
   optimizer_ad.CalcGradient(state_ad, &g_ad);
   MatrixXd H_ad = math::ExtractGradient(g_ad);
 
-  std::cout << H << std::endl;
-  std::cout << std::endl;
-  std::cout << H_ad << std::endl;
-
+  // We overwrite the first row and column of the Hessian, so we won't compare
+  // those
+  const double kTolerance = sqrt(std::numeric_limits<double>::epsilon()) / dt;
+  EXPECT_TRUE(
+      CompareMatrices(H.bottomRightCorner(num_steps * nq, num_steps * nq),
+                      H_ad.bottomRightCorner(num_steps * nq, num_steps * nq),
+                      kTolerance, MatrixCompareType::relative));
 }
 
 GTEST_TEST(TrajectoryOptimizerTest, AutodiffGradient) {
