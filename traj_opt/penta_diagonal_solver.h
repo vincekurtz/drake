@@ -41,6 +41,9 @@ class PentaDiagonalFactorization {
   /// to check whether the factorization succeeded or not, typically because M
   /// is not SPD.
   ///
+  /// @warning Even when mathematically they do not exist, our implementation
+  /// assumes that A₀, B₀, A₁, Eₙ₋₂, Dₙ₋₁, Eₙ₋₁ are initialized to zero.
+  ///
   /// @pre Matrix M is symmetric and positive definite.
   /// @throws if M is not symmetric.
   explicit PentaDiagonalFactorization(const PentaDiagonalMatrix& M);
