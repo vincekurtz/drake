@@ -252,15 +252,12 @@ GTEST_TEST(TrajectoryOptimizerTest, DenseHessianPendulum) {
   optimizer.CalcDenseHessian(state, &H);
   
   // Compute the Gauss-Newton Hessian approximation with sparse algebra
-  PentaDiagonalMatrix H_sparse = optimizer.CalcHessian(state);
-
-  //DEBUG**********************
-
-  std::cout << H << std::endl;
-
-  std::cout << H_sparse.MakeDense() << std::endl;
-
-  //***************************
+  PentaDiagonalMatrix<double> H_sparse(num_steps + 1, nq);
+  optimizer.CalcHessian(state, &H_sparse);
+  std::cout << H - H_sparse.MakeDense() << std::endl;
+  std::cout << std::endl;
+  std::cout << H_sparse.is_symmetric() << std::endl;
+  std::cout << std::endl;
 
   // Compute the Hessian using autodiff
   std::unique_ptr<MultibodyPlant<AutoDiffXd>> plant_ad =

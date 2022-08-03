@@ -107,7 +107,8 @@ class TrajectoryOptimizer {
    * @param H a PentaDiagonalMatrix containing the second-order derivatives of
    *          the total cost L(q).
    */
-  PentaDiagonalMatrix CalcHessian(const TrajectoryOptimizerState<T>& state) const;
+  void CalcHessian(const TrajectoryOptimizerState<T>& state,
+                   PentaDiagonalMatrix<T>* H) const;
 
   /**
    * Compute the Hessian of the unconstrained cost L(q) as a dense matrix.

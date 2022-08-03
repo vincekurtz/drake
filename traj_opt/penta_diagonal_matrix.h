@@ -79,6 +79,14 @@ class PentaDiagonalMatrix {
                       std::vector<MatrixX<T>> B,
                       std::vector<MatrixX<T>> C);
 
+  /* Copy the lower triangular part of this matrix to the upper triangular part,
+   i.e., Eᵢ = Aᵢ₊₂ᵀ and Dᵢ = Bᵢ₊₁ᵀ, to make this a symmetric matrix. 
+   
+   @pre All vectors A, B, C, D and E must have the same size.
+   @pre All blocks must be square of the same size k×k. This invariant is
+   verified only in Debug builds. */
+  void MakeSymmetric();
+
   static PentaDiagonalMatrix<T> MakeIdentity(int num_blocks, int block_size);
 
   static PentaDiagonalMatrix<T> MakeSymmetricFromLowerDense(
@@ -102,15 +110,33 @@ class PentaDiagonalMatrix {
 
   // Returns a reference to the second lower diagonal.
   const std::vector<MatrixX<T>>& A() const { return A_; }
-  std::vector<MatrixX<T>>& mutable_A() { return A_; }
+
+  // Mutable version of A().
+  // @warning makes the matrix non-symmetric
+  std::vector<MatrixX<T>>& mutable_A() {
+    is_symmetric_ = false;
+    return A_;
+  }
 
   // Returns a reference to the first lower diagonal.
   const std::vector<MatrixX<T>>& B() const { return B_; }
-  std::vector<MatrixX<T>>& mutable_B() { return B_; }
+
+  // Mutable version of B().
+  // @warning makes the matrix non-symmetric
+  std::vector<MatrixX<T>>& mutable_B() {
+    is_symmetric_ = false;
+    return B_;
+  }
 
   // Returns a reference to the main diagonal.
   const std::vector<MatrixX<T>>& C() const { return C_; }
-  std::vector<MatrixX<T>>& mutable_C() { return C_; }
+
+  // Mutable version of C().
+  // @warning makes the matrix non-symmetric
+  std::vector<MatrixX<T>>& mutable_C() {
+    is_symmetric_ = false;
+    return C_;
+  }
 
   // Returns a reference to the first upper diagonal.
   const std::vector<MatrixX<T>>& D() const { return D_; }

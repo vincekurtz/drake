@@ -53,15 +53,27 @@ PentaDiagonalMatrix<T>::PentaDiagonalMatrix(std::vector<MatrixX<T>> A,
   // Alocate space for D and E.
   // TODO(amcastro-tri): Consider not allocating space for D/E in the symmetric
   // case.
-  const int size = A_.size();
   D_ = B_;
   E_ = A_;
 
+  // Copy the lower triangular part to the upper triangular part.
+  MakeSymmetric();
+}
+
+template <typename T>
+void PentaDiagonalMatrix<T>::MakeSymmetric() {
+  // Minimum sanity check.
+  DRAKE_DEMAND(B_.size() == A_.size());
+  DRAKE_DEMAND(C_.size() == A_.size());
+  DRAKE_DEMAND(D_.size() == A_.size());
+  DRAKE_DEMAND(E_.size() == A_.size());
+
   // We overwrite the (strictly) upper triangular part of C with its lower
   // triangular part.
-  //for (int i = 0; i < size; ++i) {
-  //  C_[i].triangularView<Eigen::StrictlyUpper>() = C_[i].transpose();
-  //}
+  const int size = A_.size();
+  for (int i = 0; i < size; ++i) {
+    C_[i].template triangularView<Eigen::StrictlyUpper>() = C_[i].transpose();
+  }
 
   // D = B.
   // N.B. The first entry in B is zero and we skip its copy.
