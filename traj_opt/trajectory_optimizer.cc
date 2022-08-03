@@ -518,6 +518,9 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
   TrajectoryOptimizerState<double> state = CreateState();
   state.set_q(q_guess);
 
+  // Allocate a separate state variable for linesearch
+  TrajectoryOptimizerState<double> ls_state(state);
+
   // Allocate cost, gradient, and Hessian 
   double L;
   VectorXd g((num_steps() + 1) * nq);
@@ -536,19 +539,41 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
     CalcGradient(state, &g);
     CalcHessian(state, &H);
 
-    // Check the positive-definite-ness of the Hessian (DEBUG)
-    MatrixXd H_dense = H.MakeDense();
-    Eigen::VectorXcd eivals = H_dense.eigenvalues();
-    std::cout << eivals << std::endl;
-
     // Solve for search direction
-    VectorXd delta_q(g);
+    VectorXd delta_q(-g);
     PentaDiagonalFactorization Hchol(H);
     DRAKE_DEMAND(Hchol.status() == PentaDiagonalFactorizationStatus::kSuccess);
     Hchol.SolveInPlace(&delta_q);
 
-    // Do linesearch
-    const double alpha = 0.01;
+    ///////////////////////////// LINESEARCH /////////////////////////////////
+    // TODO(vincekurtz): abstract this into another function
+    // TODO(vincekurtz): add solver options to choose between linesearch methods
+    const double c = 1e-4;
+    const double rho = 0.9;
+    double alpha = 1.0;
+    double L_prime = g.transpose() * delta_q;
+
+    // Compute L_ls = L(q + alpha * dq)
+    for (int t=1; t<=num_steps(); ++t) {
+      ls_state.set_qt(state.q()[t] + alpha * delta_q.segment(t * nq, nq), t);
+    }
+    double L_ls = CalcCost(ls_state);  // N.B. this is also computing extra gradient data
+                                       // that we don't really need.
+
+    while ( L_ls >= L - c*L_prime ) {
+      // Reduce alpha
+      alpha *= rho;
+
+      // Compute L_ls = L(q + alpha * dq)
+      for (int t=1; t<=num_steps(); ++t) {
+        ls_state.set_qt(state.q()[t] + alpha * delta_q.segment(t * nq, nq), t);
+      }
+      L_ls = CalcCost(ls_state);
+    }
+
+    std::cout << alpha << std::endl;
+
+    ///////////////////////// END LINESEARCH /////////////////////////////////
 
     // Update the guess
     for (int t=1; t<=num_steps(); ++t) {

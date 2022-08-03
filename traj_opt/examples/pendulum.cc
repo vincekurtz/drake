@@ -130,11 +130,11 @@ void solve_trajectory_optimization(double time_step, int num_steps) {
   opt_prob.num_steps = num_steps;
   opt_prob.q_init = Vector1d(0.0);
   opt_prob.v_init = Vector1d(0.0);
-  opt_prob.Qq = 1.0 * MatrixXd::Identity(1, 1);
-  opt_prob.Qv = 1.0 * MatrixXd::Identity(1, 1);
-  opt_prob.Qf_q = 1.0 * MatrixXd::Identity(1, 1);
+  opt_prob.Qq = 0.1 * MatrixXd::Identity(1, 1);
+  opt_prob.Qv = 0.1 * MatrixXd::Identity(1, 1);
+  opt_prob.Qf_q = 10.0 * MatrixXd::Identity(1, 1);
   opt_prob.Qf_v = 1.0 * MatrixXd::Identity(1, 1);
-  opt_prob.R = 1.0 * MatrixXd::Identity(1, 1);
+  opt_prob.R = 0.1 * MatrixXd::Identity(1, 1);
   opt_prob.q_nom = Vector1d(1.5);
   opt_prob.v_nom = Vector1d(-0.1);
 
@@ -150,7 +150,7 @@ void solve_trajectory_optimization(double time_step, int num_steps) {
   TrajectoryOptimizerSolution<double> solution;
 
   SolverFlag status = optimizer.Solve(q_guess, &solution);
-  (void) status;
+  DRAKE_DEMAND(status == SolverFlag::kSuccess);
 
   // Play back the result on the visualizer
   play_back_trajectory(solution.q, time_step);
@@ -161,7 +161,7 @@ int do_main() {
   // run_passive_simulation(1e-2, 2.0);
 
   // Solve an optimization problem to swing-up the pendulum
-  solve_trajectory_optimization(1e-2, 20);
+  solve_trajectory_optimization(1e-2, 200);
 
   return 0;
 }
