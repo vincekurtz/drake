@@ -118,13 +118,13 @@ GTEST_TEST(TrajectoryOptimizerTest, DenseHessianAcrobot) {
   }
   state.set_q(q);
 
-  // Compute the Hessian approximation analytically
+  // Compute the Gauss-Newton Hessian approximation analytically
   const int nq = plant.num_positions();
   const int num_vars = nq * (num_steps + 1);
   MatrixXd H(num_vars, num_vars);
   optimizer.CalcDenseHessian(state, &H);
 
-  // Compute the Hessian using autodiff
+  // Set up an autodiff copy of the optimizer and plant
   std::unique_ptr<MultibodyPlant<AutoDiffXd>> plant_ad =
       systems::System<double>::ToAutoDiffXd(plant);
   TrajectoryOptimizer<AutoDiffXd> optimizer_ad(plant_ad.get(), opt_prob);
@@ -134,67 +134,75 @@ GTEST_TEST(TrajectoryOptimizerTest, DenseHessianAcrobot) {
   int ad_idx = 0;  // index for autodiff variables
   for (int t = 0; t <= num_steps; ++t) {
     for (int i = 0; i < nq; ++i) {
-      q_ad[t].segment<1>(i) = math::InitializeAutoDiff(q[t].segment<1>(i), num_vars, ad_idx);
+      q_ad[t].segment<1>(i) =
+          math::InitializeAutoDiff(q[t].segment<1>(i), num_vars, ad_idx);
       ++ad_idx;
     }
   }
   state_ad.set_q(q_ad);
+  AutoDiffXd L_ad = optimizer_ad.CalcCost(state_ad);  // forces cache update
 
-  VectorX<AutoDiffXd> g_ad(num_vars);
-  optimizer_ad.CalcGradient(state_ad, &g_ad);
-  MatrixXd H_ad = math::ExtractGradient(g_ad);
-
-  // Compute the Hessian approximation via a least-squares formulation
-  // L(q) = 1/2 r(x)'*r(x)
-  Matrix2d Qq_sqrt = sqrt(dt) * (2*opt_prob.Qq).cwiseSqrt();  // assuming diagonal matrices
-  Matrix2d Qv_sqrt = sqrt(dt) * (2*opt_prob.Qv).cwiseSqrt();
-  Matrix2d R_sqrt = sqrt(dt) * (2*opt_prob.R).cwiseSqrt();
-  Matrix2d Qfq_sqrt = (2*opt_prob.Qf_q).cwiseSqrt();
-  Matrix2d Qfv_sqrt = (2*opt_prob.Qf_v).cwiseSqrt();
+  // Formulate an equivalent least-squares problem, where
+  //
+  //    L(q) = 1/2 r(q)'*r(q)
+  //    J = dr(q)/dq
+  //
+  // and the gradient and Gauss-Newton Hessian approximation are given by
+  //
+  //    g = J'r,
+  //    H = J'J.
+  //
+  Matrix2d Qq_sqrt = (dt * 2 * opt_prob.Qq).cwiseSqrt();  // diagonal matrices
+  Matrix2d Qv_sqrt = (dt * 2 * opt_prob.Qv).cwiseSqrt();
+  Matrix2d R_sqrt = (dt * 2 * opt_prob.R).cwiseSqrt();
+  Matrix2d Qfq_sqrt = (2 * opt_prob.Qf_q).cwiseSqrt();
+  Matrix2d Qfv_sqrt = (2 * opt_prob.Qf_v).cwiseSqrt();
 
   const std::vector<VectorX<AutoDiffXd>>& v_ad = state_ad.cache().v;
   const std::vector<VectorX<AutoDiffXd>>& u_ad = state_ad.cache().tau;
 
-  VectorX<AutoDiffXd> r(num_steps*6 + 4);  
+  VectorX<AutoDiffXd> r(num_steps * 6 + 4);
   r.setZero();
-  for (int t=0; t<num_steps; ++t) {
-    r.segment(t*6, 2) = Qq_sqrt * (q_ad[t] - opt_prob.q_nom);
-    r.segment(t*6+2, 2) = Qv_sqrt * (v_ad[t] - opt_prob.v_nom);
-    r.segment(t*6+4, 2) = R_sqrt * u_ad[t];
+  for (int t = 0; t < num_steps; ++t) {
+    r.segment(t * 6, 2) = Qq_sqrt * (q_ad[t] - opt_prob.q_nom);
+    r.segment(t * 6 + 2, 2) = Qv_sqrt * (v_ad[t] - opt_prob.v_nom);
+    r.segment(t * 6 + 4, 2) = R_sqrt * u_ad[t];
   }
-  r.segment(num_steps*6, 2) = Qfq_sqrt * (q_ad[num_steps] - opt_prob.q_nom);
-  r.segment(num_steps*6+2, 2) = Qfv_sqrt * (v_ad[num_steps] - opt_prob.v_nom);
+  r.segment(num_steps * 6, 2) = Qfq_sqrt * (q_ad[num_steps] - opt_prob.q_nom);
+  r.segment(num_steps * 6 + 2, 2) =
+      Qfv_sqrt * (v_ad[num_steps] - opt_prob.v_nom);
 
   MatrixXd J = math::ExtractGradient(r);
-  
-  // Check that the cost from our least-squares formulation is correct
-  double L = optimizer.CalcCost(state); // True cost
-  AutoDiffXd L_ad = optimizer_ad.CalcCost(state_ad);
-  std::cout << "L(q)         : " << L << std::endl;
-  std::cout << "L(q) autodiff: " << L_ad << std::endl;
-  std::cout << "1/2 r(q)'r(q): " << 0.5 * r.transpose() * r << std::endl;
-
-  // Check that the gradient from our least-squares formulation matches what we compute analytically. 
+  AutoDiffXd L_lsqr = 0.5 * r.transpose() * r;
   VectorXd g_lsqr = J.transpose() * math::ExtractValue(r);
+  MatrixXd H_lsqr = J.transpose() * J;
+
+  // Check that the cost from our least-squares formulation is correct
+  const double kToleranceCost = 10 * std::numeric_limits<double>::epsilon();
+  double L = optimizer.CalcCost(state);
+  EXPECT_NEAR(L, L_lsqr.value(), kToleranceCost);
+
+  // Check that the gradient from our least-squares formulation matches what we
+  // compute analytically. Primary source of error is our use of finite
+  // differences to compute dtau/dq. We ignore the top block of the gradient,
+  // since this is overwritten with zero, because q0 is fixed.
+  const double kToleranceGrad =
+      sqrt(std::numeric_limits<double>::epsilon()) / dt;
   VectorXd g(num_vars);
   optimizer.CalcGradient(state, &g);
-  
-  std::cout << std::endl;
-  std::cout << g_lsqr - g << std::endl;
-  std::cout << std::endl;
+  EXPECT_TRUE(CompareMatrices(g.bottomRows(num_steps * nq),
+                              g_lsqr.bottomRows(num_steps * nq), kToleranceGrad,
+                              MatrixCompareType::relative));
 
-  // Check that the Hessian approximation from least-squares (Gauss-Newton) matches what we compute analytically.
-  MatrixXd H_lsqr = J.transpose() * J;
-  std::cout << (H - H_lsqr).bottomRightCorner(num_steps * nq, num_steps * nq) << std::endl;
-
-  // This tolerance is extremely coarse, but that's because our Hessian
-  // computation isn't actually the Hessian of the unconstrained cost, but
-  // rather a Gauss-Newton approximation.
-  const double kTolerance = 1e-1;
+  // Check that the Hessian approximation from least-squares (Gauss-Newton)
+  // matches what we compute analytically. Finite differences is again the
+  // primary source of error. We ignore the rows and columns, since these are
+  // overwritten to fix q0.
+  const double kToleranceHess = sqrt(std::numeric_limits<double>::epsilon());
   EXPECT_TRUE(
       CompareMatrices(H.bottomRightCorner(num_steps * nq, num_steps * nq),
-                      H_ad.bottomRightCorner(num_steps * nq, num_steps * nq),
-                      kTolerance, MatrixCompareType::relative));
+                      H_lsqr.bottomRightCorner(num_steps * nq, num_steps * nq),
+                      kToleranceHess, MatrixCompareType::relative));
 }
 
 /**
