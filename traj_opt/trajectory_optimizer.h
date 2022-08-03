@@ -105,7 +105,8 @@ class TrajectoryOptimizer {
    *
    * @param state optimizer state, including q, v, tau, gradients, etc.
    * @param H a PentaDiagonalMatrix containing the second-order derivatives of
-   *          the total cost L(q).
+   *          the total cost L(q). This matrix is composed of (num_steps+1 x
+   *          num_steps+1) blocks of size (nq x nq) each.
    */
   void CalcHessian(const TrajectoryOptimizerState<T>& state,
                    PentaDiagonalMatrix<T>* H) const;
