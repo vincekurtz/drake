@@ -21,6 +21,8 @@ drake_cc_binary(
         "//multibody/plant",
         "//systems/analysis:simulator",
         "//systems/framework:diagram",
+        "//traj_opt:trajectory_optimizer",
+        "//traj_opt:problem_definition",
     ],
 )
 
