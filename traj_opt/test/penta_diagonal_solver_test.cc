@@ -11,8 +11,7 @@ using Eigen::MatrixXd;
 using Eigen::VectorXd;
 
 namespace drake {
-namespace multibody {
-namespace trajopt {
+namespace traj_opt {
 namespace internal {
 
 GTEST_TEST(PentaDiagonalMatrixTest, SymmetricMatrixEmpty) {
@@ -150,6 +149,5 @@ GTEST_TEST(PentaDiagonalMatrixTest, SolvePentaDiagonal) {
 }
 
 }  // namespace internal
-}  // namespace trajopt
-}  // namespace multibody
+}  // namespace traj_opt
 }  // namespace drake

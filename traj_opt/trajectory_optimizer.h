@@ -6,6 +6,7 @@
 #include "drake/common/eigen_types.h"
 #include "drake/multibody/plant/multibody_plant.h"
 #include "drake/traj_opt/inverse_dynamics_partials.h"
+#include "drake/traj_opt/penta_diagonal_matrix.h"
 #include "drake/traj_opt/problem_definition.h"
 #include "drake/traj_opt/trajectory_optimizer_state.h"
 #include "drake/traj_opt/trajectory_optimizer_workspace.h"
@@ -16,6 +17,7 @@ namespace traj_opt {
 
 using multibody::MultibodyPlant;
 using systems::Context;
+using internal::PentaDiagonalMatrix;
 
 template <typename T>
 class TrajectoryOptimizer {
@@ -96,6 +98,17 @@ class TrajectoryOptimizer {
    */
   void CalcGradient(const TrajectoryOptimizerState<T>& state,
                     EigenPtr<VectorX<T>> g) const;
+
+  /**
+   * Compute the Hessian of the unconstrained cost L(q) as a sparse
+   * penta-diagonal matrix.
+   *
+   * @param state optimizer state, including q, v, tau, gradients, etc.
+   * @param H a PentaDiagonalMatrix containing the second-order derivatives of
+   *          the total cost L(q).
+   */
+  void CalcHessian(const TrajectoryOptimizerState<T>& state,
+                   PentaDiagonalMatrix* H);
 
   /**
    * Compute the Hessian of the unconstrained cost L(q) as a dense matrix.

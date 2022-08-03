@@ -7,8 +7,7 @@
 using Eigen::MatrixXd;
 
 namespace drake {
-namespace multibody {
-namespace trajopt {
+namespace traj_opt {
 namespace internal {
 
 PentaDiagonalMatrix::PentaDiagonalMatrix(std::vector<Eigen::MatrixXd> A,
@@ -149,6 +148,5 @@ bool PentaDiagonalMatrix::VerifyAllBlocksOfSameSize(
 }
 
 }  // namespace internal
-}  // namespace trajopt
-}  // namespace multibody
+}  // namespace traj_opt
 }  // namespace drake

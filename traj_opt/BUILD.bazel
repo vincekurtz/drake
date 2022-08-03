@@ -55,6 +55,7 @@ drake_cc_library(
     ],
     deps = [
         ":inverse_dynamics_partials",
+        ":penta_diagonal_matrix",
         ":problem_definition",
         ":trajectory_optimizer_state",
         ":trajectory_optimizer_workspace",
@@ -145,6 +146,7 @@ drake_cc_googletest(
     ],
     deps = [
         ":inverse_dynamics_partials",
+        ":penta_diagonal_matrix",
         ":trajectory_optimizer",
         ":trajectory_optimizer_workspace",
         ":velocity_partials",

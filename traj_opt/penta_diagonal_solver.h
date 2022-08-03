@@ -7,8 +7,7 @@
 #include "drake/traj_opt/penta_diagonal_matrix.h"
 
 namespace drake {
-namespace multibody {
-namespace trajopt {
+namespace traj_opt {
 namespace internal {
 
 /// Status reported by PentaDiagonalFactorization::status().
@@ -230,6 +229,5 @@ void PentaDiagonalFactorization<kBlockSize>::SolveInPlace(
 }
 
 }  // namespace internal
-}  // namespace trajopt
-}  // namespace multibody
+}  // namespace traj_opt
 }  // namespace drake

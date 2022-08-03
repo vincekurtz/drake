@@ -6,8 +6,7 @@
 #include "drake/common/eigen_types.h"
 
 namespace drake {
-namespace multibody {
-namespace trajopt {
+namespace traj_opt {
 namespace internal {
 
 /** A sparse representation of a (square) banded penta-diagonal matrix. Denoting
@@ -120,6 +119,5 @@ class PentaDiagonalMatrix {
 };
 
 }  // namespace internal
-}  // namespace trajopt
-}  // namespace multibody
+}  // namespace traj_opt
 }  // namespace drake
