@@ -8,8 +8,8 @@
 #include "drake/multibody/plant/multibody_plant_config_functions.h"
 #include "drake/systems/analysis/simulator.h"
 #include "drake/systems/framework/diagram_builder.h"
-#include "drake/traj_opt/trajectory_optimizer.h"
 #include "drake/traj_opt/problem_definition.h"
+#include "drake/traj_opt/trajectory_optimizer.h"
 
 namespace drake {
 namespace traj_opt {
@@ -67,7 +67,7 @@ void run_passive_simulation(double time_step, double sim_time) {
 
 /**
  * Play back the given trajectory on the Drake visualizer.
- * 
+ *
  * @param q sequence of generalized positions defining the trajectory
  * @param time_step time step (seconds) for the discretization
  */
@@ -98,18 +98,19 @@ void play_back_trajectory(std::vector<VectorXd> q, double time_step) {
   const int N = q.size();
   for (int t = 0; t < N; ++t) {
     plant.SetPositions(&plant_context, q[t]);
-    diagram->Publish(&diagram_context);
+    // diagram->Publish(&diagram_context);
     std::cout << t << std::endl;
   }
 }
 
 /**
  * Solve a trajectory optimization problem that swings the pendulum upright.
- * 
- * Then play back an animation of the optimal trajectory using the Drake visualizer.
- * 
+ *
+ * Then play back an animation of the optimal trajectory using the Drake
+ * visualizer.
+ *
  * @param time_step Time step for discretization (seconds)
- * @param num_steps Number of steps in the optimization problem. 
+ * @param num_steps Number of steps in the optimization problem.
  */
 void solve_trajectory_optimization(double time_step, int num_steps) {
   // Create a system model
@@ -119,28 +120,28 @@ void solve_trajectory_optimization(double time_step, int num_steps) {
   Parser(&plant).AddAllModelsFromFile(urdf_file);
   plant.Finalize();
 
-  // Set up an optimization problem 
+  // Set up an optimization problem
   ProblemDefinition opt_prob;
   opt_prob.num_steps = num_steps;
   opt_prob.q_init = Vector1d(0.0);
   opt_prob.v_init = Vector1d(0.0);
-  opt_prob.Qq = 1.0 * MatrixXd::Identity(1,1);
-  opt_prob.Qv = 1.0 * MatrixXd::Identity(1,1);
-  opt_prob.Qf_q = 1.0 * MatrixXd::Identity(1,1);
-  opt_prob.Qf_v = 1.0 * MatrixXd::Identity(1,1);
-  opt_prob.R = 1.0 * MatrixXd::Identity(1,1);
+  opt_prob.Qq = 1.0 * MatrixXd::Identity(1, 1);
+  opt_prob.Qv = 1.0 * MatrixXd::Identity(1, 1);
+  opt_prob.Qf_q = 1.0 * MatrixXd::Identity(1, 1);
+  opt_prob.Qf_v = 1.0 * MatrixXd::Identity(1, 1);
+  opt_prob.R = 1.0 * MatrixXd::Identity(1, 1);
   opt_prob.q_nom = Vector1d(1.5);
   opt_prob.v_nom = Vector1d(-0.1);
 
   // Establish an initial guess
   std::vector<VectorXd> q_guess;
-  for (int t=0; t <=num_steps; ++t ) {
+  for (int t = 0; t <= num_steps; ++t) {
     q_guess.push_back(Vector1d(0.0));
   }
 
-  // Solve the optimzation problem 
+  // Solve the optimzation problem
   TrajectoryOptimizer<double> optimizer(&plant, opt_prob);
-  (void) optimizer;
+  (void)optimizer;
 
   // Play back the result on the visualizer
   play_back_trajectory(q_guess, time_step);

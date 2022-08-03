@@ -8,10 +8,10 @@
 #include "drake/traj_opt/inverse_dynamics_partials.h"
 #include "drake/traj_opt/penta_diagonal_matrix.h"
 #include "drake/traj_opt/problem_definition.h"
+#include "drake/traj_opt/trajectory_optimizer_solution.h"
 #include "drake/traj_opt/trajectory_optimizer_state.h"
 #include "drake/traj_opt/trajectory_optimizer_workspace.h"
 #include "drake/traj_opt/velocity_partials.h"
-#include "drake/traj_opt/trajectory_optimizer_solution.h"
 
 namespace drake {
 namespace traj_opt {
@@ -106,7 +106,8 @@ class TrajectoryOptimizer {
    *
    * @param state optimizer state, including q, v, tau, gradients, etc.
    * @param H a PentaDiagonalMatrix containing the second-order derivatives of
-   *          the total cost L(q).
+   *          the total cost L(q). This matrix is composed of (num_steps+1 x
+   *          num_steps+1) blocks of size (nq x nq) each.
    */
   void CalcHessian(const TrajectoryOptimizerState<T>& state,
                    PentaDiagonalMatrix<T>* H) const;
@@ -115,8 +116,10 @@ class TrajectoryOptimizer {
    * Solve the optimization from the given initial guess, which may or may not
    * be dynamically feasible.
    *
-   * @param q_guess a sequence of generalized positions corresponding to the initial guess
-   * @param solution a container for the optimal solution, including velocities and torques
+   * @param q_guess a sequence of generalized positions corresponding to the
+   * initial guess
+   * @param solution a container for the optimal solution, including velocities
+   * and torques
    * @return SolverFlag
    */
   SolverFlag Solve(const std::vector<MatrixX<T>> q_guess,

@@ -22,6 +22,7 @@ drake_cc_package_library(
         ":penta_diagonal_solver",
         ":problem_definition",
         ":trajectory_optimizer",
+        ":trajectory_optimizer_solution",
         ":trajectory_optimizer_state",
         ":trajectory_optimizer_workspace",
         ":velocity_partials",
@@ -58,8 +59,8 @@ drake_cc_library(
         ":inverse_dynamics_partials",
         ":penta_diagonal_matrix",
         ":problem_definition",
-        ":trajectory_optimizer_state",
         ":trajectory_optimizer_solution",
+        ":trajectory_optimizer_state",
         ":trajectory_optimizer_workspace",
         ":velocity_partials",
         "//common:essential",
@@ -130,12 +131,12 @@ drake_cc_library(
     name = "trajectory_optimizer_solution",
     srcs = ["trajectory_optimizer_solution.cc"],
     hdrs = [
-        "trajectory_optimizer_solution.h"
+        "trajectory_optimizer_solution.h",
     ],
     deps = [
         "//common:default_scalars",
-        "//common:essential"
-    ]
+        "//common:essential",
+    ],
 )
 
 drake_cc_library(

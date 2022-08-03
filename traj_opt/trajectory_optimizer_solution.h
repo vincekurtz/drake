@@ -8,10 +8,7 @@ namespace drake {
 namespace traj_opt {
 
 // Status indicator for the overall success of our trajectory optimization.
-enum SolverFlag {
-  kSuccess,
-  kFailed
-};
+enum SolverFlag { kSuccess, kFailed };
 
 /**
  * A container for the optimal solution, including generalized positions,
@@ -27,7 +24,7 @@ struct TrajectoryOptimizerSolution {
 
   // Optimal sequence of generalized velocities at each timestep
   std::vector<MatrixX<T>> v;
-  
+
   // Optimal sequence of generalized forces at each timestep
   std::vector<MatrixX<T>> tau;
 };
