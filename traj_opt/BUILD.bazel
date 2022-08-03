@@ -58,6 +58,7 @@ drake_cc_library(
     deps = [
         ":inverse_dynamics_partials",
         ":penta_diagonal_matrix",
+        ":penta_diagonal_solver",
         ":problem_definition",
         ":trajectory_optimizer_solution",
         ":trajectory_optimizer_state",

@@ -122,7 +122,7 @@ class TrajectoryOptimizer {
    * and torques
    * @return SolverFlag
    */
-  SolverFlag Solve(const std::vector<MatrixX<T>> q_guess,
+  SolverFlag Solve(const std::vector<VectorX<T>>& q_guess,
                    TrajectoryOptimizerSolution<T>* solution) const;
 
  private:

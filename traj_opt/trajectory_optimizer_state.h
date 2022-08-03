@@ -74,19 +74,30 @@ class TrajectoryOptimizerState {
   }
 
   /**
-   * Getter for the sequence of generalized velocities.
+   * Getter for the sequence of generalized positions.
    *
    * @return const std::vector<VectorX<T>>& q
    */
   const std::vector<VectorX<T>>& q() const { return q_; }
 
   /**
-   * Setter for the sequence of generalized velocities. Invalidates the cache.
+   * Setter for the sequence of generalized positions. Invalidates the cache.
    *
-   * @param q
+   * @param q sequence of generalized positions at each time step
    */
   void set_q(const std::vector<VectorX<T>>& q) {
     q_ = q;
+    cache_.up_to_date = false;
+  }
+
+  /**
+   * Setter for the generalized position at a given time step. Invalidates the cache.
+   * 
+   * @param qt generalized position
+   * @param t the time step
+   */
+  void set_qt(const VectorX<T>& qt, const int t) {
+    q_[t] = qt;
     cache_.up_to_date = false;
   }
 

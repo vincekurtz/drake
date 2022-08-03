@@ -147,10 +147,13 @@ void solve_trajectory_optimization(double time_step, int num_steps) {
 
   // Solve the optimzation problem
   TrajectoryOptimizer<double> optimizer(&plant, opt_prob);
-  (void)optimizer;
+  TrajectoryOptimizerSolution<double> solution;
+
+  SolverFlag status = optimizer.Solve(q_guess, &solution);
+  (void) status;
 
   // Play back the result on the visualizer
-  play_back_trajectory(q_guess, time_step);
+  play_back_trajectory(solution.q, time_step);
 }
 
 int do_main() {
@@ -158,7 +161,7 @@ int do_main() {
   // run_passive_simulation(1e-2, 2.0);
 
   // Solve an optimization problem to swing-up the pendulum
-  solve_trajectory_optimization(1e-2, 200);
+  solve_trajectory_optimization(1e-2, 20);
 
   return 0;
 }

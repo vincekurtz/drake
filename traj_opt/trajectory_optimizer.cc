@@ -1,5 +1,7 @@
 #include "drake/traj_opt/trajectory_optimizer.h"
 
+#include "drake/traj_opt/penta_diagonal_solver.h"
+
 #include <algorithm>
 #include <iostream>
 #include <limits>
@@ -11,6 +13,8 @@ using multibody::Joint;
 using multibody::JointIndex;
 using multibody::MultibodyPlant;
 using systems::System;
+using internal::PentaDiagonalFactorization;
+using internal::PentaDiagonalFactorizationStatus;
 
 template <typename T>
 TrajectoryOptimizer<T>::TrajectoryOptimizer(const MultibodyPlant<T>* plant,
@@ -495,6 +499,66 @@ void TrajectoryOptimizer<T>::UpdateCache(
 
   // Set cache invalidation flag
   cache.up_to_date = true;
+}
+
+template <typename T>
+SolverFlag TrajectoryOptimizer<T>::Solve(const std::vector<VectorX<T>>&,
+                 TrajectoryOptimizerSolution<T>*) const {
+  throw std::runtime_error("TrajectoryOptimizer::Solve only supports T=double.");
+}
+
+template <>
+SolverFlag TrajectoryOptimizer<double>::Solve(
+    const std::vector<VectorXd>& q_guess,
+    TrajectoryOptimizerSolution<double>* solution) const {
+  const int nq = plant().num_positions();
+  // TODO(vincekurtz): check that q0 = q_init
+
+  // Allocate a state variable
+  TrajectoryOptimizerState<double> state = CreateState();
+  state.set_q(q_guess);
+
+  // Allocate cost, gradient, and Hessian 
+  double L;
+  VectorXd g((num_steps() + 1) * nq);
+  PentaDiagonalMatrix<double> H(num_steps() + 1, nq);
+
+  // Gauss-Newton iterations
+  for (int k=0; k<=10; ++k) {
+    // Update the cache
+    UpdateCache(state);
+
+    // Compute the total cost
+    L = CalcCost(state);
+    std::cout << L << std::endl;
+
+    // Compute gradient and Hessian
+    CalcGradient(state, &g);
+    CalcHessian(state, &H);
+
+    // Check the positive-definite-ness of the Hessian (DEBUG)
+    MatrixXd H_dense = H.MakeDense();
+    Eigen::VectorXcd eivals = H_dense.eigenvalues();
+    std::cout << eivals << std::endl;
+
+    // Solve for search direction
+    VectorXd delta_q(g);
+    PentaDiagonalFactorization Hchol(H);
+    DRAKE_DEMAND(Hchol.status() == PentaDiagonalFactorizationStatus::kSuccess);
+    Hchol.SolveInPlace(&delta_q);
+
+    // Do linesearch
+    const double alpha = 0.01;
+
+    // Update the guess
+    for (int t=1; t<=num_steps(); ++t) {
+      // q[t] = q[t] + alpha * dq[t]
+      state.set_qt(state.q()[t] + alpha * delta_q.segment(t * nq, nq), t);
+    }
+  }
+  
+  solution->q = state.q();
+  return SolverFlag::kSuccess;
 }
 
 }  // namespace traj_opt

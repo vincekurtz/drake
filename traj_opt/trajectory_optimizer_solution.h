@@ -20,13 +20,13 @@ enum SolverFlag { kSuccess, kFailed };
 template <typename T>
 struct TrajectoryOptimizerSolution {
   // Optimal sequence of generalized positions at each timestep
-  std::vector<MatrixX<T>> q;
+  std::vector<VectorX<T>> q;
 
   // Optimal sequence of generalized velocities at each timestep
-  std::vector<MatrixX<T>> v;
+  std::vector<VectorX<T>> v;
 
   // Optimal sequence of generalized forces at each timestep
-  std::vector<MatrixX<T>> tau;
+  std::vector<VectorX<T>> tau;
 };
 
 }  // namespace traj_opt
