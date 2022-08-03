@@ -11,6 +11,7 @@
 #include "drake/traj_opt/trajectory_optimizer_state.h"
 #include "drake/traj_opt/trajectory_optimizer_workspace.h"
 #include "drake/traj_opt/velocity_partials.h"
+#include "drake/traj_opt/trajectory_optimizer_solution.h"
 
 namespace drake {
 namespace traj_opt {
@@ -109,6 +110,17 @@ class TrajectoryOptimizer {
    */
   void CalcHessian(const TrajectoryOptimizerState<T>& state,
                    PentaDiagonalMatrix<T>* H) const;
+
+  /**
+   * Solve the optimization from the given initial guess, which may or may not
+   * be dynamically feasible.
+   *
+   * @param q_guess a sequence of generalized positions corresponding to the initial guess
+   * @param solution a container for the optimal solution, including velocities and torques
+   * @return SolverFlag
+   */
+  SolverFlag Solve(const std::vector<MatrixX<T>> q_guess,
+                   TrajectoryOptimizerSolution<T>* solution) const;
 
  private:
   // Friend class to facilitate testing.
