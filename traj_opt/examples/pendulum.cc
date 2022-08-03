@@ -1,4 +1,6 @@
+#include <chrono>
 #include <iostream>
+#include <thread>
 
 #include "drake/common/find_resource.h"
 #include "drake/geometry/drake_visualizer.h"
@@ -97,9 +99,12 @@ void play_back_trajectory(std::vector<VectorXd> q, double time_step) {
 
   const int N = q.size();
   for (int t = 0; t < N; ++t) {
+    diagram_context->SetTime(t*time_step);
     plant.SetPositions(&plant_context, q[t]);
-    // diagram->Publish(&diagram_context);
-    std::cout << t << std::endl;
+    diagram->Publish(*diagram_context);
+
+    // Hack to make the playback roughly realtime
+    std::this_thread::sleep_for(std::chrono::duration<double>(time_step));
   }
 }
 
@@ -135,8 +140,9 @@ void solve_trajectory_optimization(double time_step, int num_steps) {
 
   // Establish an initial guess
   std::vector<VectorXd> q_guess;
-  for (int t = 0; t <= num_steps; ++t) {
-    q_guess.push_back(Vector1d(0.0));
+  q_guess.push_back(opt_prob.q_init);
+  for (int t = 1; t <= num_steps; ++t) {
+    q_guess.push_back(q_guess[t-1] + 0.1 * time_step * Vector1d(1.0));
   }
 
   // Solve the optimzation problem
@@ -145,8 +151,6 @@ void solve_trajectory_optimization(double time_step, int num_steps) {
 
   // Play back the result on the visualizer
   play_back_trajectory(q_guess, time_step);
-
-  std::cout << "done" << std::endl;
 }
 
 int do_main() {
@@ -154,7 +158,7 @@ int do_main() {
   // run_passive_simulation(1e-2, 2.0);
 
   // Solve an optimization problem to swing-up the pendulum
-  solve_trajectory_optimization(1e-2, 20);
+  solve_trajectory_optimization(1e-2, 200);
 
   return 0;
 }
