@@ -96,15 +96,17 @@ class PentaDiagonalMatrix {
   // size k x k.
   int block_size() const { return A_.size() == 0 ? 0 : A_[0].rows(); }
 
-  // Returns the the total number of rows.
+  // Returns the total number of rows.
   int rows() const { return block_rows() * block_size(); }
 
-  // Returns the number of block rows.
+  // Returns the total number of columns.
+  int cols() const { return rows(); }
+
+  // Returns the number of blocks in each row.
   int block_rows() const { return C_.size(); }
 
+  // Returns the number of blocks in each column.
   int block_cols() const { return block_rows(); }
-
-  int cols() const { return rows(); }
 
   // Returns a reference to the second lower diagonal.
   const std::vector<MatrixX<T>>& A() const { return A_; }

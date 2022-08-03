@@ -392,6 +392,8 @@ template <typename T>
 void TrajectoryOptimizer<T>::CalcHessian(
     const TrajectoryOptimizerState<T>& state, PentaDiagonalMatrix<T>* H) const {
   DRAKE_DEMAND(H->is_symmetric());
+  DRAKE_DEMAND(H->block_rows() == num_steps() + 1);
+  DRAKE_DEMAND(H->block_size() == plant().num_positions());
 
   // Make sure the cache is up to date
   if (!state.cache().up_to_date) UpdateCache(state);
