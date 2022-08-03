@@ -92,9 +92,9 @@ GTEST_TEST(TrajectoryOptimizerTest, HessianAcrobot) {
   opt_prob.q_init = Vector2d(0.1, 0.2);
   opt_prob.v_init = Vector2d(-0.01, 0.03);
   opt_prob.Qq = 0.1 * MatrixXd::Identity(2, 2);
-  opt_prob.Qv = 0.0 * MatrixXd::Identity(2, 2);
-  opt_prob.Qf_q = 0.0 * MatrixXd::Identity(2, 2);
-  opt_prob.Qf_v = 0.0 * MatrixXd::Identity(2, 2);
+  opt_prob.Qv = 0.2 * MatrixXd::Identity(2, 2);
+  opt_prob.Qf_q = 0.3 * MatrixXd::Identity(2, 2);
+  opt_prob.Qf_v = 0.4 * MatrixXd::Identity(2, 2);
   opt_prob.R = 0.01 * MatrixXd::Identity(2, 2);
   opt_prob.q_nom = Vector2d(1.5, -0.1);
   opt_prob.v_nom = Vector2d(0.2, 0.1);
@@ -118,7 +118,7 @@ GTEST_TEST(TrajectoryOptimizerTest, HessianAcrobot) {
   }
   state.set_q(q);
 
-  // Compute the Gauss-Newton Hessian approximation analytically
+  // Compute the Gauss-Newton Hessian approximation numerically
   const int nq = plant.num_positions();
   const int num_vars = nq * (num_steps + 1);
   PentaDiagonalMatrix<double> H_sparse(num_steps + 1, nq);
@@ -162,6 +162,14 @@ GTEST_TEST(TrajectoryOptimizerTest, HessianAcrobot) {
   const std::vector<VectorX<AutoDiffXd>>& v_ad = state_ad.cache().v;
   const std::vector<VectorX<AutoDiffXd>>& u_ad = state_ad.cache().tau;
 
+  // Here we construct the residual
+  //        [        ...           ]
+  //        [ sqrt(Qq)*(q_t-q_nom) ]
+  // r(q) = [ sqrt(Qv)*(v_t-v_nom) ]
+  //        [ sqrt(R) * tau_t      ]
+  //        [        ...           ]
+  //        [ sqrt(Qfq)*(q_T-q_nom)]
+  //        [ sqrt(Qfv)*(v_T-v_nom)]
   VectorX<AutoDiffXd> r(num_steps * 6 + 4);
   r.setZero();
   for (int t = 0; t < num_steps; ++t) {

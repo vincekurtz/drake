@@ -418,7 +418,7 @@ void TrajectoryOptimizer<T>::CalcHessian(
   std::vector<MatrixX<T>>& C = H->mutable_C();  // diagonal
 
   // Fill in the non-zero blocks
-  C[0].setIdentity();
+  C[0].setIdentity();  // Initial condition q0 fixed at t=0
   for (int t = 1; t < num_steps(); ++t) {
     // dg_t/dq_t
     MatrixX<T>& dgt_dqt = C[t];
@@ -450,7 +450,7 @@ void TrajectoryOptimizer<T>::CalcHessian(
     }
   }
 
-  // Terminal cost
+  // dg_t/dq_t for the final timestep
   MatrixX<T>& dgT_dqT = C[num_steps()];
   dgT_dqT = Qf_q;
   dgT_dqT += dvt_dqt[num_steps()].transpose() * Qf_v * dvt_dqt[num_steps()];
