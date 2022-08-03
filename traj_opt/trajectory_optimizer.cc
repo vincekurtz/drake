@@ -439,18 +439,18 @@ void TrajectoryOptimizer<T>::CalcDenseHessian(
 
     // dg_t/dq_{t+1}
     Eigen::Ref<MatrixX<T>> dgt_dqp = H->block(t * nq, (t + 1) * nq, nq, nq);
-    dgt_dqp = dtau_dqp[t].transpose() * R * dtau_dqt[t];
+    dgt_dqp = dtau_dqt[t].transpose() * R * dtau_dqp[t];
     if (t < num_steps() - 1) {
-      dgt_dqp += dtau_dqt[t + 1].transpose() * R * dtau_dqm[t + 1];
-      dgt_dqp += dvt_dqt[t + 1].transpose() * Qv * dvt_dqm[t + 1];
+      dgt_dqp += dtau_dqm[t + 1].transpose() * R * dtau_dqt[t + 1];
+      dgt_dqp += dvt_dqm[t + 1].transpose() * Qv * dvt_dqt[t + 1];
     } else {
-      dgt_dqp += dvt_dqt[t + 1].transpose() * Qf_v * dvt_dqm[t + 1];
+      dgt_dqp += dvt_dqm[t + 1].transpose() * Qf_v * dvt_dqt[t + 1];
     }
 
     // dg_t/dq_{t+2}
     if (t < num_steps() - 1) {
       Eigen::Ref<MatrixX<T>> dgt_dqpp = H->block(t * nq, (t + 2) * nq, nq, nq);
-      dgt_dqpp = dtau_dqp[t + 1].transpose() * R * dtau_dqm[t + 1];
+      dgt_dqpp = dtau_dqm[t + 1].transpose() * R * dtau_dqp[t + 1];
     }
   }
 
@@ -466,11 +466,11 @@ void TrajectoryOptimizer<T>::CalcDenseHessian(
   // blocks.
   for (int t = 1; t < num_steps(); ++t) {
     H->block((t + 1) * nq, t * nq, nq, nq) =
-        H->block(t * nq, (t + 1) * nq, nq, nq);
+        H->block(t * nq, (t + 1) * nq, nq, nq).transpose();
   }
   for (int t = 1; t < num_steps() - 1; ++t) {
     H->block((t + 2) * nq, t * nq, nq, nq) =
-        H->block(t * nq, (t + 2) * nq, nq, nq);
+        H->block(t * nq, (t + 2) * nq, nq, nq).transpose();
   }
 }
 

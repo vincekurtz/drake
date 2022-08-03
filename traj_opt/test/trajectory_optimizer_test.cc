@@ -185,7 +185,7 @@ GTEST_TEST(TrajectoryOptimizerTest, DenseHessianAcrobot) {
 
   // Check that the Hessian approximation from least-squares (Gauss-Newton) matches what we compute analytically.
   MatrixXd H_lsqr = J.transpose() * J;
-  std::cout << H - H_lsqr << std::endl;
+  std::cout << (H - H_lsqr).bottomRightCorner(num_steps * nq, num_steps * nq) << std::endl;
 
   // This tolerance is extremely coarse, but that's because our Hessian
   // computation isn't actually the Hessian of the unconstrained cost, but
