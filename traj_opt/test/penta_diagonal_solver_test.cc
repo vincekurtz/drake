@@ -37,6 +37,11 @@ GTEST_TEST(PentaDiagonalMatrixTest, MutateMatrix) {
   const MatrixXd B5 = 15.3 * MatrixXd::Ones(k, k);
   const std::vector<MatrixXd> some_diagonal = {B1, B2, B3, B3, B5};
 
+  // These throw since M is diagonal and it only allows mutating the lower
+  // diagonals.
+  EXPECT_THROW(M.mutable_D(), std::exception);
+  EXPECT_THROW(M.mutable_E(), std::exception);
+
   // Mutate diagonals.
   EXPECT_NE(M.A(), some_diagonal);
   M.mutable_A() = some_diagonal;
@@ -50,10 +55,9 @@ GTEST_TEST(PentaDiagonalMatrixTest, MutateMatrix) {
   M.mutable_C() = some_diagonal;
   EXPECT_EQ(M.C(), some_diagonal);
 
-  // These throw since M is diagonal and it only allows mutating the lower
-  // diagonals.
-  EXPECT_THROW(M.mutable_D(), std::exception);
-  EXPECT_THROW(M.mutable_E(), std::exception);
+  // We've changed some terms in the matrix, so we can no longer assume it's
+  // symmetric
+  EXPECT_FALSE(M.is_symmetric());
 }
 
 GTEST_TEST(PentaDiagonalMatrixTest, SymmetricMatrix) {
@@ -168,7 +172,7 @@ GTEST_TEST(PentaDiagonalMatrixTest, SolvePentaDiagonal) {
   // Hdense outside the 5-diagonal band.
   const PentaDiagonalMatrix<double> H =
       PentaDiagonalMatrix<double>::MakeSymmetricFromLowerDense(P, num_blocks,
-                                                       block_size);
+                                                               block_size);
   const MatrixXd Hdense = H.MakeDense();
 
   PentaDiagonalFactorization Hchol(H);

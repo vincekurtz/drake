@@ -15,9 +15,9 @@
 namespace drake {
 namespace traj_opt {
 
+using internal::PentaDiagonalMatrix;
 using multibody::MultibodyPlant;
 using systems::Context;
-using internal::PentaDiagonalMatrix;
 
 template <typename T>
 class TrajectoryOptimizer {
@@ -110,16 +110,6 @@ class TrajectoryOptimizer {
   void CalcHessian(const TrajectoryOptimizerState<T>& state,
                    PentaDiagonalMatrix<T>* H) const;
 
-  /**
-   * Compute the Hessian of the unconstrained cost L(q) as a dense matrix.
-   *
-   * @param state optimizer state, including q, v, tau, gradients, etc.
-   * @param H a single MatrixXd containing the second-order derivatives of
-   *          the total cost L(q).
-   */
-  void CalcDenseHessian(const TrajectoryOptimizerState<T>& state,
-                        EigenPtr<MatrixX<T>> H) const;
-
  private:
   // Friend class to facilitate testing.
   friend class TrajectoryOptimizerTester;
@@ -143,10 +133,9 @@ class TrajectoryOptimizer {
    * @param workspace scratch space for intermediate computations
    * @return double, total cost
    */
-  T CalcCost(const std::vector<VectorX<T>>& q,
-                  const std::vector<VectorX<T>>& v,
-                  const std::vector<VectorX<T>>& tau,
-                  TrajectoryOptimizerWorkspace<T>* workspace) const;
+  T CalcCost(const std::vector<VectorX<T>>& q, const std::vector<VectorX<T>>& v,
+             const std::vector<VectorX<T>>& tau,
+             TrajectoryOptimizerWorkspace<T>* workspace) const;
 
   /**
    * Compute a sequence of generalized velocities v from a sequence of

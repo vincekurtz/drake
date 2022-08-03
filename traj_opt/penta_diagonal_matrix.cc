@@ -11,7 +11,7 @@ namespace internal {
 
 template <typename T>
 PentaDiagonalMatrix<T>::PentaDiagonalMatrix(int num_blocks, int block_size,
-                                         bool is_symmetric)
+                                            bool is_symmetric)
     : is_symmetric_(is_symmetric) {
   const MatrixX<T> Z = MatrixX<T>::Zero(block_size, block_size);
   A_.resize(num_blocks, Z);
@@ -23,10 +23,10 @@ PentaDiagonalMatrix<T>::PentaDiagonalMatrix(int num_blocks, int block_size,
 
 template <typename T>
 PentaDiagonalMatrix<T>::PentaDiagonalMatrix(std::vector<MatrixX<T>> A,
-                                         std::vector<MatrixX<T>> B,
-                                         std::vector<MatrixX<T>> C,
-                                         std::vector<MatrixX<T>> D,
-                                         std::vector<MatrixX<T>> E)
+                                            std::vector<MatrixX<T>> B,
+                                            std::vector<MatrixX<T>> C,
+                                            std::vector<MatrixX<T>> D,
+                                            std::vector<MatrixX<T>> E)
     : A_(std::move(A)),
       B_(std::move(B)),
       C_(std::move(C)),
@@ -43,8 +43,8 @@ PentaDiagonalMatrix<T>::PentaDiagonalMatrix(std::vector<MatrixX<T>> A,
 
 template <typename T>
 PentaDiagonalMatrix<T>::PentaDiagonalMatrix(std::vector<MatrixX<T>> A,
-                                         std::vector<MatrixX<T>> B,
-                                         std::vector<MatrixX<T>> C)
+                                            std::vector<MatrixX<T>> B,
+                                            std::vector<MatrixX<T>> C)
     : A_(std::move(A)), B_(std::move(B)), C_(std::move(C)) {
   // Minimum sanity check.
   DRAKE_DEMAND(A_.size() == B_.size());
@@ -106,7 +106,7 @@ void PentaDiagonalMatrix<T>::MakeSymmetric() {
 
 template <typename T>
 PentaDiagonalMatrix<T> PentaDiagonalMatrix<T>::MakeIdentity(int num_blocks,
-                                                      int block_size) {
+                                                            int block_size) {
   const MatrixX<T> Z = MatrixX<T>::Zero(block_size, block_size);
   const MatrixX<T> Id = MatrixX<T>::Identity(block_size, block_size);
   std::vector<MatrixX<T>> A(num_blocks, Z);

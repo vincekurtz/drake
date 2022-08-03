@@ -33,8 +33,8 @@ drake_cc_library(
     srcs = ["penta_diagonal_matrix.cc"],
     hdrs = ["penta_diagonal_matrix.h"],
     deps = [
-        "//common:essential",
         "//common:default_scalars",
+        "//common:essential",
     ],
 )
 

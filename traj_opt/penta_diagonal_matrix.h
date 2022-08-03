@@ -57,10 +57,8 @@ class PentaDiagonalMatrix {
   semantics (with std::move) to avoid unnecessary heap allocation and copies
   when making a new matrix object (highly recommended if local copies are not
   needed). */
-  PentaDiagonalMatrix(std::vector<MatrixX<T>> A,
-                      std::vector<MatrixX<T>> B,
-                      std::vector<MatrixX<T>> C,
-                      std::vector<MatrixX<T>> D,
+  PentaDiagonalMatrix(std::vector<MatrixX<T>> A, std::vector<MatrixX<T>> B,
+                      std::vector<MatrixX<T>> C, std::vector<MatrixX<T>> D,
                       std::vector<MatrixX<T>> E);
 
   /* Convenience constructor for a symmetric penta-diagonal matrix. That is,
@@ -75,13 +73,12 @@ class PentaDiagonalMatrix {
    semantics (with std::move) to avoid unnecessary heap allocation and copies
    when making a new matrix object (highly recommended if local copies are not
    needed). */
-  PentaDiagonalMatrix(std::vector<MatrixX<T>> A,
-                      std::vector<MatrixX<T>> B,
+  PentaDiagonalMatrix(std::vector<MatrixX<T>> A, std::vector<MatrixX<T>> B,
                       std::vector<MatrixX<T>> C);
 
   /* Copy the lower triangular part of this matrix to the upper triangular part,
-   i.e., Eᵢ = Aᵢ₊₂ᵀ and Dᵢ = Bᵢ₊₁ᵀ, to make this a symmetric matrix. 
-   
+   i.e., Eᵢ = Aᵢ₊₂ᵀ and Dᵢ = Bᵢ₊₁ᵀ, to make this a symmetric matrix.
+
    @pre All vectors A, B, C, D and E must have the same size.
    @pre All blocks must be square of the same size k×k. This invariant is
    verified only in Debug builds. */
@@ -89,8 +86,9 @@ class PentaDiagonalMatrix {
 
   static PentaDiagonalMatrix<T> MakeIdentity(int num_blocks, int block_size);
 
-  static PentaDiagonalMatrix<T> MakeSymmetricFromLowerDense(
-      const MatrixX<T>& M, int num_blocks, int block_size);
+  static PentaDiagonalMatrix<T> MakeSymmetricFromLowerDense(const MatrixX<T>& M,
+                                                            int num_blocks,
+                                                            int block_size);
 
   MatrixX<T> MakeDense() const;
 

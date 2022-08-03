@@ -79,10 +79,10 @@ using multibody::Parser;
 using test::LimitMalloc;
 
 /**
- * Test our (dense algebra) computation of the Hessian on a system
+ * Test our computation of the Hessian on a system
  * with more than one DoF.
  */
-GTEST_TEST(TrajectoryOptimizerTest, DenseHessianAcrobot) {
+GTEST_TEST(TrajectoryOptimizerTest, HessianAcrobot) {
   // Define an optimization problem.
   const int num_steps = 5;
   const double dt = 1e-2;
@@ -92,9 +92,9 @@ GTEST_TEST(TrajectoryOptimizerTest, DenseHessianAcrobot) {
   opt_prob.q_init = Vector2d(0.1, 0.2);
   opt_prob.v_init = Vector2d(-0.01, 0.03);
   opt_prob.Qq = 0.1 * MatrixXd::Identity(2, 2);
-  opt_prob.Qv = 0.2 * MatrixXd::Identity(2, 2);
-  opt_prob.Qf_q = 0.3 * MatrixXd::Identity(2, 2);
-  opt_prob.Qf_v = 0.4 * MatrixXd::Identity(2, 2);
+  opt_prob.Qv = 0.0 * MatrixXd::Identity(2, 2);
+  opt_prob.Qf_q = 0.0 * MatrixXd::Identity(2, 2);
+  opt_prob.Qf_v = 0.0 * MatrixXd::Identity(2, 2);
   opt_prob.R = 0.01 * MatrixXd::Identity(2, 2);
   opt_prob.q_nom = Vector2d(1.5, -0.1);
   opt_prob.v_nom = Vector2d(0.2, 0.1);
@@ -121,8 +121,9 @@ GTEST_TEST(TrajectoryOptimizerTest, DenseHessianAcrobot) {
   // Compute the Gauss-Newton Hessian approximation analytically
   const int nq = plant.num_positions();
   const int num_vars = nq * (num_steps + 1);
-  MatrixXd H(num_vars, num_vars);
-  optimizer.CalcDenseHessian(state, &H);
+  PentaDiagonalMatrix<double> H_sparse(num_steps + 1, nq);
+  optimizer.CalcHessian(state, &H_sparse);
+  MatrixXd H = H_sparse.MakeDense();
 
   // Set up an autodiff copy of the optimizer and plant
   std::unique_ptr<MultibodyPlant<AutoDiffXd>> plant_ad =
@@ -206,10 +207,10 @@ GTEST_TEST(TrajectoryOptimizerTest, DenseHessianAcrobot) {
 }
 
 /**
- * Test our (dense algebra) computation of the Hessian by comparing
+ * Test our computation of the Hessian by comparing
  * with autodiff.
  */
-GTEST_TEST(TrajectoryOptimizerTest, DenseHessianPendulum) {
+GTEST_TEST(TrajectoryOptimizerTest, HessianPendulum) {
   // Define an optimization problem.
   const int num_steps = 5;
   const double dt = 1e-2;
@@ -248,18 +249,13 @@ GTEST_TEST(TrajectoryOptimizerTest, DenseHessianPendulum) {
   // Compute the Hessian analytically
   const int nq = plant.num_positions();
   const int num_vars = nq * (num_steps + 1);
-  MatrixXd H(num_vars, num_vars);
-  optimizer.CalcDenseHessian(state, &H);
-  
-  // Compute the Gauss-Newton Hessian approximation with sparse algebra
   PentaDiagonalMatrix<double> H_sparse(num_steps + 1, nq);
   optimizer.CalcHessian(state, &H_sparse);
-  std::cout << H - H_sparse.MakeDense() << std::endl;
-  std::cout << std::endl;
-  std::cout << H_sparse.is_symmetric() << std::endl;
-  std::cout << std::endl;
+  MatrixXd H = H_sparse.MakeDense();
 
   // Compute the Hessian using autodiff
+  // Note that this is the true Hessian, and not the Gauss-Newton approximation
+  // that we will use. But for this simple pendulum the two are very close
   std::unique_ptr<MultibodyPlant<AutoDiffXd>> plant_ad =
       systems::System<double>::ToAutoDiffXd(plant);
   TrajectoryOptimizer<AutoDiffXd> optimizer_ad(plant_ad.get(), opt_prob);
