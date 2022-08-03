@@ -94,7 +94,7 @@ GTEST_TEST(TrajectoryOptimizerTest, DenseHessianAcrobot) {
   opt_prob.Qq = 0.1 * MatrixXd::Identity(2, 2);
   opt_prob.Qv = 0.2 * MatrixXd::Identity(2, 2);
   opt_prob.Qf_q = 0.3 * MatrixXd::Identity(2, 2);
-  opt_prob.Qf_v = 0.0 * MatrixXd::Identity(2, 2);
+  opt_prob.Qf_v = 0.4 * MatrixXd::Identity(2, 2);
   opt_prob.R = 0.01 * MatrixXd::Identity(2, 2);
   opt_prob.q_nom = Vector2d(1.5, -0.1);
   opt_prob.v_nom = Vector2d(0.2, 0.1);
@@ -124,33 +124,6 @@ GTEST_TEST(TrajectoryOptimizerTest, DenseHessianAcrobot) {
   MatrixXd H(num_vars, num_vars);
   optimizer.CalcDenseHessian(state, &H);
 
-  // Compute the Hessian approximation via a least-squares formulation
-  // L(q) = 1/2 r(x)'*r(x)
-  Matrix2d Qq_sqrt = sqrt(dt) * (2*opt_prob.Qq).cwiseSqrt();  // assuming diagonal matrices
-  Matrix2d Qv_sqrt = sqrt(dt) * (2*opt_prob.Qv).cwiseSqrt();
-  Matrix2d R_sqrt = sqrt(dt) * (2*opt_prob.R).cwiseSqrt();
-  Matrix2d Qfq_sqrt = (2*opt_prob.Qf_q).cwiseSqrt();
-  Matrix2d Qfv_sqrt = (2*opt_prob.Qf_v).cwiseSqrt();
-
-  const std::vector<VectorXd>& v = state.cache().v;
-  const std::vector<VectorXd>& u = state.cache().tau;
-
-  VectorXd r(num_steps*6 + 4);  
-  r.setZero();
-  for (int t=0; t<num_steps; ++t) {
-    r.segment(t*6, 2) = Qq_sqrt * (q[t] - opt_prob.q_nom);
-    r.segment(t*6+2, 2) = Qv_sqrt * (v[t] - opt_prob.v_nom);
-    r.segment(t*6+4, 2) = R_sqrt * u[t];
-  }
-  r.segment(num_steps*6, 2) = Qfq_sqrt * (q[num_steps] - opt_prob.q_nom);
-  r.segment(num_steps*6+2, 2) = Qfv_sqrt * (v[num_steps] - opt_prob.v_nom);
-
-  double L = optimizer.CalcCost(state); // True cost
-  std::cout << "L(q)         : " << L << std::endl;
-  std::cout << "1/2 r(q)'r(q): " << 0.5 * r.transpose() * r << std::endl;
-
-
-
   // Compute the Hessian using autodiff
   std::unique_ptr<MultibodyPlant<AutoDiffXd>> plant_ad =
       systems::System<double>::ToAutoDiffXd(plant);
@@ -161,7 +134,7 @@ GTEST_TEST(TrajectoryOptimizerTest, DenseHessianAcrobot) {
   int ad_idx = 0;  // index for autodiff variables
   for (int t = 0; t <= num_steps; ++t) {
     for (int i = 0; i < nq; ++i) {
-      q_ad[t].segment<1>(i) = math::InitializeAutoDiff(q[t], num_vars, ad_idx);
+      q_ad[t].segment<1>(i) = math::InitializeAutoDiff(q[t].segment<1>(i), num_vars, ad_idx);
       ++ad_idx;
     }
   }
@@ -170,6 +143,49 @@ GTEST_TEST(TrajectoryOptimizerTest, DenseHessianAcrobot) {
   VectorX<AutoDiffXd> g_ad(num_vars);
   optimizer_ad.CalcGradient(state_ad, &g_ad);
   MatrixXd H_ad = math::ExtractGradient(g_ad);
+
+  // Compute the Hessian approximation via a least-squares formulation
+  // L(q) = 1/2 r(x)'*r(x)
+  Matrix2d Qq_sqrt = sqrt(dt) * (2*opt_prob.Qq).cwiseSqrt();  // assuming diagonal matrices
+  Matrix2d Qv_sqrt = sqrt(dt) * (2*opt_prob.Qv).cwiseSqrt();
+  Matrix2d R_sqrt = sqrt(dt) * (2*opt_prob.R).cwiseSqrt();
+  Matrix2d Qfq_sqrt = (2*opt_prob.Qf_q).cwiseSqrt();
+  Matrix2d Qfv_sqrt = (2*opt_prob.Qf_v).cwiseSqrt();
+
+  const std::vector<VectorX<AutoDiffXd>>& v_ad = state_ad.cache().v;
+  const std::vector<VectorX<AutoDiffXd>>& u_ad = state_ad.cache().tau;
+
+  VectorX<AutoDiffXd> r(num_steps*6 + 4);  
+  r.setZero();
+  for (int t=0; t<num_steps; ++t) {
+    r.segment(t*6, 2) = Qq_sqrt * (q_ad[t] - opt_prob.q_nom);
+    r.segment(t*6+2, 2) = Qv_sqrt * (v_ad[t] - opt_prob.v_nom);
+    r.segment(t*6+4, 2) = R_sqrt * u_ad[t];
+  }
+  r.segment(num_steps*6, 2) = Qfq_sqrt * (q_ad[num_steps] - opt_prob.q_nom);
+  r.segment(num_steps*6+2, 2) = Qfv_sqrt * (v_ad[num_steps] - opt_prob.v_nom);
+
+  MatrixXd J = math::ExtractGradient(r);
+  
+  // Check that the cost from our least-squares formulation is correct
+  double L = optimizer.CalcCost(state); // True cost
+  AutoDiffXd L_ad = optimizer_ad.CalcCost(state_ad);
+  std::cout << "L(q)         : " << L << std::endl;
+  std::cout << "L(q) autodiff: " << L_ad << std::endl;
+  std::cout << "1/2 r(q)'r(q): " << 0.5 * r.transpose() * r << std::endl;
+
+  // Check that the gradient from our least-squares formulation matches what we compute analytically. 
+  VectorXd g_lsqr = J.transpose() * math::ExtractValue(r);
+  VectorXd g(num_vars);
+  optimizer.CalcGradient(state, &g);
+  
+  std::cout << std::endl;
+  std::cout << g_lsqr - g << std::endl;
+  std::cout << std::endl;
+
+  // Check that the Hessian approximation from least-squares (Gauss-Newton) matches what we compute analytically.
+  MatrixXd H_lsqr = J.transpose() * J;
+  std::cout << H - H_lsqr << std::endl;
 
   // This tolerance is extremely coarse, but that's because our Hessian
   // computation isn't actually the Hessian of the unconstrained cost, but
