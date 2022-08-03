@@ -400,11 +400,11 @@ PentaDiagonalMatrix TrajectoryOptimizer<T>::CalcHessian(
 
   // Make sure the cache is up to date
   if (!state.cache().up_to_date) UpdateCache(state);
-  const TrajectoryOptimizerCache<T>& cache = state.cache();
+  //const TrajectoryOptimizerCache<T>& cache = state.cache();
   
   // Some convienient aliases
   //const double dt = time_step();
-  const int nq = plant().num_positions();
+  //const int nq = plant().num_positions();
   //const MatrixX<T>& Qq = 2 * prob_.Qq * dt;
   //const MatrixX<T>& Qv = 2 * prob_.Qv * dt;
   //const MatrixX<T>& R = 2 * prob_.R * dt;
@@ -415,11 +415,6 @@ PentaDiagonalMatrix TrajectoryOptimizer<T>::CalcHessian(
   //const std::vector<MatrixX<T>>& dtau_dqp = cache.id_partials.dtau_dqp;
   //const std::vector<MatrixX<T>>& dtau_dqt = cache.id_partials.dtau_dqt;
   //const std::vector<MatrixX<T>>& dtau_dqm = cache.id_partials.dtau_dqm;
-
-  // Allocate bands of our symmetric penta-diagonal matrix
-  // TODO(vincekurtz) perform this allocation earlier 
-  std::vector<MatrixXd> A(num_steps+1, MatrixXd(nq, nq));
-
 
   (void)state;
   return PentaDiagonalMatrix::MakeIdentity(num_steps()+1,plant().num_positions());

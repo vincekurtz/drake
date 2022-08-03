@@ -16,13 +16,13 @@ namespace internal {
 
 GTEST_TEST(PentaDiagonalMatrixTest, SymmetricMatrixEmpty) {
   const std::vector<MatrixXd> empty_diagonal;
-  PentaDiagonalMatrix M(empty_diagonal, empty_diagonal, empty_diagonal);
+  PentaDiagonalMatrix<double> M(empty_diagonal, empty_diagonal, empty_diagonal);
   EXPECT_EQ(M.rows(), 0);
 }
 
 GTEST_TEST(PentaDiagonalMatrixTest, MutateMatrix) {
   const int k = 3;
-  PentaDiagonalMatrix M(5, k);
+  PentaDiagonalMatrix<double> M(5, k);
   EXPECT_TRUE(M.is_symmetric());
   EXPECT_EQ(M.block_rows(), 5);
   EXPECT_EQ(M.block_cols(), 5);
@@ -65,7 +65,7 @@ GTEST_TEST(PentaDiagonalMatrixTest, SymmetricMatrix) {
   const MatrixXd B4 = 1.8 * MatrixXd::Ones(k, k);
   const MatrixXd B5 = 15.3 * MatrixXd::Ones(k, k);
   const MatrixXd B6 = 7.1 * MatrixXd::Ones(k, k);
-  PentaDiagonalMatrix M({Z, Z, B1}, {Z, B2, B3}, {B4, B5, B6});
+  PentaDiagonalMatrix<double> M({Z, Z, B1}, {Z, B2, B3}, {B4, B5, B6});
   EXPECT_EQ(M.rows(), k * 3);
   EXPECT_EQ(M.block_rows(), 3);
   // Verify M is symmetric and is properly zero padded.
@@ -81,8 +81,8 @@ GTEST_TEST(PentaDiagonalMatrixTest, SolveIdentity) {
   const int block_size = 3;
   const int num_blocks = 5;
   const int size = num_blocks * block_size;
-  const PentaDiagonalMatrix H =
-      PentaDiagonalMatrix::MakeIdentity(num_blocks, block_size);
+  const PentaDiagonalMatrix<double> H =
+      PentaDiagonalMatrix<double>::MakeIdentity(num_blocks, block_size);
   PentaDiagonalFactorization Hchol(H);
   EXPECT_EQ(Hchol.status(), PentaDiagonalFactorizationStatus::kSuccess);
 
@@ -107,7 +107,7 @@ GTEST_TEST(PentaDiagonalMatrixTest, SolveBlockDiagonal) {
   std::vector<MatrixXd> A(num_blocks, Z);
   std::vector<MatrixXd> B(num_blocks, Z);
   std::vector<MatrixXd> C{B1, B2, B3, B1, B3};
-  const PentaDiagonalMatrix H(std::move(A), std::move(B), std::move(C));
+  const PentaDiagonalMatrix<double> H(std::move(A), std::move(B), std::move(C));
   const MatrixXd Hdense = H.MakeDense();
 
   PentaDiagonalFactorization Hchol(H);
@@ -139,7 +139,7 @@ GTEST_TEST(PentaDiagonalMatrixTest, SolveTriDiagonal) {
   std::vector<MatrixXd> A(num_blocks, Z);
   std::vector<MatrixXd> B{Z, B1, B2, B3, B4};
   std::vector<MatrixXd> C{B1, B2, B3, B1, B3};
-  const PentaDiagonalMatrix H(std::move(A), std::move(B), std::move(C));
+  const PentaDiagonalMatrix<double> H(std::move(A), std::move(B), std::move(C));
   const MatrixXd Hdense = H.MakeDense();
 
   PentaDiagonalFactorization Hchol(H);
@@ -166,8 +166,8 @@ GTEST_TEST(PentaDiagonalMatrixTest, SolvePentaDiagonal) {
 
   // Generate a penta-diagonal SPD matrix. Ignore off-diagonal elements of
   // Hdense outside the 5-diagonal band.
-  const PentaDiagonalMatrix H =
-      PentaDiagonalMatrix::MakeSymmetricFromLowerDense(P, num_blocks,
+  const PentaDiagonalMatrix<double> H =
+      PentaDiagonalMatrix<double>::MakeSymmetricFromLowerDense(P, num_blocks,
                                                        block_size);
   const MatrixXd Hdense = H.MakeDense();
 

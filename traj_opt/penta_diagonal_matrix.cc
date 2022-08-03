@@ -2,18 +2,18 @@
 
 #include <utility>
 
+#include "drake/common/default_scalars.h"
 #include "drake/common/drake_assert.h"
-
-using Eigen::MatrixXd;
 
 namespace drake {
 namespace traj_opt {
 namespace internal {
 
-PentaDiagonalMatrix::PentaDiagonalMatrix(int num_blocks, int block_size,
+template <typename T>
+PentaDiagonalMatrix<T>::PentaDiagonalMatrix(int num_blocks, int block_size,
                                          bool is_symmetric)
     : is_symmetric_(is_symmetric) {
-  const MatrixXd Z = MatrixXd::Zero(block_size, block_size);
+  const MatrixX<T> Z = MatrixX<T>::Zero(block_size, block_size);
   A_.resize(num_blocks, Z);
   B_.resize(num_blocks, Z);
   C_.resize(num_blocks, Z);
@@ -21,11 +21,12 @@ PentaDiagonalMatrix::PentaDiagonalMatrix(int num_blocks, int block_size,
   E_.resize(num_blocks, Z);
 }
 
-PentaDiagonalMatrix::PentaDiagonalMatrix(std::vector<Eigen::MatrixXd> A,
-                                         std::vector<Eigen::MatrixXd> B,
-                                         std::vector<Eigen::MatrixXd> C,
-                                         std::vector<Eigen::MatrixXd> D,
-                                         std::vector<Eigen::MatrixXd> E)
+template <typename T>
+PentaDiagonalMatrix<T>::PentaDiagonalMatrix(std::vector<MatrixX<T>> A,
+                                         std::vector<MatrixX<T>> B,
+                                         std::vector<MatrixX<T>> C,
+                                         std::vector<MatrixX<T>> D,
+                                         std::vector<MatrixX<T>> E)
     : A_(std::move(A)),
       B_(std::move(B)),
       C_(std::move(C)),
@@ -40,9 +41,10 @@ PentaDiagonalMatrix::PentaDiagonalMatrix(std::vector<Eigen::MatrixXd> A,
   DRAKE_ASSERT(VerifySizes());
 }
 
-PentaDiagonalMatrix::PentaDiagonalMatrix(std::vector<Eigen::MatrixXd> A,
-                                         std::vector<Eigen::MatrixXd> B,
-                                         std::vector<Eigen::MatrixXd> C)
+template <typename T>
+PentaDiagonalMatrix<T>::PentaDiagonalMatrix(std::vector<MatrixX<T>> A,
+                                         std::vector<MatrixX<T>> B,
+                                         std::vector<MatrixX<T>> C)
     : A_(std::move(A)), B_(std::move(B)), C_(std::move(C)) {
   // Minimum sanity check.
   DRAKE_DEMAND(A_.size() == B_.size());
@@ -57,9 +59,9 @@ PentaDiagonalMatrix::PentaDiagonalMatrix(std::vector<Eigen::MatrixXd> A,
 
   // We overwrite the (strictly) upper triangular part of C with its lower
   // triangular part.
-  for (int i = 0; i < size; ++i) {
-    C_[i].triangularView<Eigen::StrictlyUpper>() = C_[i].transpose();
-  }
+  //for (int i = 0; i < size; ++i) {
+  //  C_[i].triangularView<Eigen::StrictlyUpper>() = C_[i].transpose();
+  //}
 
   // D = B.
   // N.B. The first entry in B is zero and we skip its copy.
@@ -90,17 +92,19 @@ PentaDiagonalMatrix::PentaDiagonalMatrix(std::vector<Eigen::MatrixXd> A,
   DRAKE_ASSERT(VerifySizes());
 }
 
-PentaDiagonalMatrix PentaDiagonalMatrix::MakeIdentity(int num_blocks,
+template <typename T>
+PentaDiagonalMatrix<T> PentaDiagonalMatrix<T>::MakeIdentity(int num_blocks,
                                                       int block_size) {
-  const MatrixXd Z = MatrixXd::Zero(block_size, block_size);
-  const MatrixXd Id = MatrixXd::Identity(block_size, block_size);
-  std::vector<MatrixXd> A(num_blocks, Z);
-  std::vector<MatrixXd> B(num_blocks, Z);
-  std::vector<MatrixXd> C(num_blocks, Id);
+  const MatrixX<T> Z = MatrixX<T>::Zero(block_size, block_size);
+  const MatrixX<T> Id = MatrixX<T>::Identity(block_size, block_size);
+  std::vector<MatrixX<T>> A(num_blocks, Z);
+  std::vector<MatrixX<T>> B(num_blocks, Z);
+  std::vector<MatrixX<T>> C(num_blocks, Id);
   return PentaDiagonalMatrix(std::move(A), std::move(B), std::move(C));
 }
 
-bool PentaDiagonalMatrix::VerifySizes() const {
+template <typename T>
+bool PentaDiagonalMatrix<T>::VerifySizes() const {
   const int k = block_size();
   if (!VerifyAllBlocksOfSameSize(A_, k)) return false;
   if (!VerifyAllBlocksOfSameSize(B_, k)) return false;
@@ -110,12 +114,13 @@ bool PentaDiagonalMatrix::VerifySizes() const {
   return true;
 }
 
-PentaDiagonalMatrix PentaDiagonalMatrix::MakeSymmetricFromLowerDense(
-    const Eigen::MatrixXd& M, int num_blocks, int block_size) {
-  const MatrixXd Z = MatrixXd::Zero(block_size, block_size);
-  std::vector<MatrixXd> A(num_blocks, Z);
-  std::vector<MatrixXd> B(num_blocks, Z);
-  std::vector<MatrixXd> C(num_blocks, Z);
+template <typename T>
+PentaDiagonalMatrix<T> PentaDiagonalMatrix<T>::MakeSymmetricFromLowerDense(
+    const MatrixX<T>& M, int num_blocks, int block_size) {
+  const MatrixX<T> Z = MatrixX<T>::Zero(block_size, block_size);
+  std::vector<MatrixX<T>> A(num_blocks, Z);
+  std::vector<MatrixX<T>> B(num_blocks, Z);
+  std::vector<MatrixX<T>> C(num_blocks, Z);
   for (int i = 0; i < num_blocks; ++i) {
     if (i >= 2)
       A[i] =
@@ -128,9 +133,10 @@ PentaDiagonalMatrix PentaDiagonalMatrix::MakeSymmetricFromLowerDense(
   return PentaDiagonalMatrix(std::move(A), std::move(B), std::move(C));
 }
 
-MatrixXd PentaDiagonalMatrix::MakeDense() const {
+template <typename T>
+MatrixX<T> PentaDiagonalMatrix<T>::MakeDense() const {
   const int num_blocks = block_cols();
-  MatrixXd M = MatrixXd::Zero(rows(), cols());
+  MatrixX<T> M = MatrixX<T>::Zero(rows(), cols());
   for (int i = 0; i < num_blocks; ++i) {
     if (i >= 2)
       M.block(i * block_size(), (i - 2) * block_size(), block_size(),
@@ -150,9 +156,10 @@ MatrixXd PentaDiagonalMatrix::MakeDense() const {
   return M;
 }
 
-bool PentaDiagonalMatrix::VerifyAllBlocksOfSameSize(
-    const std::vector<Eigen::MatrixXd>& X, int size) {
-  for (const Eigen::MatrixXd& Xblock : X) {
+template <typename T>
+bool PentaDiagonalMatrix<T>::VerifyAllBlocksOfSameSize(
+    const std::vector<MatrixX<T>>& X, int size) {
+  for (const MatrixX<T>& Xblock : X) {
     if (Xblock.rows() != size || Xblock.cols() != size) return false;
   }
   return true;
@@ -161,3 +168,6 @@ bool PentaDiagonalMatrix::VerifyAllBlocksOfSameSize(
 }  // namespace internal
 }  // namespace traj_opt
 }  // namespace drake
+
+DRAKE_DEFINE_CLASS_TEMPLATE_INSTANTIATIONS_ON_DEFAULT_NONSYMBOLIC_SCALARS(
+    class ::drake::traj_opt::internal::PentaDiagonalMatrix)
