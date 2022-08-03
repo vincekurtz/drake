@@ -389,6 +389,43 @@ void TrajectoryOptimizer<T>::CalcGradient(
 }
 
 template <typename T>
+PentaDiagonalMatrix TrajectoryOptimizer<T>::CalcHessian(
+    const TrajectoryOptimizerState<T>& state) const {
+  // Our pentadiagonal matrix is not templated, so this function only supports
+  // double.
+  if (!std::is_same_v<T, double>) {
+    throw std::runtime_error(
+        "TrajectoryOptimizer::CalcHessian only supports T=double.");
+  }
+
+  // Make sure the cache is up to date
+  if (!state.cache().up_to_date) UpdateCache(state);
+  const TrajectoryOptimizerCache<T>& cache = state.cache();
+  
+  // Some convienient aliases
+  //const double dt = time_step();
+  const int nq = plant().num_positions();
+  //const MatrixX<T>& Qq = 2 * prob_.Qq * dt;
+  //const MatrixX<T>& Qv = 2 * prob_.Qv * dt;
+  //const MatrixX<T>& R = 2 * prob_.R * dt;
+  //const MatrixX<T>& Qf_q = 2 * prob_.Qf_q;
+  //const MatrixX<T>& Qf_v = 2 * prob_.Qf_v;
+  //const std::vector<MatrixX<T>>& dvt_dqt = cache.v_partials.dvt_dqt;
+  //const std::vector<MatrixX<T>>& dvt_dqm = cache.v_partials.dvt_dqm;
+  //const std::vector<MatrixX<T>>& dtau_dqp = cache.id_partials.dtau_dqp;
+  //const std::vector<MatrixX<T>>& dtau_dqt = cache.id_partials.dtau_dqt;
+  //const std::vector<MatrixX<T>>& dtau_dqm = cache.id_partials.dtau_dqm;
+
+  // Allocate bands of our symmetric penta-diagonal matrix
+  // TODO(vincekurtz) perform this allocation earlier 
+  std::vector<MatrixXd> A(num_steps+1, MatrixXd(nq, nq));
+
+
+  (void)state;
+  return PentaDiagonalMatrix::MakeIdentity(num_steps()+1,plant().num_positions());
+}
+
+template <typename T>
 void TrajectoryOptimizer<T>::CalcDenseHessian(
     const TrajectoryOptimizerState<T>& state, EigenPtr<MatrixX<T>> H) const {
   // Size checks
@@ -413,7 +450,6 @@ void TrajectoryOptimizer<T>::CalcDenseHessian(
   const std::vector<MatrixX<T>>& dtau_dqp = cache.id_partials.dtau_dqp;
   const std::vector<MatrixX<T>>& dtau_dqt = cache.id_partials.dtau_dqt;
   const std::vector<MatrixX<T>>& dtau_dqm = cache.id_partials.dtau_dqm;
-  // TrajectoryOptimizerWorkspace<T> workspace = state.workspace;
 
   // The Hessian is a block penta-diagonal matrix, so we'll set all entries to
   // zero to start.

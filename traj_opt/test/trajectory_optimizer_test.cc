@@ -250,6 +250,17 @@ GTEST_TEST(TrajectoryOptimizerTest, DenseHessianPendulum) {
   const int num_vars = nq * (num_steps + 1);
   MatrixXd H(num_vars, num_vars);
   optimizer.CalcDenseHessian(state, &H);
+  
+  // Compute the Gauss-Newton Hessian approximation with sparse algebra
+  PentaDiagonalMatrix H_sparse = optimizer.CalcHessian(state);
+
+  //DEBUG**********************
+
+  std::cout << H << std::endl;
+
+  std::cout << H_sparse.MakeDense() << std::endl;
+
+  //***************************
 
   // Compute the Hessian using autodiff
   std::unique_ptr<MultibodyPlant<AutoDiffXd>> plant_ad =
