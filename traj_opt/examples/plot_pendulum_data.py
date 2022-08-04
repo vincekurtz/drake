@@ -17,12 +17,14 @@ drake_root = "/home/vincentkurtz/drake/"
 
 # Define our optimization problem
 dt = 5e-2
-num_steps = 200
-max_iters = 20
+num_steps = 50
+max_iters = 2000
+gravity = False
+
 Qq = 0.0
 Qv = 0.1
-R = 1.0e2
-Qfq = 100.0
+R = 1
+Qfq = 100
 Qfv = 1.0
 
 # Solve the optimization problem
@@ -37,6 +39,7 @@ options_string += f"--Qv={Qv} "
 options_string += f"--R={R} "
 options_string += f"--Qfq={Qfq} "
 options_string += f"--Qfv={Qfv} "
+options_string += f"--gravity={gravity} "
 
 os.system("cd " + drake_root)
 os.system("bazel run //traj_opt/examples:pendulum" + options_string)
@@ -54,6 +57,7 @@ ax1.set_title(f"dt={dt}, N={num_steps}, Qq={Qq}, Qv={Qv}, R={R}, Qfq={Qfq}, Qfv=
 
 ax1.plot(iters, data["time"])
 ax1.set_ylabel("Time (s)")
+ax1.set_ylim((0,0.05))
 
 ax2.plot(iters, data["cost"])
 ax2.set_ylabel("Cost")
@@ -66,6 +70,7 @@ ax4.set_ylabel("alpha")
 
 ax5.plot(iters, data["grad_norm"])
 ax5.set_ylabel("||g||")
+ax5.set_yscale("log")
 
 ax5.set_xlabel("Iteration")
 ax5.xaxis.set_major_locator(MaxNLocator(integer=True))

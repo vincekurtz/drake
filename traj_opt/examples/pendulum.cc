@@ -34,9 +34,8 @@ DEFINE_double(R, 1.0, "Running cost weight on control inputs.");
 DEFINE_double(Qfq, 100.0, "Terminal cost weight on the joint angle.");
 DEFINE_double(Qfv, 1.0, "Terminal cost weight on the joint velocity.");
 DEFINE_bool(save_data, false, "Flag for writing solver data to a csv file.");
-DEFINE_bool(
-    visualize, true,
-    "Flag for displaying the optimal solution on the Drake visualizer.");
+DEFINE_bool(visualize, true, "Flag for displaying the optimal solution.");
+DEFINE_bool(gravity, true, "Flag for turning gravity on and off.");
 
 using geometry::DrakeVisualizerd;
 using geometry::SceneGraph;
@@ -74,47 +73,6 @@ void save_to_csv(const SolutionData<double>& data) {
 
   // Close the file
   data_file.close();
-}
-
-/**
- * Just run a simple passive simulation of the pendulum, connected to the Drake
- * visualizer.
- *
- * @param time_step Time step for discretization (seconds)
- * @param sim_time How long to simulate for (seconds)
- */
-void run_passive_simulation(double time_step, double sim_time) {
-  DiagramBuilder<double> builder;
-  MultibodyPlantConfig config;
-  config.time_step = time_step;
-  config.discrete_contact_solver = "sap";
-
-  auto [plant, scene_graph] = AddMultibodyPlant(config, &builder);
-
-  const std::string urdf_file =
-      FindResourceOrThrow("drake/examples/pendulum/Pendulum.urdf");
-  Parser(&plant).AddAllModelsFromFile(urdf_file);
-  plant.Finalize();
-
-  DrakeVisualizerd::AddToBuilder(&builder, scene_graph);
-
-  auto diagram = builder.Build();
-  std::unique_ptr<systems::Context<double>> diagram_context =
-      diagram->CreateDefaultContext();
-  systems::Context<double>& plant_context =
-      diagram->GetMutableSubsystemContext(plant, diagram_context.get());
-
-  const double u = 0;
-  VectorX<double> x0(2);
-  x0 << 0.5, 0.1;
-  plant.get_actuation_input_port().FixValue(&plant_context, u);
-  plant.SetPositionsAndVelocities(&plant_context, x0);
-
-  Simulator<double> simulator(*diagram, std::move(diagram_context));
-
-  simulator.set_target_realtime_rate(1.0);
-  simulator.Initialize();
-  simulator.AdvanceTo(sim_time);
 }
 
 /**
@@ -173,6 +131,9 @@ void solve_trajectory_optimization(double time_step, int num_steps) {
   const std::string urdf_file =
       FindResourceOrThrow("drake/examples/pendulum/Pendulum.urdf");
   Parser(&plant).AddAllModelsFromFile(urdf_file);
+  if (!FLAGS_gravity) {
+    plant.mutable_gravity_field().set_gravity_vector(VectorXd::Zero(3));
+  }
   plant.Finalize();
 
   // Set up an optimization problem
