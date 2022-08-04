@@ -131,11 +131,11 @@ void solve_trajectory_optimization(double time_step, int num_steps) {
   opt_prob.q_init = Vector1d(0.0);
   opt_prob.v_init = Vector1d(0.0);
   opt_prob.Qq = 0.1 * MatrixXd::Identity(1, 1);
-  opt_prob.Qv = 0.1 * MatrixXd::Identity(1, 1);
-  opt_prob.Qf_q = 10.0 * MatrixXd::Identity(1, 1);
+  opt_prob.Qv = 0.0 * MatrixXd::Identity(1, 1);
+  opt_prob.Qf_q = 100.0 * MatrixXd::Identity(1, 1);
   opt_prob.Qf_v = 1.0 * MatrixXd::Identity(1, 1);
-  opt_prob.R = 0.1 * MatrixXd::Identity(1, 1);
-  opt_prob.q_nom = Vector1d(1.5);
+  opt_prob.R = 1.0* MatrixXd::Identity(1, 1);
+  opt_prob.q_nom = Vector1d(M_PI);
   opt_prob.v_nom = Vector1d(-0.1);
 
   // Establish an initial guess

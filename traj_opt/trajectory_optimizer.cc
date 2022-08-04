@@ -502,6 +502,43 @@ void TrajectoryOptimizer<T>::UpdateCache(
 }
 
 template <typename T>
+double TrajectoryOptimizer<T>::Linesearch(
+    const T L, const std::vector<VectorX<T>>& q, const VectorX<T>& dq,
+    const VectorX<T>& g, TrajectoryOptimizerState<T>* state) const {
+  // For now we'll just do a simple backtracking linesearch
+  // TODO(vincekurtz): give solver options for different linesearch methods
+  const int nq = plant().num_positions();
+
+  // TODO(vincekurtz): set these in SolverOptions
+  const double c = 1e-4;
+  const double rho = 0.9;
+
+  double alpha = 1.0 / rho;   // get alpha = 1 on first iteration
+  T L_prime = g.transpose() * dq;  // gradient of L w.r.t. alpha
+  T L_new;     // L(q + alpha * dq)
+
+  int i = 0;   // Iteration counter
+  do {
+    // Reduce alpha
+    // N.B. we start with alpha = 1/rho, so we get alpha = 1 on the first iteration.
+    alpha *= rho;
+
+    // Compute L_ls = L(q + alpha * dq)
+    for (int t = 1; t <= num_steps(); ++t) {
+      state->set_qt(q[t] + alpha * dq.segment(t * nq, nq), t);
+    }
+    L_new = CalcCost(*state);  // N.B. this is also computing extra
+                              // gradient data that we don't really need.
+
+    ++i;
+
+  } while (L_new >= L - c * L_prime);
+
+  std::cout << alpha << std::endl;
+  return alpha;
+}
+
+template <typename T>
 SolverFlag TrajectoryOptimizer<T>::Solve(const std::vector<VectorX<T>>&,
                  TrajectoryOptimizerSolution<T>*) const {
   throw std::runtime_error("TrajectoryOptimizer::Solve only supports T=double.");
@@ -514,6 +551,16 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
   const int nq = plant().num_positions();
   // TODO(vincekurtz): check that q0 = q_init
 
+  // Parameters
+  // TODO(vincekurtz): set from arguments in constructor
+  //const double delta = 1e-3;  // convergence test
+  const double max_iters = 5;
+
+  // Data
+  // TODO(vincekurtz): return this data
+  //std::vector<double> iter_costs;
+  //std::vector<int> linesearch_iters;
+
   // Allocate a state variable
   TrajectoryOptimizerState<double> state = CreateState();
   state.set_q(q_guess);
@@ -523,11 +570,13 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
 
   // Allocate cost, gradient, and Hessian 
   double L;
+  //double L_last = CalcCost(state);
   VectorXd g((num_steps() + 1) * nq);
   PentaDiagonalMatrix<double> H(num_steps() + 1, nq);
 
   // Gauss-Newton iterations
-  for (int k=0; k<=10; ++k) {
+  int k = 0;  // iteration counter
+  do {
     // Update the cache
     UpdateCache(state);
 
@@ -548,31 +597,7 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
     ///////////////////////////// LINESEARCH /////////////////////////////////
     // TODO(vincekurtz): abstract this into another function
     // TODO(vincekurtz): add solver options to choose between linesearch methods
-    const double c = 1e-4;
-    const double rho = 0.9;
-    double alpha = 1.0;
-    double L_prime = g.transpose() * delta_q;
-
-    // Compute L_ls = L(q + alpha * dq)
-    for (int t=1; t<=num_steps(); ++t) {
-      ls_state.set_qt(state.q()[t] + alpha * delta_q.segment(t * nq, nq), t);
-    }
-    double L_ls = CalcCost(ls_state);  // N.B. this is also computing extra gradient data
-                                       // that we don't really need.
-
-    while ( L_ls >= L - c*L_prime ) {
-      // Reduce alpha
-      alpha *= rho;
-
-      // Compute L_ls = L(q + alpha * dq)
-      for (int t=1; t<=num_steps(); ++t) {
-        ls_state.set_qt(state.q()[t] + alpha * delta_q.segment(t * nq, nq), t);
-      }
-      L_ls = CalcCost(ls_state);
-    }
-
-    std::cout << alpha << std::endl;
-
+    double alpha = Linesearch(L, state.q(), delta_q, g, &ls_state);
     ///////////////////////// END LINESEARCH /////////////////////////////////
 
     // Update the guess
@@ -580,8 +605,11 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
       // q[t] = q[t] + alpha * dq[t]
       state.set_qt(state.q()[t] + alpha * delta_q.segment(t * nq, nq), t);
     }
+
+    ++k;
   }
-  
+  while ( k <= max_iters );
+
   solution->q = state.q();
   return SolverFlag::kSuccess;
 }
