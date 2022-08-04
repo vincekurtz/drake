@@ -59,7 +59,7 @@ void save_to_csv(const SolutionData<double>& data) {
 
   // Write a header
   data_file
-      << "Iteration, Time, Cost, Linesearch Iterations, alpha, gradient norm\n";
+      << "iter, time, cost, ls_iters, alpha, grad_norm\n";
 
   const int num_iters = data.iteration_times.size();
   for (int i = 0; i < num_iters; ++i) {
@@ -69,8 +69,7 @@ void save_to_csv(const SolutionData<double>& data) {
     data_file << data.iteration_costs[i] << ", ";
     data_file << data.linesearch_iterations[i] << ", ";
     data_file << data.linesearch_alphas[i] << ", ";
-    data_file << data.gradient_norm[i] << ", ";
-    data_file << "\n";
+    data_file << data.gradient_norm[i] << "\n";
   }
 
   // Close the file
