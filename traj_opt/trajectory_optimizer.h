@@ -338,6 +338,15 @@ class TrajectoryOptimizer {
                                      const VectorX<T>& dq, const VectorX<T>& g,
                                      TrajectoryOptimizerState<T>* state) const;
 
+  /**
+   * Simple backtracking linesearch strategy to find alpha that satisfies
+   *
+   *    L(q + alpha*dq) < L(q) - c*g'*dq
+   */
+  std::tuple<double, int> BacktrackingArmijoLinesearch(
+      const T L, const std::vector<VectorX<T>>& q, const VectorX<T>& dq,
+      const VectorX<T>& g, TrajectoryOptimizerState<T>* state) const;
+
   // A model of the system that we are trying to find an optimal trajectory for.
   const MultibodyPlant<T>* plant_;
 

@@ -532,6 +532,18 @@ template <typename T>
 std::tuple<double, int> TrajectoryOptimizer<T>::Linesearch(
     const T L, const std::vector<VectorX<T>>& q, const VectorX<T>& dq,
     const VectorX<T>& g, TrajectoryOptimizerState<T>* state) const {
+  // TODO(vincekurtz): add other linesearch strategies
+  if (params_.linesearch_method == LinesearchMethod::kBacktrackingArmijo) {
+    return BacktrackingArmijoLinesearch(L, q, dq, g, state);
+  } else {
+    throw std::runtime_error("Unknown linesearch method");
+  }
+}
+
+template <typename T>
+std::tuple<double, int> TrajectoryOptimizer<T>::BacktrackingArmijoLinesearch(
+    const T L, const std::vector<VectorX<T>>& q, const VectorX<T>& dq,
+    const VectorX<T>& g, TrajectoryOptimizerState<T>* state) const {
   // For now we'll just do a simple backtracking linesearch
   // TODO(vincekurtz): give solver options for different linesearch methods
   const int nq = plant().num_positions();
@@ -559,7 +571,8 @@ std::tuple<double, int> TrajectoryOptimizer<T>::Linesearch(
                                // gradient data that we don't really need.
 
     ++i;
-  } while (L_new >= L - c * L_prime);
+  } while ((L_new >= L - c * L_prime) &&
+           (i < params_.max_linesearch_iterations));
 
   return {alpha, i};
 }
@@ -649,6 +662,15 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
     // L(q+alpha*dq) (at the very least), and we don't want to change state.q
     auto [alpha, ls_iters] =
         Linesearch(iteration_costs[k], state.q(), dq, g, &ls_state);
+
+    if (ls_iters >= params_.max_linesearch_iterations) {
+      // Early termination if linesearch is taking too long
+      std::cout << "LINESEARCH FAILED" << std::endl;
+      std::cout << "Reached maximum linesearch iterations (" << ls_iters << ")."
+                << std::endl;
+      solution_data->solve_time = NAN;
+      return SolverFlag::kLinesearchMaxIters;
+    }
 
     // Update the decision variables
     for (int t = 1; t <= num_steps(); ++t) {

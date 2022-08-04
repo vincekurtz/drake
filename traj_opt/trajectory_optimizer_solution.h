@@ -8,7 +8,7 @@ namespace drake {
 namespace traj_opt {
 
 // Status indicator for the overall success of our trajectory optimization.
-enum SolverFlag { kSuccess, kFailed };
+enum SolverFlag { kSuccess, kLinesearchMaxIters };
 
 /**
  * A container for the optimal solution, including generalized positions,
