@@ -571,7 +571,7 @@ std::tuple<double, int> TrajectoryOptimizer<T>::BacktrackingArmijoLinesearch(
                                // gradient data that we don't really need.
 
     ++i;
-  } while ((L_new >= L - c * L_prime) &&
+  } while ((L_new > L + c * alpha * L_prime) &&
            (i < params_.max_linesearch_iterations));
 
   return {alpha, i};
@@ -656,6 +656,9 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
     PentaDiagonalFactorization Hchol(H);
     DRAKE_DEMAND(Hchol.status() == PentaDiagonalFactorizationStatus::kSuccess);
     Hchol.SolveInPlace(&dq);
+
+    // DEBUG
+    std::cout << g.transpose() * dq << std::endl;
 
     // Solve the linsearch
     // N.B. we use a separate state variable since we will need to compute

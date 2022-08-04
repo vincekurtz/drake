@@ -153,7 +153,7 @@ void solve_trajectory_optimization(double time_step, int num_steps) {
   SolverParameters solver_params;
   solver_params.linesearch_method = LinesearchMethod::kBacktrackingArmijo;
   solver_params.max_iterations = FLAGS_max_iters;
-  solver_params.max_linesearch_iterations = 100;
+  solver_params.max_linesearch_iterations = 50;
 
   // Establish an initial guess
   std::vector<VectorXd> q_guess;
