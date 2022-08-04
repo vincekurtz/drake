@@ -21,6 +21,7 @@ drake_cc_package_library(
         ":penta_diagonal_matrix",
         ":penta_diagonal_solver",
         ":problem_definition",
+        ":solver_parameters",
         ":trajectory_optimizer",
         ":trajectory_optimizer_solution",
         ":trajectory_optimizer_state",
@@ -60,6 +61,7 @@ drake_cc_library(
         ":penta_diagonal_matrix",
         ":penta_diagonal_solver",
         ":problem_definition",
+        ":solver_parameters",
         ":trajectory_optimizer_solution",
         ":trajectory_optimizer_state",
         ":trajectory_optimizer_workspace",
@@ -77,6 +79,14 @@ drake_cc_library(
     deps = [
         "//common:essential",
     ],
+)
+
+drake_cc_library(
+    name = "solver_parameters",
+    hdrs = [
+        "solver_parameters.h",
+    ],
+    deps = [],
 )
 
 drake_cc_library(

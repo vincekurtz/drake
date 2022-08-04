@@ -99,7 +99,7 @@ void play_back_trajectory(std::vector<VectorXd> q, double time_step) {
 
   const int N = q.size();
   for (int t = 0; t < N; ++t) {
-    diagram_context->SetTime(t*time_step);
+    diagram_context->SetTime(t * time_step);
     plant.SetPositions(&plant_context, q[t]);
     diagram->Publish(*diagram_context);
 
@@ -134,25 +134,30 @@ void solve_trajectory_optimization(double time_step, int num_steps) {
   opt_prob.Qv = 0.0 * MatrixXd::Identity(1, 1);
   opt_prob.Qf_q = 100.0 * MatrixXd::Identity(1, 1);
   opt_prob.Qf_v = 1.0 * MatrixXd::Identity(1, 1);
-  opt_prob.R = 1.0* MatrixXd::Identity(1, 1);
+  opt_prob.R = 1.0 * MatrixXd::Identity(1, 1);
   opt_prob.q_nom = Vector1d(M_PI);
   opt_prob.v_nom = Vector1d(-0.1);
+
+  // Set our solver options
+  SolverParameters solver_params;
+  solver_params.max_iterations = 20;
 
   // Establish an initial guess
   std::vector<VectorXd> q_guess;
   q_guess.push_back(opt_prob.q_init);
   for (int t = 1; t <= num_steps; ++t) {
-    q_guess.push_back(q_guess[t-1] + 0.1 * time_step * Vector1d(1.0));
+    q_guess.push_back(q_guess[t - 1] + 0.1 * time_step * Vector1d(1.0));
   }
 
   // Solve the optimzation problem
-  TrajectoryOptimizer<double> optimizer(&plant, opt_prob);
+  TrajectoryOptimizer<double> optimizer(&plant, opt_prob, solver_params);
   TrajectoryOptimizerSolution<double> solution;
   SolutionData<double> solution_data;
 
   SolverFlag status = optimizer.Solve(q_guess, &solution, &solution_data);
   DRAKE_DEMAND(status == SolverFlag::kSuccess);
-  std::cout << "Solved in " << solution_data.solve_time << " seconds." << std::endl;
+  std::cout << "Solved in " << solution_data.solve_time << " seconds."
+            << std::endl;
 
   // Play back the result on the visualizer
   play_back_trajectory(solution.q, time_step);

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <memory>
+#include <optional>
 #include <tuple>
 #include <vector>
 
@@ -9,6 +10,7 @@
 #include "drake/traj_opt/inverse_dynamics_partials.h"
 #include "drake/traj_opt/penta_diagonal_matrix.h"
 #include "drake/traj_opt/problem_definition.h"
+#include "drake/traj_opt/solver_parameters.h"
 #include "drake/traj_opt/trajectory_optimizer_solution.h"
 #include "drake/traj_opt/trajectory_optimizer_state.h"
 #include "drake/traj_opt/trajectory_optimizer_workspace.h"
@@ -31,9 +33,12 @@ class TrajectoryOptimizer {
    *              trajectory for.
    * @param prob Problem definition, including cost, initial and target states,
    *             etc.
+   * @param params solver parameters, including max iterations, linesearch
+   *               method, etc.
    */
-  TrajectoryOptimizer(const MultibodyPlant<T>* plant,
-                      const ProblemDefinition& prob);
+  TrajectoryOptimizer(
+      const MultibodyPlant<T>* plant, const ProblemDefinition& prob,
+      const std::optional<SolverParameters>& params = std::nullopt);
 
   /**
    * Convienience function to get the timestep of this optimization problem.
@@ -122,7 +127,7 @@ class TrajectoryOptimizer {
    * @param solution a container for the optimal solution, including velocities
    * and torques
    * @param solution_data a container for other timing and iteration-specific
-   * data regarding the solve process. 
+   * data regarding the solve process.
    * @return SolverFlag
    */
   SolverFlag Solve(const std::vector<VectorX<T>>& q_guess,
@@ -345,6 +350,9 @@ class TrajectoryOptimizer {
 
   // Joint damping coefficients for the plant under consideration
   VectorX<T> joint_damping_;
+
+  // Various parameters
+  SolverParameters params_;
 };
 
 }  // namespace traj_opt

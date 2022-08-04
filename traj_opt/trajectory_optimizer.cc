@@ -18,9 +18,17 @@ using multibody::MultibodyPlant;
 using systems::System;
 
 template <typename T>
-TrajectoryOptimizer<T>::TrajectoryOptimizer(const MultibodyPlant<T>* plant,
-                                            const ProblemDefinition& prob)
+TrajectoryOptimizer<T>::TrajectoryOptimizer(
+    const MultibodyPlant<T>* plant, const ProblemDefinition& prob,
+    const std::optional<SolverParameters>& params)
     : plant_(plant), prob_(prob) {
+  // Set solver parameters if they're supplied. Otherwise we keep the defaults
+  // from solver_parameters.h
+  if (params != std::nullopt) {
+    params_ = *params;
+  }
+
+  // Create a context for dynamics computations
   context_ = plant_->CreateDefaultContext();
 
   // Define joint damping coefficients.
@@ -568,8 +576,7 @@ template <>
 SolverFlag TrajectoryOptimizer<double>::Solve(
     const std::vector<VectorXd>& q_guess,
     TrajectoryOptimizerSolution<double>* solution,
-    SolutionData<double>* solution_data
-    ) const {
+    SolutionData<double>* solution_data) const {
   // The guess must be consistent with the initial condition
   DRAKE_DEMAND(q_guess[0] == prob_.q_init);
 
@@ -579,10 +586,6 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
   DRAKE_DEMAND(solution_data->linesearch_iterations.size() == 0);
   DRAKE_DEMAND(solution_data->linesearch_alphas.size() == 0);
   DRAKE_DEMAND(solution_data->gradient_norm.size() == 0);
-
-  // Parameters
-  // TODO(vincekurtz): set from arguments in constructor
-  const double max_iters = 20;
 
   // Detailed solution data
   std::vector<double>& iteration_times = solution_data->iteration_times;
@@ -668,7 +671,7 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
     linesearch_alphas.push_back(alpha);
     iteration_times.push_back(iter_time.count());
     gradient_norm.push_back(g.norm());
-  } while (k < max_iters);
+  } while (k < params_.max_iterations);
 
   std::cout << "---------------------------------------------------------"
             << std::endl;
