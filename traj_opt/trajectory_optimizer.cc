@@ -668,7 +668,15 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
       std::cout << "LINESEARCH FAILED" << std::endl;
       std::cout << "Reached maximum linesearch iterations (" << ls_iters << ")."
                 << std::endl;
+
+      // We'll still record iteration data for playback later
       solution_data->solve_time = NAN;
+      linesearch_iterations.push_back(ls_iters);
+      linesearch_alphas.push_back(alpha);
+      iter_time = std::chrono::high_resolution_clock::now() - iter_start_time;
+      iteration_times.push_back(iter_time.count());
+      gradient_norm.push_back(g.norm());
+
       return SolverFlag::kLinesearchMaxIters;
     }
 
