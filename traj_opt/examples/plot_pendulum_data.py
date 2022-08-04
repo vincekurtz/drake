@@ -18,8 +18,8 @@ drake_root = "/home/vincentkurtz/drake/"
 # Define our optimization problem
 dt = 5e-2
 num_steps = 50
-max_iters = 2000
-gravity = False
+max_iters = 400
+gravity = True
 
 Qq = 0.0
 Qv = 0.1

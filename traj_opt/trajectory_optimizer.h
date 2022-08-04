@@ -348,7 +348,7 @@ class TrajectoryOptimizer {
    * This allows us to make a nice plot in python after the fact
    */
   void PrintLinesearchResidual(const T L, const std::vector<VectorX<T>>& q,
-                               const VectorX<T>& dq, const VectorX<T>& g,
+                               const VectorX<T>& dq,
                                TrajectoryOptimizerState<T>* state) const;
 
   /**

@@ -531,22 +531,20 @@ void TrajectoryOptimizer<T>::UpdateCache(
 template <typename T>
 void TrajectoryOptimizer<T>::PrintLinesearchResidual(
     const T L, const std::vector<VectorX<T>>& q, const VectorX<T>& dq,
-    const VectorX<T>& g, TrajectoryOptimizerState<T>* state) const {
+    TrajectoryOptimizerState<T>* state) const {
   const int nq = plant().num_positions();
-  (void) g;
   std::cout << std::endl;
   std::cout << "==================================" << std::endl;
   std::cout << "Linsearch Residual: " << std::endl;
   double d_alpha = 0.01;
   double alpha = 0.0;
 
-  while (alpha <= 1.0) {
+  while (alpha <= 5.0) {
     // Compute phi(alpha) = L - L(q + alpha * dq)
     for (int t = 1; t <= num_steps(); ++t) {
       state->set_qt(q[t] + alpha * dq.segment(t * nq, nq), t);
     }
     std::cout << CalcCost(*state) - L << ", ";
-
     alpha += d_alpha;
   }
   std::cout << std::endl;
@@ -583,6 +581,14 @@ std::tuple<double, int> TrajectoryOptimizer<T>::BacktrackingArmijoLinesearch(
   T L_prime = g.transpose() * dq;  // gradient of L w.r.t. alpha
   T L_new;                         // L(q + alpha * dq)
 
+  // Minimum acceptable cost reduction.
+  // Minimum cost reduction comes from Armijo's criterion, plus a
+  // fudge factor to deal with the fact that our gradient and Hessian
+  // are noisy, having come from finite differences.
+  // TODO(vincekurtz): does this "fudge factor" idea make sense?
+  T L_min;
+  double fudge_factor = sqrt(std::numeric_limits<double>::epsilon());
+
   int i = 0;  // Iteration counter
   do {
     // Reduce alpha
@@ -597,9 +603,10 @@ std::tuple<double, int> TrajectoryOptimizer<T>::BacktrackingArmijoLinesearch(
     L_new = CalcCost(*state);  // N.B. this is also computing extra
                                // gradient data that we don't really need.
 
+    L_min = L + c * alpha * L_prime + fudge_factor;
+
     ++i;
-  } while ((L_new > L + c * alpha * L_prime) &&
-           (i < params_.max_linesearch_iterations));
+  } while ((L_new > L_min) && (i < params_.max_linesearch_iterations));
 
   return {alpha, i};
 }
@@ -684,6 +691,11 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
     DRAKE_DEMAND(Hchol.status() == PentaDiagonalFactorizationStatus::kSuccess);
     Hchol.SolveInPlace(&dq);
 
+    if (k == 150) {
+      // DEBUG: print linesearch residual so we can plot in python
+      PrintLinesearchResidual(iteration_costs[k], state.q(), dq, &ls_state);
+    }
+
     // Solve the linsearch
     // N.B. we use a separate state variable since we will need to compute
     // L(q+alpha*dq) (at the very least), and we don't want to change state.q
@@ -697,7 +709,7 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
                 << std::endl;
 
       // DEBUG: print linesearch residual so we can plot in python
-      PrintLinesearchResidual(iteration_costs[k], state.q(), dq, g, &ls_state);
+      PrintLinesearchResidual(iteration_costs[k], state.q(), dq, &ls_state);
 
       // We'll still record iteration data for playback later
       solution_data->solve_time = NAN;
