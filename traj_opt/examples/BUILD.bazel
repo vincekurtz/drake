@@ -16,6 +16,7 @@ drake_cc_binary(
     data = ["//examples/pendulum:prod_models"],
     test_rule_args = [
         "-num_steps=100",
+        "-visualize=false",
     ],
     deps = [
         "//common:find_resource",

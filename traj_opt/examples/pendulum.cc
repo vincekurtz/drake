@@ -1,4 +1,5 @@
 #include <chrono>
+#include <fstream>
 #include <iostream>
 #include <thread>
 
@@ -32,6 +33,10 @@ DEFINE_double(Qv, 0.1, "Running cost weight on the joint velocity.");
 DEFINE_double(R, 1.0, "Running cost weight on control inputs.");
 DEFINE_double(Qfq, 100.0, "Terminal cost weight on the joint angle.");
 DEFINE_double(Qfv, 1.0, "Terminal cost weight on the joint velocity.");
+DEFINE_bool(save_data, false, "Flag for writing solver data to a csv file.");
+DEFINE_bool(
+    visualize, true,
+    "Flag for displaying the optimal solution on the Drake visualizer.");
 
 using geometry::DrakeVisualizerd;
 using geometry::SceneGraph;
@@ -40,6 +45,37 @@ using multibody::MultibodyPlantConfig;
 using multibody::Parser;
 using systems::DiagramBuilder;
 using systems::Simulator;
+
+/**
+ * Save the solution data to a CSV file that we can process and make plots from
+ * later.
+ *
+ * @param solution_data struct containing iteration and timing data
+ */
+void save_to_csv(const SolutionData<double>& data) {
+  // Set file to write to
+  std::ofstream data_file;
+  data_file.open("pendulum_data.csv");
+
+  // Write a header
+  data_file
+      << "Iteration, Time, Cost, Linesearch Iterations, alpha, gradient norm\n";
+
+  const int num_iters = data.iteration_times.size();
+  for (int i = 0; i < num_iters; ++i) {
+    // Write the data
+    data_file << i << ", ";
+    data_file << data.iteration_times[i] << ", ";
+    data_file << data.iteration_costs[i] << ", ";
+    data_file << data.linesearch_iterations[i] << ", ";
+    data_file << data.linesearch_alphas[i] << ", ";
+    data_file << data.gradient_norm[i] << ", ";
+    data_file << "\n";
+  }
+
+  // Close the file
+  data_file.close();
+}
 
 /**
  * Just run a simple passive simulation of the pendulum, connected to the Drake
@@ -176,8 +212,15 @@ void solve_trajectory_optimization(double time_step, int num_steps) {
   std::cout << "Solved in " << solution_data.solve_time << " seconds."
             << std::endl;
 
+  // Save data to CSV, if requested
+  if (FLAGS_save_data) {
+    save_to_csv(solution_data);
+  }
+
   // Play back the result on the visualizer
-  play_back_trajectory(solution.q, time_step);
+  if (FLAGS_visualize) {
+    play_back_trajectory(solution.q, time_step);
+  }
 }
 
 int do_main() {
