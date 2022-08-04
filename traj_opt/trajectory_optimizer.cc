@@ -1,6 +1,7 @@
 #include "drake/traj_opt/trajectory_optimizer.h"
 
 #include <algorithm>
+#include <chrono>
 #include <iostream>
 #include <limits>
 
@@ -554,13 +555,14 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
   // Parameters
   // TODO(vincekurtz): set from arguments in constructor
   // const double delta = 1e-3;  // convergence test
-  const double max_iters = 10;
+  const double max_iters = 20;
 
   // Data
   // TODO(vincekurtz): return this data
   std::vector<double> iteration_costs;
-  std::vector<int> linesearch_iters;
-  // std::vector<double> iteration_times;
+  std::vector<int> linesearch_iterations;
+  std::vector<double> linesearch_alphas;
+  std::vector<double> iteration_times;
 
   // Allocate a state variable
   TrajectoryOptimizerState<double> state = CreateState();
@@ -577,14 +579,22 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
   VectorXd dq(num_vars);
 
   // Define printout data
-  std::cout << "---------------------------------------------------------" << std::endl;
-  std::cout << "|  iter  |   cost   |  alpha  |  LS_iters  |  time (s)  |" << std::endl;
-  std::cout << "---------------------------------------------------------" << std::endl;
-  
+  std::cout << "---------------------------------------------------------"
+            << std::endl;
+  std::cout << "|  iter  |   cost   |  alpha  |  LS_iters  |  time (s)  |"
+            << std::endl;
+  std::cout << "---------------------------------------------------------"
+            << std::endl;
+
+  // Allocate timing variables
+  auto iter_start_time = std::chrono::high_resolution_clock::now();
+  std::chrono::duration<double> iter_time;
 
   // Gauss-Newton iterations
   int k = 0;  // iteration counter
   do {
+    iter_start_time = std::chrono::high_resolution_clock::now();
+
     // Update the cache
     UpdateCache(state);
 
@@ -613,17 +623,24 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
       state.set_qt(state.q()[t] + alpha * dq.segment(t * nq, nq), t);
     }
 
+    ++k;
+    iter_time = std::chrono::high_resolution_clock::now() - iter_start_time;
+
     // Nice little printout of our problem data
     printf("| %6d ", k);
-    printf("| %8.3f ", iteration_costs[k]);
-    printf("| %6.4f ", alpha);
+    printf("| %8.3f ", iteration_costs[k - 1]);
+    printf("| %7.4f ", alpha);
     printf("| %6d     ", ls_iters);
-    printf("| %8.8f |\n", 0.123456789);
+    printf("| %8.8f |\n", iter_time.count());
 
-    ++k;
-  } while (k <= max_iters);
+    // Record data
+    linesearch_iterations.push_back(ls_iters);
+    linesearch_alphas.push_back(alpha);
+    iteration_times.push_back(iter_time.count());
+  } while (k < max_iters);
 
-  std::cout << "---------------------------------------------------------" << std::endl;
+  std::cout << "---------------------------------------------------------"
+            << std::endl;
 
   solution->q = state.q();
   return SolverFlag::kSuccess;
