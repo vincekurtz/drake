@@ -548,8 +548,8 @@ template <>
 SolverFlag TrajectoryOptimizer<double>::Solve(
     const std::vector<VectorXd>& q_guess,
     TrajectoryOptimizerSolution<double>* solution) const {
-  const int nq = plant().num_positions();
-  // TODO(vincekurtz): check that q0 = q_init
+  // The guess must be consistent with the initial condition
+  DRAKE_DEMAND(q_guess[0] == prob_.q_init);
 
   // Parameters
   // TODO(vincekurtz): set from arguments in constructor
@@ -559,7 +559,8 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
   // Data
   // TODO(vincekurtz): return this data
   std::vector<double> iteration_costs;
-  // std::vector<int> linesearch_iters;
+  std::vector<int> linesearch_iters;
+  // std::vector<double> iteration_times;
 
   // Allocate a state variable
   TrajectoryOptimizerState<double> state = CreateState();
@@ -569,10 +570,17 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
   TrajectoryOptimizerState<double> ls_state(state);
 
   // Allocate gradient, Hessian, and search direction
+  const int nq = plant().num_positions();
   const int num_vars = (num_steps() + 1) * nq;
   VectorXd g(num_vars);
   PentaDiagonalMatrix<double> H(num_steps() + 1, nq);
   VectorXd dq(num_vars);
+
+  // Define printout data
+  std::cout << "---------------------------------------------------------" << std::endl;
+  std::cout << "|  iter  |   cost   |  alpha  |  LS_iters  |  time (s)  |" << std::endl;
+  std::cout << "---------------------------------------------------------" << std::endl;
+  
 
   // Gauss-Newton iterations
   int k = 0;  // iteration counter
@@ -606,14 +614,16 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
     }
 
     // Nice little printout of our problem data
-    std::cout << "-------------------------------------------" << std::endl;
-    std::cout << "Iteration: " << k << " / " << max_iters << std::endl;
-    std::cout << "Cost     : " << iteration_costs[k] << std::endl;
-    std::cout << "alpha    : " << alpha << std::endl;
-    std::cout << "LS iters : " << ls_iters << std::endl;
+    printf("| %6d ", k);
+    printf("| %8.3f ", iteration_costs[k]);
+    printf("| %6.4f ", alpha);
+    printf("| %6d     ", ls_iters);
+    printf("| %8.8f |\n", 0.123456789);
 
     ++k;
   } while (k <= max_iters);
+
+  std::cout << "---------------------------------------------------------" << std::endl;
 
   solution->q = state.q();
   return SolverFlag::kSuccess;
