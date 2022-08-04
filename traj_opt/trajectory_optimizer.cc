@@ -529,6 +529,33 @@ void TrajectoryOptimizer<T>::UpdateCache(
 }
 
 template <typename T>
+void TrajectoryOptimizer<T>::PrintLinesearchResidual(
+    const T L, const std::vector<VectorX<T>>& q, const VectorX<T>& dq,
+    const VectorX<T>& g, TrajectoryOptimizerState<T>* state) const {
+  const int nq = plant().num_positions();
+  (void) g;
+  std::cout << std::endl;
+  std::cout << "==================================" << std::endl;
+  std::cout << "Linsearch Residual: " << std::endl;
+  double d_alpha = 0.01;
+  double alpha = 0.0;
+
+  while (alpha <= 1.0) {
+    // Compute phi(alpha) = L - L(q + alpha * dq)
+    for (int t = 1; t <= num_steps(); ++t) {
+      state->set_qt(q[t] + alpha * dq.segment(t * nq, nq), t);
+    }
+    std::cout << CalcCost(*state) - L << ", ";
+
+    alpha += d_alpha;
+  }
+  std::cout << std::endl;
+
+  std::cout << "==================================" << std::endl;
+  std::cout << std::endl;
+}
+
+template <typename T>
 std::tuple<double, int> TrajectoryOptimizer<T>::Linesearch(
     const T L, const std::vector<VectorX<T>>& q, const VectorX<T>& dq,
     const VectorX<T>& g, TrajectoryOptimizerState<T>* state) const {
@@ -549,7 +576,7 @@ std::tuple<double, int> TrajectoryOptimizer<T>::BacktrackingArmijoLinesearch(
   const int nq = plant().num_positions();
 
   // TODO(vincekurtz): set these in SolverOptions
-  const double c = 1e-4;
+  const double c = 1e-3;
   const double rho = 0.9;
 
   double alpha = 1.0 / rho;        // get alpha = 1 on first iteration
@@ -657,9 +684,6 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
     DRAKE_DEMAND(Hchol.status() == PentaDiagonalFactorizationStatus::kSuccess);
     Hchol.SolveInPlace(&dq);
 
-    // DEBUG
-    std::cout << g.transpose() * dq << std::endl;
-
     // Solve the linsearch
     // N.B. we use a separate state variable since we will need to compute
     // L(q+alpha*dq) (at the very least), and we don't want to change state.q
@@ -671,6 +695,9 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
       std::cout << "LINESEARCH FAILED" << std::endl;
       std::cout << "Reached maximum linesearch iterations (" << ls_iters << ")."
                 << std::endl;
+
+      // DEBUG: print linesearch residual so we can plot in python
+      PrintLinesearchResidual(iteration_costs[k], state.q(), dq, g, &ls_state);
 
       // We'll still record iteration data for playback later
       solution_data->solve_time = NAN;

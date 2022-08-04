@@ -75,5 +75,4 @@ ax5.set_yscale("log")
 ax5.set_xlabel("Iteration")
 ax5.xaxis.set_major_locator(MaxNLocator(integer=True))
 
-
 plt.show()

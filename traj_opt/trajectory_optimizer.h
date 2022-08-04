@@ -339,6 +339,19 @@ class TrajectoryOptimizer {
                                      TrajectoryOptimizerState<T>* state) const;
 
   /**
+   * Debugging function which prints the line-search residual
+   *
+   *    phi(alpha) = L(q + alpha*dq)
+   *
+   * for evenly-spaced values of alpha between 0 and 1.
+   *
+   * This allows us to make a nice plot in python after the fact
+   */
+  void PrintLinesearchResidual(const T L, const std::vector<VectorX<T>>& q,
+                               const VectorX<T>& dq, const VectorX<T>& g,
+                               TrajectoryOptimizerState<T>* state) const;
+
+  /**
    * Simple backtracking linesearch strategy to find alpha that satisfies
    *
    *    L(q + alpha*dq) < L(q) - c*g'*dq
