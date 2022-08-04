@@ -29,5 +29,29 @@ struct TrajectoryOptimizerSolution {
   std::vector<VectorX<T>> tau;
 };
 
+/**
+ * A container for data about the solve process
+ */
+template <typename T>
+struct SolutionData {
+  // Total solve time
+  double solve_time;
+
+  // Time for each iteration
+  std::vector<double> iteration_times;
+
+  // Cost at each iteration
+  std::vector<T> iteration_costs;
+
+  // Number of linesearch iterations for each outer iteration
+  std::vector<int> linesearch_iterations;
+
+  // Linsearch parameter alpha for each iteration
+  std::vector<double> linesearch_alphas;
+
+  // Norm of the gradient at each iteration
+  std::vector<T> gradient_norm;
+};
+
 }  // namespace traj_opt
 }  // namespace drake

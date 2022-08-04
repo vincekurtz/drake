@@ -557,8 +557,9 @@ std::tuple<double, int> TrajectoryOptimizer<T>::Linesearch(
 }
 
 template <typename T>
-SolverFlag TrajectoryOptimizer<T>::Solve(
-    const std::vector<VectorX<T>>&, TrajectoryOptimizerSolution<T>*) const {
+SolverFlag TrajectoryOptimizer<T>::Solve(const std::vector<VectorX<T>>&,
+                                         TrajectoryOptimizerSolution<T>*,
+                                         SolutionData<T>*) const {
   throw std::runtime_error(
       "TrajectoryOptimizer::Solve only supports T=double.");
 }
@@ -566,21 +567,30 @@ SolverFlag TrajectoryOptimizer<T>::Solve(
 template <>
 SolverFlag TrajectoryOptimizer<double>::Solve(
     const std::vector<VectorXd>& q_guess,
-    TrajectoryOptimizerSolution<double>* solution) const {
+    TrajectoryOptimizerSolution<double>* solution,
+    SolutionData<double>* solution_data
+    ) const {
   // The guess must be consistent with the initial condition
   DRAKE_DEMAND(q_guess[0] == prob_.q_init);
 
+  // solution_data must be empty
+  DRAKE_DEMAND(solution_data->iteration_times.size() == 0);
+  DRAKE_DEMAND(solution_data->iteration_costs.size() == 0);
+  DRAKE_DEMAND(solution_data->linesearch_iterations.size() == 0);
+  DRAKE_DEMAND(solution_data->linesearch_alphas.size() == 0);
+  DRAKE_DEMAND(solution_data->gradient_norm.size() == 0);
+
   // Parameters
   // TODO(vincekurtz): set from arguments in constructor
-  // const double delta = 1e-3;  // convergence test
   const double max_iters = 20;
 
-  // Data
-  // TODO(vincekurtz): return this data
-  std::vector<double> iteration_costs;
-  std::vector<int> linesearch_iterations;
-  std::vector<double> linesearch_alphas;
-  std::vector<double> iteration_times;
+  // Detailed solution data
+  std::vector<double>& iteration_times = solution_data->iteration_times;
+  std::vector<double>& iteration_costs = solution_data->iteration_costs;
+  std::vector<int>& linesearch_iterations =
+      solution_data->linesearch_iterations;
+  std::vector<double>& linesearch_alphas = solution_data->linesearch_alphas;
+  std::vector<double>& gradient_norm = solution_data->gradient_norm;
 
   // Allocate a state variable
   TrajectoryOptimizerState<double> state = CreateState();
@@ -605,8 +615,10 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
             << std::endl;
 
   // Allocate timing variables
+  auto start_time = std::chrono::high_resolution_clock::now();
   auto iter_start_time = std::chrono::high_resolution_clock::now();
   std::chrono::duration<double> iter_time;
+  std::chrono::duration<double> solve_time;
 
   // Gauss-Newton iterations
   int k = 0;  // iteration counter
@@ -651,14 +663,19 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
     printf("| %6d     ", ls_iters);
     printf("| %8.8f |\n", iter_time.count());
 
-    // Record data
+    // Record iteration data
     linesearch_iterations.push_back(ls_iters);
     linesearch_alphas.push_back(alpha);
     iteration_times.push_back(iter_time.count());
+    gradient_norm.push_back(g.norm());
   } while (k < max_iters);
 
   std::cout << "---------------------------------------------------------"
             << std::endl;
+
+  // Record the total solve time
+  solve_time = std::chrono::high_resolution_clock::now() - start_time;
+  solution_data->solve_time = solve_time.count();
 
   solution->q = state.q();
   return SolverFlag::kSuccess;
