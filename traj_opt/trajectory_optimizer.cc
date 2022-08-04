@@ -1,20 +1,20 @@
 #include "drake/traj_opt/trajectory_optimizer.h"
 
-#include "drake/traj_opt/penta_diagonal_solver.h"
-
 #include <algorithm>
 #include <iostream>
 #include <limits>
 
+#include "drake/traj_opt/penta_diagonal_solver.h"
+
 namespace drake {
 namespace traj_opt {
 
+using internal::PentaDiagonalFactorization;
+using internal::PentaDiagonalFactorizationStatus;
 using multibody::Joint;
 using multibody::JointIndex;
 using multibody::MultibodyPlant;
 using systems::System;
-using internal::PentaDiagonalFactorization;
-using internal::PentaDiagonalFactorizationStatus;
 
 template <typename T>
 TrajectoryOptimizer<T>::TrajectoryOptimizer(const MultibodyPlant<T>* plant,
@@ -502,7 +502,7 @@ void TrajectoryOptimizer<T>::UpdateCache(
 }
 
 template <typename T>
-double TrajectoryOptimizer<T>::Linesearch(
+std::tuple<double, int> TrajectoryOptimizer<T>::Linesearch(
     const T L, const std::vector<VectorX<T>>& q, const VectorX<T>& dq,
     const VectorX<T>& g, TrajectoryOptimizerState<T>* state) const {
   // For now we'll just do a simple backtracking linesearch
@@ -513,14 +513,15 @@ double TrajectoryOptimizer<T>::Linesearch(
   const double c = 1e-4;
   const double rho = 0.9;
 
-  double alpha = 1.0 / rho;   // get alpha = 1 on first iteration
+  double alpha = 1.0 / rho;        // get alpha = 1 on first iteration
   T L_prime = g.transpose() * dq;  // gradient of L w.r.t. alpha
-  T L_new;     // L(q + alpha * dq)
+  T L_new;                         // L(q + alpha * dq)
 
-  int i = 0;   // Iteration counter
+  int i = 0;  // Iteration counter
   do {
     // Reduce alpha
-    // N.B. we start with alpha = 1/rho, so we get alpha = 1 on the first iteration.
+    // N.B. we start with alpha = 1/rho, so we get alpha = 1 on the first
+    // iteration.
     alpha *= rho;
 
     // Compute L_ls = L(q + alpha * dq)
@@ -528,20 +529,19 @@ double TrajectoryOptimizer<T>::Linesearch(
       state->set_qt(q[t] + alpha * dq.segment(t * nq, nq), t);
     }
     L_new = CalcCost(*state);  // N.B. this is also computing extra
-                              // gradient data that we don't really need.
+                               // gradient data that we don't really need.
 
     ++i;
-
   } while (L_new >= L - c * L_prime);
 
-  std::cout << alpha << std::endl;
-  return alpha;
+  return {alpha, i};
 }
 
 template <typename T>
-SolverFlag TrajectoryOptimizer<T>::Solve(const std::vector<VectorX<T>>&,
-                 TrajectoryOptimizerSolution<T>*) const {
-  throw std::runtime_error("TrajectoryOptimizer::Solve only supports T=double.");
+SolverFlag TrajectoryOptimizer<T>::Solve(
+    const std::vector<VectorX<T>>&, TrajectoryOptimizerSolution<T>*) const {
+  throw std::runtime_error(
+      "TrajectoryOptimizer::Solve only supports T=double.");
 }
 
 template <>
@@ -553,13 +553,13 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
 
   // Parameters
   // TODO(vincekurtz): set from arguments in constructor
-  //const double delta = 1e-3;  // convergence test
-  const double max_iters = 5;
+  // const double delta = 1e-3;  // convergence test
+  const double max_iters = 10;
 
   // Data
   // TODO(vincekurtz): return this data
-  //std::vector<double> iter_costs;
-  //std::vector<int> linesearch_iters;
+  std::vector<double> iteration_costs;
+  // std::vector<int> linesearch_iters;
 
   // Allocate a state variable
   TrajectoryOptimizerState<double> state = CreateState();
@@ -568,11 +568,11 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
   // Allocate a separate state variable for linesearch
   TrajectoryOptimizerState<double> ls_state(state);
 
-  // Allocate cost, gradient, and Hessian 
-  double L;
-  //double L_last = CalcCost(state);
-  VectorXd g((num_steps() + 1) * nq);
+  // Allocate gradient, Hessian, and search direction
+  const int num_vars = (num_steps() + 1) * nq;
+  VectorXd g(num_vars);
   PentaDiagonalMatrix<double> H(num_steps() + 1, nq);
+  VectorXd dq(num_vars);
 
   // Gauss-Newton iterations
   int k = 0;  // iteration counter
@@ -581,34 +581,39 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
     UpdateCache(state);
 
     // Compute the total cost
-    L = CalcCost(state);
-    std::cout << L << std::endl;
+    iteration_costs.push_back(CalcCost(state));
 
     // Compute gradient and Hessian
     CalcGradient(state, &g);
     CalcHessian(state, &H);
 
-    // Solve for search direction
-    VectorXd delta_q(-g);
+    // Solve for search direction H*dq = -g
+    dq = -g;
     PentaDiagonalFactorization Hchol(H);
     DRAKE_DEMAND(Hchol.status() == PentaDiagonalFactorizationStatus::kSuccess);
-    Hchol.SolveInPlace(&delta_q);
+    Hchol.SolveInPlace(&dq);
 
-    ///////////////////////////// LINESEARCH /////////////////////////////////
-    // TODO(vincekurtz): abstract this into another function
-    // TODO(vincekurtz): add solver options to choose between linesearch methods
-    double alpha = Linesearch(L, state.q(), delta_q, g, &ls_state);
-    ///////////////////////// END LINESEARCH /////////////////////////////////
+    // Solve the linsearch
+    // N.B. we use a separate state variable since we will need to compute
+    // L(q+alpha*dq) (at the very least), and we don't want to change state.q
+    auto [alpha, ls_iters] =
+        Linesearch(iteration_costs[k], state.q(), dq, g, &ls_state);
 
-    // Update the guess
-    for (int t=1; t<=num_steps(); ++t) {
+    // Update the decision variables
+    for (int t = 1; t <= num_steps(); ++t) {
       // q[t] = q[t] + alpha * dq[t]
-      state.set_qt(state.q()[t] + alpha * delta_q.segment(t * nq, nq), t);
+      state.set_qt(state.q()[t] + alpha * dq.segment(t * nq, nq), t);
     }
 
+    // Nice little printout of our problem data
+    std::cout << "-------------------------------------------" << std::endl;
+    std::cout << "Iteration: " << k << " / " << max_iters << std::endl;
+    std::cout << "Cost     : " << iteration_costs[k] << std::endl;
+    std::cout << "alpha    : " << alpha << std::endl;
+    std::cout << "LS iters : " << ls_iters << std::endl;
+
     ++k;
-  }
-  while ( k <= max_iters );
+  } while (k <= max_iters);
 
   solution->q = state.q();
   return SolverFlag::kSuccess;

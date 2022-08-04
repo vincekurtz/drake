@@ -1,6 +1,7 @@
 #pragma once
 
 #include <memory>
+#include <tuple>
 #include <vector>
 
 #include "drake/common/eigen_types.h"
@@ -310,21 +311,24 @@ class TrajectoryOptimizer {
                               EigenPtr<VectorX<T>> g) const;
 
   /**
-   * Compute the linesearch parameter alpha given a linesearch direction 
+   * Compute the linesearch parameter alpha given a linesearch direction
    * dq. In other words, approximately solve the optimization problem
-   * 
+   *
    *      min_{alpha} L(q + alpha*dq).
    *
-   * @param L the total cost L(q) at the last iteration 
-   * @param q sequence of generalized positions from last iteration (our decision variables)
+   * @param L the total cost L(q) at the last iteration
+   * @param q sequence of generalized positions from last iteration (our
+   * decision variables)
    * @param dq search direction, stacked as one large vector
    * @param g gradient of the overall cost
    * @param state TrajectoryOptimizerState used for computing L(q + alpha*dq)
-   * @return double alpha, the linesearch parameter
+   * @return double, the linesearch parameter alpha
+   * @return int, the number of linesearch iterations
    */
-  double Linesearch(const T L, const std::vector<VectorX<T>>& q, const VectorX<T>& dq,
-                    const VectorX<T>& g,
-                    TrajectoryOptimizerState<T>* state) const;
+  std::tuple<double, int> Linesearch(const T L,
+                                     const std::vector<VectorX<T>>& q,
+                                     const VectorX<T>& dq, const VectorX<T>& g,
+                                     TrajectoryOptimizerState<T>* state) const;
 
   // A model of the system that we are trying to find an optimal trajectory for.
   const MultibodyPlant<T>* plant_;

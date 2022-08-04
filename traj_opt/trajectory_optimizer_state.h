@@ -66,8 +66,7 @@ class TrajectoryOptimizerState {
    * @param nv number of multibody velocities
    * @param nq number of multipody positions
    */
-  TrajectoryOptimizerState(const int num_steps,
-                           const MultibodyPlant<T>& plant)
+  TrajectoryOptimizerState(const int num_steps, const MultibodyPlant<T>& plant)
       : workspace(num_steps, plant),
         cache_(num_steps, plant.num_velocities(), plant.num_positions()) {
     q_.assign(num_steps + 1, VectorX<T>(plant.num_positions()));
@@ -91,8 +90,9 @@ class TrajectoryOptimizerState {
   }
 
   /**
-   * Setter for the generalized position at a given time step. Invalidates the cache.
-   * 
+   * Setter for the generalized position at a given time step. Invalidates the
+   * cache.
+   *
    * @param qt generalized position
    * @param t the time step
    */
