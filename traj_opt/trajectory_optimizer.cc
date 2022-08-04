@@ -37,7 +37,25 @@ TrajectoryOptimizer<T>::TrajectoryOptimizer(const MultibodyPlant<T>* plant,
 template <typename T>
 T TrajectoryOptimizer<T>::CalcCost(
     const TrajectoryOptimizerState<T>& state) const {
-  if (!state.cache().up_to_date) UpdateCache(state);
+  if (!state.cache().up_to_date) {
+    // Only update the parts of the cache that we will actually use.
+    // Don't update any of the partial derivatives, since those
+    // are expensive to compute.
+    TrajectoryOptimizerCache<T>& cache = state.mutable_cache();
+    TrajectoryOptimizerWorkspace<T>& workspace = state.workspace;
+    std::vector<VectorX<T>>& v = cache.v;
+    std::vector<VectorX<T>>& a = cache.a;
+    std::vector<VectorX<T>>& tau = cache.tau;
+
+    const std::vector<VectorX<T>>& q = state.q();
+    CalcVelocities(q, &v);
+    CalcAccelerations(v, &a);
+    CalcInverseDynamics(q, v, a, &workspace, &tau);
+
+    // TODO(vincekurtz): consider adding an additional flag to state for whether
+    // v, a, tau are updated, and whether v_partials and id_partials are
+    // updated.
+  }
   return CalcCost(state.q(), state.cache().v, state.cache().tau,
                   &state.workspace);
 }
