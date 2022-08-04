@@ -2,6 +2,8 @@
 #include <iostream>
 #include <thread>
 
+#include <gflags/gflags.h>
+
 #include "drake/common/find_resource.h"
 #include "drake/geometry/drake_visualizer.h"
 #include "drake/geometry/scene_graph.h"
@@ -17,6 +19,19 @@ namespace drake {
 namespace traj_opt {
 namespace examples {
 namespace pendulum {
+
+// Command line options
+DEFINE_double(time_step, 1e-2,
+              "Discretization timestep for the optimizer (seconds).");
+DEFINE_int32(num_steps, 200,
+             "Number of timesteps in the optimization problem.");
+DEFINE_int32(max_iters, 20,
+             "Maximum number of Gauss-Newton iterations to take.");
+DEFINE_double(Qq, 0.0, "Running cost weight on the joint angle.");
+DEFINE_double(Qv, 0.1, "Running cost weight on the joint velocity.");
+DEFINE_double(R, 1.0, "Running cost weight on control inputs.");
+DEFINE_double(Qfq, 100.0, "Terminal cost weight on the joint angle.");
+DEFINE_double(Qfv, 1.0, "Terminal cost weight on the joint velocity.");
 
 using geometry::DrakeVisualizerd;
 using geometry::SceneGraph;
@@ -130,19 +145,19 @@ void solve_trajectory_optimization(double time_step, int num_steps) {
   opt_prob.num_steps = num_steps;
   opt_prob.q_init = Vector1d(0.0);
   opt_prob.v_init = Vector1d(0.0);
-  opt_prob.Qq = 0.1 * MatrixXd::Identity(1, 1);
-  opt_prob.Qv = 0.0 * MatrixXd::Identity(1, 1);
-  opt_prob.Qf_q = 100.0 * MatrixXd::Identity(1, 1);
-  opt_prob.Qf_v = 1.0 * MatrixXd::Identity(1, 1);
-  opt_prob.R = 1.0 * MatrixXd::Identity(1, 1);
+  opt_prob.Qq = FLAGS_Qq * MatrixXd::Identity(1, 1);
+  opt_prob.Qv = FLAGS_Qv * MatrixXd::Identity(1, 1);
+  opt_prob.Qf_q = FLAGS_Qfq * MatrixXd::Identity(1, 1);
+  opt_prob.Qf_v = FLAGS_Qfv * MatrixXd::Identity(1, 1);
+  opt_prob.R = FLAGS_R * MatrixXd::Identity(1, 1);
   opt_prob.q_nom = Vector1d(M_PI);
-  opt_prob.v_nom = Vector1d(-0.1);
+  opt_prob.v_nom = Vector1d(0.0);
 
   // Set our solver options
   SolverParameters solver_params;
   solver_params.linesearch_method = LinesearchMethod::kBacktrackingArmijo;
-  solver_params.max_iterations = 20;
-  solver_params.max_linesearch_iterations = 10;
+  solver_params.max_iterations = FLAGS_max_iters;
+  solver_params.max_linesearch_iterations = 100;
 
   // Establish an initial guess
   std::vector<VectorXd> q_guess;
@@ -157,7 +172,7 @@ void solve_trajectory_optimization(double time_step, int num_steps) {
   SolutionData<double> solution_data;
 
   SolverFlag status = optimizer.Solve(q_guess, &solution, &solution_data);
-  DRAKE_DEMAND(status == SolverFlag::kSuccess);
+  DRAKE_ASSERT(status == SolverFlag::kSuccess);
   std::cout << "Solved in " << solution_data.solve_time << " seconds."
             << std::endl;
 
@@ -170,7 +185,7 @@ int do_main() {
   // run_passive_simulation(1e-2, 2.0);
 
   // Solve an optimization problem to swing-up the pendulum
-  solve_trajectory_optimization(1e-2, 200);
+  solve_trajectory_optimization(FLAGS_time_step, FLAGS_num_steps);
 
   return 0;
 }
@@ -180,4 +195,7 @@ int do_main() {
 }  // namespace traj_opt
 }  // namespace drake
 
-int main() { return drake::traj_opt::examples::pendulum::do_main(); }
+int main(int argc, char* argv[]) {
+  gflags::ParseCommandLineFlags(&argc, &argv, true);
+  return drake::traj_opt::examples::pendulum::do_main();
+}
