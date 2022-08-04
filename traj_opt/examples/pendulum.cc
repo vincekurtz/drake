@@ -149,8 +149,13 @@ void solve_trajectory_optimization(double time_step, int num_steps) {
   TrajectoryOptimizer<double> optimizer(&plant, opt_prob);
   TrajectoryOptimizerSolution<double> solution;
 
+  auto start_time = std::chrono::high_resolution_clock::now();
   SolverFlag status = optimizer.Solve(q_guess, &solution);
   DRAKE_DEMAND(status == SolverFlag::kSuccess);
+  std::chrono::duration<double> solve_time =
+      std::chrono::high_resolution_clock::now() - start_time;
+
+  std::cout << "Solved in " << solve_time.count() << " seconds." << std::endl;
 
   // Play back the result on the visualizer
   play_back_trajectory(solution.q, time_step);
