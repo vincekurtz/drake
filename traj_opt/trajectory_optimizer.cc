@@ -536,10 +536,10 @@ void TrajectoryOptimizer<T>::PrintLinesearchResidual(
   std::cout << std::endl;
   std::cout << "==================================" << std::endl;
   std::cout << "Linsearch Residual: " << std::endl;
-  double d_alpha = 0.01;
+  double d_alpha = 0.5;
   double alpha = 0.0;
 
-  while (alpha <= 5.0) {
+  while (alpha <= 50.0) {
     // Compute phi(alpha) = L - L(q + alpha * dq)
     for (int t = 1; t <= num_steps(); ++t) {
       state->set_qt(q[t] + alpha * dq.segment(t * nq, nq), t);
@@ -574,7 +574,7 @@ std::tuple<double, int> TrajectoryOptimizer<T>::BacktrackingArmijoLinesearch(
   const int nq = plant().num_positions();
 
   // TODO(vincekurtz): set these in SolverOptions
-  const double c = 1e-3;
+  const double c = 1e-1;
   const double rho = 0.9;
 
   double alpha = 1.0 / rho;        // get alpha = 1 on first iteration
@@ -597,7 +597,7 @@ std::tuple<double, int> TrajectoryOptimizer<T>::BacktrackingArmijoLinesearch(
     alpha *= rho;
 
     // Compute L_ls = L(q + alpha * dq)
-    for (int t = 1; t <= num_steps(); ++t) {
+    for (int t = 0; t <= num_steps(); ++t) {
       state->set_qt(q[t] + alpha * dq.segment(t * nq, nq), t);
     }
     L_new = CalcCost(*state);  // N.B. this is also computing extra
