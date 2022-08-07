@@ -646,12 +646,19 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcCostFromState) {
   opt_prob.q_nom = Vector1d(M_PI);
   opt_prob.v_nom = Vector1d(0.0);
 
-  // Create some fake data
+  // Create some fake data, which are very close to optimality.
   std::vector<VectorXd> q;
-  q.push_back(opt_prob.q_init);
-  for (int t = 1; t <= num_steps; ++t) {
-    q.push_back(Vector1d(0.0 - 0.1 * t));
-  }
+  q.push_back(Vector1d(0.0000000000000000000000000));
+  q.push_back(Vector1d(0.0950285641187840757204697));
+  q.push_back(Vector1d(0.2659896360172592788551071));
+  q.push_back(Vector1d(0.4941147113506765831125733));
+  q.push_back(Vector1d(0.7608818755930255584019051));
+  q.push_back(Vector1d(1.0479359055822168311777887));
+  q.push_back(Vector1d(1.3370090901260500704239575));
+  q.push_back(Vector1d(1.6098424281109515732168802));
+  q.push_back(Vector1d(1.8481068641834854648919872));
+  q.push_back(Vector1d(2.0333242222438583368671061));
+  q.push_back(Vector1d(2.1467874956452459578315484));
 
   // Compute the cost as a function of state
   TrajectoryOptimizer<double> optimizer(&plant, opt_prob);
@@ -692,7 +699,7 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcCostFromState) {
   L_gt += (qt - opt_prob.q_nom(0)) * opt_prob.Qf_q(0) * (qt - opt_prob.q_nom(0));
   L_gt += (vt - opt_prob.v_nom(0)) * opt_prob.Qf_v(0) * (vt - opt_prob.v_nom(0));
 
-  const double kTolerance = std::numeric_limits<double>::epsilon() / dt;
+  const double kTolerance = 100 * std::numeric_limits<double>::epsilon();
   EXPECT_NEAR(L, L_gt, kTolerance);
 }
 
