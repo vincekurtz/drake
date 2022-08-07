@@ -62,8 +62,8 @@ T TrajectoryOptimizer<T>::CalcCost(
     CalcInverseDynamics(q, v, a, &workspace, &tau);
 
     // TODO(vincekurtz): consider adding an additional flag to state for whether
-    // v, a, tau are updated, and whether v_partials and id_partials are
-    // updated.
+    // v, a, tau are up to date, and whether v_partials and id_partials are
+    // up to date.
   }
   return CalcCost(state.q(), state.cache().v, state.cache().tau,
                   &state.workspace);
@@ -548,7 +548,7 @@ void TrajectoryOptimizer<T>::SaveLinesearchResidual(
     // Record the linesearch parameter alpha
     data_file << alpha << ", ";
 
-    // Record the linesearch residual 
+    // Record the linesearch residual
     // phi(alpha) = L - L(q + alpha * dq)
     for (int t = 1; t <= num_steps(); ++t) {
       state->set_qt(q[t] + alpha * dq.segment(t * nq, nq), t);
@@ -589,12 +589,7 @@ std::tuple<double, int> TrajectoryOptimizer<T>::BacktrackingArmijoLinesearch(
   T L_new;                         // L(q + alpha * dq)
 
   // Minimum acceptable cost reduction.
-  // Minimum cost reduction comes from Armijo's criterion, plus a
-  // fudge factor to deal with the fact that our gradient and Hessian
-  // are noisy, having come from finite differences.
-  // TODO(vincekurtz): does this "fudge factor" idea make sense?
   T L_min;
-  double fudge_factor = 0; //sqrt(std::numeric_limits<double>::epsilon());
 
   int i = 0;  // Iteration counter
   do {
@@ -607,10 +602,9 @@ std::tuple<double, int> TrajectoryOptimizer<T>::BacktrackingArmijoLinesearch(
     for (int t = 0; t <= num_steps(); ++t) {
       state->set_qt(q[t] + alpha * dq.segment(t * nq, nq), t);
     }
-    L_new = CalcCost(*state);  // N.B. this is also computing extra
-                               // gradient data that we don't really need.
+    L_new = CalcCost(*state);
 
-    L_min = L + c * alpha * L_prime + fudge_factor;
+    L_min = L + c * alpha * L_prime;
 
     ++i;
   } while ((L_new > L_min) && (i < params_.max_linesearch_iterations));

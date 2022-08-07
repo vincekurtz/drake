@@ -619,47 +619,78 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumDtauDq) {
 }
 
 /**
- * Quick sanity check on our computation of costs using the state abstraction.
+ * Check the precision of our computation of costs using the state abstraction.
  */
 GTEST_TEST(TrajectoryOptimizerTest, CalcCostFromState) {
   const int num_steps = 10;
-  const double dt = 1e-3;
+  const double dt = 5e-2;
 
-  // Set up a system model
+  // Set up a system model: pendulum w/o gravity yields a linear system
   MultibodyPlant<double> plant(dt);
   const std::string urdf_file =
       FindResourceOrThrow("drake/examples/pendulum/Pendulum.urdf");
   Parser(&plant).AddAllModelsFromFile(urdf_file);
+  plant.mutable_gravity_field().set_gravity_vector(VectorXd::Zero(3));
   plant.Finalize();
 
   // Set up a toy optimization problem
   ProblemDefinition opt_prob;
   opt_prob.num_steps = num_steps;
   opt_prob.q_init = Vector1d(0.0);
-  opt_prob.v_init = Vector1d(-0.1);
+  opt_prob.v_init = Vector1d(0.0);
   opt_prob.Qq = 0.0 * MatrixXd::Identity(1, 1);
-  opt_prob.Qv = 1.0 * MatrixXd::Identity(1, 1);
-  opt_prob.Qf_q = 0.0 * MatrixXd::Identity(1, 1);
+  opt_prob.Qv = 0.1 * MatrixXd::Identity(1, 1);
+  opt_prob.Qf_q = 10.0 * MatrixXd::Identity(1, 1);
   opt_prob.Qf_v = 1.0 * MatrixXd::Identity(1, 1);
-  opt_prob.R = 0.0 * MatrixXd::Identity(1, 1);
-  opt_prob.q_nom = Vector1d(0.1);
-  opt_prob.v_nom = Vector1d(0.9);
+  opt_prob.R = 1.0 * MatrixXd::Identity(1, 1);
+  opt_prob.q_nom = Vector1d(M_PI);
+  opt_prob.v_nom = Vector1d(0.0);
 
   // Create some fake data
   std::vector<VectorXd> q;
   q.push_back(opt_prob.q_init);
   for (int t = 1; t <= num_steps; ++t) {
-    q.push_back(Vector1d(0.0 - 0.1 * dt * t));
+    q.push_back(Vector1d(0.0 - 0.1 * t));
   }
 
-  // Create an optimizer
+  // Compute the cost as a function of state
   TrajectoryOptimizer<double> optimizer(&plant, opt_prob);
   TrajectoryOptimizerState<double> state = optimizer.CreateState();
   state.set_q(q);
-
-  // Evaluate the cost
   double L = optimizer.CalcCost(state);
-  double L_gt = num_steps * dt + 1;
+
+  // Compute the ground truth cost using an analytical model of the (linear)
+  // pendulum dynamics.
+  //
+  //     m*l^2*a + m*g*l*sin(q) + b*v = tau
+  //
+  // where q is the joint angle and a = dv/dt, v = dq/dt, and g=0.
+  const double m = 1.0;
+  const double l = 0.5;
+  const double b = 0.1;
+
+  double L_gt = 0;
+  double qt;
+  double vt = opt_prob.v_init[0];
+  double vp;
+  double ut;
+  for (int t=0; t<num_steps; ++t) {
+    qt = q[t][0];
+    if (t > 0) {
+      vt = (q[t][0] - q[t - 1][0]) / dt;
+    }
+    vp = (q[t+1][0] - q[t][0]) / dt;
+    ut = m*l*l*(vp-vt)/dt + b * vp;
+
+    L_gt += dt * (qt - opt_prob.q_nom(0)) * opt_prob.Qq(0) * (qt - opt_prob.q_nom(0));
+    L_gt += dt * (vt - opt_prob.v_nom(0)) * opt_prob.Qv(0) * (vt - opt_prob.v_nom(0));
+    L_gt += dt * ut * opt_prob.R(0) * ut;
+  }
+
+  qt = q[num_steps][0];
+  vt = (q[num_steps][0] - q[num_steps-1][0])/dt;
+  L_gt += (qt - opt_prob.q_nom(0)) * opt_prob.Qf_q(0) * (qt - opt_prob.q_nom(0));
+  L_gt += (vt - opt_prob.v_nom(0)) * opt_prob.Qf_v(0) * (vt - opt_prob.v_nom(0));
 
   const double kTolerance = std::numeric_limits<double>::epsilon() / dt;
   EXPECT_NEAR(L, L_gt, kTolerance);

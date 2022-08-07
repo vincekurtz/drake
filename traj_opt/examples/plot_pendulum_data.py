@@ -18,7 +18,7 @@ drake_root = "/home/vjkurtz/builds/drake/"
 
 # Define our optimization problem
 dt = 5e-2
-num_steps = 50
+num_steps = 10
 max_iters = 51
 gravity = False
 
