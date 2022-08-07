@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <fstream>
 #include <iostream>
 #include <limits>
 
@@ -529,31 +530,34 @@ void TrajectoryOptimizer<T>::UpdateCache(
 }
 
 template <typename T>
-void TrajectoryOptimizer<T>::PrintLinesearchResidual(
+void TrajectoryOptimizer<T>::SaveLinesearchResidual(
     const T L, const std::vector<VectorX<T>>& q, const VectorX<T>& dq,
     TrajectoryOptimizerState<T>* state) const {
-  // TODO(vincekurtz): save to a CSV file instead, including sampled alpha 
-  // and sampled dq values
   const int nq = plant().num_positions();
-  std::cout << std::endl;
-  std::cout << "==================================" << std::endl;
-  std::cout << "Linsearch Residual: " << std::endl;
-  std::cout << "dq: " << dq << std::endl << std::endl;
-  double d_alpha = 0.01;
-  double alpha = -1.0;
 
-  while (alpha <= 1.0) {
-    // Compute phi(alpha) = L - L(q + alpha * dq)
+  double alpha_min = -0.2;
+  double alpha_max = 1.2;
+  double dalpha = 0.01;
+
+  std::ofstream data_file;
+  data_file.open("linesearch_data.csv");
+  data_file << "alpha, residual\n";  // header
+
+  double alpha = alpha_min;
+  while (alpha <= alpha_max) {
+    // Record the linesearch parameter alpha
+    data_file << alpha << ", ";
+
+    // Record the linesearch residual 
+    // phi(alpha) = L - L(q + alpha * dq)
     for (int t = 1; t <= num_steps(); ++t) {
       state->set_qt(q[t] + alpha * dq.segment(t * nq, nq), t);
     }
-    std::cout << CalcCost(*state) - L << ", ";
-    alpha += d_alpha;
-  }
-  std::cout << std::endl;
+    data_file << CalcCost(*state) - L << "\n";
 
-  std::cout << "==================================" << std::endl;
-  std::cout << std::endl;
+    alpha += dalpha;
+  }
+  data_file.close();
 }
 
 template <typename T>
@@ -715,7 +719,7 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
                 << std::endl;
 
       // DEBUG: print linesearch residual so we can plot in python
-      PrintLinesearchResidual(iteration_costs[k], state.q(), dq, &ls_state);
+      SaveLinesearchResidual(iteration_costs[k], state.q(), dq, &ls_state);
 
       // We'll still record iteration data for playback later
       solution_data->solve_time = NAN;
