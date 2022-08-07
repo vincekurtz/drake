@@ -433,20 +433,20 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcGradientPendulumNoGravity) {
   opt_prob.num_steps = num_steps;
   opt_prob.q_init = Vector1d(0.0);
   opt_prob.v_init = Vector1d(0.0);
-  opt_prob.Qq = 0.0 * MatrixXd::Identity(1, 1);
-  opt_prob.Qv = 0.1 * MatrixXd::Identity(1, 1);
-  opt_prob.Qf_q = 10.0 * MatrixXd::Identity(1, 1);
-  opt_prob.Qf_v = 1.0 * MatrixXd::Identity(1, 1);
-  opt_prob.R = 1.0 * MatrixXd::Identity(1, 1);
+  opt_prob.Qq = 0.1 * MatrixXd::Identity(1, 1);
+  opt_prob.Qv = 0.2 * MatrixXd::Identity(1, 1);
+  opt_prob.Qf_q = 0.3 * MatrixXd::Identity(1, 1);
+  opt_prob.Qf_v = 0.4 * MatrixXd::Identity(1, 1);
+  opt_prob.R = 0.5 * MatrixXd::Identity(1, 1);
   opt_prob.q_nom = Vector1d(M_PI);
-  opt_prob.v_nom = Vector1d(0.0);
+  opt_prob.v_nom = Vector1d(-0.1);
   
   // Create an optimizer
   TrajectoryOptimizer<double> optimizer(&plant, opt_prob);
   TrajectoryOptimizerState<double> state = optimizer.CreateState();
   TrajectoryOptimizerWorkspace<double> workspace(num_steps, plant);
 
-  // Create some fake data, which are very close to optimality.
+  // Create some fake data
   std::vector<VectorXd> q;
   q.push_back(Vector1d(0.0000000000000000000000000));
   q.push_back(Vector1d(0.0950285641187840757204697));
@@ -482,12 +482,70 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcGradientPendulumNoGravity) {
   VectorXd g(plant.num_positions() * (num_steps + 1));
   optimizer.CalcGradient(state, &g);
 
-  std::cout << g - g_gt << std::endl;
-
   // Without gravity, our gradient computation should be exact
   const double kTolerance = 10*std::numeric_limits<double>::epsilon();
   EXPECT_TRUE(
       CompareMatrices(g, g_gt, kTolerance, MatrixCompareType::relative));
+  std::cout << "gradient error: " << (g - g_gt).norm() << std::endl;
+
+  // Is the error from dtau/dq?
+  // Compute ground truth partials from the pendulum model
+  //
+  //     m*l^2*a + m*g*l*sin(q) + b*v = tau
+  //
+  // where q is the joint angle and a = dv/dt, v = dq/dt.
+  const double m = 1.0;
+  const double l = 0.5;
+  const double b = 0.1;
+
+  InverseDynamicsPartials<double> id_partials_gt(num_steps, 1, 1);
+  for (int t = 0; t < num_steps; ++t) {
+    // dtau[t]/dq[t+1]
+    id_partials_gt.dtau_dqp[t](0, 0) =
+        1 / dt / dt * m * l * l + 1 / dt * b;
+
+    // dtau[t]/dq[t]
+    id_partials_gt.dtau_dqt[t](0, 0) = -2 / dt / dt * m * l * l - 1 / dt * b;
+
+    if (t == 0) {
+      // v[0] is constant
+      id_partials_gt.dtau_dqt[t](0, 0) = -1 / dt / dt * m * l * l - 1 / dt * b;
+    }
+
+    // dtau[t]/dq[t-1]
+    id_partials_gt.dtau_dqm[t](0, 0) = 1 / dt / dt * m * l * l;
+
+    // Derivatives w.r.t. q[t-1] do not exist
+    if (t == 0) {
+      id_partials_gt.dtau_dqm[t](0, 0) = NAN;
+    }
+  }
+
+  const InverseDynamicsPartials<double>& id_partials = state.cache().id_partials;
+  for (int t=0; t< num_steps; ++t) {
+    std::cout << id_partials.dtau_dqm[t] - id_partials_gt.dtau_dqm[t] << std::endl;
+    std::cout << id_partials.dtau_dqt[t] - id_partials_gt.dtau_dqt[t] << std::endl;
+    std::cout << id_partials.dtau_dqp[t] - id_partials_gt.dtau_dqp[t] << std::endl;
+    std::cout << std::endl;
+  }
+
+  // Is the error from tau(q)?
+  // Compute ground truth inverse dynamics from the pendulum model,
+  //
+  //     m*l^2*a + m*g*l*sin(q) + b*v = tau
+  //
+  // where q is the joint angle and a = dv/dt, v = dq/dt.
+  double tau;
+  double tau_gt;
+  const std::vector<VectorXd>& v = state.cache().v;
+  const std::vector<VectorXd>& a = state.cache().a;
+  const double kToleranceTau = 10 * std::numeric_limits<double>::epsilon();
+  for (int t=0; t<num_steps; ++t) {
+    tau_gt = state.cache().tau[t](0);
+    tau = m*l*l*a[t](0) + b*v[t+1](0);
+    EXPECT_NEAR(tau_gt, tau, kToleranceTau);
+  }
+
 }
 
 GTEST_TEST(TrajectoryOptimizerTest, CalcGradientPendulum) {
