@@ -658,12 +658,15 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
   VectorXd dq(num_vars);
 
   // Define printout data
-  std::cout << "---------------------------------------------------------"
-            << std::endl;
-  std::cout << "|  iter  |   cost   |  alpha  |  LS_iters  |  time (s)  |   || g ||   |"
-            << std::endl;
-  std::cout << "---------------------------------------------------------"
-            << std::endl;
+  std::cout
+      << "---------------------------------------------------------------------"
+      << std::endl;
+  std::cout
+      << "|  iter  |   cost   |  alpha  |  LS_iters  |  time (s)  |    |g|    |"
+      << std::endl;
+  std::cout
+      << "---------------------------------------------------------------------"
+      << std::endl;
 
   // Allocate timing variables
   auto start_time = std::chrono::high_resolution_clock::now();
@@ -693,12 +696,12 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
     Hchol.SolveInPlace(&dq);
 
     //// DEBUG: use dense Hessian
-    //MatrixXd H_dense = H.MakeDense();
-    //dq = H_dense.llt().solve(-g);
+    // MatrixXd H_dense = H.MakeDense();
+    // dq = H_dense.llt().solve(-g);
 
     //// DEBUG: ignore linesearch
-    //double alpha = 1.0;
-    //int ls_iters = 0;
+    // double alpha = 1.0;
+    // int ls_iters = 0;
 
     // Solve the linsearch
     // N.B. we use a separate state variable since we will need to compute
@@ -725,7 +728,7 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
 
       return SolverFlag::kLinesearchMaxIters;
     }
-    
+
     // Update the decision variables
     for (int t = 1; t <= num_steps(); ++t) {
       // q[t] = q[t] + alpha * dq[t]
@@ -744,8 +747,8 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
     printf("| %4.3e |\n", g.norm());
 
     //// DEBUG: print condition number
-    //double condition_number = H_dense.norm() * H_dense.inverse().norm();
-    //printf("cond. num.: %4.3e\n", condition_number);
+    // double condition_number = H_dense.norm() * H_dense.inverse().norm();
+    // printf("cond. num.: %4.3e\n", condition_number);
 
     // Record iteration data
     linesearch_iterations.push_back(ls_iters);
@@ -754,8 +757,9 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
     gradient_norm.push_back(g.norm());
   } while (k < params_.max_iterations);
 
-  std::cout << "---------------------------------------------------------"
-            << std::endl;
+  std::cout
+      << "---------------------------------------------------------------------"
+      << std::endl;
 
   // Record the total solve time
   solve_time = std::chrono::high_resolution_clock::now() - start_time;
