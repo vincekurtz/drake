@@ -532,14 +532,17 @@ template <typename T>
 void TrajectoryOptimizer<T>::PrintLinesearchResidual(
     const T L, const std::vector<VectorX<T>>& q, const VectorX<T>& dq,
     TrajectoryOptimizerState<T>* state) const {
+  // TODO(vincekurtz): save to a CSV file instead, including sampled alpha 
+  // and sampled dq values
   const int nq = plant().num_positions();
   std::cout << std::endl;
   std::cout << "==================================" << std::endl;
   std::cout << "Linsearch Residual: " << std::endl;
-  double d_alpha = 0.5;
-  double alpha = 0.0;
+  std::cout << "dq: " << dq << std::endl << std::endl;
+  double d_alpha = 0.01;
+  double alpha = -1.0;
 
-  while (alpha <= 50.0) {
+  while (alpha <= 1.0) {
     // Compute phi(alpha) = L - L(q + alpha * dq)
     for (int t = 1; t <= num_steps(); ++t) {
       state->set_qt(q[t] + alpha * dq.segment(t * nq, nq), t);
@@ -587,7 +590,7 @@ std::tuple<double, int> TrajectoryOptimizer<T>::BacktrackingArmijoLinesearch(
   // are noisy, having come from finite differences.
   // TODO(vincekurtz): does this "fudge factor" idea make sense?
   T L_min;
-  double fudge_factor = sqrt(std::numeric_limits<double>::epsilon());
+  double fudge_factor = 0; //sqrt(std::numeric_limits<double>::epsilon());
 
   int i = 0;  // Iteration counter
   do {
@@ -659,7 +662,7 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
   // Define printout data
   std::cout << "---------------------------------------------------------"
             << std::endl;
-  std::cout << "|  iter  |   cost   |  alpha  |  LS_iters  |  time (s)  |"
+  std::cout << "|  iter  |   cost   |  alpha  |  LS_iters  |  time (s)  |   || g ||   |"
             << std::endl;
   std::cout << "---------------------------------------------------------"
             << std::endl;
@@ -691,10 +694,13 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
     DRAKE_DEMAND(Hchol.status() == PentaDiagonalFactorizationStatus::kSuccess);
     Hchol.SolveInPlace(&dq);
 
-    if (k == 150) {
-      // DEBUG: print linesearch residual so we can plot in python
-      PrintLinesearchResidual(iteration_costs[k], state.q(), dq, &ls_state);
-    }
+    //// DEBUG: use dense Hessian
+    //MatrixXd H_dense = H.MakeDense();
+    //dq = H_dense.llt().solve(-g);
+
+    //// DEBUG: ignore linesearch
+    //double alpha = 1.0;
+    //int ls_iters = 0;
 
     // Solve the linsearch
     // N.B. we use a separate state variable since we will need to compute
@@ -721,7 +727,7 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
 
       return SolverFlag::kLinesearchMaxIters;
     }
-
+    
     // Update the decision variables
     for (int t = 1; t <= num_steps(); ++t) {
       // q[t] = q[t] + alpha * dq[t]
@@ -736,7 +742,12 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
     printf("| %8.3f ", iteration_costs[k - 1]);
     printf("| %7.4f ", alpha);
     printf("| %6d     ", ls_iters);
-    printf("| %8.8f |\n", iter_time.count());
+    printf("| %8.8f ", iter_time.count());
+    printf("| %4.3e |\n", g.norm());
+
+    //// DEBUG: print condition number
+    //double condition_number = H_dense.norm() * H_dense.inverse().norm();
+    //printf("cond. num.: %4.3e\n", condition_number);
 
     // Record iteration data
     linesearch_iterations.push_back(ls_iters);

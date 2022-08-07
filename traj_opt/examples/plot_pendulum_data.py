@@ -5,6 +5,7 @@ from matplotlib.ticker import MaxNLocator
 
 import numpy as np
 import os
+import sys
 
 ##
 #
@@ -13,19 +14,21 @@ import os
 #
 ##
 
-drake_root = "/home/vincentkurtz/drake/"
+drake_root = "/home/vjkurtz/builds/drake/"
 
 # Define our optimization problem
 dt = 5e-2
 num_steps = 50
-max_iters = 400
-gravity = True
+max_iters = 51
+gravity = False
 
-Qq = 0.0
-Qv = 0.1
-R = 1
-Qfq = 100
-Qfv = 1.0
+scale_factor = 1
+
+Qq = 0.0 * scale_factor
+Qv = 0.1 * scale_factor
+R = 1 * scale_factor
+Qfq = 10 * scale_factor
+Qfv = 1.0 * scale_factor
 
 # Solve the optimization problem
 options_string = " -- "
@@ -42,7 +45,11 @@ options_string += f"--Qfv={Qfv} "
 options_string += f"--gravity={gravity} "
 
 os.system("cd " + drake_root)
-os.system("bazel run //traj_opt/examples:pendulum" + options_string)
+code = os.system("bazel run //traj_opt/examples:pendulum" + options_string)
+
+if code != 0:
+    # Solving failed (probably a compiler error)
+    sys.exit()
 
 # Bazel stores files in strange places
 data_file = drake_root + "bazel-out/k8-opt/bin/traj_opt/examples/pendulum.runfiles/drake/pendulum_data.csv"
@@ -71,6 +78,7 @@ ax4.set_ylabel("alpha")
 ax5.plot(iters, data["grad_norm"])
 ax5.set_ylabel("||g||")
 ax5.set_yscale("log")
+ax5.set_yticks(np.logspace(-16,0,9))
 
 ax5.set_xlabel("Iteration")
 ax5.xaxis.set_major_locator(MaxNLocator(integer=True))
