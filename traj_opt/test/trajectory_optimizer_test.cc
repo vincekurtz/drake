@@ -417,42 +417,48 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcGradientKuka) {
 }
 
 GTEST_TEST(TrajectoryOptimizerTest, CalcGradientPendulumNoGravity) {
-  // Set up an optimization problem
-  const int num_steps = 5;
-  const double dt = 1e-3;
+  const int num_steps = 10;
+  const double dt = 5e-2;
 
-  ProblemDefinition opt_prob;
-  opt_prob.num_steps = num_steps;
-  opt_prob.q_init = Vector1d(0.1);
-  opt_prob.v_init = Vector1d(0.0);
-  opt_prob.Qq = 0.1 * MatrixXd::Identity(1, 1);
-  opt_prob.Qv = 0.2 * MatrixXd::Identity(1, 1);
-  opt_prob.Qf_q = 0.3 * MatrixXd::Identity(1, 1);
-  opt_prob.Qf_v = 0.4 * MatrixXd::Identity(1, 1);
-  opt_prob.R = 0.5 * MatrixXd::Identity(1, 1);
-  opt_prob.q_nom = Vector1d(0.1);
-  opt_prob.v_nom = Vector1d(-0.1);
-
-  // Create a pendulum model
+  // Set up a system model: pendulum w/o gravity yields a linear system
   MultibodyPlant<double> plant(dt);
   const std::string urdf_file =
       FindResourceOrThrow("drake/examples/pendulum/Pendulum.urdf");
   Parser(&plant).AddAllModelsFromFile(urdf_file);
   plant.mutable_gravity_field().set_gravity_vector(VectorXd::Zero(3));
-  plant.set_discrete_contact_solver(DiscreteContactSolver::kSap);
   plant.Finalize();
 
+  // Set up a toy optimization problem
+  ProblemDefinition opt_prob;
+  opt_prob.num_steps = num_steps;
+  opt_prob.q_init = Vector1d(0.0);
+  opt_prob.v_init = Vector1d(0.0);
+  opt_prob.Qq = 0.0 * MatrixXd::Identity(1, 1);
+  opt_prob.Qv = 0.1 * MatrixXd::Identity(1, 1);
+  opt_prob.Qf_q = 10.0 * MatrixXd::Identity(1, 1);
+  opt_prob.Qf_v = 1.0 * MatrixXd::Identity(1, 1);
+  opt_prob.R = 1.0 * MatrixXd::Identity(1, 1);
+  opt_prob.q_nom = Vector1d(M_PI);
+  opt_prob.v_nom = Vector1d(0.0);
+  
   // Create an optimizer
   TrajectoryOptimizer<double> optimizer(&plant, opt_prob);
   TrajectoryOptimizerState<double> state = optimizer.CreateState();
   TrajectoryOptimizerWorkspace<double> workspace(num_steps, plant);
 
-  // Make some fake data
-  std::vector<VectorXd> q(num_steps + 1);
-  q[0] = opt_prob.q_init;
-  for (int t = 1; t <= num_steps; ++t) {
-    q[t] = q[t - 1] + 0.1 * dt * MatrixXd::Identity(1, 1);
-  }
+  // Create some fake data, which are very close to optimality.
+  std::vector<VectorXd> q;
+  q.push_back(Vector1d(0.0000000000000000000000000));
+  q.push_back(Vector1d(0.0950285641187840757204697));
+  q.push_back(Vector1d(0.2659896360172592788551071));
+  q.push_back(Vector1d(0.4941147113506765831125733));
+  q.push_back(Vector1d(0.7608818755930255584019051));
+  q.push_back(Vector1d(1.0479359055822168311777887));
+  q.push_back(Vector1d(1.3370090901260500704239575));
+  q.push_back(Vector1d(1.6098424281109515732168802));
+  q.push_back(Vector1d(1.8481068641834854648919872));
+  q.push_back(Vector1d(2.0333242222438583368671061));
+  q.push_back(Vector1d(2.1467874956452459578315484));
   state.set_q(q);
 
   // Compute the ground truth gradient with autodiff
@@ -475,6 +481,8 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcGradientPendulumNoGravity) {
   // Compute the gradient with our method
   VectorXd g(plant.num_positions() * (num_steps + 1));
   optimizer.CalcGradient(state, &g);
+
+  std::cout << g - g_gt << std::endl;
 
   // Without gravity, our gradient computation should be exact
   const double kTolerance = 10*std::numeric_limits<double>::epsilon();
