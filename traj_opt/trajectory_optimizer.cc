@@ -581,8 +581,7 @@ template <typename T>
 std::tuple<double, int> TrajectoryOptimizer<T>::BacktrackingArmijoLinesearch(
     const T L, const std::vector<VectorX<T>>& q, const VectorX<T>& dq,
     const VectorX<T>& g, TrajectoryOptimizerState<T>* state) const {
-  // For now we'll just do a simple backtracking linesearch
-  // TODO(vincekurtz): give solver options for different linesearch methods
+  using std::abs;
   const int nq = plant().num_positions();
 
   // TODO(vincekurtz): set these in SolverOptions
@@ -593,8 +592,14 @@ std::tuple<double, int> TrajectoryOptimizer<T>::BacktrackingArmijoLinesearch(
   T L_prime = g.transpose() * dq;  // gradient of L w.r.t. alpha
   T L_new;                         // L(q + alpha * dq)
 
-  // Minimum acceptable cost reduction.
-  T L_min;
+  // Make sure this is a descent direction
+  DRAKE_DEMAND(L_prime <= 0);
+
+  // Exit early with alpha = 1 when we are close to convergence
+  const double convergence_threshold = 10*std::numeric_limits<double>::epsilon();
+  if ( abs(L_prime) / abs(L) <= convergence_threshold ) {
+    return {1.0, 0};
+  }
 
   int i = 0;  // Iteration counter
   do {
@@ -609,10 +614,8 @@ std::tuple<double, int> TrajectoryOptimizer<T>::BacktrackingArmijoLinesearch(
     }
     L_new = CalcCost(*state);
 
-    L_min = L + c * alpha * L_prime;
-
     ++i;
-  } while ((L_new > L_min) && (i < params_.max_linesearch_iterations));
+  } while ((L_new > L + c * alpha * L_prime) && (i < params_.max_linesearch_iterations));
 
   return {alpha, i};
 }
@@ -700,14 +703,6 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
     DRAKE_DEMAND(Hchol.status() == PentaDiagonalFactorizationStatus::kSuccess);
     Hchol.SolveInPlace(&dq);
 
-    //// DEBUG: use dense Hessian
-    // MatrixXd H_dense = H.MakeDense();
-    // dq = H_dense.llt().solve(-g);
-
-    //// DEBUG: ignore linesearch
-    // double alpha = 1.0;
-    // int ls_iters = 0;
-
     // Solve the linsearch
     // N.B. we use a separate state variable since we will need to compute
     // L(q+alpha*dq) (at the very least), and we don't want to change state.q
@@ -720,7 +715,7 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
       std::cout << "Reached maximum linesearch iterations (" << ls_iters << ")."
                 << std::endl;
 
-      // DEBUG: print linesearch residual so we can plot in python
+      // DEBUG: save linesearch residual to a csv file so we can plot in python
       SaveLinesearchResidual(iteration_costs[k], state.q(), dq, &ls_state);
 
       // We'll still record iteration data for playback later
@@ -750,10 +745,6 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
     printf("| %6d     ", ls_iters);
     printf("| %8.8f ", iter_time.count());
     printf("| %4.3e |\n", g.norm());
-
-    //// DEBUG: print condition number
-    // double condition_number = H_dense.norm() * H_dense.inverse().norm();
-    // printf("cond. num.: %4.3e\n", condition_number);
 
     // Record iteration data
     linesearch_iterations.push_back(ls_iters);
