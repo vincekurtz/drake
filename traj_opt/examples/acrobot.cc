@@ -64,12 +64,10 @@ void save_to_csv(const SolutionData<double>& data) {
   const int num_iters = data.iteration_times.size();
   for (int i = 0; i < num_iters; ++i) {
     // Write the data
-    data_file << i << ", ";
-    data_file << data.iteration_times[i] << ", ";
-    data_file << data.iteration_costs[i] << ", ";
-    data_file << data.linesearch_iterations[i] << ", ";
-    data_file << data.linesearch_alphas[i] << ", ";
-    data_file << data.gradient_norm[i] << "\n";
+    data_file << fmt::format("{}, {}, {}, {}, {}, {}\n", i,
+                             data.iteration_times[i], data.iteration_costs[i],
+                             data.linesearch_iterations[i],
+                             data.linesearch_alphas[i], data.gradient_norm[i]);
   }
 
   // Close the file
@@ -171,29 +169,31 @@ void solve_trajectory_optimization(double time_step, int num_steps) {
   std::cout << plant.num_positions() << std::endl;
 
   SolverFlag status = optimizer.Solve(q_guess, &solution, &solution_data);
-  DRAKE_ASSERT(status == SolverFlag::kSuccess);
-  std::cout << "Solved in " << solution_data.solve_time << " seconds."
-            << std::endl;
 
-  // Report maximum torques applied to the unactuated shoulder and actuated
-  // elbow.
-  double max_unactuated_torque = 0;
-  double max_actuated_torque = 0;
-  double unactuated_torque;
-  double actuated_torque;
-  for (int t = 0; t < num_steps; ++t) {
-    unactuated_torque = abs(solution.tau[t](0));
-    actuated_torque = abs(solution.tau[t](1));
-    if (unactuated_torque > max_unactuated_torque) {
-      max_unactuated_torque = unactuated_torque;
+  if (status == SolverFlag::kSuccess) {
+    std::cout << "Solved in " << solution_data.solve_time << " seconds."
+              << std::endl;
+    // Report maximum torques applied to the unactuated shoulder and actuated
+    // elbow.
+    double max_unactuated_torque = 0;
+    double max_actuated_torque = 0;
+    double unactuated_torque;
+    double actuated_torque;
+    for (int t = 0; t < num_steps; ++t) {
+      unactuated_torque = abs(solution.tau[t](0));
+      actuated_torque = abs(solution.tau[t](1));
+      if (unactuated_torque > max_unactuated_torque) {
+        max_unactuated_torque = unactuated_torque;
+      }
+      if (actuated_torque > max_actuated_torque) {
+        max_actuated_torque = actuated_torque;
+      }
     }
-    if (actuated_torque > max_actuated_torque) {
-      max_actuated_torque = actuated_torque;
-    }
+    std::cout << "Maximum actuated torque: " << max_actuated_torque
+              << std::endl;
+    std::cout << "Maximum unactuated torque: " << max_unactuated_torque
+              << std::endl;
   }
-  std::cout << "Maximum actuated torque: " << max_actuated_torque << std::endl;
-  std::cout << "Maximum unactuated torque: " << max_unactuated_torque
-            << std::endl;
 
   // Save data to CSV, if requested
   if (FLAGS_save_data) {

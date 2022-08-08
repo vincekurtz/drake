@@ -597,7 +597,7 @@ std::tuple<double, int> TrajectoryOptimizer<T>::BacktrackingArmijoLinesearch(
 
   // Exit early with alpha = 1 when we are close to convergence
   const double convergence_threshold =
-      sqrt(std::numeric_limits<double>::epsilon());
+      100 * std::numeric_limits<double>::epsilon();
   if (abs(L_prime) / abs(L) <= convergence_threshold) {
     return {1.0, 0};
   }
@@ -704,6 +704,11 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
     PentaDiagonalFactorization Hchol(H);
     DRAKE_DEMAND(Hchol.status() == PentaDiagonalFactorizationStatus::kSuccess);
     Hchol.SolveInPlace(&dq);
+
+    // DEBUG
+    if (k == 0) {
+      SaveLinesearchResidual(iteration_costs[k], state.q(), dq, &ls_state);
+    }
 
     // Solve the linsearch
     // N.B. we use a separate state variable since we will need to compute
