@@ -301,6 +301,12 @@ class TrajectoryOptimizer {
       const std::vector<VectorX<T>>& a, const std::vector<VectorX<T>>& tau,
       TrajectoryOptimizerWorkspace<T>* workspace,
       InverseDynamicsPartials<T>* id_partials) const;
+  
+  void CalcInverseDynamicsPartialsDebug(
+      const std::vector<VectorX<T>>& q, const std::vector<VectorX<T>>& v,
+      const std::vector<VectorX<T>>& a, const std::vector<VectorX<T>>& tau,
+      TrajectoryOptimizerWorkspace<T>* workspace,
+      InverseDynamicsPartials<T>* id_partials) const;
 
   /**
    * Compute the gradient of the unconstrained cost L(q) using finite
