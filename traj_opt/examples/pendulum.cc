@@ -150,7 +150,7 @@ void solve_trajectory_optimization(double time_step, int num_steps) {
 
   // Set our solver options
   SolverParameters solver_params;
-  solver_params.linesearch_method = LinesearchMethod::kBacktrackingArmijo;
+  solver_params.linesearch_method = LinesearchMethod::kBacktracking;
   solver_params.max_iterations = FLAGS_max_iters;
   solver_params.max_linesearch_iterations = 50;
 

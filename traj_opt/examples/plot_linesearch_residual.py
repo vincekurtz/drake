@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 drake_root = "/home/vincentkurtz/drake/"
 
 # Get data from the same files
-data_file = drake_root + "bazel-out/k8-opt/bin/traj_opt/examples/acrobot.runfiles/drake/linesearch_data.csv"
+data_file = drake_root + "bazel-out/k8-opt/bin/traj_opt/examples/pendulum.runfiles/drake/linesearch_data.csv"
 data = np.genfromtxt(data_file, delimiter=',', names=True)
 alpha = data["alpha"]
 residual = data["residual"]

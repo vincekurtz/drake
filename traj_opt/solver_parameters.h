@@ -5,7 +5,10 @@ namespace traj_opt {
 
 enum LinesearchMethod {
   // Simple backtracking linesearch with Armijo's condition
-  kBacktrackingArmijo
+  kBacktrackingArmijo,
+
+  // Backtracking linesearch that tries to find a local minimum
+  kBacktracking
 };
 
 struct SolverParameters {

@@ -535,11 +535,20 @@ void TrajectoryOptimizer<T>::UpdateCache(
 }
 
 template <typename T>
+void TrajectoryOptimizer<T>::AddToQ(const VectorX<T>& dq, TrajectoryOptimizerState<T>* state) const {
+  const int nq = plant().num_positions();
+  DRAKE_DEMAND(dq.size() == nq * (num_steps() + 1));
+
+  const std::vector<VectorX<T>>& q = state->q();
+  for (int t = 0; t <= num_steps(); ++t) {
+    state->set_qt(q[t] + dq.segment(t * nq, nq), t);
+  }
+}
+
+template <typename T>
 void TrajectoryOptimizer<T>::SaveLinesearchResidual(
     const T L, const std::vector<VectorX<T>>& q, const VectorX<T>& dq,
     TrajectoryOptimizerState<T>* state) const {
-  const int nq = plant().num_positions();
-
   double alpha_min = -0.2;
   double alpha_max = 1.2;
   double dalpha = 0.01;
@@ -555,9 +564,8 @@ void TrajectoryOptimizer<T>::SaveLinesearchResidual(
 
     // Record the linesearch residual
     // phi(alpha) = L - L(q + alpha * dq)
-    for (int t = 1; t <= num_steps(); ++t) {
-      state->set_qt(q[t] + alpha * dq.segment(t * nq, nq), t);
-    }
+    state->set_q(q);
+    AddToQ(alpha * dq, state);
     data_file << CalcCost(*state) - L << "\n";
 
     alpha += dalpha;
@@ -572,9 +580,68 @@ std::tuple<double, int> TrajectoryOptimizer<T>::Linesearch(
   // TODO(vincekurtz): add other linesearch strategies
   if (params_.linesearch_method == LinesearchMethod::kBacktrackingArmijo) {
     return BacktrackingArmijoLinesearch(L, q, dq, g, state);
+  } else if (params_.linesearch_method == LinesearchMethod::kBacktracking) {
+    return BacktrackingLinesearch(L, q, dq, g, state);
   } else {
     throw std::runtime_error("Unknown linesearch method");
   }
+}
+
+template <typename T>
+std::tuple<double, int> TrajectoryOptimizer<T>::BacktrackingLinesearch(
+    const T L, const std::vector<VectorX<T>>& q, const VectorX<T>& dq,
+    const VectorX<T>& g, TrajectoryOptimizerState<T>* state) const {
+  using std::abs;
+
+  // Linesearch parameters
+  // TODO(vincekurtz): set these in SolverOptions
+  const double c = 1e-4;
+  const double rho = 0.9;
+
+  double alpha = 1.0 / rho;        // get alpha = 1 on first iteration
+  T L_prime = g.transpose() * dq;  // gradient of L w.r.t. alpha
+  
+  // Make sure this is a descent direction
+  DRAKE_DEMAND(L_prime <= 0);
+
+  // Exit early with alpha = 1 when we are close to convergence
+  const double convergence_threshold =
+      100 * std::numeric_limits<double>::epsilon();
+  if (abs(L_prime) / abs(L) <= convergence_threshold) {
+    return {1.0, 0};
+  }
+
+  // Costs associated with alpha at this and the previous linesearch iteration.
+  // N.B. These are initialized so that L_new < L_old. 
+  T L_new = 0;  // L(q + alpha_i * dq)
+  //T L_old = 1;  // L(q + alpha_{i-1} * dq)
+
+  // We'll keep reducing alpha until (1) we meet the Armijo convergence
+  // criteria and (2) the cost increases, indicating that we're near a local
+  // minimum.
+  int i = 0;
+  bool armijo_met = false;
+  while (!armijo_met) {
+    // Save L_old = L(q + alpha_{i-1} * dq)
+    //L_old = L_new;
+
+    // Reduce alpha
+    alpha *= rho;
+
+    // Compute L_new = L(q + alpha_i * dq)
+    state->set_q(q);
+    AddToQ(alpha * dq, state);
+    L_new = CalcCost(*state);
+
+    // Check the Armijo conditions
+    if (L_new <= L + c * alpha * L_prime ) {
+      armijo_met = true;
+    }
+
+    ++i;
+  }
+  
+  return {alpha, i};
 }
 
 template <typename T>
@@ -582,8 +649,8 @@ std::tuple<double, int> TrajectoryOptimizer<T>::BacktrackingArmijoLinesearch(
     const T L, const std::vector<VectorX<T>>& q, const VectorX<T>& dq,
     const VectorX<T>& g, TrajectoryOptimizerState<T>* state) const {
   using std::abs;
-  const int nq = plant().num_positions();
 
+  // Linesearch parameters
   // TODO(vincekurtz): set these in SolverOptions
   const double c = 1e-4;
   const double rho = 0.9;
@@ -610,9 +677,8 @@ std::tuple<double, int> TrajectoryOptimizer<T>::BacktrackingArmijoLinesearch(
     alpha *= rho;
 
     // Compute L_ls = L(q + alpha * dq)
-    for (int t = 0; t <= num_steps(); ++t) {
-      state->set_qt(q[t] + alpha * dq.segment(t * nq, nq), t);
-    }
+    state->set_q(q);
+    AddToQ(alpha * dq, state);
     L_new = CalcCost(*state);
 
     ++i;
@@ -706,7 +772,7 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
     Hchol.SolveInPlace(&dq);
 
     // DEBUG
-    if (k == 0) {
+    if (k == 1) {
       SaveLinesearchResidual(iteration_costs[k], state.q(), dq, &ls_state);
     }
 
@@ -737,10 +803,7 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
     }
 
     // Update the decision variables
-    for (int t = 1; t <= num_steps(); ++t) {
-      // q[t] = q[t] + alpha * dq[t]
-      state.set_qt(state.q()[t] + alpha * dq.segment(t * nq, nq), t);
-    }
+    AddToQ(alpha * dq, &state);
 
     ++k;
     iter_time = std::chrono::high_resolution_clock::now() - iter_start_time;

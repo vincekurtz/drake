@@ -32,7 +32,7 @@ Qfv = 1.0 * scale_factor
 
 # Solve the optimization problem
 options_string = " -- "
-options_string += "--visualize=true "
+options_string += "--visualize=false "
 options_string += "--save_data=true "
 options_string += f"--time_step={dt} "
 options_string += f"--num_steps={num_steps} "
