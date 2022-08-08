@@ -168,96 +168,7 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartials(
     InverseDynamicsPartials<T>* id_partials) const {
   // TODO(vincekurtz): use a solver flag to choose between finite differences
   // and an analytical approximation
-  //CalcInverseDynamicsPartialsFiniteDiff(q, v, a, tau, workspace, id_partials);
-  CalcInverseDynamicsPartialsDebug(q, v, a, tau, workspace, id_partials);
-}
-
-template <typename T>
-void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsDebug(
-    const std::vector<VectorX<T>>& q, const std::vector<VectorX<T>>& v,
-    const std::vector<VectorX<T>>& a, const std::vector<VectorX<T>>& tau,
-    TrajectoryOptimizerWorkspace<T>* workspace,
-    InverseDynamicsPartials<T>* id_partials) const {
-  using std::max;
-  using std::abs;
-  DRAKE_DEMAND(id_partials->size() == num_steps());
-  (void)a;
-
-  // Get references to the partials that we'll be setting
-  std::vector<MatrixX<T>>& dtau_dqm = id_partials->dtau_dqm;
-  std::vector<MatrixX<T>>& dtau_dq = id_partials->dtau_dqt;
-  std::vector<MatrixX<T>>& dtau_dqp = id_partials->dtau_dqp;
-
-  // Get references to perturbed versions of q, v, tau, and a, at (t-1, t, t).
-  // These are all of the quantities that change when we perturb q_t.
-  VectorX<T>& q_eps_t = workspace->q_size_tmp;
-  VectorX<T>& v_eps_t = workspace->v_size_tmp1;
-  VectorX<T>& v_eps_tp = workspace->v_size_tmp2;
-  VectorX<T>& a_eps_tm = workspace->a_size_tmp1;
-  VectorX<T>& a_eps_t = workspace->a_size_tmp2;
-  VectorX<T>& a_eps_tp = workspace->a_size_tmp3;
-  VectorX<T>& tau_eps_tm = workspace->tau_size_tmp1;
-  VectorX<T>& tau_eps_t = workspace->tau_size_tmp2;
-  VectorX<T>& tau_eps_tp = workspace->tau_size_tmp3;
-
-  const double eps = sqrt(std::numeric_limits<double>::epsilon());
-  T dqt_i;
-  for (int t = 0; t <= num_steps(); ++t) {
-    for (int i = 0; i < plant().num_positions(); ++i) {
-      // Perturb q_t by epsilon
-      q_eps_t = q[t];
-
-      dqt_i = eps * max(1.0, abs(q_eps_t(i)));  // avoid losing precision
-      q_eps_t(i) += dqt_i;
-
-      // Compute perturbed v(q)
-      // TODO(vincekurtz): add N(q)+ factor to consider quaternion DoFs.
-      if (t == 0) {
-        v_eps_t = prob_.v_init;
-      } else {
-        v_eps_t = (q_eps_t - q[t - 1]) / time_step();
-      }
-      if (t < num_steps()) {
-        v_eps_tp = (q[t + 1] - q_eps_t) / time_step();
-      }
-
-      // Compute perturbed tau(q)
-
-      // tau[t-1] = ID(q[t], v[t], a[t-1])
-      if (t == 0) {
-        a_eps_tm = (v_eps_t - prob_.v_init) / time_step();
-      } else {
-        a_eps_tm = (v_eps_t - v[t-1]) / time_step();
-      }
-      CalcInverseDynamicsSingleTimeStep(q_eps_t, v_eps_t, a_eps_tm, workspace,
-                            &tau_eps_tm);
-
-      // tau[t] = ID(q[t+1], v[t+1], a[t])
-      if (t < num_steps()) {
-        a_eps_t = (v_eps_tp - v_eps_t) / time_step();
-        CalcInverseDynamicsSingleTimeStep(q[t+1], v_eps_tp, a_eps_t, workspace,
-                              &tau_eps_t);
-      }
-
-      // tau[t+1] = ID(q[t+2], v[t+2], a[t+1])
-      if (t < num_steps() - 1) {
-        a_eps_tp = (v[t+2] - v_eps_tp) / time_step();
-        CalcInverseDynamicsSingleTimeStep(q[t + 2], v[t + 2], a_eps_tp, workspace,
-                              &tau_eps_tp);
-      }
-
-      // Compute the nonzero entries of dtau/dq via finite differencing
-      if ( t > 0 ) {
-        dtau_dqp[t - 1].col(i) = (tau_eps_tm - tau[t - 1]) / dqt_i;
-      }
-      if (t < num_steps()) {
-        dtau_dq[t].col(i) = (tau_eps_t - tau[t]) / dqt_i;
-      }
-      if (t < num_steps() - 1) {
-        dtau_dqm[t + 1].col(i) = (tau_eps_tp - tau[t + 1]) / dqt_i;
-      }
-    }
-  }
+  CalcInverseDynamicsPartialsFiniteDiff(q, v, a, tau, workspace, id_partials);
 }
 
 template <typename T>
@@ -320,7 +231,12 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsFiniteDiff(
     for (int i = 0; i < plant().num_positions(); ++i) {
       // Determine perturbation sizes to avoid losing precision to floating
       // point error
-      dq_i = eps;// * max(1.0, abs(q_eps_t(i)));
+      dq_i = eps * max(1.0, abs(q_eps_t(i)));
+
+      // Make dqt_i exactly representable to minimize floating point error
+      const T temp = q_eps_t(i) + dq_i;
+      dq_i = temp - q_eps_t(i);
+
       dv_i = dq_i / time_step();
       da_i = dv_i / time_step();
 

@@ -447,7 +447,7 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcGradientPendulumNoGravity) {
   opt_prob.R = 0.5 * MatrixXd::Identity(1, 1);
   opt_prob.q_nom = Vector1d(M_PI);
   opt_prob.v_nom = Vector1d(-0.1);
-  
+
   // Create an optimizer
   TrajectoryOptimizer<double> optimizer(&plant, opt_prob);
   TrajectoryOptimizerState<double> state = optimizer.CreateState();
@@ -489,14 +489,14 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcGradientPendulumNoGravity) {
   VectorXd g(plant.num_positions() * (num_steps + 1));
   optimizer.CalcGradient(state, &g);
 
-  // Without gravity, our gradient computation should be exact
-  //const double kTolerance = 10*std::numeric_limits<double>::epsilon();
-  //EXPECT_TRUE(
-  //    CompareMatrices(g, g_gt, kTolerance, MatrixCompareType::relative));
-  std::cout << "gradient error: " << (g - g_gt).norm() << std::endl;
+  // Even without gravity (a.k.a. linear system), finite differences is only
+  // accurate to sqrt(epsilon)
+  const double kTolerance = sqrt(std::numeric_limits<double>::epsilon());
+  EXPECT_TRUE(
+      CompareMatrices(g, g_gt, kTolerance, MatrixCompareType::relative));
 
-  // Is the error from dtau/dq?
-  // Compute ground truth partials from the pendulum model
+  // Evaluate error in d(tau)/d(q), as compared to the ground truth pendulum
+  // model
   //
   //     m*l^2*a + m*g*l*sin(q) + b*v = tau
   //
@@ -508,8 +508,7 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcGradientPendulumNoGravity) {
   InverseDynamicsPartials<double> id_partials_gt(num_steps, 1, 1);
   for (int t = 0; t < num_steps; ++t) {
     // dtau[t]/dq[t+1]
-    id_partials_gt.dtau_dqp[t](0, 0) =
-        1 / dt / dt * m * l * l + 1 / dt * b;
+    id_partials_gt.dtau_dqp[t](0, 0) = 1 / dt / dt * m * l * l + 1 / dt * b;
 
     // dtau[t]/dq[t]
     id_partials_gt.dtau_dqt[t](0, 0) = -2 / dt / dt * m * l * l - 1 / dt * b;
@@ -528,91 +527,41 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcGradientPendulumNoGravity) {
     }
   }
 
-  const InverseDynamicsPartials<double>& id_partials = state.cache().id_partials;
-  for (int t=0; t< num_steps; ++t) {
-    std::cout << "dtau_dqm error: ";
-    std::cout << id_partials.dtau_dqm[t] - id_partials_gt.dtau_dqm[t] << std::endl;
-    std::cout << "dtau_dqt error: ";
-    std::cout << id_partials.dtau_dqt[t] - id_partials_gt.dtau_dqt[t] << std::endl;
-    std::cout << "dtau_dqp error: ";
-    std::cout << id_partials.dtau_dqp[t] - id_partials_gt.dtau_dqp[t] << std::endl;
-    std::cout << std::endl;
+  const InverseDynamicsPartials<double>& id_partials =
+      state.cache().id_partials;
+  for (int t = 0; t < num_steps; ++t) {
+    if (t > 0) {
+      EXPECT_NEAR(id_partials.dtau_dqm[t](0), id_partials_gt.dtau_dqm[t](0),
+                  10 * kTolerance);
+    }
+    EXPECT_NEAR(id_partials.dtau_dqt[t](0), id_partials_gt.dtau_dqt[t](0),
+                10 * kTolerance);
+    EXPECT_NEAR(id_partials.dtau_dqp[t](0), id_partials_gt.dtau_dqp[t](0),
+                10 * kTolerance);
   }
-
-  //// DEBUG: compute d(tau[T-1])/d(q[T])
-  ////VectorXd dtau_dq_gt = id_partials_gt.dtau_dqp[num_steps-1];
-  //VectorXd dtau_dq_gt = Vector1d( 1 / dt / dt * m * l * l + 1 / dt * b );
-  //VectorXd dtau_dq_fd = id_partials.dtau_dqp[num_steps-1];
-  //printf("true dtau/dq:         %3.16f\n", dtau_dq_gt(0));
-  //printf("finite diff dtau/dq:  %3.16f\n", dtau_dq_fd(0));
-  //std::cout << dtau_dq_fd - dtau_dq_gt << std::endl;
-
-  //std::cout << std::endl;
-
-  //VectorXd tau_of_q(1);
-  //VectorXd qm(1);
-  //VectorXd qt(1);
-  //VectorXd qp(1);
-  //VectorXd vt(1);
-  //VectorXd vp(1);
-  //VectorXd at(1);
-
-  //qm = q[num_steps - 1];
-  //qt = q[num_steps];
-  //qp = q[num_steps + 1];
-  //vt = (qt - qm) / dt;
-  //vp = (qp - qt) / dt;
-  //at = (vp - vt) / dt;
-
-  //TrajectoryOptimizerTester::CalcInverseDynamicsSingleTimeStep(
-  //    optimizer, qp, vp, at, &workspace, &tau_of_q);
-
-  //std::cout << tau_of_q << std::endl;
-
-  //const double eps = 1e-3;
-  //VectorXd tau_of_q_plus_eps(1);
-  //qm = q[num_steps-1];
-  //qt = q[num_steps];
-  //qp = q[num_steps+1];
-  //qp(0) += eps;
-  //vt = (qt - qm) / dt;
-  //vp = (qp - qt) / dt;
-  //at = (vp - vt) / dt;
-
-  //TrajectoryOptimizerTester::CalcInverseDynamicsSingleTimeStep(
-  //    optimizer, qp, vp, at, &workspace, &tau_of_q_plus_eps);
-  
-  //std::cout << tau_of_q_plus_eps << std::endl;
-  //std::cout << (tau_of_q_plus_eps - tau_of_q) / eps << std::endl;
 
   // Check that mass matrix of the plant is truely constant
   auto plant_context = plant.CreateDefaultContext();
-  MatrixXd M(1,1);
-  for (int t=0; t<num_steps; ++t) {
+  MatrixXd M(1, 1);
+  for (int t = 0; t < num_steps; ++t) {
     plant.SetPositions(plant_context.get(), q[t]);
     plant.SetVelocities(plant_context.get(), state.cache().v[t]);
     plant.CalcMassMatrix(*plant_context, &M);
-    
-    EXPECT_NEAR(M(0,0), m * l * l, std::numeric_limits<double>::epsilon());
+
+    EXPECT_NEAR(M(0, 0), m * l * l, std::numeric_limits<double>::epsilon());
   }
 
-  // Is the error from tau(q)?
-  // Compute ground truth inverse dynamics from the pendulum model,
-  //
-  //     m*l^2*a + m*g*l*sin(q) + b*v = tau
-  //
-  // where q is the joint angle and a = dv/dt, v = dq/dt.
+  // Check our computation of tau(q)
   double tau;
   double tau_gt;
   const std::vector<VectorXd>& v = state.cache().v;
   const std::vector<VectorXd>& a = state.cache().a;
   const double kToleranceTau = 10 * std::numeric_limits<double>::epsilon();
-  for (int t=0; t<num_steps; ++t) {
+  for (int t = 0; t < num_steps; ++t) {
     tau_gt = state.cache().tau[t](0);
-    tau = m*l*l*a[t](0) + b*v[t+1](0);
+    tau = m * l * l * a[t](0) + b * v[t + 1](0);
     EXPECT_NEAR(tau_gt, tau, kToleranceTau);
   }
-
 }
 
 GTEST_TEST(TrajectoryOptimizerTest, CalcGradientPendulum) {
@@ -814,23 +763,27 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcCostFromState) {
   double vt = opt_prob.v_init[0];
   double vp;
   double ut;
-  for (int t=0; t<num_steps; ++t) {
+  for (int t = 0; t < num_steps; ++t) {
     qt = q[t][0];
     if (t > 0) {
       vt = (q[t][0] - q[t - 1][0]) / dt;
     }
-    vp = (q[t+1][0] - q[t][0]) / dt;
-    ut = m*l*l*(vp-vt)/dt + b * vp;
+    vp = (q[t + 1][0] - q[t][0]) / dt;
+    ut = m * l * l * (vp - vt) / dt + b * vp;
 
-    L_gt += dt * (qt - opt_prob.q_nom(0)) * opt_prob.Qq(0) * (qt - opt_prob.q_nom(0));
-    L_gt += dt * (vt - opt_prob.v_nom(0)) * opt_prob.Qv(0) * (vt - opt_prob.v_nom(0));
+    L_gt += dt * (qt - opt_prob.q_nom(0)) * opt_prob.Qq(0) *
+            (qt - opt_prob.q_nom(0));
+    L_gt += dt * (vt - opt_prob.v_nom(0)) * opt_prob.Qv(0) *
+            (vt - opt_prob.v_nom(0));
     L_gt += dt * ut * opt_prob.R(0) * ut;
   }
 
   qt = q[num_steps][0];
-  vt = (q[num_steps][0] - q[num_steps-1][0])/dt;
-  L_gt += (qt - opt_prob.q_nom(0)) * opt_prob.Qf_q(0) * (qt - opt_prob.q_nom(0));
-  L_gt += (vt - opt_prob.v_nom(0)) * opt_prob.Qf_v(0) * (vt - opt_prob.v_nom(0));
+  vt = (q[num_steps][0] - q[num_steps - 1][0]) / dt;
+  L_gt +=
+      (qt - opt_prob.q_nom(0)) * opt_prob.Qf_q(0) * (qt - opt_prob.q_nom(0));
+  L_gt +=
+      (vt - opt_prob.v_nom(0)) * opt_prob.Qf_v(0) * (vt - opt_prob.v_nom(0));
 
   const double kTolerance = 100 * std::numeric_limits<double>::epsilon();
   EXPECT_NEAR(L, L_gt, kTolerance);

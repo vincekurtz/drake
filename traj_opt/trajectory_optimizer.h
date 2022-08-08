@@ -301,12 +301,6 @@ class TrajectoryOptimizer {
       const std::vector<VectorX<T>>& a, const std::vector<VectorX<T>>& tau,
       TrajectoryOptimizerWorkspace<T>* workspace,
       InverseDynamicsPartials<T>* id_partials) const;
-  
-  void CalcInverseDynamicsPartialsDebug(
-      const std::vector<VectorX<T>>& q, const std::vector<VectorX<T>>& v,
-      const std::vector<VectorX<T>>& a, const std::vector<VectorX<T>>& tau,
-      TrajectoryOptimizerWorkspace<T>* workspace,
-      InverseDynamicsPartials<T>* id_partials) const;
 
   /**
    * Compute the gradient of the unconstrained cost L(q) using finite
@@ -349,13 +343,13 @@ class TrajectoryOptimizer {
    *
    *    phi(alpha) = L(q + alpha*dq)
    *
-   * for various values of alpha to a file. 
+   * for various values of alpha to a file.
    *
    * This allows us to make a nice plot in python after the fact
    */
   void SaveLinesearchResidual(const T L, const std::vector<VectorX<T>>& q,
-                               const VectorX<T>& dq,
-                               TrajectoryOptimizerState<T>* state) const;
+                              const VectorX<T>& dq,
+                              TrajectoryOptimizerState<T>* state) const;
 
   /**
    * Simple backtracking linesearch strategy to find alpha that satisfies
