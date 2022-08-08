@@ -20,19 +20,19 @@ drake_root = "/home/vincentkurtz/drake/"
 dt = 5e-2
 num_steps = 40
 max_iters = 500
-gravity = False
+gravity = True
 
-scale_factor = 1
+scale_factor = 1.0
 
 Qq = 0.0 * scale_factor
 Qv = 0.1 * scale_factor
 R = 1 * scale_factor
-Qfq = 10 * scale_factor
+Qfq = 100 * scale_factor
 Qfv = 1.0 * scale_factor
 
 # Solve the optimization problem
 options_string = " -- "
-options_string += "--visualize=false "
+options_string += "--visualize=true "
 options_string += "--save_data=true "
 options_string += f"--time_step={dt} "
 options_string += f"--num_steps={num_steps} "
@@ -76,9 +76,9 @@ ax4.plot(iters, data["alpha"])
 ax4.set_ylabel("alpha")
 
 ax5.plot(iters, data["grad_norm"])
-ax5.set_ylabel("||g||")
+ax5.set_ylabel("$||g||$ / cost")
 ax5.set_yscale("log")
-ax5.set_yticks(np.logspace(-16,0,9))
+ax5.set_yticks(np.logspace(-12,0,7))
 
 ax5.set_xlabel("Iteration")
 ax5.xaxis.set_major_locator(MaxNLocator(integer=True))

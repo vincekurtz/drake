@@ -585,7 +585,7 @@ std::tuple<double, int> TrajectoryOptimizer<T>::BacktrackingArmijoLinesearch(
   const int nq = plant().num_positions();
 
   // TODO(vincekurtz): set these in SolverOptions
-  const double c = 1e-1;
+  const double c = 1e-4;
   const double rho = 0.9;
 
   double alpha = 1.0 / rho;        // get alpha = 1 on first iteration
@@ -667,13 +667,13 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
 
   // Define printout data
   std::cout
-      << "---------------------------------------------------------------------"
+      << "----------------------------------------------------------------------"
       << std::endl;
   std::cout
-      << "|  iter  |   cost   |  alpha  |  LS_iters  |  time (s)  |    |g|    |"
+      << "|  iter  |   cost   |  alpha  |  LS_iters  |  time (s)  |  |g|/cost  |"
       << std::endl;
   std::cout
-      << "---------------------------------------------------------------------"
+      << "----------------------------------------------------------------------"
       << std::endl;
 
   // Allocate timing variables
@@ -724,7 +724,7 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
       linesearch_alphas.push_back(alpha);
       iter_time = std::chrono::high_resolution_clock::now() - iter_start_time;
       iteration_times.push_back(iter_time.count());
-      gradient_norm.push_back(g.norm());
+      gradient_norm.push_back(g.norm() / iteration_costs[k]);
 
       return SolverFlag::kLinesearchMaxIters;
     }
@@ -744,17 +744,17 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
     printf("| %7.4f ", alpha);
     printf("| %6d     ", ls_iters);
     printf("| %8.8f ", iter_time.count());
-    printf("| %4.3e |\n", g.norm());
+    printf("| %10.3e |\n", g.norm() / iteration_costs[k-1]);
 
     // Record iteration data
     linesearch_iterations.push_back(ls_iters);
     linesearch_alphas.push_back(alpha);
     iteration_times.push_back(iter_time.count());
-    gradient_norm.push_back(g.norm());
+    gradient_norm.push_back(g.norm() / iteration_costs[k-1]);
   } while (k < params_.max_iterations);
 
   std::cout
-      << "---------------------------------------------------------------------"
+      << "----------------------------------------------------------------------"
       << std::endl;
 
   // Record the total solve time
