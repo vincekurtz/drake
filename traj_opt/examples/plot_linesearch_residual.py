@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 #
 ##
 
-drake_root = "/home/vjkurtz/builds/drake/"
+drake_root = "/home/vincentkurtz/drake/"
 
 # Get data from the same files
 data_file = drake_root + "bazel-out/k8-opt/bin/traj_opt/examples/pendulum.runfiles/drake/linesearch_data.csv"

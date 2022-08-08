@@ -14,7 +14,7 @@ import sys
 #
 ##
 
-drake_root = "/home/vjkurtz/builds/drake/"
+drake_root = "/home/vincentkurtz/drake/"
 
 # Define our optimization problem
 dt = 5e-2

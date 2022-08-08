@@ -206,7 +206,8 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsDebug(
     for (int i = 0; i < plant().num_positions(); ++i) {
       // Perturb q_t by epsilon
       q_eps_t = q[t];
-      dqt_i = eps;// * max(1.0, abs(q_eps_t(i)));  // avoid losing precision
+
+      dqt_i = eps * max(1.0, abs(q_eps_t(i)));  // avoid losing precision
       q_eps_t(i) += dqt_i;
 
       // Compute perturbed v(q)
