@@ -20,7 +20,7 @@ drake_root = "/home/vincentkurtz/drake/"
 dt = 5e-2
 num_steps = 40
 max_iters = 500
-gravity = True
+gravity = 9.81
 
 scale_factor = 1.0
 
@@ -68,6 +68,7 @@ ax1.set_ylim((0,0.05))
 
 ax2.plot(iters, data["cost"])
 ax2.set_ylabel("Cost")
+ax2.set_yscale("log")
 
 ax3.plot(iters, data["ls_iters"])
 ax3.set_ylabel("Linesearch Iters")

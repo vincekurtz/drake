@@ -596,8 +596,9 @@ std::tuple<double, int> TrajectoryOptimizer<T>::BacktrackingArmijoLinesearch(
   DRAKE_DEMAND(L_prime <= 0);
 
   // Exit early with alpha = 1 when we are close to convergence
-  const double convergence_threshold = 10*std::numeric_limits<double>::epsilon();
-  if ( abs(L_prime) / abs(L) <= convergence_threshold ) {
+  const double convergence_threshold =
+      10 * std::numeric_limits<double>::epsilon();
+  if (abs(L_prime) / abs(L) <= convergence_threshold) {
     return {1.0, 0};
   }
 
@@ -615,7 +616,8 @@ std::tuple<double, int> TrajectoryOptimizer<T>::BacktrackingArmijoLinesearch(
     L_new = CalcCost(*state);
 
     ++i;
-  } while ((L_new > L + c * alpha * L_prime) && (i < params_.max_linesearch_iterations));
+  } while ((L_new > L + c * alpha * L_prime) &&
+           (i < params_.max_linesearch_iterations));
 
   return {alpha, i};
 }
@@ -666,15 +668,15 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
   VectorXd dq(num_vars);
 
   // Define printout data
-  std::cout
-      << "----------------------------------------------------------------------"
-      << std::endl;
-  std::cout
-      << "|  iter  |   cost   |  alpha  |  LS_iters  |  time (s)  |  |g|/cost  |"
-      << std::endl;
-  std::cout
-      << "----------------------------------------------------------------------"
-      << std::endl;
+  std::cout << "---------------------------------------------------------------"
+               "-------"
+            << std::endl;
+  std::cout << "|  iter  |   cost   |  alpha  |  LS_iters  |  time (s)  |  "
+               "|g|/cost  |"
+            << std::endl;
+  std::cout << "---------------------------------------------------------------"
+               "-------"
+            << std::endl;
 
   // Allocate timing variables
   auto start_time = std::chrono::high_resolution_clock::now();
@@ -744,18 +746,18 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
     printf("| %7.4f ", alpha);
     printf("| %6d     ", ls_iters);
     printf("| %8.8f ", iter_time.count());
-    printf("| %10.3e |\n", g.norm() / iteration_costs[k-1]);
+    printf("| %10.3e |\n", g.norm() / iteration_costs[k - 1]);
 
     // Record iteration data
     linesearch_iterations.push_back(ls_iters);
     linesearch_alphas.push_back(alpha);
     iteration_times.push_back(iter_time.count());
-    gradient_norm.push_back(g.norm() / iteration_costs[k-1]);
+    gradient_norm.push_back(g.norm() / iteration_costs[k - 1]);
   } while (k < params_.max_iterations);
 
-  std::cout
-      << "----------------------------------------------------------------------"
-      << std::endl;
+  std::cout << "---------------------------------------------------------------"
+               "-------"
+            << std::endl;
 
   // Record the total solve time
   solve_time = std::chrono::high_resolution_clock::now() - start_time;

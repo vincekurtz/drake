@@ -35,7 +35,7 @@ DEFINE_double(Qfq, 100.0, "Terminal cost weight on the joint angle.");
 DEFINE_double(Qfv, 1.0, "Terminal cost weight on the joint velocity.");
 DEFINE_bool(save_data, false, "Flag for writing solver data to a csv file.");
 DEFINE_bool(visualize, true, "Flag for displaying the optimal solution.");
-DEFINE_bool(gravity, true, "Flag for turning gravity on and off.");
+DEFINE_double(gravity, 9.81, "Magnitude of gravity in the z-direction.");
 
 using geometry::DrakeVisualizerd;
 using geometry::SceneGraph;
@@ -131,9 +131,8 @@ void solve_trajectory_optimization(double time_step, int num_steps) {
   const std::string urdf_file =
       FindResourceOrThrow("drake/examples/pendulum/Pendulum.urdf");
   Parser(&plant).AddAllModelsFromFile(urdf_file);
-  if (!FLAGS_gravity) {
-    plant.mutable_gravity_field().set_gravity_vector(VectorXd::Zero(3));
-  }
+  plant.mutable_gravity_field().set_gravity_vector(
+      Eigen::Vector3d(0, 0, -FLAGS_gravity));
   plant.Finalize();
 
   // Set up an optimization problem
