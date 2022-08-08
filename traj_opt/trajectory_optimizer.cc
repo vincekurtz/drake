@@ -597,7 +597,7 @@ std::tuple<double, int> TrajectoryOptimizer<T>::BacktrackingArmijoLinesearch(
 
   // Exit early with alpha = 1 when we are close to convergence
   const double convergence_threshold =
-      10 * std::numeric_limits<double>::epsilon();
+      sqrt(std::numeric_limits<double>::epsilon());
   if (abs(L_prime) / abs(L) <= convergence_threshold) {
     return {1.0, 0};
   }
@@ -763,7 +763,12 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
   solve_time = std::chrono::high_resolution_clock::now() - start_time;
   solution_data->solve_time = solve_time.count();
 
+  // Report the solution
+  UpdateCache(state);  // TODO(vincekurtz): don't update derivative info here
   solution->q = state.q();
+  solution->v = state.cache().v;
+  solution->tau = state.cache().tau;
+
   return SolverFlag::kSuccess;
 }
 
