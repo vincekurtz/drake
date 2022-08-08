@@ -25,7 +25,7 @@ gravity = 9.81
 Qq = 0.0
 Qv = 1e-1
 R = 1e-1
-unactuated_penalty = 5e3
+unactuated_penalty = 1e3
 Qfq = 1e2
 Qfv = 1e0
 
@@ -43,6 +43,7 @@ options_string += f"--unactuated_penalty={unactuated_penalty} "
 options_string += f"--Qfq={Qfq} "
 options_string += f"--Qfv={Qfv} "
 options_string += f"--gravity={gravity} "
+options_string += f"--linesearch=backtracking "
 
 os.system("cd " + drake_root)
 code = os.system("bazel run //traj_opt/examples:acrobot" + options_string)
@@ -67,7 +68,7 @@ ax1.set_ylabel("Iteration time (s)")
 ax1.set_ylim((0,0.01))
 
 ax2.plot(iters, data["cost"] - data["cost"][-1])
-ax2.set_ylabel("Cost")
+ax2.set_ylabel("Cost (minus baseline)")
 ax2.set_yscale("log")
 
 ax3.plot(iters, data["ls_iters"])

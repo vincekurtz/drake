@@ -535,7 +535,8 @@ void TrajectoryOptimizer<T>::UpdateCache(
 }
 
 template <typename T>
-void TrajectoryOptimizer<T>::AddToQ(const VectorX<T>& dq, TrajectoryOptimizerState<T>* state) const {
+void TrajectoryOptimizer<T>::AddToQ(const VectorX<T>& dq,
+                                    TrajectoryOptimizerState<T>* state) const {
   const int nq = plant().num_positions();
   DRAKE_DEMAND(dq.size() == nq * (num_steps() + 1));
 
@@ -598,9 +599,9 @@ std::tuple<double, int> TrajectoryOptimizer<T>::BacktrackingLinesearch(
   const double c = 1e-4;
   const double rho = 0.9;
 
-  double alpha = 1.0 / rho;        // get alpha = 1 on first iteration
+  double alpha = 1.0;
   T L_prime = g.transpose() * dq;  // gradient of L w.r.t. alpha
-  
+
   // Make sure this is a descent direction
   DRAKE_DEMAND(L_prime <= 0);
 
@@ -611,19 +612,23 @@ std::tuple<double, int> TrajectoryOptimizer<T>::BacktrackingLinesearch(
     return {1.0, 0};
   }
 
-  // Costs associated with alpha at this and the previous linesearch iteration.
-  // N.B. These are initialized so that L_new < L_old. 
-  T L_new = 0;  // L(q + alpha_i * dq)
-  //T L_old = 1;  // L(q + alpha_{i-1} * dq)
+  // Try with alpha = 1
+  state->set_q(q);
+  AddToQ(alpha * dq, state);
+  T L_old = CalcCost(*state);
+
+  // L_new stores cost at iteration i:   L(q + alpha_i * dq)
+  // L_old stores cost at iteration i-1: L(q + alpha_{i-1} * dq)
+  T L_new = L_old;
 
   // We'll keep reducing alpha until (1) we meet the Armijo convergence
   // criteria and (2) the cost increases, indicating that we're near a local
   // minimum.
   int i = 0;
   bool armijo_met = false;
-  while (!armijo_met) {
+  while (!armijo_met || (L_new < L_old)) {
     // Save L_old = L(q + alpha_{i-1} * dq)
-    //L_old = L_new;
+    L_old = L_new;
 
     // Reduce alpha
     alpha *= rho;
@@ -634,14 +639,14 @@ std::tuple<double, int> TrajectoryOptimizer<T>::BacktrackingLinesearch(
     L_new = CalcCost(*state);
 
     // Check the Armijo conditions
-    if (L_new <= L + c * alpha * L_prime ) {
+    if (L_new <= L + c * alpha * L_prime) {
       armijo_met = true;
     }
 
     ++i;
   }
-  
-  return {alpha, i};
+
+  return {alpha / rho, i};
 }
 
 template <typename T>
@@ -771,10 +776,10 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
     DRAKE_DEMAND(Hchol.status() == PentaDiagonalFactorizationStatus::kSuccess);
     Hchol.SolveInPlace(&dq);
 
-    // DEBUG
-    if (k == 1) {
-      SaveLinesearchResidual(iteration_costs[k], state.q(), dq, &ls_state);
-    }
+    // DEBUG: save some linesearch data for later plotting
+    // if (k == 13) {
+    //   SaveLinesearchResidual(iteration_costs[k], state.q(), dq, &ls_state);
+    // }
 
     // Solve the linsearch
     // N.B. we use a separate state variable since we will need to compute

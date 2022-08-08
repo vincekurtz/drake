@@ -36,6 +36,8 @@ DEFINE_double(Qfv, 1.0, "Terminal cost weight on the joint velocity.");
 DEFINE_bool(save_data, false, "Flag for writing solver data to a csv file.");
 DEFINE_bool(visualize, true, "Flag for displaying the optimal solution.");
 DEFINE_double(gravity, 9.81, "Magnitude of gravity in the z-direction.");
+DEFINE_string(linesearch, "backtracking",
+              "Linesearch strategy, {backtracking} or {armijo}.");
 
 using geometry::DrakeVisualizerd;
 using geometry::SceneGraph;
@@ -150,7 +152,11 @@ void solve_trajectory_optimization(double time_step, int num_steps) {
 
   // Set our solver options
   SolverParameters solver_params;
-  solver_params.linesearch_method = LinesearchMethod::kBacktracking;
+  if (FLAGS_linesearch == "backtracking") {
+    solver_params.linesearch_method = LinesearchMethod::kBacktracking;
+  } else {
+    solver_params.linesearch_method = LinesearchMethod::kBacktrackingArmijo;
+  }
   solver_params.max_iterations = FLAGS_max_iters;
   solver_params.max_linesearch_iterations = 50;
 

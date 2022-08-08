@@ -355,7 +355,7 @@ class TrajectoryOptimizer {
    * Simple backtracking linesearch strategy to find alpha that satisfies
    *
    *    L(q + alpha*dq) < L(q) - c*g'*dq
-   * 
+   *
    * and is (approximately) a local minimizer of L(q + alpha*dq).
    */
   std::tuple<double, int> BacktrackingLinesearch(

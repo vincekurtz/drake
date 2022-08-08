@@ -37,6 +37,8 @@ DEFINE_double(Qfv, 1.0, "Terminal cost weight on the joint velocities.");
 DEFINE_bool(save_data, false, "Flag for writing solver data to a csv file.");
 DEFINE_bool(visualize, true, "Flag for displaying the optimal solution.");
 DEFINE_double(gravity, 9.81, "Magnitude of gravity in the z-direction.");
+DEFINE_string(linesearch, "backtracking",
+              "Linesearch strategy, {backtracking} or {armijo}.");
 
 using Eigen::Vector2d;
 using geometry::DrakeVisualizerd;
@@ -134,7 +136,7 @@ void solve_trajectory_optimization(double time_step, int num_steps) {
       Eigen::Vector3d(0, 0, -FLAGS_gravity));
   plant.Finalize();
 
-  //// Set up an optimization problem
+  // Set up an optimization problem
   ProblemDefinition opt_prob;
   opt_prob.num_steps = num_steps;
   opt_prob.q_init = Vector2d(0.0, 0.0);
@@ -149,7 +151,11 @@ void solve_trajectory_optimization(double time_step, int num_steps) {
 
   // Set our solver options
   SolverParameters solver_params;
-  solver_params.linesearch_method = LinesearchMethod::kBacktrackingArmijo;
+  if (FLAGS_linesearch == "backtracking") {
+    solver_params.linesearch_method = LinesearchMethod::kBacktracking;
+  } else {
+    solver_params.linesearch_method = LinesearchMethod::kBacktrackingArmijo;
+  }
   solver_params.max_iterations = FLAGS_max_iters;
   solver_params.max_linesearch_iterations = 50;
 
@@ -164,9 +170,6 @@ void solve_trajectory_optimization(double time_step, int num_steps) {
   TrajectoryOptimizer<double> optimizer(&plant, opt_prob, solver_params);
   TrajectoryOptimizerSolution<double> solution;
   SolutionData<double> solution_data;
-
-  std::cout << q_guess[0].size() << std::endl;
-  std::cout << plant.num_positions() << std::endl;
 
   SolverFlag status = optimizer.Solve(q_guess, &solution, &solution_data);
 
