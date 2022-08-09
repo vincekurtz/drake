@@ -161,9 +161,8 @@ void solve_trajectory_optimization(double time_step, int num_steps) {
 
   // Establish an initial guess
   std::vector<VectorXd> q_guess;
-  q_guess.push_back(opt_prob.q_init);
-  for (int t = 1; t <= num_steps; ++t) {
-    q_guess.push_back(q_guess[t - 1] + 0.1 * time_step * Vector2d(1.0, 1.0));
+  for (int t = 0; t <= num_steps; ++t) {
+    q_guess.push_back(opt_prob.q_init);
   }
 
   // Solve the optimzation problem
