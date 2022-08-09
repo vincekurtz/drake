@@ -20,6 +20,9 @@ struct SolverParameters {
 
   // Maximum number of linesearch iterations
   int max_linesearch_iterations = 50;
+
+  // Flag for whether to print out iteration data
+  bool verbose = true;
 };
 
 }  // namespace traj_opt

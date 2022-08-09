@@ -710,10 +710,11 @@ SolverFlag TrajectoryOptimizer<T>::Solve(const std::vector<VectorX<T>>&,
 template <>
 SolverFlag TrajectoryOptimizer<double>::Solve(
     const std::vector<VectorXd>& q_guess,
-    TrajectoryOptimizerSolution<double>* solution,
+    TrajectoryOptimizerSolution<double>* solution, //TODO: rename Solution<dobule>
     SolutionData<double>* solution_data) const {
   // The guess must be consistent with the initial condition
   DRAKE_DEMAND(q_guess[0] == prob_.q_init);
+  DRAKE_DEMAND(static_cast<int>(q_guess.size()) == num_steps() + 1);
 
   // solution_data must be empty
   DRAKE_DEMAND(solution_data->iteration_times.size() == 0);
@@ -744,16 +745,18 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
   PentaDiagonalMatrix<double> H(num_steps() + 1, nq);
   VectorXd dq(num_vars);
 
-  // Define printout data
-  std::cout << "---------------------------------------------------------------"
-               "-------"
-            << std::endl;
-  std::cout << "|  iter  |   cost   |  alpha  |  LS_iters  |  time (s)  |  "
-               "|g|/cost  |"
-            << std::endl;
-  std::cout << "---------------------------------------------------------------"
-               "-------"
-            << std::endl;
+  if (params_.verbose) {
+    // Define printout data
+    std::cout << "-------------------------------------------------------------"
+                 "---------"
+              << std::endl;
+    std::cout << "|  iter  |   cost   |  alpha  |  LS_iters  |  time (s)  |  "
+                 "|g|/cost  |"
+              << std::endl;
+    std::cout << "-------------------------------------------------------------"
+                 "---------"
+              << std::endl;
+  }
 
   // Allocate timing variables
   auto start_time = std::chrono::high_resolution_clock::now();
@@ -787,9 +790,11 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
 
     if (ls_iters >= params_.max_linesearch_iterations) {
       // Early termination if linesearch is taking too long
-      std::cout << "LINESEARCH FAILED" << std::endl;
-      std::cout << "Reached maximum linesearch iterations (" << ls_iters << ")."
-                << std::endl;
+      if (params_.verbose) {
+        std::cout << "LINESEARCH FAILED" << std::endl;
+        std::cout << "Reached maximum linesearch iterations ("
+                  << params_.max_linesearch_iterations << ")." << std::endl;
+      }
 
       // Save the linesearch residual to a csv file so we can plot in python
       SaveLinesearchResidual(iteration_costs[k], state.q(), dq, &ls_state);
@@ -811,12 +816,14 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
     iter_time = std::chrono::high_resolution_clock::now() - iter_start_time;
 
     // Nice little printout of our problem data
-    printf("| %6d ", k);
-    printf("| %8.3f ", iteration_costs[k]);
-    printf("| %7.4f ", alpha);
-    printf("| %6d     ", ls_iters);
-    printf("| %8.8f ", iter_time.count());
-    printf("| %10.3e |\n", g.norm() / iteration_costs[k]);
+    if (params_.verbose) {
+      printf("| %6d ", k);
+      printf("| %8.3f ", iteration_costs[k]);
+      printf("| %7.4f ", alpha);
+      printf("| %6d     ", ls_iters);
+      printf("| %8.8f ", iter_time.count());
+      printf("| %10.3e |\n", g.norm() / iteration_costs[k]);
+    }
 
     // Record iteration data
     linesearch_iterations.push_back(ls_iters);
@@ -828,9 +835,11 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
   } while (k < params_.max_iterations);
 
   // End the problem data printout
-  std::cout << "---------------------------------------------------------------"
-               "-------"
-            << std::endl;
+  if (params_.verbose) {
+    std::cout << "-------------------------------------------------------------"
+                 "---------"
+              << std::endl;
+  }
 
   // Record the total solve time
   solve_time = std::chrono::high_resolution_clock::now() - start_time;
