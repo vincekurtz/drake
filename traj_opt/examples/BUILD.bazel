@@ -14,8 +14,7 @@ drake_cc_binary(
     srcs = ["acrobot.cc"],
     add_test_rule = 1,
     data = [
-        "//examples/pendulum:prod_models",
-        "//multibody/benchmarks/acrobot:models",
+        "//examples/acrobot:prod_models",
     ],
     test_rule_args = [
         "-max_iters=20",

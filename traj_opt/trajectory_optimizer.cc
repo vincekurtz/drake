@@ -489,7 +489,7 @@ void TrajectoryOptimizer<T>::UpdateCacheTrajectoryData(
     const TrajectoryOptimizerState<T>& state) const {
   TrajectoryOptimizerCache<T>& cache = state.mutable_cache();
   TrajectoryOptimizerWorkspace<T>& workspace = state.workspace;
-  
+
   // Some aliases for things that we'll set
   std::vector<VectorX<T>>& v = cache.v;
   std::vector<VectorX<T>>& a = cache.a;
@@ -497,7 +497,7 @@ void TrajectoryOptimizer<T>::UpdateCacheTrajectoryData(
 
   // The generalized positions that everything is computed from
   const std::vector<VectorX<T>>& q = state.q();
-  
+
   // Compute corresponding generalized velocities
   CalcVelocities(q, &v);
 
@@ -507,7 +507,7 @@ void TrajectoryOptimizer<T>::UpdateCacheTrajectoryData(
   // Compute corresponding generalized torques
   CalcInverseDynamics(q, v, a, &workspace, &tau);
 
-  // Set cache invalidation flag 
+  // Set cache invalidation flag
   cache.trajectory_data_up_to_date = true;
 }
 
@@ -807,7 +807,7 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
 
     // Update the decision variables
     AddToQ(alpha * dq, &state);
-    
+
     iter_time = std::chrono::high_resolution_clock::now() - iter_start_time;
 
     // Nice little printout of our problem data
@@ -823,7 +823,7 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
     linesearch_alphas.push_back(alpha);
     iteration_times.push_back(iter_time.count());
     gradient_norm.push_back(g.norm() / iteration_costs[k]);
-    
+
     ++k;
   } while (k < params_.max_iterations);
 

@@ -91,7 +91,7 @@ void play_back_trajectory(std::vector<VectorXd> q, double time_step) {
   auto [plant, scene_graph] = AddMultibodyPlant(config, &builder);
 
   const std::string urdf_file =
-      FindResourceOrThrow("drake/multibody/benchmarks/acrobot/acrobot.urdf");
+      FindResourceOrThrow("drake/examples/acrobot/Acrobot.urdf");
   Parser(&plant).AddAllModelsFromFile(urdf_file);
   plant.Finalize();
 
@@ -130,7 +130,7 @@ void solve_trajectory_optimization(double time_step, int num_steps) {
   // Create a system model
   MultibodyPlant<double> plant(time_step);
   const std::string urdf_file =
-      FindResourceOrThrow("drake/multibody/benchmarks/acrobot/acrobot.urdf");
+      FindResourceOrThrow("drake/examples/acrobot/Acrobot.urdf");
   Parser(&plant).AddAllModelsFromFile(urdf_file);
   plant.mutable_gravity_field().set_gravity_vector(
       Eigen::Vector3d(0, 0, -FLAGS_gravity));
