@@ -701,7 +701,7 @@ std::tuple<double, int> TrajectoryOptimizer<T>::ArmijoLinesearch(
 
 template <typename T>
 SolverFlag TrajectoryOptimizer<T>::Solve(const std::vector<VectorX<T>>&,
-                                         TrajectoryOptimizerSolution<T>*,
+                                         Solution<T>*,
                                          SolutionData<T>*) const {
   throw std::runtime_error(
       "TrajectoryOptimizer::Solve only supports T=double.");
@@ -710,7 +710,7 @@ SolverFlag TrajectoryOptimizer<T>::Solve(const std::vector<VectorX<T>>&,
 template <>
 SolverFlag TrajectoryOptimizer<double>::Solve(
     const std::vector<VectorXd>& q_guess,
-    TrajectoryOptimizerSolution<double>* solution, //TODO: rename Solution<dobule>
+    Solution<double>* solution,
     SolutionData<double>* solution_data) const {
   // The guess must be consistent with the initial condition
   DRAKE_DEMAND(q_guess[0] == prob_.q_init);

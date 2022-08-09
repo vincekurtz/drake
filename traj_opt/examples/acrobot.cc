@@ -167,7 +167,7 @@ void solve_trajectory_optimization(double time_step, int num_steps) {
 
   // Solve the optimzation problem
   TrajectoryOptimizer<double> optimizer(&plant, opt_prob, solver_params);
-  TrajectoryOptimizerSolution<double> solution;
+  Solution<double> solution;
   SolutionData<double> solution_data;
 
   SolverFlag status = optimizer.Solve(q_guess, &solution, &solution_data);

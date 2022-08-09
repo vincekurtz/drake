@@ -163,12 +163,12 @@ void solve_trajectory_optimization(double time_step, int num_steps) {
   // Establish an initial guess
   std::vector<VectorXd> q_guess;
   for (int t = 0; t <= num_steps; ++t) {
-    q_guess.push_back(opt_prob.q_init); 
+    q_guess.push_back(opt_prob.q_init);
   }
 
   // Solve the optimzation problem
   TrajectoryOptimizer<double> optimizer(&plant, opt_prob, solver_params);
-  TrajectoryOptimizerSolution<double> solution;
+  Solution<double> solution;
   SolutionData<double> solution_data;
 
   SolverFlag status = optimizer.Solve(q_guess, &solution, &solution_data);

@@ -131,7 +131,7 @@ class TrajectoryOptimizer {
    * @return SolverFlag
    */
   SolverFlag Solve(const std::vector<VectorX<T>>& q_guess,
-                   TrajectoryOptimizerSolution<T>* solution,
+                   Solution<T>* solution,
                    SolutionData<T>* solution_data) const;
 
  private:

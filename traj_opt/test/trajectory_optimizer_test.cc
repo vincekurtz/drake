@@ -127,7 +127,7 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumSwingup) {
   }
 
   // Solve the optimization problem
-  TrajectoryOptimizerSolution<double> solution;
+  Solution<double> solution;
   SolutionData<double> solution_data;
 
   SolverFlag status = optimizer.Solve(q_guess, &solution, &solution_data);
