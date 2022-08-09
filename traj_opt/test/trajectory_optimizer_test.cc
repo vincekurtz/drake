@@ -86,6 +86,59 @@ using multibody::Parser;
 using test::LimitMalloc;
 
 /**
+ * Test our optimizer with a simple pendulum swingup task.
+ */
+GTEST_TEST(TrajectoryOptimizerTest, PendulumSwingup) {
+  // Define the optimization problem
+  const int num_steps = 20;
+  const double dt = 5e-2;
+
+  ProblemDefinition opt_prob;
+  opt_prob.num_steps = num_steps;
+  opt_prob.q_init = Vector1d(0.1);
+  opt_prob.v_init = Vector1d(0.0);
+  opt_prob.Qq = 1.0 * MatrixXd::Identity(1, 1);
+  opt_prob.Qv = 0.1 * MatrixXd::Identity(1, 1);
+  opt_prob.Qf_q = 1000 * MatrixXd::Identity(1, 1);
+  opt_prob.Qf_v = 1 * MatrixXd::Identity(1, 1);
+  opt_prob.R = 0.01 * MatrixXd::Identity(1, 1);
+  opt_prob.q_nom = Vector1d(M_PI);
+  opt_prob.v_nom = Vector1d(0);
+
+  // Create a pendulum model
+  MultibodyPlant<double> plant(dt);
+  const std::string urdf_file =
+      FindResourceOrThrow("drake/examples/pendulum/Pendulum.urdf");
+  Parser(&plant).AddAllModelsFromFile(urdf_file);
+  plant.Finalize();
+
+  // Create an optimizer
+  SolverParameters solver_params;
+  solver_params.max_iterations = 20;
+  solver_params.verbose = false;
+
+  TrajectoryOptimizer<double> optimizer(&plant, opt_prob, solver_params);
+  TrajectoryOptimizerState<double> state = optimizer.CreateState();
+
+  // Set an initial guess
+  std::vector<VectorXd> q_guess;
+  for (int t = 0; t <= num_steps; ++t) {
+    q_guess.push_back(opt_prob.q_init);
+  }
+
+  // Solve the optimization problem
+  TrajectoryOptimizerSolution<double> solution;
+  SolutionData<double> solution_data;
+
+  SolverFlag status = optimizer.Solve(q_guess, &solution, &solution_data);
+  EXPECT_EQ(status, SolverFlag::kSuccess);
+
+  // With such a large penalty on the final position, and such a low control
+  // penalty, we should be close to the target position at the last timestep.
+  EXPECT_NEAR(solution.q[num_steps][0], opt_prob.q_nom[0], 1e-3);
+}
+
+/**
  * Test our computation of the Hessian on a system
  * with more than one DoF.
  */
@@ -511,11 +564,11 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcGradientPendulumNoGravity) {
     id_partials_gt.dtau_dqp[t](0, 0) = 1 / dt / dt * m * l * l + 1 / dt * b;
 
     // dtau[t]/dq[t]
-    id_partials_gt.dtau_dqt[t](0, 0) = -2 / dt / dt * m * l * l - 1 / dt * b;
-
     if (t == 0) {
       // v[0] is constant
       id_partials_gt.dtau_dqt[t](0, 0) = -1 / dt / dt * m * l * l - 1 / dt * b;
+    } else {
+      id_partials_gt.dtau_dqt[t](0, 0) = -2 / dt / dt * m * l * l - 1 / dt * b;
     }
 
     // dtau[t]/dq[t-1]
