@@ -148,42 +148,72 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsSingleTimeStep(
   *tau = plant().CalcInverseDynamics(*context_, a, workspace->f_ext);
 }
 
-template<typename T>
-void TrajectoryOptimizer<T>::CalcContactForceContribution(MultibodyForces<T> f_ext) const {
+template <typename T>
+void TrajectoryOptimizer<T>::CalcContactForceContribution(
+    MultibodyForces<T>* forces) const {
   // Add contact forces into the given MultibodyForces object
   // @pre q and v are set properly in context_
 
   // Our soft contact model - define for each body?
   const T F = 1;         // force at delta meters of penetration
   const T delta = 0.01;  // penetration distance at which we apply F newtons
-  const int n = 2;       // polynomial scaling factor
+  const double n = 2;       // polynomial scaling factor
 
   // Get signed distance pairs
+  // TODO: make sure the plant is part of a Diagram with a SceneGraph. 
+  // TODO: pass in Diagram (plant) context to the optimizer.
   const geometry::QueryObject<T>& query_object =
       plant()
           .get_geometry_query_input_port()
           .template Eval<geometry::QueryObject<T>>(context);
-  std::vector<SignedDistancePair<T>> signed_distance_pairs = ComputeSignedDistancePairwiseClosestPoints();
+  const std::vector<SignedDistancePair<T>>& signed_distance_pairs =
+      query_object.ComputeSignedDistancePairwiseClosestPoints();
 
-  for (SignedDistancePair<T> pair : signed_distance_pairs) {
+  for (const SignedDistancePair<T>& pair : signed_distance_pairs) {
     // Compute normal forces at the witness points (expressed in the world
     // frame) according to our contact model.
-    T phi = pair.distance;
-    T fn = F * max(0, pow(-phi/delta, n));
+    const T phi = pair.distance;
+    const T fn = F * max(0, pow(-phi/delta, n));
 
-    Vector3<T> W_f_ACa = pair.nhat_BA_W * fn;
-    Vector3<T> W_f_BCb = -pair.nhat_BA_W * fn;
+    Vector3<T> f_ACa_W = pair.nhat_BA_W * fn;
+    Vector3<T> f_BCb_W = -pair.nhat_BA_W * fn;
 
-    // Get the bodies that this force is applied to
-    BodyIndex bodyA_index = ....
+    const GeometryId geometryA_id = pair.id_A;
+    const GeometryId geometryB_id = pair.id_B;
+
+    BodyIndex bodyA_index =
+        plant().geometry_id_to_body_index().at(geometryA_id);
     const Body<T>& bodyA = plant().get_body(bodyA_index);
+    BodyIndex bodyB_index =
+        plant().geometry_id_to_body_index().at(geometryB_id);
+    const Body<T>& bodyB = plant().get_body(bodyB_index);
+
+    const math::RigidTransform<T>& X_WA =
+        plant().EvalBodyPoseInWorld(context, bodyA);
+    const math::RotationMatrix<T>& R_WA = X_WA.rotation();
+    const math::RigidTransform<T>& X_WB =
+        plant().EvalBodyPoseInWorld(context, bodyB);
+    const math::RotationMatrix<T>& R_WB = X_WB.rotation();
+
+    // Force on A, about Ao, expressed in W.
+    const SpatialForce<T> F_ACa_W(Vector3<T>::Zero(), f_ACa_W);
+    const auto& p_AoCa_A = pair.p_ACa;
+    const Vector3<T> p_CaAo_W = -R_WA * p_AoCa_A;
+    const SpatialForce<T> F_AAo_W = F_ACa_W.Shift(p_CaAo_W);
+    forces->mutable_body_forces()[bodyA.node_index()] += F_AAo_W;
+
+    // Force on B, about Bo, expressed in W.
+    const SpatialForce<T> F_BCb_W(Vector3<T>::Zero(), f_BCb_W);
+    const auto& p_BoCa_B = pair.p_BCb;
+    const Vector3<T> p_CbBo_W = -R_WB * p_BoCb_B;
+    const SpatialForce<T> F_BBo_W = F_BCb_W.Shift(p_CbBo_W);
+    forces->mutable_body_forces()[bodyB.node_index()] += F_BBo_W;
 
     // Transform forces on the witness points (expressed in the world frame) to
     // forces on the bodies (expressed in the world frame)
 
     // Add forces into f_ext
   }
-
 }
 
 template <typename T>
