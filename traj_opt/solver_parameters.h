@@ -5,7 +5,7 @@ namespace traj_opt {
 
 enum LinesearchMethod {
   // Simple backtracking linesearch with Armijo's condition
-  kBacktrackingArmijo,
+  kArmijo,
 
   // Backtracking linesearch that tries to find a local minimum
   kBacktracking
@@ -13,7 +13,7 @@ enum LinesearchMethod {
 
 struct SolverParameters {
   // Which linesearch strategy to use
-  LinesearchMethod linesearch_method = LinesearchMethod::kBacktrackingArmijo;
+  LinesearchMethod linesearch_method = LinesearchMethod::kArmijo;
 
   // Maximum number of Gauss-Newton iterations
   int max_iterations = 100;

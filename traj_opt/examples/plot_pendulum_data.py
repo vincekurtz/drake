@@ -26,7 +26,7 @@ scale_factor = 1.0
 
 Qq = 0.0 * scale_factor
 Qv = 0.1 * scale_factor
-R = 1 * scale_factor
+R = 1.0 * scale_factor
 Qfq = 100 * scale_factor
 Qfv = 1.0 * scale_factor
 
@@ -43,7 +43,7 @@ options_string += f"--R={R} "
 options_string += f"--Qfq={Qfq} "
 options_string += f"--Qfv={Qfv} "
 options_string += f"--gravity={gravity} "
-options_string += f"--linesearch=backtracking "
+options_string += f"--linesearch=armijo "
 
 os.system("cd " + drake_root)
 code = os.system("bazel run //traj_opt/examples:pendulum" + options_string)

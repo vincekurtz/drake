@@ -44,8 +44,16 @@ struct TrajectoryOptimizerCache {
   // Storage for dtau(t)/dq(t-1), dtau(t)/dq(t), and dtau(t)/dq(t+1)
   InverseDynamicsPartials<T> id_partials;
 
-  // Flag for cache invalidation
-  bool up_to_date{false};
+  // Flags for cache invalidation. We use separate flags for trajectory data (v,
+  // a, tau) and derivative data (v_partials, id_partials), since we often need
+  // to just use the trajectory data, for instance to compute the total cost,
+  // without performing expensive updates of the derivative data.
+  bool up_to_date() const {
+    return (trajectory_data_up_to_date && derivative_data_up_to_date);
+  }
+
+  bool trajectory_data_up_to_date{false};
+  bool derivative_data_up_to_date{false};
 };
 
 /**
@@ -86,7 +94,8 @@ class TrajectoryOptimizerState {
    */
   void set_q(const std::vector<VectorX<T>>& q) {
     q_ = q;
-    cache_.up_to_date = false;
+    cache_.trajectory_data_up_to_date = false;
+    cache_.derivative_data_up_to_date = false;
   }
 
   /**
@@ -98,7 +107,8 @@ class TrajectoryOptimizerState {
    */
   void set_qt(const VectorX<T>& qt, const int t) {
     q_[t] = qt;
-    cache_.up_to_date = false;
+    cache_.trajectory_data_up_to_date = false;
+    cache_.derivative_data_up_to_date = false;
   }
 
   /**

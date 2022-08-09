@@ -22,11 +22,11 @@ namespace examples {
 namespace pendulum {
 
 // Command line options
-DEFINE_double(time_step, 1e-2,
+DEFINE_double(time_step, 5e-2,
               "Discretization timestep for the optimizer (seconds).");
-DEFINE_int32(num_steps, 200,
+DEFINE_int32(num_steps, 40,
              "Number of timesteps in the optimization problem.");
-DEFINE_int32(max_iters, 20,
+DEFINE_int32(max_iters, 100,
              "Maximum number of Gauss-Newton iterations to take.");
 DEFINE_double(Qq, 0.0, "Running cost weight on the joint angle.");
 DEFINE_double(Qv, 0.1, "Running cost weight on the joint velocity.");
@@ -36,7 +36,7 @@ DEFINE_double(Qfv, 1.0, "Terminal cost weight on the joint velocity.");
 DEFINE_bool(save_data, false, "Flag for writing solver data to a csv file.");
 DEFINE_bool(visualize, true, "Flag for displaying the optimal solution.");
 DEFINE_double(gravity, 9.81, "Magnitude of gravity in the z-direction.");
-DEFINE_string(linesearch, "backtracking",
+DEFINE_string(linesearch, "armijo",
               "Linesearch strategy, {backtracking} or {armijo}.");
 
 using geometry::DrakeVisualizerd;
@@ -155,7 +155,7 @@ void solve_trajectory_optimization(double time_step, int num_steps) {
   if (FLAGS_linesearch == "backtracking") {
     solver_params.linesearch_method = LinesearchMethod::kBacktracking;
   } else {
-    solver_params.linesearch_method = LinesearchMethod::kBacktrackingArmijo;
+    solver_params.linesearch_method = LinesearchMethod::kArmijo;
   }
   solver_params.max_iterations = FLAGS_max_iters;
   solver_params.max_linesearch_iterations = 50;

@@ -46,24 +46,11 @@ TrajectoryOptimizer<T>::TrajectoryOptimizer(
 template <typename T>
 T TrajectoryOptimizer<T>::CalcCost(
     const TrajectoryOptimizerState<T>& state) const {
-  if (!state.cache().up_to_date) {
+  if (!state.cache().trajectory_data_up_to_date) {
     // Only update the parts of the cache that we will actually use.
     // Don't update any of the partial derivatives, since those
     // are expensive to compute.
-    TrajectoryOptimizerCache<T>& cache = state.mutable_cache();
-    TrajectoryOptimizerWorkspace<T>& workspace = state.workspace;
-    std::vector<VectorX<T>>& v = cache.v;
-    std::vector<VectorX<T>>& a = cache.a;
-    std::vector<VectorX<T>>& tau = cache.tau;
-
-    const std::vector<VectorX<T>>& q = state.q();
-    CalcVelocities(q, &v);
-    CalcAccelerations(v, &a);
-    CalcInverseDynamics(q, v, a, &workspace, &tau);
-
-    // TODO(vincekurtz): consider adding an additional flag to state for whether
-    // v, a, tau are up to date, and whether v_partials and id_partials are
-    // up to date.
+    UpdateCacheTrajectoryData(state);
   }
   return CalcCost(state.q(), state.cache().v, state.cache().tau,
                   &state.workspace);
@@ -153,7 +140,6 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsSingleTimeStep(
   plant().SetPositions(context_.get(), q);
   plant().SetVelocities(context_.get(), v);
   plant().CalcForceElementsContribution(*context_, &workspace->f_ext);
-
   // Inverse dynamics computes tau = M*a - k(q,v) - f_ext
   *tau = plant().CalcInverseDynamics(*context_, a, workspace->f_ext);
 
@@ -357,7 +343,7 @@ void TrajectoryOptimizer<T>::CalcGradientFiniteDiff(
 template <typename T>
 void TrajectoryOptimizer<T>::CalcGradient(
     const TrajectoryOptimizerState<T>& state, EigenPtr<VectorX<T>> g) const {
-  if (!state.cache().up_to_date) UpdateCache(state);
+  if (!state.cache().up_to_date()) UpdateCache(state);
   const TrajectoryOptimizerCache<T>& cache = state.cache();
 
   // Set some aliases
@@ -433,7 +419,7 @@ void TrajectoryOptimizer<T>::CalcHessian(
   DRAKE_DEMAND(H->block_size() == plant().num_positions());
 
   // Make sure the cache is up to date
-  if (!state.cache().up_to_date) UpdateCache(state);
+  if (!state.cache().up_to_date()) UpdateCache(state);
   const TrajectoryOptimizerCache<T>& cache = state.cache();
 
   // Some convienient aliases
@@ -499,23 +485,20 @@ void TrajectoryOptimizer<T>::CalcHessian(
 }
 
 template <typename T>
-void TrajectoryOptimizer<T>::UpdateCache(
+void TrajectoryOptimizer<T>::UpdateCacheTrajectoryData(
     const TrajectoryOptimizerState<T>& state) const {
   TrajectoryOptimizerCache<T>& cache = state.mutable_cache();
   TrajectoryOptimizerWorkspace<T>& workspace = state.workspace;
-
+  
   // Some aliases for things that we'll set
   std::vector<VectorX<T>>& v = cache.v;
   std::vector<VectorX<T>>& a = cache.a;
   std::vector<VectorX<T>>& tau = cache.tau;
-  InverseDynamicsPartials<T>& id_partials = cache.id_partials;
-  VelocityPartials<T>& v_partials = cache.v_partials;
 
   // The generalized positions that everything is computed from
   const std::vector<VectorX<T>>& q = state.q();
-
+  
   // Compute corresponding generalized velocities
-  // TODO(vincekurtz) consider making this & similar functions private
   CalcVelocities(q, &v);
 
   // Compute corresponding generalized accelerations
@@ -524,6 +507,29 @@ void TrajectoryOptimizer<T>::UpdateCache(
   // Compute corresponding generalized torques
   CalcInverseDynamics(q, v, a, &workspace, &tau);
 
+  // Set cache invalidation flag 
+  cache.trajectory_data_up_to_date = true;
+}
+
+template <typename T>
+void TrajectoryOptimizer<T>::UpdateCache(
+    const TrajectoryOptimizerState<T>& state) const {
+  TrajectoryOptimizerCache<T>& cache = state.mutable_cache();
+  TrajectoryOptimizerWorkspace<T>& workspace = state.workspace;
+
+  // Update v, a, and tau
+  if (!cache.trajectory_data_up_to_date) {
+    UpdateCacheTrajectoryData(state);
+  }
+
+  // Some aliases
+  const std::vector<VectorX<T>>& q = state.q();
+  const std::vector<VectorX<T>>& v = cache.v;
+  const std::vector<VectorX<T>>& a = cache.a;
+  const std::vector<VectorX<T>>& tau = cache.tau;
+  InverseDynamicsPartials<T>& id_partials = cache.id_partials;
+  VelocityPartials<T>& v_partials = cache.v_partials;
+
   // Compute partial derivatives of inverse dynamics d(tau)/d(q)
   CalcInverseDynamicsPartials(q, v, a, tau, &workspace, &id_partials);
 
@@ -531,7 +537,7 @@ void TrajectoryOptimizer<T>::UpdateCache(
   CalcVelocityPartials(q, &v_partials);
 
   // Set cache invalidation flag
-  cache.up_to_date = true;
+  cache.derivative_data_up_to_date = true;
 }
 
 template <typename T>
@@ -579,8 +585,8 @@ std::tuple<double, int> TrajectoryOptimizer<T>::Linesearch(
     const T L, const std::vector<VectorX<T>>& q, const VectorX<T>& dq,
     const VectorX<T>& g, TrajectoryOptimizerState<T>* state) const {
   // TODO(vincekurtz): add other linesearch strategies
-  if (params_.linesearch_method == LinesearchMethod::kBacktrackingArmijo) {
-    return BacktrackingArmijoLinesearch(L, q, dq, g, state);
+  if (params_.linesearch_method == LinesearchMethod::kArmijo) {
+    return ArmijoLinesearch(L, q, dq, g, state);
   } else if (params_.linesearch_method == LinesearchMethod::kBacktracking) {
     return BacktrackingLinesearch(L, q, dq, g, state);
   } else {
@@ -650,7 +656,7 @@ std::tuple<double, int> TrajectoryOptimizer<T>::BacktrackingLinesearch(
 }
 
 template <typename T>
-std::tuple<double, int> TrajectoryOptimizer<T>::BacktrackingArmijoLinesearch(
+std::tuple<double, int> TrajectoryOptimizer<T>::ArmijoLinesearch(
     const T L, const std::vector<VectorX<T>>& q, const VectorX<T>& dq,
     const VectorX<T>& g, TrajectoryOptimizerState<T>* state) const {
   using std::abs;
@@ -658,7 +664,7 @@ std::tuple<double, int> TrajectoryOptimizer<T>::BacktrackingArmijoLinesearch(
   // Linesearch parameters
   // TODO(vincekurtz): set these in SolverOptions
   const double c = 1e-4;
-  const double rho = 0.9;
+  const double rho = 0.8;
 
   double alpha = 1.0 / rho;        // get alpha = 1 on first iteration
   T L_prime = g.transpose() * dq;  // gradient of L w.r.t. alpha
@@ -760,9 +766,6 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
   do {
     iter_start_time = std::chrono::high_resolution_clock::now();
 
-    // Update the cache
-    UpdateCache(state);
-
     // Compute the total cost
     iteration_costs.push_back(CalcCost(state));
 
@@ -776,11 +779,6 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
     DRAKE_DEMAND(Hchol.status() == PentaDiagonalFactorizationStatus::kSuccess);
     Hchol.SolveInPlace(&dq);
 
-    // DEBUG: save some linesearch data for later plotting
-    // if (k == 13) {
-    //   SaveLinesearchResidual(iteration_costs[k], state.q(), dq, &ls_state);
-    // }
-
     // Solve the linsearch
     // N.B. we use a separate state variable since we will need to compute
     // L(q+alpha*dq) (at the very least), and we don't want to change state.q
@@ -793,7 +791,7 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
       std::cout << "Reached maximum linesearch iterations (" << ls_iters << ")."
                 << std::endl;
 
-      // DEBUG: save linesearch residual to a csv file so we can plot in python
+      // Save the linesearch residual to a csv file so we can plot in python
       SaveLinesearchResidual(iteration_costs[k], state.q(), dq, &ls_state);
 
       // We'll still record iteration data for playback later
@@ -809,25 +807,27 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
 
     // Update the decision variables
     AddToQ(alpha * dq, &state);
-
-    ++k;
+    
     iter_time = std::chrono::high_resolution_clock::now() - iter_start_time;
 
     // Nice little printout of our problem data
     printf("| %6d ", k);
-    printf("| %8.3f ", iteration_costs[k - 1]);
+    printf("| %8.3f ", iteration_costs[k]);
     printf("| %7.4f ", alpha);
     printf("| %6d     ", ls_iters);
     printf("| %8.8f ", iter_time.count());
-    printf("| %10.3e |\n", g.norm() / iteration_costs[k - 1]);
+    printf("| %10.3e |\n", g.norm() / iteration_costs[k]);
 
     // Record iteration data
     linesearch_iterations.push_back(ls_iters);
     linesearch_alphas.push_back(alpha);
     iteration_times.push_back(iter_time.count());
-    gradient_norm.push_back(g.norm() / iteration_costs[k - 1]);
+    gradient_norm.push_back(g.norm() / iteration_costs[k]);
+    
+    ++k;
   } while (k < params_.max_iterations);
 
+  // End the problem data printout
   std::cout << "---------------------------------------------------------------"
                "-------"
             << std::endl;
@@ -836,8 +836,10 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
   solve_time = std::chrono::high_resolution_clock::now() - start_time;
   solution_data->solve_time = solve_time.count();
 
-  // Report the solution
-  UpdateCache(state);  // TODO(vincekurtz): don't update derivative info here
+  // Record the solution
+  if (!state.cache().trajectory_data_up_to_date) {
+    UpdateCacheTrajectoryData(state);
+  }
   solution->q = state.q();
   solution->v = state.cache().v;
   solution->tau = state.cache().tau;

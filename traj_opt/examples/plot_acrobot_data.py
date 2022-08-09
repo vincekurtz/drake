@@ -19,7 +19,7 @@ drake_root = "/home/vincentkurtz/drake/"
 # Define our optimization problem
 dt = 5e-2
 num_steps = 40
-max_iters = 200
+max_iters = 100
 gravity = 9.81
 
 Qq = 0.0
@@ -43,7 +43,7 @@ options_string += f"--unactuated_penalty={unactuated_penalty} "
 options_string += f"--Qfq={Qfq} "
 options_string += f"--Qfv={Qfv} "
 options_string += f"--gravity={gravity} "
-options_string += f"--linesearch=backtracking "
+options_string += f"--linesearch=armijo "
 
 os.system("cd " + drake_root)
 code = os.system("bazel run //traj_opt/examples:acrobot" + options_string)

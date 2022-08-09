@@ -147,6 +147,16 @@ class TrajectoryOptimizer {
   void UpdateCache(const TrajectoryOptimizerState<T>& state) const;
 
   /**
+   * Compute all of the "trajectory data" (velocities v, accelerations a,
+   * torques tau) in the state's cache to correspond to the state's generalized
+   * positions q.
+   *
+   * @param state optimizer state to update.
+   */
+  void UpdateCacheTrajectoryData(
+      const TrajectoryOptimizerState<T>& state) const;
+
+  /**
    * Compute the total cost of the unconstrained problem.
    *
    * This is for (finite-differences) testing purposes only.
@@ -367,7 +377,7 @@ class TrajectoryOptimizer {
    *
    *    L(q + alpha*dq) < L(q) - c*g'*dq
    */
-  std::tuple<double, int> BacktrackingArmijoLinesearch(
+  std::tuple<double, int> ArmijoLinesearch(
       const T L, const std::vector<VectorX<T>>& q, const VectorX<T>& dq,
       const VectorX<T>& g, TrajectoryOptimizerState<T>* state) const;
 
