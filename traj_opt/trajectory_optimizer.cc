@@ -140,10 +140,50 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsSingleTimeStep(
   plant().SetPositions(context_.get(), q);
   plant().SetVelocities(context_.get(), v);
   plant().CalcForceElementsContribution(*context_, &workspace->f_ext);
+
+  // Add in contact force contribution to f_ext
+  CalcContactForceContribution(&workspace->f_ext);
+
   // Inverse dynamics computes tau = M*a - k(q,v) - f_ext
   *tau = plant().CalcInverseDynamics(*context_, a, workspace->f_ext);
+}
 
-  // TODO(vincekurtz) add in contact/constriant contribution
+template<typename T>
+void TrajectoryOptimizer<T>::CalcContactForceContribution(MultibodyForces<T> f_ext) const {
+  // Add contact forces into the given MultibodyForces object
+  // @pre q and v are set properly in context_
+
+  // Our soft contact model - define for each body?
+  const T F = 1;         // force at delta meters of penetration
+  const T delta = 0.01;  // penetration distance at which we apply F newtons
+  const int n = 2;       // polynomial scaling factor
+
+  // Get signed distance pairs
+  const geometry::QueryObject<T>& query_object =
+      plant()
+          .get_geometry_query_input_port()
+          .template Eval<geometry::QueryObject<T>>(context);
+  std::vector<SignedDistancePair<T>> signed_distance_pairs = ComputeSignedDistancePairwiseClosestPoints();
+
+  for (SignedDistancePair<T> pair : signed_distance_pairs) {
+    // Compute normal forces at the witness points (expressed in the world
+    // frame) according to our contact model.
+    T phi = pair.distance;
+    T fn = F * max(0, pow(-phi/delta, n));
+
+    Vector3<T> W_f_ACa = pair.nhat_BA_W * fn;
+    Vector3<T> W_f_BCb = -pair.nhat_BA_W * fn;
+
+    // Get the bodies that this force is applied to
+    BodyIndex bodyA_index = ....
+    const Body<T>& bodyA = plant().get_body(bodyA_index);
+
+    // Transform forces on the witness points (expressed in the world frame) to
+    // forces on the bodies (expressed in the world frame)
+
+    // Add forces into f_ext
+  }
+
 }
 
 template <typename T>
