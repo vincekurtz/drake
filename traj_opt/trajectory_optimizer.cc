@@ -20,17 +20,15 @@ using systems::System;
 
 template <typename T>
 TrajectoryOptimizer<T>::TrajectoryOptimizer(
-    const MultibodyPlant<T>* plant, const ProblemDefinition& prob,
+    const MultibodyPlant<T>* plant, Context<T>* context,
+    const ProblemDefinition& prob,
     const std::optional<SolverParameters>& params)
-    : plant_(plant), prob_(prob) {
+    : plant_(plant), context_(context), prob_(prob) {
   // Set solver parameters if they're supplied. Otherwise we keep the defaults
   // from solver_parameters.h
   if (params != std::nullopt) {
     params_ = *params;
   }
-
-  // Create a context for dynamics computations
-  context_ = plant_->CreateDefaultContext();
 
   // Define joint damping coefficients.
   joint_damping_ = VectorX<T>::Zero(plant_->num_velocities());
@@ -137,17 +135,18 @@ template <typename T>
 void TrajectoryOptimizer<T>::CalcInverseDynamicsSingleTimeStep(
     const VectorX<T>& q, const VectorX<T>& v, const VectorX<T>& a,
     TrajectoryOptimizerWorkspace<T>* workspace, VectorX<T>* tau) const {
-  plant().SetPositions(context_.get(), q);
-  plant().SetVelocities(context_.get(), v);
+  plant().SetPositions(context_, q);
+  plant().SetVelocities(context_, v);
   plant().CalcForceElementsContribution(*context_, &workspace->f_ext);
 
   // Add in contact force contribution to f_ext
-  CalcContactForceContribution(&workspace->f_ext);
+  // CalcContactForceContribution(&workspace->f_ext);
 
   // Inverse dynamics computes tau = M*a - k(q,v) - f_ext
   *tau = plant().CalcInverseDynamics(*context_, a, workspace->f_ext);
 }
 
+#if 0
 template <typename T>
 void TrajectoryOptimizer<T>::CalcContactForceContribution(
     MultibodyForces<T>* forces) const {
@@ -157,11 +156,11 @@ void TrajectoryOptimizer<T>::CalcContactForceContribution(
   // Our soft contact model - define for each body?
   const T F = 1;         // force at delta meters of penetration
   const T delta = 0.01;  // penetration distance at which we apply F newtons
-  const double n = 2;       // polynomial scaling factor
+  const double n = 2;    // polynomial scaling factor
 
   // Get signed distance pairs
-  // TODO: make sure the plant is part of a Diagram with a SceneGraph. 
-  // TODO: pass in Diagram (plant) context to the optimizer.
+  // TODO(vincekurtz): make sure the plant is part of a Diagram with a
+  // SceneGraph.
   const geometry::QueryObject<T>& query_object =
       plant()
           .get_geometry_query_input_port()
@@ -173,7 +172,7 @@ void TrajectoryOptimizer<T>::CalcContactForceContribution(
     // Compute normal forces at the witness points (expressed in the world
     // frame) according to our contact model.
     const T phi = pair.distance;
-    const T fn = F * max(0, pow(-phi/delta, n));
+    const T fn = F * max(0, pow(-phi / delta, n));
 
     Vector3<T> f_ACa_W = pair.nhat_BA_W * fn;
     Vector3<T> f_BCb_W = -pair.nhat_BA_W * fn;
@@ -215,6 +214,7 @@ void TrajectoryOptimizer<T>::CalcContactForceContribution(
     // Add forces into f_ext
   }
 }
+#endif
 
 template <typename T>
 void TrajectoryOptimizer<T>::CalcInverseDynamicsPartials(
@@ -771,16 +771,14 @@ std::tuple<double, int> TrajectoryOptimizer<T>::ArmijoLinesearch(
 
 template <typename T>
 SolverFlag TrajectoryOptimizer<T>::Solve(const std::vector<VectorX<T>>&,
-                                         Solution<T>*,
-                                         SolutionData<T>*) const {
+                                         Solution<T>*, SolutionData<T>*) const {
   throw std::runtime_error(
       "TrajectoryOptimizer::Solve only supports T=double.");
 }
 
 template <>
 SolverFlag TrajectoryOptimizer<double>::Solve(
-    const std::vector<VectorXd>& q_guess,
-    Solution<double>* solution,
+    const std::vector<VectorXd>& q_guess, Solution<double>* solution,
     SolutionData<double>* solution_data) const {
   // The guess must be consistent with the initial condition
   DRAKE_DEMAND(q_guess[0] == prob_.q_init);

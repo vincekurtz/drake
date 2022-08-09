@@ -4131,7 +4131,7 @@ class MultibodyPlant : public internal::MultibodyTreeSystem<T> {
 
   const std::unordered_map<geometry::GeometryId, BodyIndex>&
   geometry_id_to_body_index() const {
-    geometry_id_to_body_index_;
+    return geometry_id_to_body_index_;
   }
 
   /// Returns the unique id identifying `this` plant as a source for a

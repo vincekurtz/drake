@@ -111,13 +111,15 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumSwingup) {
       FindResourceOrThrow("drake/examples/pendulum/Pendulum.urdf");
   Parser(&plant).AddAllModelsFromFile(urdf_file);
   plant.Finalize();
+  auto context = plant.CreateDefaultContext();
 
   // Create an optimizer
   SolverParameters solver_params;
   solver_params.max_iterations = 20;
   solver_params.verbose = false;
 
-  TrajectoryOptimizer<double> optimizer(&plant, opt_prob, solver_params);
+  TrajectoryOptimizer<double> optimizer(&plant, context.get(), opt_prob,
+                                        solver_params);
   TrajectoryOptimizerState<double> state = optimizer.CreateState();
 
   // Set an initial guess
@@ -165,9 +167,10 @@ GTEST_TEST(TrajectoryOptimizerTest, HessianAcrobot) {
       FindResourceOrThrow("drake/multibody/benchmarks/acrobot/acrobot.urdf");
   Parser(&plant).AddAllModelsFromFile(urdf_file);
   plant.Finalize();
+  auto context = plant.CreateDefaultContext();
 
   // Create an optimizer
-  TrajectoryOptimizer<double> optimizer(&plant, opt_prob);
+  TrajectoryOptimizer<double> optimizer(&plant, context.get(), opt_prob);
   TrajectoryOptimizerState<double> state = optimizer.CreateState();
 
   // Make some fake data
@@ -188,7 +191,9 @@ GTEST_TEST(TrajectoryOptimizerTest, HessianAcrobot) {
   // Set up an autodiff copy of the optimizer and plant
   std::unique_ptr<MultibodyPlant<AutoDiffXd>> plant_ad =
       systems::System<double>::ToAutoDiffXd(plant);
-  TrajectoryOptimizer<AutoDiffXd> optimizer_ad(plant_ad.get(), opt_prob);
+  auto context_ad = plant_ad->CreateDefaultContext();
+  TrajectoryOptimizer<AutoDiffXd> optimizer_ad(plant_ad.get(), context_ad.get(),
+                                               opt_prob);
   TrajectoryOptimizerState<AutoDiffXd> state_ad = optimizer_ad.CreateState();
 
   std::vector<VectorX<AutoDiffXd>> q_ad(num_steps + 1, VectorX<AutoDiffXd>(2));
@@ -301,9 +306,10 @@ GTEST_TEST(TrajectoryOptimizerTest, HessianPendulum) {
       FindResourceOrThrow("drake/examples/pendulum/Pendulum.urdf");
   Parser(&plant).AddAllModelsFromFile(urdf_file);
   plant.Finalize();
+  auto context = plant.CreateDefaultContext();
 
   // Create an optimizer
-  TrajectoryOptimizer<double> optimizer(&plant, opt_prob);
+  TrajectoryOptimizer<double> optimizer(&plant, context.get(), opt_prob);
   TrajectoryOptimizerState<double> state = optimizer.CreateState();
 
   // Make some fake data
@@ -326,7 +332,9 @@ GTEST_TEST(TrajectoryOptimizerTest, HessianPendulum) {
   // that we will use. But for this simple pendulum the two are very close
   std::unique_ptr<MultibodyPlant<AutoDiffXd>> plant_ad =
       systems::System<double>::ToAutoDiffXd(plant);
-  TrajectoryOptimizer<AutoDiffXd> optimizer_ad(plant_ad.get(), opt_prob);
+  auto context_ad = plant_ad->CreateDefaultContext();
+  TrajectoryOptimizer<AutoDiffXd> optimizer_ad(plant_ad.get(), context_ad.get(),
+                                               opt_prob);
   TrajectoryOptimizerState<AutoDiffXd> state_ad = optimizer_ad.CreateState();
 
   std::vector<VectorX<AutoDiffXd>> q_ad(num_steps + 1);
@@ -371,9 +379,10 @@ GTEST_TEST(TrajectoryOptimizerTest, AutodiffGradient) {
       FindResourceOrThrow("drake/examples/pendulum/Pendulum.urdf");
   Parser(&plant).AddAllModelsFromFile(urdf_file);
   plant.Finalize();
+  auto context = plant.CreateDefaultContext();
 
   // Create an optimizer
-  TrajectoryOptimizer<double> optimizer(&plant, opt_prob);
+  TrajectoryOptimizer<double> optimizer(&plant, context.get(), opt_prob);
   TrajectoryOptimizerState<double> state = optimizer.CreateState();
   TrajectoryOptimizerWorkspace<double> workspace(num_steps, plant);
 
@@ -392,7 +401,9 @@ GTEST_TEST(TrajectoryOptimizerTest, AutodiffGradient) {
   // Compute the gradient using autodiff
   std::unique_ptr<MultibodyPlant<AutoDiffXd>> plant_ad =
       systems::System<double>::ToAutoDiffXd(plant);
-  TrajectoryOptimizer<AutoDiffXd> optimizer_ad(plant_ad.get(), opt_prob);
+  auto context_ad = plant_ad->CreateDefaultContext();
+  TrajectoryOptimizer<AutoDiffXd> optimizer_ad(plant_ad.get(), context_ad.get(),
+                                               opt_prob);
   TrajectoryOptimizerState<AutoDiffXd> state_ad = optimizer_ad.CreateState();
   TrajectoryOptimizerWorkspace<AutoDiffXd> workspace_ad(num_steps, *plant_ad);
 
@@ -426,6 +437,7 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcGradientKuka) {
   plant.set_discrete_contact_solver(DiscreteContactSolver::kSap);
   plant.WeldFrames(plant.world_frame(), plant.GetFrameByName("base"));
   plant.Finalize();
+  auto context = plant.CreateDefaultContext();
 
   // Set up an optimization problem
   ProblemDefinition opt_prob;
@@ -445,7 +457,7 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcGradientKuka) {
   opt_prob.v_nom.setConstant(-0.1);
 
   // Create an optimizer
-  TrajectoryOptimizer<double> optimizer(&plant, opt_prob);
+  TrajectoryOptimizer<double> optimizer(&plant, context.get(), opt_prob);
   TrajectoryOptimizerState<double> state = optimizer.CreateState();
   TrajectoryOptimizerWorkspace<double> workspace(num_steps, plant);
 
@@ -487,6 +499,7 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcGradientPendulumNoGravity) {
   Parser(&plant).AddAllModelsFromFile(urdf_file);
   plant.mutable_gravity_field().set_gravity_vector(VectorXd::Zero(3));
   plant.Finalize();
+  auto context = plant.CreateDefaultContext();
 
   // Set up a toy optimization problem
   ProblemDefinition opt_prob;
@@ -502,7 +515,7 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcGradientPendulumNoGravity) {
   opt_prob.v_nom = Vector1d(-0.1);
 
   // Create an optimizer
-  TrajectoryOptimizer<double> optimizer(&plant, opt_prob);
+  TrajectoryOptimizer<double> optimizer(&plant, context.get(), opt_prob);
   TrajectoryOptimizerState<double> state = optimizer.CreateState();
   TrajectoryOptimizerWorkspace<double> workspace(num_steps, plant);
 
@@ -524,7 +537,9 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcGradientPendulumNoGravity) {
   // Compute the ground truth gradient with autodiff
   std::unique_ptr<MultibodyPlant<AutoDiffXd>> plant_ad =
       systems::System<double>::ToAutoDiffXd(plant);
-  TrajectoryOptimizer<AutoDiffXd> optimizer_ad(plant_ad.get(), opt_prob);
+  auto context_ad = plant_ad->CreateDefaultContext();
+  TrajectoryOptimizer<AutoDiffXd> optimizer_ad(plant_ad.get(), context_ad.get(),
+                                               opt_prob);
   TrajectoryOptimizerState<AutoDiffXd> state_ad = optimizer_ad.CreateState();
   TrajectoryOptimizerWorkspace<AutoDiffXd> workspace_ad(num_steps, *plant_ad);
 
@@ -641,9 +656,10 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcGradientPendulum) {
   Parser(&plant).AddAllModelsFromFile(urdf_file);
   plant.set_discrete_contact_solver(DiscreteContactSolver::kSap);
   plant.Finalize();
+  auto context = plant.CreateDefaultContext();
 
   // Create an optimizer
-  TrajectoryOptimizer<double> optimizer(&plant, opt_prob);
+  TrajectoryOptimizer<double> optimizer(&plant, context.get(), opt_prob);
   TrajectoryOptimizerState<double> state = optimizer.CreateState();
   TrajectoryOptimizerWorkspace<double> workspace(num_steps, plant);
 
@@ -680,13 +696,14 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumDtauDq) {
   Parser(&plant).AddAllModelsFromFile(urdf_file);
   plant.set_discrete_contact_solver(DiscreteContactSolver::kSap);
   plant.Finalize();
+  auto context = plant.CreateDefaultContext();
 
   // Create a trajectory optimizer
   ProblemDefinition opt_prob;
   opt_prob.q_init = Vector1d(0.0);
   opt_prob.v_init = Vector1d(0.1);
   opt_prob.num_steps = num_steps;
-  TrajectoryOptimizer<double> optimizer(&plant, opt_prob);
+  TrajectoryOptimizer<double> optimizer(&plant, context.get(), opt_prob);
   TrajectoryOptimizerWorkspace<double> workspace(num_steps, plant);
 
   // Create some fake data
@@ -767,6 +784,7 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcCostFromState) {
   Parser(&plant).AddAllModelsFromFile(urdf_file);
   plant.mutable_gravity_field().set_gravity_vector(VectorXd::Zero(3));
   plant.Finalize();
+  auto context = plant.CreateDefaultContext();
 
   // Set up a toy optimization problem
   ProblemDefinition opt_prob;
@@ -796,7 +814,7 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcCostFromState) {
   q.push_back(Vector1d(2.1467874956452459578315484));
 
   // Compute the cost as a function of state
-  TrajectoryOptimizer<double> optimizer(&plant, opt_prob);
+  TrajectoryOptimizer<double> optimizer(&plant, context.get(), opt_prob);
   TrajectoryOptimizerState<double> state = optimizer.CreateState();
   state.set_q(q);
   double L = optimizer.CalcCost(state);
@@ -852,6 +870,7 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcCost) {
   // Set up an (empty) system model
   MultibodyPlant<double> plant(dt);
   plant.Finalize();
+  auto context = plant.CreateDefaultContext();
 
   // Set up the optimization problem
   ProblemDefinition opt_prob;
@@ -879,7 +898,7 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcCost) {
   v.push_back(Vector2d(-0.1, 0.0));
 
   // Compute the cost and compare with the true value
-  TrajectoryOptimizer<double> optimizer(&plant, opt_prob);
+  TrajectoryOptimizer<double> optimizer(&plant, context.get(), opt_prob);
   TrajectoryOptimizerWorkspace<double> workspace(num_steps, plant);
   double L =
       TrajectoryOptimizerTester::CalcCost(optimizer, q, v, tau, &workspace);
@@ -942,7 +961,7 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumCalcInverseDynamics) {
   // Create a trajectory optimizer object
   ProblemDefinition opt_prob;
   opt_prob.num_steps = num_steps;
-  TrajectoryOptimizer<double> optimizer(&plant, opt_prob);
+  TrajectoryOptimizer<double> optimizer(&plant, plant_context.get(), opt_prob);
   TrajectoryOptimizerWorkspace<double> workspace(num_steps, plant);
 
   // Compute tau from q and v
@@ -978,11 +997,12 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcVelocities) {
   // Create a TrajectoryOptimizer object
   MultibodyPlant<double> plant(dt);
   plant.Finalize();
+  auto context = plant.CreateDefaultContext();
   ProblemDefinition opt_prob;
   opt_prob.q_init = Vector2d(0.1, 0.2);
   opt_prob.v_init = Vector2d(0.5 / dt, 1.5 / dt);
   opt_prob.num_steps = num_steps;
-  TrajectoryOptimizer<double> optimizer(&plant, opt_prob);
+  TrajectoryOptimizer<double> optimizer(&plant, context.get(), opt_prob);
 
   // Construct a std::vector of generalized positions (q)
   // where q(t) = [0.1 + 0.5*t]

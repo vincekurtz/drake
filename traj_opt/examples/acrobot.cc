@@ -135,6 +135,7 @@ void solve_trajectory_optimization(double time_step, int num_steps) {
   plant.mutable_gravity_field().set_gravity_vector(
       Eigen::Vector3d(0, 0, -FLAGS_gravity));
   plant.Finalize();
+  std::unique_ptr<Context<double>> context = plant.CreateDefaultContext();
 
   // Set up an optimization problem
   ProblemDefinition opt_prob;
@@ -166,7 +167,8 @@ void solve_trajectory_optimization(double time_step, int num_steps) {
   }
 
   // Solve the optimzation problem
-  TrajectoryOptimizer<double> optimizer(&plant, opt_prob, solver_params);
+  TrajectoryOptimizer<double> optimizer(&plant, context.get(), opt_prob,
+                                        solver_params);
   Solution<double> solution;
   SolutionData<double> solution_data;
 

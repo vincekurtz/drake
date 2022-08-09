@@ -31,13 +31,17 @@ class TrajectoryOptimizer {
    *
    * @param plant A model of the system that we're trying to find an optimal
    *              trajectory for.
+   * @param context A context for the plant, used to perform various multibody
+   *                dynamics computations. Should be part of a larger Diagram
+   *                context, and be connected to a scene graph.
    * @param prob Problem definition, including cost, initial and target states,
    *             etc.
    * @param params solver parameters, including max iterations, linesearch
    *               method, etc.
    */
   TrajectoryOptimizer(
-      const MultibodyPlant<T>* plant, const ProblemDefinition& prob,
+      const MultibodyPlant<T>* plant, Context<T>* context,
+      const ProblemDefinition& prob,
       const std::optional<SolverParameters>& params = std::nullopt);
 
   /**
@@ -131,8 +135,7 @@ class TrajectoryOptimizer {
    * @return SolverFlag
    */
   SolverFlag Solve(const std::vector<VectorX<T>>& q_guess,
-                   Solution<T>* solution,
-                   SolutionData<T>* solution_data) const;
+                   Solution<T>* solution, SolutionData<T>* solution_data) const;
 
  private:
   // Friend class to facilitate testing.
@@ -398,8 +401,9 @@ class TrajectoryOptimizer {
   // A model of the system that we are trying to find an optimal trajectory for.
   const MultibodyPlant<T>* plant_;
 
-  // A context corresponding to plant_, to enable dynamics computations.
-  std::unique_ptr<Context<T>> context_;
+  // A context corresponding to plant_, to enable dynamics computations. Must be
+  // connected to a larger Diagram with a SceneGraph for systems with contact.
+  Context<T>* context_;
 
   // Stores the problem definition, including cost, time horizon, initial state,
   // target state, etc.
