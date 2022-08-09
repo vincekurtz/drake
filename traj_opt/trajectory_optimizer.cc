@@ -16,7 +16,12 @@ using internal::PentaDiagonalFactorizationStatus;
 using multibody::Joint;
 using multibody::JointIndex;
 using multibody::MultibodyPlant;
+using multibody::BodyIndex;
+using multibody::Body;
+using multibody::SpatialForce;
 using systems::System;
+using geometry::SignedDistancePair;
+using geometry::GeometryId;
 
 template <typename T>
 TrajectoryOptimizer<T>::TrajectoryOptimizer(
@@ -140,43 +145,48 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsSingleTimeStep(
   plant().CalcForceElementsContribution(*context_, &workspace->f_ext);
 
   // Add in contact force contribution to f_ext
-  // CalcContactForceContribution(&workspace->f_ext);
+  if (plant().geometry_source_is_registered()) {
+    // Only compute contact forces if the plant is connected to a scene graph
+    // TODO(vincekurtz): perform this check earlier, and maybe print some
+    // warnings to stdout if we're not connected (we do want to be able to run
+    // problems w/o contact sometimes)
+    CalcContactForceContribution(&workspace->f_ext);
+  }
 
   // Inverse dynamics computes tau = M*a - k(q,v) - f_ext
   *tau = plant().CalcInverseDynamics(*context_, a, workspace->f_ext);
 }
 
-#if 0
 template <typename T>
 void TrajectoryOptimizer<T>::CalcContactForceContribution(
     MultibodyForces<T>* forces) const {
-  // Add contact forces into the given MultibodyForces object
-  // @pre q and v are set properly in context_
+  using std::max;
+  using std::pow;
 
-  // Our soft contact model - define for each body?
+  // Parameters for our soft contact model
+  // TODO(vincekurtz): define for each body rather than hardcoding here
   const T F = 1;         // force at delta meters of penetration
   const T delta = 0.01;  // penetration distance at which we apply F newtons
   const double n = 2;    // polynomial scaling factor
 
   // Get signed distance pairs
-  // TODO(vincekurtz): make sure the plant is part of a Diagram with a
-  // SceneGraph.
   const geometry::QueryObject<T>& query_object =
       plant()
           .get_geometry_query_input_port()
-          .template Eval<geometry::QueryObject<T>>(context);
+          .template Eval<geometry::QueryObject<T>>(*context_);
   const std::vector<SignedDistancePair<T>>& signed_distance_pairs =
       query_object.ComputeSignedDistancePairwiseClosestPoints();
 
   for (const SignedDistancePair<T>& pair : signed_distance_pairs) {
     // Compute normal forces at the witness points (expressed in the world
     // frame) according to our contact model.
-    const T phi = pair.distance;
-    const T fn = F * max(0, pow(-phi / delta, n));
+    const T fn = F * max(0., pow(-pair.distance / delta, n));
 
+    // TODO(vincekurtz): include friction
     Vector3<T> f_ACa_W = pair.nhat_BA_W * fn;
     Vector3<T> f_BCb_W = -pair.nhat_BA_W * fn;
 
+    // Get geometry and transformation data for the witness points
     const GeometryId geometryA_id = pair.id_A;
     const GeometryId geometryB_id = pair.id_B;
 
@@ -188,33 +198,29 @@ void TrajectoryOptimizer<T>::CalcContactForceContribution(
     const Body<T>& bodyB = plant().get_body(bodyB_index);
 
     const math::RigidTransform<T>& X_WA =
-        plant().EvalBodyPoseInWorld(context, bodyA);
+        plant().EvalBodyPoseInWorld(*context_, bodyA);
     const math::RotationMatrix<T>& R_WA = X_WA.rotation();
     const math::RigidTransform<T>& X_WB =
-        plant().EvalBodyPoseInWorld(context, bodyB);
+        plant().EvalBodyPoseInWorld(*context_, bodyB);
     const math::RotationMatrix<T>& R_WB = X_WB.rotation();
 
     // Force on A, about Ao, expressed in W.
     const SpatialForce<T> F_ACa_W(Vector3<T>::Zero(), f_ACa_W);
     const auto& p_AoCa_A = pair.p_ACa;
-    const Vector3<T> p_CaAo_W = -R_WA * p_AoCa_A;
+    const Vector3<T> p_CaAo_W = -(R_WA * p_AoCa_A);
     const SpatialForce<T> F_AAo_W = F_ACa_W.Shift(p_CaAo_W);
-    forces->mutable_body_forces()[bodyA.node_index()] += F_AAo_W;
 
     // Force on B, about Bo, expressed in W.
     const SpatialForce<T> F_BCb_W(Vector3<T>::Zero(), f_BCb_W);
-    const auto& p_BoCa_B = pair.p_BCb;
-    const Vector3<T> p_CbBo_W = -R_WB * p_BoCb_B;
+    const auto& p_BoCb_B = pair.p_BCb;
+    const Vector3<T> p_CbBo_W = -(R_WB * p_BoCb_B);
     const SpatialForce<T> F_BBo_W = F_BCb_W.Shift(p_CbBo_W);
+
+    // Add the forces into the given MultibodyForces
+    forces->mutable_body_forces()[bodyA.node_index()] += F_AAo_W;
     forces->mutable_body_forces()[bodyB.node_index()] += F_BBo_W;
-
-    // Transform forces on the witness points (expressed in the world frame) to
-    // forces on the bodies (expressed in the world frame)
-
-    // Add forces into f_ext
   }
 }
-#endif
 
 template <typename T>
 void TrajectoryOptimizer<T>::CalcInverseDynamicsPartials(

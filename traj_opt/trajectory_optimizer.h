@@ -261,6 +261,16 @@ class TrajectoryOptimizer {
       TrajectoryOptimizerWorkspace<T>* workspace, VectorX<T>* tau) const;
 
   /**
+   * Calculate the force contribution from contacts for each body, and add them
+   * into the given MultibodyForces object.
+   *
+   * @param forces total forces applied to the plant, which we will add into.
+   * @pre generalized positions (q) and velocities (v) have been properly set in
+   *      context_
+   */
+  void CalcContactForceContribution(MultibodyForces<T>* forces) const;
+
+  /**
    * Compute partial derivatives of the inverse dynamics
    *
    *    tau_t = ID(q_{t-1}, q_t, q_{t+1})
