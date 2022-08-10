@@ -154,8 +154,11 @@ void solve_trajectory_optimization(double time_step, int num_steps) {
   SolverParameters solver_params;
   if (FLAGS_linesearch == "backtracking") {
     solver_params.linesearch_method = LinesearchMethod::kBacktracking;
-  } else {
+  } else if (FLAGS_linesearch == "armijo") {
     solver_params.linesearch_method = LinesearchMethod::kArmijo;
+  } else {
+    throw std::runtime_error("Unknown linesearch method '" + FLAGS_linesearch +
+                             "'.");
   }
   solver_params.max_iterations = FLAGS_max_iters;
   solver_params.max_linesearch_iterations = 50;
