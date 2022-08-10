@@ -1,5 +1,7 @@
 #pragma once
 
+#include <fstream>
+#include <string>
 #include <vector>
 
 #include "drake/common/eigen_types.h"
@@ -51,6 +53,35 @@ struct TrajectoryOptimizerStats {
 
   // Norm of the gradient at each iteration
   std::vector<T> gradient_norm;
+
+  /**
+   * Save the solution to a CSV file that we cn process and make plots from
+   * later.
+   *
+   * @param filename filename for the csv file that we'll write to
+   */
+  void SaveToCsv(std::string fname) {
+    // Set file to write to
+    std::ofstream data_file;
+    data_file.open(fname);
+
+    // Write a header
+    data_file << "iter, time, cost, ls_iters, alpha, grad_norm\n";
+
+    const int num_iters = iteration_times.size();
+    for (int i = 0; i < num_iters; ++i) {
+      // Write the data
+      data_file << i << ", ";
+      data_file << iteration_times[i] << ", ";
+      data_file << iteration_costs[i] << ", ";
+      data_file << linesearch_iterations[i] << ", ";
+      data_file << linesearch_alphas[i] << ", ";
+      data_file << gradient_norm[i] << "\n";
+    }
+
+    // Close the file
+    data_file.close();
+  }
 };
 
 }  // namespace traj_opt

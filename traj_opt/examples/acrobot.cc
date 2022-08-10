@@ -50,33 +50,6 @@ using systems::DiagramBuilder;
 using systems::Simulator;
 
 /**
- * Save the solution data to a CSV file that we can process and make plots from
- * later.
- *
- * @param stats struct containing iteration and timing data
- */
-void save_to_csv(const TrajectoryOptimizerStats<double>& data) {
-  // Set file to write to
-  std::ofstream data_file;
-  data_file.open("acrobot_data.csv");
-
-  // Write a header
-  data_file << "iter, time, cost, ls_iters, alpha, grad_norm\n";
-
-  const int num_iters = data.iteration_times.size();
-  for (int i = 0; i < num_iters; ++i) {
-    // Write the data
-    data_file << fmt::format("{}, {}, {}, {}, {}, {}\n", i,
-                             data.iteration_times[i], data.iteration_costs[i],
-                             data.linesearch_iterations[i],
-                             data.linesearch_alphas[i], data.gradient_norm[i]);
-  }
-
-  // Close the file
-  data_file.close();
-}
-
-/**
  * Play back the given trajectory on the Drake visualizer.
  *
  * @param q sequence of generalized positions defining the trajectory
@@ -176,8 +149,7 @@ void solve_trajectory_optimization(double time_step, int num_steps) {
   SolverFlag status = optimizer.Solve(q_guess, &solution, &stats);
 
   if (status == SolverFlag::kSuccess) {
-    std::cout << "Solved in " << stats.solve_time << " seconds."
-              << std::endl;
+    std::cout << "Solved in " << stats.solve_time << " seconds." << std::endl;
     // Report maximum torques applied to the unactuated shoulder and actuated
     // elbow.
     double max_unactuated_torque = 0;
@@ -202,7 +174,7 @@ void solve_trajectory_optimization(double time_step, int num_steps) {
 
   // Save data to CSV, if requested
   if (FLAGS_save_data) {
-    save_to_csv(stats);
+    stats.SaveToCsv("acrobot_data.csv");
   }
 
   // Play back the result on the visualizer
