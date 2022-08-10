@@ -66,8 +66,8 @@ void run_passive_simulation() {
   const VectorXd u = VectorXd::Zero(plant.num_actuators());
   plant.get_actuation_input_port().FixValue(&plant_context, u);
 
-  VectorX<double> x0(4);
-  x0 << 0, 0, -0.2, 0.4;
+  VectorX<double> x0(6);
+  x0 << 0, 0, 0, 0.0, 0.0, 0.6;
   plant.SetPositionsAndVelocities(&plant_context, x0);
 
   Simulator<double> simulator(*diagram, std::move(diagram_context));
