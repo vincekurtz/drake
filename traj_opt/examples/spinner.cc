@@ -23,18 +23,18 @@ namespace examples {
 namespace spinner {
 
 // Command line options
-DEFINE_double(time_step, 1e-2,
+DEFINE_double(time_step, 5e-2,
               "Discretization timestep for the optimizer (seconds).");
-DEFINE_int32(num_steps, 200,
+DEFINE_int32(num_steps, 100,
              "Number of timesteps in the optimization problem.");
-DEFINE_int32(max_iters, 100,
+DEFINE_int32(max_iters, 500,
              "Maximum number of Gauss-Newton iterations to take.");
 
 DEFINE_bool(visualize, true, "Flag for displaying the optimal solution.");
 DEFINE_string(linesearch, "armijo",
               "Linesearch strategy, {backtracking} or {armijo}.");
 
-DEFINE_double(q1_init, 0.2, "Initial angle for the first (finger) joint");
+DEFINE_double(q1_init, 0.3, "Initial angle for the first (finger) joint");
 DEFINE_double(q2_init, 1.5, "Initial angle for the second (finger) joint");
 DEFINE_double(q3_init, 0.0, "Initial angle for the third (spinner) joint");
 DEFINE_double(v1_init, 0.0, "Initial velocity for the first (finger) joint");
@@ -43,32 +43,32 @@ DEFINE_double(v3_init, 0.0, "Initial velocity for the third (spinner) joint");
 
 DEFINE_double(q1_nom, 0.2, "Target angle for the first (finger) joint");
 DEFINE_double(q2_nom, 1.5, "Target angle for the second (finger) joint");
-DEFINE_double(q3_nom, 0.0, "Target angle for the third (spinner) joint");
+DEFINE_double(q3_nom,-0.5, "Target angle for the third (spinner) joint");
 DEFINE_double(v1_nom, 0.0, "Target velocity for the first (finger) joint");
 DEFINE_double(v2_nom, 0.0, "Target velocity for the second (finger) joint");
 DEFINE_double(v3_nom, 0.0, "Target velocity for the third (spinner) joint");
 
 DEFINE_double(Qq1, 0.0,
               "Running cost weight on angle for the first (finger) joint");
-DEFINE_double(Qq2, 0.0,
+DEFINE_double(Qq2, 0.1,
               "Running cost weight on angle for the second (finger) joint");
-DEFINE_double(Qq3, 0.0,
+DEFINE_double(Qq3, 0.1,
               "Running cost weight on angle for the third (spinner) joint");
-DEFINE_double(Qv1, 0.1,
+DEFINE_double(Qv1, 1.0,
               "Running cost weight on velocity for the first (finger) joint");
-DEFINE_double(Qv2, 0.1,
+DEFINE_double(Qv2, 1.0,
               "Running cost weight on velocity for the second (finger) joint");
-DEFINE_double(Qv3, 0.1,
+DEFINE_double(Qv3, 1.0,
               "Running cost weight on velocity for the third (spinner) joint");
 
 DEFINE_double(R1, 0.1,
               "Running cost weight on torques for the first (finger) joint");
 DEFINE_double(R2, 0.1,
               "Running cost weight on torques for the second (finger) joint");
-DEFINE_double(R3, 0.1,
+DEFINE_double(R3, 1e4,
               "Running cost weight on torques for the third (spinner) joint");
 
-DEFINE_double(Qfq1, 10.0,
+DEFINE_double(Qfq1, 0.0,
               "Terminal cost weight on angle for the first (finger) joint");
 DEFINE_double(Qfq2, 10.0,
               "Terminal cost weight on angle for the second (finger) joint");
@@ -198,7 +198,6 @@ void solve_trajectory_optimization() {
   std::cout << "Solved in " << solution_data.solve_time << " seconds."
             << std::endl;
 
-  solution.q = q_guess;
   // Play back the result on the visualizer
   if (FLAGS_visualize) {
     play_back_trajectory(solution.q, time_step);

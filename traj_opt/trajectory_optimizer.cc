@@ -160,7 +160,6 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsSingleTimeStep(
 template <typename T>
 void TrajectoryOptimizer<T>::CalcContactForceContribution(
     MultibodyForces<T>* forces) const {
-  using std::max;
   using std::pow;
 
   // Parameters for our soft contact model
@@ -178,47 +177,50 @@ void TrajectoryOptimizer<T>::CalcContactForceContribution(
       query_object.ComputeSignedDistancePairwiseClosestPoints();
 
   for (const SignedDistancePair<T>& pair : signed_distance_pairs) {
-    // Compute normal forces at the witness points (expressed in the world
-    // frame) according to our contact model.
-    const T fn = F * max(0., pow(-pair.distance / delta, n));
+    // Don't do any contact force computations if we're not in contact
+    if (pair.distance < 0 ) { 
+      // Compute normal forces at the witness points (expressed in the world
+      // frame) according to our contact model.
+      const T fn = F * pow(-pair.distance / delta, n);
 
-    // TODO(vincekurtz): include friction
-    Vector3<T> f_ACa_W = pair.nhat_BA_W * fn;
-    Vector3<T> f_BCb_W = -pair.nhat_BA_W * fn;
+      // TODO(vincekurtz): include friction
+      Vector3<T> f_ACa_W = pair.nhat_BA_W * fn;
+      Vector3<T> f_BCb_W = -pair.nhat_BA_W * fn;
 
-    // Get geometry and transformation data for the witness points
-    const GeometryId geometryA_id = pair.id_A;
-    const GeometryId geometryB_id = pair.id_B;
+      // Get geometry and transformation data for the witness points
+      const GeometryId geometryA_id = pair.id_A;
+      const GeometryId geometryB_id = pair.id_B;
 
-    BodyIndex bodyA_index =
-        plant().geometry_id_to_body_index().at(geometryA_id);
-    const Body<T>& bodyA = plant().get_body(bodyA_index);
-    BodyIndex bodyB_index =
-        plant().geometry_id_to_body_index().at(geometryB_id);
-    const Body<T>& bodyB = plant().get_body(bodyB_index);
+      BodyIndex bodyA_index =
+          plant().geometry_id_to_body_index().at(geometryA_id);
+      const Body<T>& bodyA = plant().get_body(bodyA_index);
+      BodyIndex bodyB_index =
+          plant().geometry_id_to_body_index().at(geometryB_id);
+      const Body<T>& bodyB = plant().get_body(bodyB_index);
 
-    const math::RigidTransform<T>& X_WA =
-        plant().EvalBodyPoseInWorld(*context_, bodyA);
-    const math::RotationMatrix<T>& R_WA = X_WA.rotation();
-    const math::RigidTransform<T>& X_WB =
-        plant().EvalBodyPoseInWorld(*context_, bodyB);
-    const math::RotationMatrix<T>& R_WB = X_WB.rotation();
+      const math::RigidTransform<T>& X_WA =
+          plant().EvalBodyPoseInWorld(*context_, bodyA);
+      const math::RotationMatrix<T>& R_WA = X_WA.rotation();
+      const math::RigidTransform<T>& X_WB =
+          plant().EvalBodyPoseInWorld(*context_, bodyB);
+      const math::RotationMatrix<T>& R_WB = X_WB.rotation();
 
-    // Force on A, about Ao, expressed in W.
-    const SpatialForce<T> F_ACa_W(Vector3<T>::Zero(), f_ACa_W);
-    const auto& p_AoCa_A = pair.p_ACa;
-    const Vector3<T> p_CaAo_W = -(R_WA * p_AoCa_A);
-    const SpatialForce<T> F_AAo_W = F_ACa_W.Shift(p_CaAo_W);
+      // Force on A, about Ao, expressed in W.
+      const SpatialForce<T> F_ACa_W(Vector3<T>::Zero(), f_ACa_W);
+      const auto& p_AoCa_A = pair.p_ACa;
+      const Vector3<T> p_CaAo_W = -(R_WA * p_AoCa_A);
+      const SpatialForce<T> F_AAo_W = F_ACa_W.Shift(p_CaAo_W);
 
-    // Force on B, about Bo, expressed in W.
-    const SpatialForce<T> F_BCb_W(Vector3<T>::Zero(), f_BCb_W);
-    const auto& p_BoCb_B = pair.p_BCb;
-    const Vector3<T> p_CbBo_W = -(R_WB * p_BoCb_B);
-    const SpatialForce<T> F_BBo_W = F_BCb_W.Shift(p_CbBo_W);
+      // Force on B, about Bo, expressed in W.
+      const SpatialForce<T> F_BCb_W(Vector3<T>::Zero(), f_BCb_W);
+      const auto& p_BoCb_B = pair.p_BCb;
+      const Vector3<T> p_CbBo_W = -(R_WB * p_BoCb_B);
+      const SpatialForce<T> F_BBo_W = F_BCb_W.Shift(p_CbBo_W);
 
-    // Add the forces into the given MultibodyForces
-    forces->mutable_body_forces()[bodyA.node_index()] += F_AAo_W;
-    forces->mutable_body_forces()[bodyB.node_index()] += F_BBo_W;
+      // Add the forces into the given MultibodyForces
+      forces->mutable_body_forces()[bodyA.node_index()] += F_AAo_W;
+      forces->mutable_body_forces()[bodyB.node_index()] += F_BBo_W;
+    }
   }
 }
 
