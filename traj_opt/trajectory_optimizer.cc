@@ -748,18 +748,7 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
   DRAKE_DEMAND(static_cast<int>(q_guess.size()) == num_steps() + 1);
 
   // stats must be empty
-  DRAKE_DEMAND(stats->iteration_times.size() == 0);
-  DRAKE_DEMAND(stats->iteration_costs.size() == 0);
-  DRAKE_DEMAND(stats->linesearch_iterations.size() == 0);
-  DRAKE_DEMAND(stats->linesearch_alphas.size() == 0);
-  DRAKE_DEMAND(stats->gradient_norm.size() == 0);
-
-  // Detailed solution data
-  std::vector<double>& iteration_times = stats->iteration_times;
-  std::vector<double>& iteration_costs = stats->iteration_costs;
-  std::vector<int>& linesearch_iterations = stats->linesearch_iterations;
-  std::vector<double>& linesearch_alphas = stats->linesearch_alphas;
-  std::vector<double>& gradient_norm = stats->gradient_norm;
+  DRAKE_DEMAND(stats->is_empty());
 
   // Allocate a state variable
   TrajectoryOptimizerState<double> state = CreateState();
@@ -806,7 +795,9 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
     // Solve for search direction H*dq = -g
     dq = -g;
     PentaDiagonalFactorization Hchol(H);
-    DRAKE_DEMAND(Hchol.status() == PentaDiagonalFactorizationStatus::kSuccess);
+    if (Hchol.status() != PentaDiagonalFactorizationStatus::kSuccess) {
+      return SolverFlag::kFactorizationFailed;
+    }
     Hchol.SolveInPlace(&dq);
 
     // Solve the linsearch
@@ -826,13 +817,10 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
       SaveLinesearchResidual(state, dq, &scratch_state);
 
       // We'll still record iteration data for playback later
-      stats->solve_time = NAN;
-      iteration_costs.push_back(cost);
-      linesearch_iterations.push_back(ls_iters);
-      linesearch_alphas.push_back(alpha);
       iter_time = std::chrono::high_resolution_clock::now() - iter_start_time;
-      iteration_times.push_back(iter_time.count());
-      gradient_norm.push_back(g.norm() / iteration_costs[k]);
+      solve_time = std::chrono::high_resolution_clock::now() - start_time;
+      stats->solve_time = solve_time.count();
+      stats->push_data(iter_time.count(), cost, ls_iters, alpha, g.norm());
 
       return SolverFlag::kLinesearchMaxIters;
     }
@@ -853,11 +841,7 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
     }
 
     // Record iteration data
-    iteration_costs.push_back(cost);
-    linesearch_iterations.push_back(ls_iters);
-    linesearch_alphas.push_back(alpha);
-    iteration_times.push_back(iter_time.count());
-    gradient_norm.push_back(g.norm() / iteration_costs[k]);
+    stats->push_data(iter_time.count(), cost, ls_iters, alpha, g.norm());
 
     ++k;
   } while (k < params_.max_iterations);

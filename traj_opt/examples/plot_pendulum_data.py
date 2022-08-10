@@ -80,7 +80,7 @@ ax3.set_ylabel("Linesearch Iters")
 ax4.plot(iters, data["alpha"])
 ax4.set_ylabel("alpha")
 
-ax5.plot(iters, data["grad_norm"])
+ax5.plot(iters, data["grad_norm"] / data["cost"])
 ax5.set_ylabel("$||g||$ / cost")
 ax5.set_yscale("log")
 ax5.set_yticks(np.logspace(-12,0,7))
