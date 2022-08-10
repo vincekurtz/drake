@@ -12,9 +12,12 @@ import sys
 # A quick script to make a plot of solution data for the
 # pendulum swingup problem. 
 #
+# This script must be run from the "drake/" directory. 
+#
 ##
 
-drake_root = "/home/vincentkurtz/drake/"
+# drake/ directory, contains drake/bazel-out symlink
+drake_root = os.getcwd()
 
 # Define our optimization problem
 dt = 5e-2
@@ -53,7 +56,7 @@ if code != 0:
     sys.exit()
 
 # Bazel stores files in strange places
-data_file = drake_root + "bazel-out/k8-opt/bin/traj_opt/examples/pendulum.runfiles/drake/pendulum_data.csv"
+data_file = drake_root + "/bazel-out/k8-opt/bin/traj_opt/examples/pendulum.runfiles/drake/pendulum_data.csv"
 
 # Read data from the file and format nicely
 data = np.genfromtxt(data_file, delimiter=',', names=True)
