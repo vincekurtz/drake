@@ -17,43 +17,71 @@ using multibody::MultibodyPlant;
  * Struct for holding quantities that are computed from the optimizer state (q),
  * such as generalized velocities (v), accelerations (a), and forces (tau), as
  * well as various derivatives.
+ *
+ * We separate the trajectory data (v, a, tau) and derivative data (v_partials,
+ * id_partials), since we often need to just use the trajectory data, for
+ * instance to compute the total cost, without performing expensive updates of
+ * the derivative data.
  */
 template <typename T>
 struct TrajectoryOptimizerCache {
   TrajectoryOptimizerCache(const int num_steps, const int nv, const int nq)
-      : v_partials(num_steps, nv, nq), id_partials(num_steps, nv, nq) {
-    v.assign(num_steps + 1, VectorX<T>(nv));
-    a.assign(num_steps, VectorX<T>(nv));
-    tau.assign(num_steps, VectorX<T>(nv));
+      : derivatives_data(num_steps, nv, nq) {
+    trajectory_data.v.assign(num_steps + 1, VectorX<T>(nv));
+    trajectory_data.a.assign(num_steps, VectorX<T>(nv));
+    trajectory_data.tau.assign(num_steps, VectorX<T>(nv));
   }
-  // Generalized velocities at each timestep
-  // [v(0), v(1), ..., v(num_steps)]
-  std::vector<VectorX<T>> v;
 
-  // Generalized accelerations at each timestep
-  // [a(0), a(1), ..., a(num_steps-1)]
-  std::vector<VectorX<T>> a;
+  // Getters for trajectory data
+  const std::vector<VectorX<T>>& v() const { return trajectory_data.v; }
+  const std::vector<VectorX<T>>& a() const { return trajectory_data.a; }
+  const std::vector<VectorX<T>>& tau() const { return trajectory_data.tau; }
 
-  // Generalized forces at each timestep
-  // [tau(0), tau(1), ..., tau(num_steps-1)]
-  std::vector<VectorX<T>> tau;
+  // Getters for derivative data
+  const VelocityPartials<T>& v_partials() const {
+    return derivatives_data.v_partials;
+  }
+  const InverseDynamicsPartials<T>& id_partials() const {
+    return derivatives_data.id_partials;
+  }
 
-  // Storage for dv(t)/dq(t) and dv(t)/dq(t-1)
-  VelocityPartials<T> v_partials;
+  // Data used to compute the cost L(q)
+  struct TrajectoryData {
+    // Generalized velocities at each timestep
+    // [v(0), v(1), ..., v(num_steps)]
+    std::vector<VectorX<T>> v;
 
-  // Storage for dtau(t)/dq(t-1), dtau(t)/dq(t), and dtau(t)/dq(t+1)
-  InverseDynamicsPartials<T> id_partials;
+    // Generalized accelerations at each timestep
+    // [a(0), a(1), ..., a(num_steps-1)]
+    std::vector<VectorX<T>> a;
 
-  // Flags for cache invalidation. We use separate flags for trajectory data (v,
-  // a, tau) and derivative data (v_partials, id_partials), since we often need
-  // to just use the trajectory data, for instance to compute the total cost,
-  // without performing expensive updates of the derivative data.
+    // Generalized forces at each timestep
+    // [tau(0), tau(1), ..., tau(num_steps-1)]
+    std::vector<VectorX<T>> tau;
+
+    // Cache invalidation flag
+    bool up_to_date{false};
+  } trajectory_data;
+
+  // Data used to construct the gradient ∇L and Hessian ∇²L approximation
+  struct DerivativesData {
+    DerivativesData(const int num_steps, const int nv, const int nq)
+        : v_partials(num_steps, nv, nq), id_partials(num_steps, nv, nq) {}
+
+    // Storage for dv(t)/dq(t) and dv(t)/dq(t-1)
+    VelocityPartials<T> v_partials;
+
+    // Storage for dtau(t)/dq(t-1), dtau(t)/dq(t), and dtau(t)/dq(t+1)
+    InverseDynamicsPartials<T> id_partials;
+
+    // Cache invalidation flag
+    bool up_to_date{false};
+  } derivatives_data;
+
+  // Flags for cache invalidation.
   bool up_to_date() const {
-    return (trajectory_data_up_to_date && derivative_data_up_to_date);
+    return (trajectory_data.up_to_date && derivatives_data.up_to_date);
   }
-
-  bool trajectory_data_up_to_date{false};
-  bool derivative_data_up_to_date{false};
 };
 
 /**
@@ -94,8 +122,8 @@ class TrajectoryOptimizerState {
    */
   void set_q(const std::vector<VectorX<T>>& q) {
     q_ = q;
-    cache_.trajectory_data_up_to_date = false;
-    cache_.derivative_data_up_to_date = false;
+    cache_.trajectory_data.up_to_date = false;
+    cache_.derivatives_data.up_to_date = false;
   }
 
   /**
@@ -107,8 +135,8 @@ class TrajectoryOptimizerState {
    */
   void set_qt(const VectorX<T>& qt, const int t) {
     q_[t] = qt;
-    cache_.trajectory_data_up_to_date = false;
-    cache_.derivative_data_up_to_date = false;
+    cache_.trajectory_data.up_to_date = false;
+    cache_.derivatives_data.up_to_date = false;
   }
 
   /**
