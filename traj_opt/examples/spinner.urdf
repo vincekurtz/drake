@@ -155,4 +155,16 @@
     <axis xyz="0 1 0"/>
     <dynamics damping="0.1"/>
   </joint>
+
+  <!-- Actuators for the fingers-->
+  <transmission type="SimpleTransmission" name="theta_one_trans">
+    <actuator name="theta_one"/>
+    <joint name="theta_one"/>
+    <mechanicalReduction>1</mechanicalReduction>
+  </transmission>
+  <transmission type="SimpleTransmission" name="theta_two_trans">
+    <actuator name="theta_two"/>
+    <joint name="theta_two"/>
+    <mechanicalReduction>1</mechanicalReduction>
+  </transmission>
 </robot>
