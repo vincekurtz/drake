@@ -65,7 +65,7 @@ T TrajectoryOptimizer<T>::CalcCost(
     const std::vector<VectorX<T>>& q, const std::vector<VectorX<T>>& v,
     const std::vector<VectorX<T>>& tau,
     TrajectoryOptimizerWorkspace<T>* workspace) const {
-  VectorX<T> cost = VectorX<T>::Zero(1);
+  T cost = 0;
   VectorX<T>& q_err = workspace->q_size_tmp;
   VectorX<T>& v_err = workspace->v_size_tmp1;
 
@@ -73,9 +73,9 @@ T TrajectoryOptimizer<T>::CalcCost(
   for (int t = 0; t < num_steps(); ++t) {
     q_err = q[t] - prob_.q_nom;
     v_err = v[t] - prob_.v_nom;
-    cost += q_err.transpose() * prob_.Qq * q_err;
-    cost += v_err.transpose() * prob_.Qv * v_err;
-    cost += tau[t].transpose() * prob_.R * tau[t];
+    cost += (q_err.transpose() * prob_.Qq * q_err)[0];
+    cost += (v_err.transpose() * prob_.Qv * v_err)[0];
+    cost += (tau[t].transpose() * prob_.R * tau[t])[0];
   }
 
   // Scale running cost by dt (so the optimization problem we're solving doesn't
@@ -85,10 +85,10 @@ T TrajectoryOptimizer<T>::CalcCost(
   // Terminal cost
   q_err = q[num_steps()] - prob_.q_nom;
   v_err = v[num_steps()] - prob_.v_nom;
-  cost += q_err.transpose() * prob_.Qf_q * q_err;
-  cost += v_err.transpose() * prob_.Qf_v * v_err;
+  cost += (q_err.transpose() * prob_.Qf_q * q_err)[0];
+  cost += (v_err.transpose() * prob_.Qf_v * v_err)[0];
 
-  return cost[0];
+  return cost;
 }
 
 template <typename T>
