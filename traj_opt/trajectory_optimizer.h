@@ -97,7 +97,6 @@ class TrajectoryOptimizer {
    * @return double, total cost
    */
   T CalcCost(const TrajectoryOptimizerState<T>& state) const;
-  T EvalCost(const TrajectoryOptimizerState<T>& state) const;
 
   /**
    * Compute the gradient of the unconstrained cost L(q).
@@ -108,8 +107,6 @@ class TrajectoryOptimizer {
    */
   void CalcGradient(const TrajectoryOptimizerState<T>& state,
                     EigenPtr<VectorX<T>> g) const;
-  const VectorX<T>& EvalGradient(
-      const TrajectoryOptimizerState<T>& state) const;
 
   /**
    * Compute the Hessian of the unconstrained cost L(q) as a sparse
@@ -122,8 +119,6 @@ class TrajectoryOptimizer {
    */
   void CalcHessian(const TrajectoryOptimizerState<T>& state,
                    PentaDiagonalMatrix<T>* H) const;
-  const PentaDiagonalMatrix<T>& EvalHessian(
-      const TrajectoryOptimizerState<T>& state) const;
 
   /**
    * Solve the optimization from the given initial guess, which may or may not
@@ -140,6 +135,26 @@ class TrajectoryOptimizer {
   SolverFlag Solve(const std::vector<VectorX<T>>& q_guess,
                    TrajectoryOptimizerSolution<T>* solution,
                    TrajectoryOptimizerStats<T>* stats) const;
+
+  // Evaluator functions to get data from the state's cache, and update it if
+  // necessary.
+  const std::vector<VectorX<T>>& EvalV(
+      const TrajectoryOptimizerState<T>& state) const;
+  const std::vector<VectorX<T>>& EvalA(
+      const TrajectoryOptimizerState<T>& state) const;
+  const std::vector<VectorX<T>>& EvalTau(
+      const TrajectoryOptimizerState<T>& state) const;
+
+  const VelocityPartials<T>& EvalVelocityPartials(
+      const TrajectoryOptimizerState<T>& state) const;
+  const InverseDynamicsPartials<T>& EvalInverseDynamicsPartials(
+      const TrajectoryOptimizerState<T>& state) const;
+
+  const T EvalCost(const TrajectoryOptimizerState<T>& state) const;
+  const PentaDiagonalMatrix<T>& EvalHessian(
+      const TrajectoryOptimizerState<T>& state) const;
+  const VectorX<T>& EvalGradient(
+      const TrajectoryOptimizerState<T>& state) const;
 
  private:
   // Friend class to facilitate testing.

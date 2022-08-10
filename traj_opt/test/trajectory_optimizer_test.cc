@@ -219,8 +219,8 @@ GTEST_TEST(TrajectoryOptimizerTest, HessianAcrobot) {
   Matrix2d Qfq_sqrt = (2 * opt_prob.Qf_q).cwiseSqrt();
   Matrix2d Qfv_sqrt = (2 * opt_prob.Qf_v).cwiseSqrt();
 
-  const std::vector<VectorX<AutoDiffXd>>& v_ad = state_ad.cache().v();
-  const std::vector<VectorX<AutoDiffXd>>& u_ad = state_ad.cache().tau();
+  const std::vector<VectorX<AutoDiffXd>>& v_ad = optimizer_ad.EvalV(state_ad);
+  const std::vector<VectorX<AutoDiffXd>>& u_ad = optimizer_ad.EvalTau(state_ad);
 
   // Here we construct the residual
   //        [        ...           ]
@@ -581,7 +581,7 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcGradientPendulumNoGravity) {
   }
 
   const InverseDynamicsPartials<double>& id_partials =
-      state.cache().id_partials();
+      optimizer.EvalInverseDynamicsPartials(state);
   for (int t = 0; t < num_steps; ++t) {
     if (t > 0) {
       EXPECT_NEAR(id_partials.dtau_dqm[t](0), id_partials_gt.dtau_dqm[t](0),
@@ -598,7 +598,7 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcGradientPendulumNoGravity) {
   MatrixXd M(1, 1);
   for (int t = 0; t < num_steps; ++t) {
     plant.SetPositions(plant_context.get(), q[t]);
-    plant.SetVelocities(plant_context.get(), state.cache().v()[t]);
+    plant.SetVelocities(plant_context.get(), optimizer.EvalV(state)[t]);
     plant.CalcMassMatrix(*plant_context, &M);
 
     EXPECT_NEAR(M(0, 0), m * l * l, std::numeric_limits<double>::epsilon());
@@ -607,12 +607,13 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcGradientPendulumNoGravity) {
   // Check our computation of tau(q)
   double tau;
   double tau_gt;
-  const std::vector<VectorXd>& v = state.cache().v();
-  const std::vector<VectorXd>& a = state.cache().a();
+  const std::vector<VectorXd>& v = optimizer.EvalV(state);
+  const std::vector<VectorXd>& a = optimizer.EvalA(state);
+  const std::vector<VectorXd>& tau_comp = optimizer.EvalTau(state);
   const double kToleranceTau = 10 * std::numeric_limits<double>::epsilon();
   for (int t = 0; t < num_steps; ++t) {
-    tau_gt = state.cache().tau()[t](0);
-    tau = m * l * l * a[t](0) + b * v[t + 1](0);
+    tau = tau_comp[t](0);
+    tau_gt = m * l * l * a[t](0) + b * v[t + 1](0);
     EXPECT_NEAR(tau_gt, tau, kToleranceTau);
   }
 }

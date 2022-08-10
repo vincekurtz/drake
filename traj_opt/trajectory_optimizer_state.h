@@ -36,19 +36,6 @@ struct TrajectoryOptimizerCache {
     trajectory_data.tau.assign(num_steps, VectorX<T>(nv));
   }
 
-  // Getters for trajectory data
-  const std::vector<VectorX<T>>& v() const { return trajectory_data.v; }
-  const std::vector<VectorX<T>>& a() const { return trajectory_data.a; }
-  const std::vector<VectorX<T>>& tau() const { return trajectory_data.tau; }
-
-  // Getters for derivative data
-  const VelocityPartials<T>& v_partials() const {
-    return derivatives_data.v_partials;
-  }
-  const InverseDynamicsPartials<T>& id_partials() const {
-    return derivatives_data.id_partials;
-  }
-
   // Data used to compute the cost L(q)
   struct TrajectoryData {
     // Generalized velocities at each timestep
