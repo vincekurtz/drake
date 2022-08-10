@@ -113,6 +113,8 @@ class TrajectoryOptimizerState {
    */
   TrajectoryOptimizerState(const int num_steps, const MultibodyPlant<T>& plant)
       : workspace(num_steps, plant),
+        num_steps_(num_steps),
+        nq_(plant.num_positions()),
         cache_(num_steps, plant.num_velocities(), plant.num_positions()) {
     q_.assign(num_steps + 1, VectorX<T>(plant.num_positions()));
   }
@@ -135,14 +137,19 @@ class TrajectoryOptimizerState {
   }
 
   /**
-   * Setter for the generalized position at a given time step. Invalidates the
-   * cache.
+   * Update the sequence of generalized positions, q, by adding
    *
-   * @param qt generalized position
-   * @param t the time step
+   *    q = q + dq,
+   *
+   * where dq is a large vector which stacks changes in each q[t].
+   *
+   * @param dq vector of changes in generalized positions
    */
-  void set_qt(const VectorX<T>& qt, const int t) {
-    q_[t] = qt;
+  void AddToQ(const VectorX<T>& dq) {
+    DRAKE_DEMAND(dq.size() == nq_ * (num_steps_ + 1));
+    for (int t = 0; t <= num_steps_; ++t) {
+      q_[t] += dq.segment(t * nq_, nq_);
+    }
     invalidate_cache();
   }
 
@@ -169,6 +176,12 @@ class TrajectoryOptimizerState {
   mutable TrajectoryOptimizerWorkspace<T> workspace;
 
  private:
+  // Number of timesteps in the optimization problem
+  const int num_steps_;
+
+  // Number of multibody positions for this system
+  const int nq_;
+
   // Sequence of generalized velocities at each timestep,
   // [q(0), q(1), ..., q(num_steps)]
   // TODO(vincekurtz): consider storing as a single VectorX<T> for better memory

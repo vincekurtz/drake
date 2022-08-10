@@ -385,20 +385,6 @@ class TrajectoryOptimizer {
       const TrajectoryOptimizerState<T>& state, const VectorX<T>& dq,
       TrajectoryOptimizerState<T>* scratch_state) const;
 
-  /**
-   * Update the sequence of generalized positions, q, stored in the given
-   * optimizer state, as
-   *
-   *    q = q + dq,
-   *
-   * where dq is a large vector which stacks changes in each q[t].
-   *
-   * @param dq vector of changes in generalized positions
-   * @param state optimizer state storing std::vector<VectorXd> q that we'll
-   * update.
-   */
-  void AddToQ(const VectorX<T>& dq, TrajectoryOptimizerState<T>* state) const;
-
   // A model of the system that we are trying to find an optimal trajectory for.
   const MultibodyPlant<T>* plant_;
 

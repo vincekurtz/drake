@@ -563,18 +563,6 @@ void TrajectoryOptimizer<T>::UpdateCacheDerivativesData(
 }
 
 template <typename T>
-void TrajectoryOptimizer<T>::AddToQ(const VectorX<T>& dq,
-                                    TrajectoryOptimizerState<T>* state) const {
-  const int nq = plant().num_positions();
-  DRAKE_DEMAND(dq.size() == nq * (num_steps() + 1));
-
-  const std::vector<VectorX<T>>& q = state->q();
-  for (int t = 0; t <= num_steps(); ++t) {
-    state->set_qt(q[t] + dq.segment(t * nq, nq), t);
-  }
-}
-
-template <typename T>
 void TrajectoryOptimizer<T>::SaveLinesearchResidual(
     const TrajectoryOptimizerState<T>& state, const VectorX<T>& dq,
     TrajectoryOptimizerState<T>* scratch_state) const {
@@ -594,7 +582,7 @@ void TrajectoryOptimizer<T>::SaveLinesearchResidual(
     // Record the linesearch residual
     // phi(alpha) = L(q + alpha * dq) - L
     scratch_state->set_q(state.q());
-    AddToQ(alpha * dq, scratch_state);
+    scratch_state->AddToQ(alpha * dq);
     data_file << EvalCost(*scratch_state) - EvalCost(state) << "\n";
 
     alpha += dalpha;
@@ -647,7 +635,7 @@ std::tuple<double, int> TrajectoryOptimizer<T>::BacktrackingLinesearch(
 
   // Try with alpha = 1
   scratch_state->set_q(state.q());
-  AddToQ(alpha * dq, scratch_state);
+  scratch_state->AddToQ(alpha * dq);
   T L_old = EvalCost(*scratch_state);
 
   // L_new stores cost at iteration i:   L(q + alpha_i * dq)
@@ -668,7 +656,7 @@ std::tuple<double, int> TrajectoryOptimizer<T>::BacktrackingLinesearch(
 
     // Compute L_new = L(q + alpha_i * dq)
     scratch_state->set_q(state.q());
-    AddToQ(alpha * dq, scratch_state);
+    scratch_state->AddToQ(alpha * dq);
     L_new = EvalCost(*scratch_state);
 
     // Check the Armijo conditions
@@ -720,7 +708,7 @@ std::tuple<double, int> TrajectoryOptimizer<T>::ArmijoLinesearch(
 
     // Compute L_ls = L(q + alpha * dq)
     scratch_state->set_q(state.q());
-    AddToQ(alpha * dq, scratch_state);
+    scratch_state->AddToQ(alpha * dq);
     L_new = EvalCost(*scratch_state);
 
     ++i;
@@ -826,7 +814,7 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
     }
 
     // Update the decision variables
-    AddToQ(alpha * dq, &state);
+    state.AddToQ(alpha * dq);
 
     iter_time = std::chrono::high_resolution_clock::now() - iter_start_time;
 
