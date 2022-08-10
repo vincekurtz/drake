@@ -1,0 +1,113 @@
+<?xml version="1.0"?>
+<robot name="spinner">
+  <material name="green">
+    <color rgba=".3 .6 .4 1"/>
+  </material>
+  <material name="red">
+    <color rgba=".9 .1 0 1"/>
+  </material>
+  <material name="blue">
+    <color rgba="0 0 1 1"/>
+  </material>
+
+  <!-- Fixed base for the finger, welded to the world -->
+  <link name="base">
+    <inertial>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <mass value="1"/>
+      <inertia ixx="0" ixy="0" ixz="0" iyy="0" iyz="0" izz="0"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0"/>
+      <geometry>
+        <sphere radius=".07"/>
+      </geometry>
+      <material name="green"/>
+    </visual>
+  </link>
+  <joint name="base_weld" type="fixed">
+    <parent link="world"/>
+    <child link="base"/>
+    <origin xyz="0 0 0" rpy="1.57079632679 0 0 "/>
+  </joint>
+
+  <!-- First finger link -->
+  <link name="finger_one">
+    <inertial>
+      <origin rpy="0 0 0" xyz="0 0 0.5"/>
+      <mass value="1.0"/>
+      <inertia ixx="0.0839" ixy="0" ixz="0" iyy="0.0839" iyz="0" izz="0.00125"/>
+    </inertial>
+    <visual>
+      <origin rpy="0 0 0" xyz="0 0 0.5"/>
+      <geometry>
+        <cylinder length="0.9" radius=".05"/>
+      </geometry>
+      <material name="red"/>
+    </visual>
+    <visual>
+      <origin rpy="0 0 0" xyz="0 0 0.95"/>
+      <geometry>
+        <sphere radius=".05"/>
+      </geometry>
+      <material name="red"/>
+    </visual>
+    <!-- 
+      There is no collision geometry for the first link, since it can't reach
+      the spinner.
+     -->
+  </link>
+  <joint name="theta_one" type="continuous">
+    <parent link="base"/>
+    <child link="finger_one"/>
+    <origin xyz="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <dynamics damping="0.1"/>
+  </joint>
+
+  <!-- Second finger link -->
+  <link name="finger_two">
+    <inertial>
+      <origin rpy="0 0 0" xyz="0 0 0.5"/>
+      <mass value="1.0"/>
+      <inertia ixx="0.0839" ixy="0" ixz="0" iyy="0.0839" iyz="0" izz="0.00125"/>
+    </inertial>
+    <visual>
+      <origin rpy="0 0 0" xyz="0 0 0.05"/>
+      <geometry>
+        <sphere radius=".05"/>
+      </geometry>
+      <material name="red"/>
+    </visual>
+    <visual>
+      <origin rpy="0 0 0" xyz="0 0 0.5"/>
+      <geometry>
+        <cylinder length="0.9" radius=".05"/>
+      </geometry>
+      <material name="red"/>
+    </visual>
+    <visual>
+      <origin rpy="0 0 0" xyz="0 0 0.95"/>
+      <geometry>
+        <sphere radius=".05"/>
+      </geometry>
+      <material name="red"/>
+    </visual>
+    <!--
+    <collision>
+      <origin rpy="0 0 0" xyz="0 0 -.375"/>
+      <geometry>
+        <cylinder length=".75" radius=".01"/>
+      </geometry>
+    </collision>-->
+  </link>
+  <joint name="theta_two" type="continuous">
+    <parent link="finger_one"/>
+    <child link="finger_two"/>
+    <origin xyz="0 0 1"/>
+    <axis xyz="0 1 0"/>
+    <dynamics damping="0.1"/>
+  </joint>
+
+
+</robot>

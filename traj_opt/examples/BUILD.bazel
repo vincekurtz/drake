@@ -55,4 +55,23 @@ drake_cc_binary(
     ],
 )
 
+drake_cc_binary(
+    name = "spinner",
+    srcs = ["spinner.cc"],
+    add_test_rule = 1,
+    data = [":spinner.urdf"],
+    test_rule_args = [],
+    deps = [
+        "//common:find_resource",
+        "//geometry:drake_visualizer",
+        "//multibody/parsing",
+        "//multibody/plant",
+        "//systems/analysis:simulator",
+        "//systems/framework:diagram",
+        "//traj_opt:problem_definition",
+        "//traj_opt:trajectory_optimizer",
+        "@gflags",
+    ],
+)
+
 add_lint_tests()

@@ -190,9 +190,6 @@ void solve_trajectory_optimization(double time_step, int num_steps) {
 }
 
 int do_main() {
-  // For now we'll just run a simple passive simulation of the pendulum
-  // run_passive_simulation(1e-2, 2.0);
-
   // Solve an optimization problem to swing-up the pendulum
   solve_trajectory_optimization(FLAGS_time_step, FLAGS_num_steps);
 
