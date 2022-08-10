@@ -18,7 +18,7 @@ enum SolverFlag { kSuccess, kLinesearchMaxIters };
  * forces tau (tau = B*u)
  */
 template <typename T>
-struct Solution {
+struct TrajectoryOptimizerSolution {
   // Optimal sequence of generalized positions at each timestep
   std::vector<VectorX<T>> q;
 
@@ -33,7 +33,7 @@ struct Solution {
  * A container for data about the solve process
  */
 template <typename T>
-struct SolutionData {
+struct TrajectoryOptimizerStats {
   // Total solve time
   double solve_time;
 

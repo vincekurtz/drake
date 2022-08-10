@@ -127,10 +127,10 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumSwingup) {
   }
 
   // Solve the optimization problem
-  Solution<double> solution;
-  SolutionData<double> solution_data;
+  TrajectoryOptimizerSolution<double> solution;
+  TrajectoryOptimizerStats<double> stats;
 
-  SolverFlag status = optimizer.Solve(q_guess, &solution, &solution_data);
+  SolverFlag status = optimizer.Solve(q_guess, &solution, &stats);
   EXPECT_EQ(status, SolverFlag::kSuccess);
 
   // With such a large penalty on the final position, and such a low control

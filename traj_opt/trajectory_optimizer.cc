@@ -695,8 +695,8 @@ std::tuple<double, int> TrajectoryOptimizer<T>::ArmijoLinesearch(
 
 template <typename T>
 SolverFlag TrajectoryOptimizer<T>::Solve(const std::vector<VectorX<T>>&,
-                                         Solution<T>*,
-                                         SolutionData<T>*) const {
+                                         TrajectoryOptimizerSolution<T>*,
+                                         TrajectoryOptimizerStats<T>*) const {
   throw std::runtime_error(
       "TrajectoryOptimizer::Solve only supports T=double.");
 }
@@ -704,26 +704,26 @@ SolverFlag TrajectoryOptimizer<T>::Solve(const std::vector<VectorX<T>>&,
 template <>
 SolverFlag TrajectoryOptimizer<double>::Solve(
     const std::vector<VectorXd>& q_guess,
-    Solution<double>* solution,
-    SolutionData<double>* solution_data) const {
+    TrajectoryOptimizerSolution<double>* solution,
+    TrajectoryOptimizerStats<double>* stats) const {
   // The guess must be consistent with the initial condition
   DRAKE_DEMAND(q_guess[0] == prob_.q_init);
   DRAKE_DEMAND(static_cast<int>(q_guess.size()) == num_steps() + 1);
 
-  // solution_data must be empty
-  DRAKE_DEMAND(solution_data->iteration_times.size() == 0);
-  DRAKE_DEMAND(solution_data->iteration_costs.size() == 0);
-  DRAKE_DEMAND(solution_data->linesearch_iterations.size() == 0);
-  DRAKE_DEMAND(solution_data->linesearch_alphas.size() == 0);
-  DRAKE_DEMAND(solution_data->gradient_norm.size() == 0);
+  // stats must be empty
+  DRAKE_DEMAND(stats->iteration_times.size() == 0);
+  DRAKE_DEMAND(stats->iteration_costs.size() == 0);
+  DRAKE_DEMAND(stats->linesearch_iterations.size() == 0);
+  DRAKE_DEMAND(stats->linesearch_alphas.size() == 0);
+  DRAKE_DEMAND(stats->gradient_norm.size() == 0);
 
   // Detailed solution data
-  std::vector<double>& iteration_times = solution_data->iteration_times;
-  std::vector<double>& iteration_costs = solution_data->iteration_costs;
+  std::vector<double>& iteration_times = stats->iteration_times;
+  std::vector<double>& iteration_costs = stats->iteration_costs;
   std::vector<int>& linesearch_iterations =
-      solution_data->linesearch_iterations;
-  std::vector<double>& linesearch_alphas = solution_data->linesearch_alphas;
-  std::vector<double>& gradient_norm = solution_data->gradient_norm;
+      stats->linesearch_iterations;
+  std::vector<double>& linesearch_alphas = stats->linesearch_alphas;
+  std::vector<double>& gradient_norm = stats->gradient_norm;
 
   // Allocate a state variable
   TrajectoryOptimizerState<double> state = CreateState();
@@ -794,7 +794,7 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
       SaveLinesearchResidual(iteration_costs[k], state.q(), dq, &ls_state);
 
       // We'll still record iteration data for playback later
-      solution_data->solve_time = NAN;
+      stats->solve_time = NAN;
       linesearch_iterations.push_back(ls_iters);
       linesearch_alphas.push_back(alpha);
       iter_time = std::chrono::high_resolution_clock::now() - iter_start_time;
@@ -837,7 +837,7 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
 
   // Record the total solve time
   solve_time = std::chrono::high_resolution_clock::now() - start_time;
-  solution_data->solve_time = solve_time.count();
+  stats->solve_time = solve_time.count();
 
   // Record the solution
   if (!state.cache().trajectory_data_up_to_date) {

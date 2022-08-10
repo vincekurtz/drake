@@ -126,13 +126,13 @@ class TrajectoryOptimizer {
    * initial guess
    * @param solution a container for the optimal solution, including velocities
    * and torques
-   * @param solution_data a container for other timing and iteration-specific
+   * @param stats a container for other timing and iteration-specific
    * data regarding the solve process.
    * @return SolverFlag
    */
   SolverFlag Solve(const std::vector<VectorX<T>>& q_guess,
-                   Solution<T>* solution,
-                   SolutionData<T>* solution_data) const;
+                   TrajectoryOptimizerSolution<T>* solution,
+                   TrajectoryOptimizerStats<T>* stats) const;
 
  private:
   // Friend class to facilitate testing.

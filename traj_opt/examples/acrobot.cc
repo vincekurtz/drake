@@ -53,9 +53,9 @@ using systems::Simulator;
  * Save the solution data to a CSV file that we can process and make plots from
  * later.
  *
- * @param solution_data struct containing iteration and timing data
+ * @param stats struct containing iteration and timing data
  */
-void save_to_csv(const SolutionData<double>& data) {
+void save_to_csv(const TrajectoryOptimizerStats<double>& data) {
   // Set file to write to
   std::ofstream data_file;
   data_file.open("acrobot_data.csv");
@@ -170,13 +170,13 @@ void solve_trajectory_optimization(double time_step, int num_steps) {
 
   // Solve the optimzation problem
   TrajectoryOptimizer<double> optimizer(&plant, opt_prob, solver_params);
-  Solution<double> solution;
-  SolutionData<double> solution_data;
+  TrajectoryOptimizerSolution<double> solution;
+  TrajectoryOptimizerStats<double> stats;
 
-  SolverFlag status = optimizer.Solve(q_guess, &solution, &solution_data);
+  SolverFlag status = optimizer.Solve(q_guess, &solution, &stats);
 
   if (status == SolverFlag::kSuccess) {
-    std::cout << "Solved in " << solution_data.solve_time << " seconds."
+    std::cout << "Solved in " << stats.solve_time << " seconds."
               << std::endl;
     // Report maximum torques applied to the unactuated shoulder and actuated
     // elbow.
@@ -202,7 +202,7 @@ void solve_trajectory_optimization(double time_step, int num_steps) {
 
   // Save data to CSV, if requested
   if (FLAGS_save_data) {
-    save_to_csv(solution_data);
+    save_to_csv(stats);
   }
 
   // Play back the result on the visualizer
