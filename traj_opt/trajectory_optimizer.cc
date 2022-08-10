@@ -21,14 +21,8 @@ using systems::System;
 template <typename T>
 TrajectoryOptimizer<T>::TrajectoryOptimizer(
     const MultibodyPlant<T>* plant, const ProblemDefinition& prob,
-    const std::optional<SolverParameters>& params)
-    : plant_(plant), prob_(prob) {
-  // Set solver parameters if they're supplied. Otherwise we keep the defaults
-  // from solver_parameters.h
-  if (params != std::nullopt) {
-    params_ = *params;
-  }
-
+    const SolverParameters& params)
+    : plant_(plant), prob_(prob), params_(params) {
   // Create a context for dynamics computations
   context_ = plant_->CreateDefaultContext();
 

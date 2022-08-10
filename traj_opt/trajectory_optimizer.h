@@ -38,7 +38,7 @@ class TrajectoryOptimizer {
    */
   TrajectoryOptimizer(
       const MultibodyPlant<T>* plant, const ProblemDefinition& prob,
-      const std::optional<SolverParameters>& params = std::nullopt);
+      const SolverParameters& params = SolverParameters{});
 
   /**
    * Convienience function to get the timestep of this optimization problem.
