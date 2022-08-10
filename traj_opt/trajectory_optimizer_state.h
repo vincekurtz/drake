@@ -5,12 +5,14 @@
 #include "drake/common/eigen_types.h"
 #include "drake/multibody/plant/multibody_plant.h"
 #include "drake/traj_opt/inverse_dynamics_partials.h"
+#include "drake/traj_opt/penta_diagonal_matrix.h"
 #include "drake/traj_opt/trajectory_optimizer_workspace.h"
 #include "drake/traj_opt/velocity_partials.h"
 
 namespace drake {
 namespace traj_opt {
 
+using internal::PentaDiagonalMatrix;
 using multibody::MultibodyPlant;
 
 /**
@@ -26,7 +28,9 @@ using multibody::MultibodyPlant;
 template <typename T>
 struct TrajectoryOptimizerCache {
   TrajectoryOptimizerCache(const int num_steps, const int nv, const int nq)
-      : derivatives_data(num_steps, nv, nq) {
+      : derivatives_data(num_steps, nv, nq),
+        gradient((num_steps + 1) * nq),
+        hessian(num_steps + 1, nq) {
     trajectory_data.v.assign(num_steps + 1, VectorX<T>(nv));
     trajectory_data.a.assign(num_steps, VectorX<T>(nv));
     trajectory_data.tau.assign(num_steps, VectorX<T>(nv));
@@ -59,7 +63,6 @@ struct TrajectoryOptimizerCache {
     // [tau(0), tau(1), ..., tau(num_steps-1)]
     std::vector<VectorX<T>> tau;
 
-    // Cache invalidation flag
     bool up_to_date{false};
   } trajectory_data;
 
@@ -74,14 +77,20 @@ struct TrajectoryOptimizerCache {
     // Storage for dtau(t)/dq(t-1), dtau(t)/dq(t), and dtau(t)/dq(t+1)
     InverseDynamicsPartials<T> id_partials;
 
-    // Cache invalidation flag
     bool up_to_date{false};
   } derivatives_data;
 
-  // Flags for cache invalidation.
-  bool up_to_date() const {
-    return (trajectory_data.up_to_date && derivatives_data.up_to_date);
-  }
+  // The total cost L(q)
+  T cost;
+  bool cost_up_to_date{false};
+
+  // The gradient of the unconstrained cost ∇L
+  VectorX<T> gradient;
+  bool gradient_up_to_date{false};
+
+  // Our Hessian approximation of the unconstrained cost ∇²L
+  PentaDiagonalMatrix<T> hessian;
+  bool hessian_up_to_date{false};
 };
 
 /**
@@ -122,8 +131,7 @@ class TrajectoryOptimizerState {
    */
   void set_q(const std::vector<VectorX<T>>& q) {
     q_ = q;
-    cache_.trajectory_data.up_to_date = false;
-    cache_.derivatives_data.up_to_date = false;
+    invalidate_cache();
   }
 
   /**
@@ -135,8 +143,7 @@ class TrajectoryOptimizerState {
    */
   void set_qt(const VectorX<T>& qt, const int t) {
     q_[t] = qt;
-    cache_.trajectory_data.up_to_date = false;
-    cache_.derivatives_data.up_to_date = false;
+    invalidate_cache();
   }
 
   /**
@@ -171,6 +178,15 @@ class TrajectoryOptimizerState {
   // Storage for all other quantities that are computed from q, and are useful
   // for our calculations
   mutable TrajectoryOptimizerCache<T> cache_;
+
+  // Set all the cache invalidation flags to false
+  void invalidate_cache() {
+    cache_.trajectory_data.up_to_date = false;
+    cache_.derivatives_data.up_to_date = false;
+    cache_.cost_up_to_date = false;
+    cache_.gradient_up_to_date = false;
+    cache_.hessian_up_to_date = false;
+  }
 };
 
 }  // namespace traj_opt
