@@ -31,6 +31,13 @@ struct SolverParameters {
   // Flag for whether to record linesearch data to a file at each iteration (for
   // later plotting)
   bool linesearch_plot_every_iteration = false;
+
+  // Contact model parameters
+  // TODO(vincekurtz): this is definitely the wrong place to specify the contact
+  // model - figure out the right place and put these parameters there
+  double F = 1.0;       // force (in Newtons) at delta meters of penetration
+  double delta = 0.01;  // penetration distance at which we apply F newtons
+  double n = 2;         // polynomial scaling factor
 };
 
 }  // namespace traj_opt

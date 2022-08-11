@@ -171,7 +171,7 @@ void solve_trajectory_optimization() {
     solver_params.linesearch_method = LinesearchMethod::kArmijo;
   }
   solver_params.max_iterations = options.max_iters;
-  solver_params.max_linesearch_iterations = 50;
+  solver_params.max_linesearch_iterations = 60;
   solver_params.print_debug_data = options.print_debug_data;
   solver_params.linesearch_plot_every_iteration =
       options.linesearch_plot_every_iteration;

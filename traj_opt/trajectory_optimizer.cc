@@ -163,7 +163,7 @@ void TrajectoryOptimizer<T>::CalcContactForceContribution(
 
   // Parameters for our soft contact model
   // TODO(vincekurtz): define for each body rather than hardcoding here
-  const T F = 0.1;         // force at delta meters of penetration
+  const T F = 1.0;         // force at delta meters of penetration
   const T delta = 0.01;  // penetration distance at which we apply F newtons
   const double n = 2;    // polynomial scaling factor
 
@@ -741,7 +741,7 @@ std::tuple<double, int> TrajectoryOptimizer<T>::BacktrackingLinesearch(
   // Linesearch parameters
   // TODO(vincekurtz): set these in SolverOptions
   const double c = 1e-4;
-  const double rho = 0.9;
+  const double rho = 0.8;
 
   double alpha = 1.0;
   T L_prime = g.transpose() * dq;  // gradient of L w.r.t. alpha
@@ -752,8 +752,8 @@ std::tuple<double, int> TrajectoryOptimizer<T>::BacktrackingLinesearch(
   // Exit early with alpha = 1 when we are close to convergence
   // N.B. |g|/L converges to only around 1e-8 (due to finite differences), but
   // L'/L appears to converge to something considerably smaller.
-  const double convergence_threshold =
-      100 * std::numeric_limits<double>::epsilon();
+  const double convergence_threshold = 1e-10;
+//      100 * std::numeric_limits<double>::epsilon();
   if (abs(L_prime) / abs(L) <= convergence_threshold) {
     return {1.0, 0};
   }
@@ -772,7 +772,7 @@ std::tuple<double, int> TrajectoryOptimizer<T>::BacktrackingLinesearch(
   // minimum.
   int i = 0;
   bool armijo_met = false;
-  while (!armijo_met || (L_new < L_old)) {
+  while (!(armijo_met && (L_new > L_old))) {
     // Save L_old = L(q + alpha_{i-1} * dq)
     L_old = L_new;
 
