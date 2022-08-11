@@ -76,29 +76,6 @@ class TrajectoryOptimizer {
   }
 
   /**
-   * Return the total (unconstrained) cost of the optimization problem,
-   *
-   *     L(q) = x_err(T)'*Qf*x_err(T)
-   *                + dt*sum_{t=0}^{T-1} x_err(t)'*Q*x_err(t) + u(t)'*R*u(t),
-   *
-   * where:
-   *      x_err(t) = x(t) - x_nom is the state error,
-   *      T = num_steps() is the time horizon of the optimization problem,
-   *      x(t) = [q(t); v(t)] is the system state at time t,
-   *      u(t) are control inputs, and we assume (for now) that u(t) = tau(t),
-   *      Q{f} = diag([Qq{f}, Qv{f}]) are a block diagonal PSD state-error
-   *       weighting matrices,
-   *      R is a PSD control weighting matrix.
-   *
-   * A cached version of this cost is stored in the state. If the cache is up to
-   * date, simply return that cost.
-   *
-   * @param state optimizer state
-   * @return double, total cost
-   */
-  T CalcCost(const TrajectoryOptimizerState<T>& state) const;
-
-  /**
    * Compute the gradient of the unconstrained cost L(q).
    *
    * @param state optimizer state, including q, v, tau, gradients, etc.
@@ -167,7 +144,7 @@ class TrajectoryOptimizer {
    *
    * @param state optimizer state to update.
    */
-  void UpdateCacheTrajectoryData(
+  void CalcCacheTrajectoryData(
       const TrajectoryOptimizerState<T>& state) const;
 
   /**
@@ -176,8 +153,31 @@ class TrajectoryOptimizer {
    *
    * @param state optimizer state to update.
    */
-  void UpdateCacheDerivativesData(
+  void CalcCacheDerivativesData(
       const TrajectoryOptimizerState<T>& state) const;
+
+  /**
+   * Return the total (unconstrained) cost of the optimization problem,
+   *
+   *     L(q) = x_err(T)'*Qf*x_err(T)
+   *                + dt*sum_{t=0}^{T-1} x_err(t)'*Q*x_err(t) + u(t)'*R*u(t),
+   *
+   * where:
+   *      x_err(t) = x(t) - x_nom is the state error,
+   *      T = num_steps() is the time horizon of the optimization problem,
+   *      x(t) = [q(t); v(t)] is the system state at time t,
+   *      u(t) are control inputs, and we assume (for now) that u(t) = tau(t),
+   *      Q{f} = diag([Qq{f}, Qv{f}]) are a block diagonal PSD state-error
+   *       weighting matrices,
+   *      R is a PSD control weighting matrix.
+   *
+   * A cached version of this cost is stored in the state. If the cache is up to
+   * date, simply return that cost.
+   *
+   * @param state optimizer state
+   * @return double, total cost
+   */
+  T CalcCost(const TrajectoryOptimizerState<T>& state) const;
 
   /**
    * Compute the total cost of the unconstrained problem.

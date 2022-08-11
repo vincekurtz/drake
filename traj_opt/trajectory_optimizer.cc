@@ -68,9 +68,9 @@ T TrajectoryOptimizer<T>::CalcCost(
   for (int t = 0; t < num_steps(); ++t) {
     q_err = q[t] - prob_.q_nom;
     v_err = v[t] - prob_.v_nom;
-    cost += (q_err.transpose() * prob_.Qq * q_err)[0];
-    cost += (v_err.transpose() * prob_.Qv * v_err)[0];
-    cost += (tau[t].transpose() * prob_.R * tau[t])[0];
+    cost += T(q_err.transpose() * prob_.Qq * q_err);
+    cost += T(v_err.transpose() * prob_.Qv * v_err);
+    cost += T(tau[t].transpose() * prob_.R * tau[t]);
   }
 
   // Scale running cost by dt (so the optimization problem we're solving doesn't
@@ -80,8 +80,8 @@ T TrajectoryOptimizer<T>::CalcCost(
   // Terminal cost
   q_err = q[num_steps()] - prob_.q_nom;
   v_err = v[num_steps()] - prob_.v_nom;
-  cost += (q_err.transpose() * prob_.Qf_q * q_err)[0];
-  cost += (v_err.transpose() * prob_.Qf_v * v_err)[0];
+  cost += T(q_err.transpose() * prob_.Qf_q * q_err);
+  cost += T(v_err.transpose() * prob_.Qf_v * v_err);
 
   return cost;
 }
@@ -217,11 +217,6 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsFiniteDiff(
       // Determine perturbation sizes to avoid losing precision to floating
       // point error
       dq_i = eps * max(1.0, abs(q_eps_t(i)));
-
-      // Make dqt_i exactly representable to minimize floating point error
-      const T temp = q_eps_t(i) + dq_i;
-      dq_i = temp - q_eps_t(i);
-
       dv_i = dq_i / time_step();
       da_i = dv_i / time_step();
 
@@ -503,7 +498,7 @@ const PentaDiagonalMatrix<T>& TrajectoryOptimizer<T>::EvalHessian(
 }
 
 template <typename T>
-void TrajectoryOptimizer<T>::UpdateCacheTrajectoryData(
+void TrajectoryOptimizer<T>::CalcCacheTrajectoryData(
     const TrajectoryOptimizerState<T>& state) const {
   TrajectoryOptimizerCache<T>& cache = state.mutable_cache();
   TrajectoryOptimizerWorkspace<T>& workspace = state.workspace;
@@ -533,7 +528,7 @@ template <typename T>
 const std::vector<VectorX<T>>& TrajectoryOptimizer<T>::EvalV(
     const TrajectoryOptimizerState<T>& state) const {
   if (!state.cache().trajectory_data.up_to_date)
-    UpdateCacheTrajectoryData(state);
+    CalcCacheTrajectoryData(state);
   return state.cache().trajectory_data.v;
 }
 
@@ -541,7 +536,7 @@ template <typename T>
 const std::vector<VectorX<T>>& TrajectoryOptimizer<T>::EvalA(
     const TrajectoryOptimizerState<T>& state) const {
   if (!state.cache().trajectory_data.up_to_date)
-    UpdateCacheTrajectoryData(state);
+    CalcCacheTrajectoryData(state);
   return state.cache().trajectory_data.a;
 }
 
@@ -549,12 +544,12 @@ template <typename T>
 const std::vector<VectorX<T>>& TrajectoryOptimizer<T>::EvalTau(
     const TrajectoryOptimizerState<T>& state) const {
   if (!state.cache().trajectory_data.up_to_date)
-    UpdateCacheTrajectoryData(state);
+    CalcCacheTrajectoryData(state);
   return state.cache().trajectory_data.tau;
 }
 
 template <typename T>
-void TrajectoryOptimizer<T>::UpdateCacheDerivativesData(
+void TrajectoryOptimizer<T>::CalcCacheDerivativesData(
     const TrajectoryOptimizerState<T>& state) const {
   TrajectoryOptimizerCache<T>& cache = state.mutable_cache();
   TrajectoryOptimizerWorkspace<T>& workspace = state.workspace;
@@ -583,7 +578,7 @@ template <typename T>
 const VelocityPartials<T>& TrajectoryOptimizer<T>::EvalVelocityPartials(
     const TrajectoryOptimizerState<T>& state) const {
   if (!state.cache().derivatives_data.up_to_date)
-    UpdateCacheDerivativesData(state);
+    CalcCacheDerivativesData(state);
   return state.cache().derivatives_data.v_partials;
 }
 
@@ -592,7 +587,7 @@ const InverseDynamicsPartials<T>&
 TrajectoryOptimizer<T>::EvalInverseDynamicsPartials(
     const TrajectoryOptimizerState<T>& state) const {
   if (!state.cache().derivatives_data.up_to_date)
-    UpdateCacheDerivativesData(state);
+    CalcCacheDerivativesData(state);
   return state.cache().derivatives_data.id_partials;
 }
 
@@ -661,6 +656,8 @@ std::tuple<double, int> TrajectoryOptimizer<T>::BacktrackingLinesearch(
   DRAKE_DEMAND(L_prime <= 0);
 
   // Exit early with alpha = 1 when we are close to convergence
+  // N.B. |g|/L converges to only around 1e-8 (due to finite differences), but
+  // L'/L appears to converge to something considerably smaller.
   const double convergence_threshold =
       100 * std::numeric_limits<double>::epsilon();
   if (abs(L_prime) / abs(L) <= convergence_threshold) {

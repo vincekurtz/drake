@@ -201,7 +201,7 @@ GTEST_TEST(TrajectoryOptimizerTest, HessianAcrobot) {
     }
   }
   state_ad.set_q(q_ad);
-  AutoDiffXd L_ad = optimizer_ad.CalcCost(state_ad);  // forces cache update
+  AutoDiffXd L_ad = optimizer_ad.EvalCost(state_ad);  // forces cache update
 
   // Formulate an equivalent least-squares problem, where
   //
@@ -248,7 +248,7 @@ GTEST_TEST(TrajectoryOptimizerTest, HessianAcrobot) {
 
   // Check that the cost from our least-squares formulation is correct
   const double kToleranceCost = 10 * std::numeric_limits<double>::epsilon();
-  double L = optimizer.CalcCost(state);
+  double L = optimizer.EvalCost(state);
   EXPECT_NEAR(L, L_lsqr.value(), kToleranceCost);
 
   // Check that the gradient from our least-squares formulation matches what we
@@ -402,7 +402,7 @@ GTEST_TEST(TrajectoryOptimizerTest, AutodiffGradient) {
   }
   state_ad.set_q(q_ad);
 
-  AutoDiffXd cost_ad = optimizer_ad.CalcCost(state_ad);
+  AutoDiffXd cost_ad = optimizer_ad.EvalCost(state_ad);
   VectorXd g_ad = cost_ad.derivatives();
 
   // We neglect the top row of the gradient, since we are setting it to zero.
@@ -534,7 +534,7 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcGradientPendulumNoGravity) {
   }
   state_ad.set_q(q_ad);
 
-  AutoDiffXd cost_ad = optimizer_ad.CalcCost(state_ad);
+  AutoDiffXd cost_ad = optimizer_ad.EvalCost(state_ad);
   VectorXd g_gt = cost_ad.derivatives();
   g_gt[0] = 0;  // q0 is fixed
 
@@ -800,7 +800,7 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcCostFromState) {
   TrajectoryOptimizer<double> optimizer(&plant, opt_prob);
   TrajectoryOptimizerState<double> state = optimizer.CreateState();
   state.set_q(q);
-  double L = optimizer.CalcCost(state);
+  double L = optimizer.EvalCost(state);
 
   // Compute the ground truth cost using an analytical model of the (linear)
   // pendulum dynamics.
