@@ -41,6 +41,8 @@ struct SpinnerParams {
     a->Visit(DRAKE_NVP(linesearch));
     a->Visit(DRAKE_NVP(play_optimal_trajectory));
     a->Visit(DRAKE_NVP(play_initial_guess));
+    a->Visit(DRAKE_NVP(linesearch_plot_every_iteration));
+    a->Visit(DRAKE_NVP(print_debug_data));
   }
   std::vector<double> q_init;
   std::vector<double> v_init;
@@ -65,6 +67,9 @@ struct SpinnerParams {
 
   bool play_optimal_trajectory;
   bool play_initial_guess;
+
+  bool linesearch_plot_every_iteration;
+  bool print_debug_data;
 };
 
 using Eigen::Vector3d;
@@ -167,6 +172,9 @@ void solve_trajectory_optimization() {
   }
   solver_params.max_iterations = options.max_iters;
   solver_params.max_linesearch_iterations = 50;
+  solver_params.print_debug_data = options.print_debug_data;
+  solver_params.linesearch_plot_every_iteration =
+      options.linesearch_plot_every_iteration;
 
   // Establish an initial guess
   const VectorXd qT_guess = Vector3d(options.q_guess.data());
@@ -190,6 +198,26 @@ void solve_trajectory_optimization() {
   DRAKE_ASSERT(status == SolverFlag::kSuccess);
   std::cout << "Solved in " << stats.solve_time << " seconds."
             << std::endl;
+
+  // Report maximum torques on the unactuated and actuated joints
+  double tau_max_f1 = 0;
+  double tau_max_f2 = 0;
+  double tau_max_s = 0;
+  for (int t = 0; t < options.num_steps; ++t) {
+    if (abs(solution.tau[t](0)) > tau_max_f1) {
+      tau_max_f1 = abs(solution.tau[t](0));
+    }
+    if (abs(solution.tau[t](1)) > tau_max_f2) {
+      tau_max_f2 = abs(solution.tau[t](1));
+    }
+    if (abs(solution.tau[t](2)) > tau_max_s) {
+      tau_max_s = abs(solution.tau[t](2));
+    }
+  }
+  std::cout << "Max finger one torque : " << tau_max_f1 << std::endl;
+  std::cout << "Max finger two torque : " << tau_max_f2 << std::endl;
+  std::cout << "Max spinner torque    : " << tau_max_s << std::endl;
+
 
   // Play back the result on the visualizer
   if (options.play_optimal_trajectory) {

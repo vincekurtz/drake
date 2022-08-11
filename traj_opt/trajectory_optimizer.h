@@ -389,9 +389,10 @@ class TrajectoryOptimizer {
    *
    * This allows us to make a nice plot in python after the fact
    */
-  void SaveLinesearchResidual(const TrajectoryOptimizerState<T>& state,
-                              const VectorX<T>& dq,
-                              TrajectoryOptimizerState<T>* scratch_state) const;
+  void SaveLinesearchResidual(
+      const TrajectoryOptimizerState<T>& state, const VectorX<T>& dq,
+      TrajectoryOptimizerState<T>* scratch_state,
+      const std::string filename = "linesearch_data.csv") const;
 
   /**
    * Simple backtracking linesearch strategy to find alpha that satisfies

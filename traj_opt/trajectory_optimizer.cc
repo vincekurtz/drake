@@ -163,7 +163,7 @@ void TrajectoryOptimizer<T>::CalcContactForceContribution(
 
   // Parameters for our soft contact model
   // TODO(vincekurtz): define for each body rather than hardcoding here
-  const T F = 1;         // force at delta meters of penetration
+  const T F = 0.1;         // force at delta meters of penetration
   const T delta = 0.01;  // penetration distance at which we apply F newtons
   const double n = 2;    // polynomial scaling factor
 
@@ -219,6 +219,16 @@ void TrajectoryOptimizer<T>::CalcContactForceContribution(
       // Add the forces into the given MultibodyForces
       forces->mutable_body_forces()[bodyA.node_index()] += F_AAo_W;
       forces->mutable_body_forces()[bodyB.node_index()] += F_BBo_W;
+
+      // DEBUG
+      bool print=false;
+      if (print) {
+        std::cout << fmt::format("BodyA = {}, BodyB = {}\n", bodyA.name(), bodyB.name());
+        std::cout << fmt::format(
+            "t = {}, fn = {}, phi = {}, nhat = {}, f_ACa_W = {}\n",
+            context_->get_time(), fn, pair.distance, pair.nhat_BA_W.transpose(),
+            f_ACa_W.transpose());
+      }
     }
   }
 }
@@ -677,13 +687,14 @@ TrajectoryOptimizer<T>::EvalInverseDynamicsPartials(
 template <typename T>
 void TrajectoryOptimizer<T>::SaveLinesearchResidual(
     const TrajectoryOptimizerState<T>& state, const VectorX<T>& dq,
-    TrajectoryOptimizerState<T>* scratch_state) const {
+    TrajectoryOptimizerState<T>* scratch_state,
+    const std::string filename) const {
   double alpha_min = -0.2;
   double alpha_max = 1.2;
-  double dalpha = 0.01;
+  double dalpha = 0.001;
 
   std::ofstream data_file;
-  data_file.open("linesearch_data.csv");
+  data_file.open(filename);
   data_file << "alpha, residual\n";  // header
 
   double alpha = alpha_min;
@@ -906,6 +917,14 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
     // N.B. we use a separate state variable since we will need to compute
     // L(q+alpha*dq) (at the very least), and we don't want to change state.q
     auto [alpha, ls_iters] = Linesearch(state, dq, &scratch_state);
+    //double alpha = 1;
+    //int ls_iters = 0;
+    
+    // Record linesearch data, if requested
+    if (params_.linesearch_plot_every_iteration) {
+      SaveLinesearchResidual(state, dq, &scratch_state,
+                             fmt::format("linesearch_data_{}.csv", k));
+    }
 
     if (ls_iters >= params_.max_linesearch_iterations) {
       // Early termination if linesearch is taking too long
@@ -923,6 +942,11 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
       solve_time = std::chrono::high_resolution_clock::now() - start_time;
       stats->solve_time = solve_time.count();
       stats->push_data(iter_time.count(), cost, ls_iters, alpha, g.norm());
+  
+      // record the solution anyway
+      solution->q = state.q();
+      solution->v = EvalV(state);
+      solution->tau = EvalTau(state);
 
       return SolverFlag::kLinesearchMaxIters;
     }
@@ -940,6 +964,18 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
       printf("| %6d     ", ls_iters);
       printf("| %8.8f ", iter_time.count());
       printf("| %10.3e |\n", g.norm() / cost);
+    }
+
+    // Print additional debuging information
+    if (params_.print_debug_data) {
+      double condition_number = 1 / H.MakeDense().ldlt().rcond();
+      double L_prime = g.transpose() * dq;
+      std::cout << "Condition #: " << condition_number << std::endl;
+      std::cout << "|| dq ||   : " << dq.norm() << std::endl;
+      std::cout << "||  g ||   : " << g.norm() << std::endl;
+      std::cout << "L'         : " << L_prime << std::endl;
+      std::cout << "L          : " << cost << std::endl;
+      std::cout << "L' / L     : " << L_prime / cost << std::endl;
     }
 
     // Record iteration data

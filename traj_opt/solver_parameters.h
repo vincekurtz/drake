@@ -23,6 +23,14 @@ struct SolverParameters {
 
   // Flag for whether to print out iteration data
   bool verbose = true;
+
+  // Flag for whether to print (and compute) additional slow-to-compute
+  // debugging info, like the condition number, at each iteration
+  bool print_debug_data = false;
+
+  // Flag for whether to record linesearch data to a file at each iteration (for
+  // later plotting)
+  bool linesearch_plot_every_iteration = false;
 };
 
 }  // namespace traj_opt
