@@ -59,10 +59,14 @@ drake_cc_binary(
     name = "spinner",
     srcs = ["spinner.cc"],
     add_test_rule = 1,
-    data = [":spinner.urdf"],
+    data = [
+        ":spinner.urdf",
+        ":spinner.yaml",
+    ],
     test_rule_args = [],
     deps = [
         "//common:find_resource",
+        "//common/yaml",
         "//geometry:drake_visualizer",
         "//multibody/parsing",
         "//multibody/plant",

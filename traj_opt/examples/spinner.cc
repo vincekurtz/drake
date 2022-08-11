@@ -3,9 +3,8 @@
 #include <iostream>
 #include <thread>
 
-#include <gflags/gflags.h>
-
 #include "drake/common/find_resource.h"
+#include "drake/common/yaml/yaml_io.h"
 #include "drake/geometry/drake_visualizer.h"
 #include "drake/geometry/scene_graph.h"
 #include "drake/multibody/parsing/parser.h"
@@ -22,64 +21,43 @@ namespace traj_opt {
 namespace examples {
 namespace spinner {
 
-// Command line options
-DEFINE_double(time_step, 5e-2,
-              "Discretization timestep for the optimizer (seconds).");
-DEFINE_int32(num_steps, 100,
-             "Number of timesteps in the optimization problem.");
-DEFINE_int32(max_iters, 500,
-             "Maximum number of Gauss-Newton iterations to take.");
+// Options from YAML, see spinner.yaml for explanations
+struct SpinnerParams {
+  template <typename Archive>
+  void Serialize(Archive* a) {
+    a->Visit(DRAKE_NVP(q_init));
+    a->Visit(DRAKE_NVP(v_init));
+    a->Visit(DRAKE_NVP(q_nom));
+    a->Visit(DRAKE_NVP(v_nom));
+    a->Visit(DRAKE_NVP(Qq));
+    a->Visit(DRAKE_NVP(Qv));
+    a->Visit(DRAKE_NVP(R));
+    a->Visit(DRAKE_NVP(Qfq));
+    a->Visit(DRAKE_NVP(Qfv));
+    a->Visit(DRAKE_NVP(time_step));
+    a->Visit(DRAKE_NVP(num_steps));
+    a->Visit(DRAKE_NVP(max_iters));
+    a->Visit(DRAKE_NVP(linesearch));
+  }
+  std::vector<double> q_init;
+  std::vector<double> v_init;
 
-DEFINE_bool(visualize, true, "Flag for displaying the optimal solution.");
-DEFINE_string(linesearch, "armijo",
-              "Linesearch strategy, {backtracking} or {armijo}.");
+  std::vector<double> q_nom;
+  std::vector<double> v_nom;
 
-DEFINE_double(q1_init, 0.3, "Initial angle for the first (finger) joint");
-DEFINE_double(q2_init, 1.5, "Initial angle for the second (finger) joint");
-DEFINE_double(q3_init, 0.0, "Initial angle for the third (spinner) joint");
-DEFINE_double(v1_init, 0.0, "Initial velocity for the first (finger) joint");
-DEFINE_double(v2_init, 0.0, "Initial velocity for the second (finger) joint");
-DEFINE_double(v3_init, 0.0, "Initial velocity for the third (spinner) joint");
+  std::vector<double> Qq;
+  std::vector<double> Qv;
+  std::vector<double> R;
 
-DEFINE_double(q1_nom, 0.2, "Target angle for the first (finger) joint");
-DEFINE_double(q2_nom, 1.5, "Target angle for the second (finger) joint");
-DEFINE_double(q3_nom,-0.5, "Target angle for the third (spinner) joint");
-DEFINE_double(v1_nom, 0.0, "Target velocity for the first (finger) joint");
-DEFINE_double(v2_nom, 0.0, "Target velocity for the second (finger) joint");
-DEFINE_double(v3_nom, 0.0, "Target velocity for the third (spinner) joint");
+  std::vector<double> Qfq;
+  std::vector<double> Qfv;
 
-DEFINE_double(Qq1, 0.0,
-              "Running cost weight on angle for the first (finger) joint");
-DEFINE_double(Qq2, 0.1,
-              "Running cost weight on angle for the second (finger) joint");
-DEFINE_double(Qq3, 0.1,
-              "Running cost weight on angle for the third (spinner) joint");
-DEFINE_double(Qv1, 1.0,
-              "Running cost weight on velocity for the first (finger) joint");
-DEFINE_double(Qv2, 1.0,
-              "Running cost weight on velocity for the second (finger) joint");
-DEFINE_double(Qv3, 1.0,
-              "Running cost weight on velocity for the third (spinner) joint");
+  double time_step;
+  int num_steps;
 
-DEFINE_double(R1, 0.1,
-              "Running cost weight on torques for the first (finger) joint");
-DEFINE_double(R2, 0.1,
-              "Running cost weight on torques for the second (finger) joint");
-DEFINE_double(R3, 1e4,
-              "Running cost weight on torques for the third (spinner) joint");
-
-DEFINE_double(Qfq1, 0.0,
-              "Terminal cost weight on angle for the first (finger) joint");
-DEFINE_double(Qfq2, 10.0,
-              "Terminal cost weight on angle for the second (finger) joint");
-DEFINE_double(Qfq3, 10.0,
-              "Terminal cost weight on angle for the third (spinner) joint");
-DEFINE_double(Qfv1, 10.0,
-              "Terminal cost weight on velocity for the first (finger) joint");
-DEFINE_double(Qfv2, 10.0,
-              "Terminal cost weight on velocity for the second (finger) joint");
-DEFINE_double(Qfv3, 10.0,
-              "Terminal cost weight on velocity for the third (spinner) joint");
+  int max_iters;
+  std::string linesearch;
+};
 
 using Eigen::Vector3d;
 using geometry::DrakeVisualizerd;
@@ -138,14 +116,15 @@ void play_back_trajectory(std::vector<VectorXd> q, double time_step) {
  * visualizer.
  */
 void solve_trajectory_optimization() {
-  const double time_step = FLAGS_time_step;
-  const int num_steps = FLAGS_num_steps;
+  // DEBUG: load parameters from file
+  const SpinnerParams options = yaml::LoadYamlFile<SpinnerParams>(
+      FindResourceOrThrow("drake/traj_opt/examples/spinner.yaml"));
 
   // Create a system model
   // N.B. we need a whole diagram, including scene_graph, to handle contact
   DiagramBuilder<double> builder;
   MultibodyPlantConfig config;
-  config.time_step = time_step;
+  config.time_step = options.time_step;
   auto [plant, scene_graph] = AddMultibodyPlant(config, &builder);
   const std::string urdf_file =
       FindResourceOrThrow("drake/traj_opt/examples/spinner.urdf");
@@ -160,30 +139,32 @@ void solve_trajectory_optimization() {
 
   // Set up an optimization problem
   ProblemDefinition opt_prob;
-  opt_prob.num_steps = num_steps;
-  opt_prob.q_init = Vector3d(FLAGS_q1_init, FLAGS_q2_init, FLAGS_q3_init);
-  opt_prob.v_init = Vector3d(FLAGS_v1_init, FLAGS_v2_init, FLAGS_v3_init);
-  opt_prob.Qq = Vector3d(FLAGS_Qq1, FLAGS_Qq2, FLAGS_Qq3).asDiagonal();
-  opt_prob.Qv = Vector3d(FLAGS_Qv1, FLAGS_Qv2, FLAGS_Qv3).asDiagonal();
-  opt_prob.Qf_q = Vector3d(FLAGS_Qfq1, FLAGS_Qfq2, FLAGS_Qfq3).asDiagonal();
-  opt_prob.Qf_v = Vector3d(FLAGS_Qfv1, FLAGS_Qfv2, FLAGS_Qfv3).asDiagonal();
-  opt_prob.R = Vector3d(FLAGS_R1, FLAGS_R2, FLAGS_R3).asDiagonal();
-  opt_prob.q_nom = Vector3d(FLAGS_q1_nom, FLAGS_q2_nom, FLAGS_q3_nom);
-  opt_prob.v_nom = Vector3d(FLAGS_v1_nom, FLAGS_v2_nom, FLAGS_v3_nom);
+  opt_prob.num_steps = options.num_steps;
+  opt_prob.q_init = Vector3d(options.q_init.data());
+  opt_prob.v_init = Vector3d(options.v_init.data());
+  opt_prob.Qq = Vector3d(options.Qq.data()).asDiagonal();
+  opt_prob.Qv = Vector3d(options.Qv.data()).asDiagonal();
+  opt_prob.Qf_q = Vector3d(options.Qfq.data()).asDiagonal();
+  opt_prob.Qf_v = Vector3d(options.Qfv.data()).asDiagonal();
+  opt_prob.R = Vector3d(options.R.data()).asDiagonal();
+  opt_prob.q_nom = Vector3d(options.q_nom.data());
+  opt_prob.v_nom = Vector3d(options.v_nom.data());
 
-  // Set our solver options
+  // Set our solver parameters
   SolverParameters solver_params;
-  if (FLAGS_linesearch == "backtracking") {
+  if (options.linesearch == "backtracking") {
     solver_params.linesearch_method = LinesearchMethod::kBacktracking;
   } else {
     solver_params.linesearch_method = LinesearchMethod::kArmijo;
   }
-  solver_params.max_iterations = FLAGS_max_iters;
+  solver_params.max_iterations = options.max_iters;
   solver_params.max_linesearch_iterations = 50;
 
   // Establish an initial guess
   std::vector<VectorXd> q_guess;
-  for (int t = 0; t <= num_steps; ++t) {
+  for (int t = 0; t <= options.num_steps; ++t) {
+    // q_guess.push_back(opt_prob.q_init + Vector3d(0.1*options.time_step*t, 0,
+    // 0));
     q_guess.push_back(opt_prob.q_init);
   }
 
@@ -199,60 +180,7 @@ void solve_trajectory_optimization() {
             << std::endl;
 
   // Play back the result on the visualizer
-  if (FLAGS_visualize) {
-    play_back_trajectory(solution.q, time_step);
-  }
-}
-
-/**
- * Simulate the system with zero control input, connected to the visualizer.
- */
-void run_passive_simulation() {
-  const double dt = FLAGS_time_step;
-  const int num_steps = FLAGS_num_steps;
-  const double sim_time = dt * num_steps;
-
-  DiagramBuilder<double> builder;
-  MultibodyPlantConfig config;
-  config.time_step = dt;
-  config.discrete_contact_solver = "sap";
-
-  auto [plant, scene_graph] = AddMultibodyPlant(config, &builder);
-
-  const std::string urdf_file =
-      FindResourceOrThrow("drake/traj_opt/examples/spinner.urdf");
-  Parser(&plant).AddAllModelsFromFile(urdf_file);
-  plant.Finalize();
-
-  DrakeVisualizerd::AddToBuilder(&builder, scene_graph);
-  ConnectContactResultsToDrakeVisualizer(&builder, plant, scene_graph);
-
-  auto diagram = builder.Build();
-  std::unique_ptr<systems::Context<double>> diagram_context =
-      diagram->CreateDefaultContext();
-  systems::Context<double>& plant_context =
-      diagram->GetMutableSubsystemContext(plant, diagram_context.get());
-
-  const VectorXd u = VectorXd::Zero(plant.num_actuators());
-  plant.get_actuation_input_port().FixValue(&plant_context, u);
-
-  VectorX<double> x0(6);
-  x0 << FLAGS_q1_init, FLAGS_q2_init, FLAGS_q3_init, FLAGS_v1_init,
-      FLAGS_v2_init, FLAGS_v3_init;
-
-  plant.SetPositionsAndVelocities(&plant_context, x0);
-
-  Simulator<double> simulator(*diagram, std::move(diagram_context));
-
-  simulator.set_target_realtime_rate(1.0);
-  simulator.Initialize();
-  simulator.AdvanceTo(sim_time);
-}
-
-int do_main() {
-  // run_passive_simulation();
-  solve_trajectory_optimization();
-  return 0;
+  play_back_trajectory(solution.q, options.time_step);
 }
 
 }  // namespace spinner
@@ -260,7 +188,7 @@ int do_main() {
 }  // namespace traj_opt
 }  // namespace drake
 
-int main(int argc, char* argv[]) {
-  gflags::ParseCommandLineFlags(&argc, &argv, true);
-  return drake::traj_opt::examples::spinner::do_main();
+int main() {
+  drake::traj_opt::examples::spinner::solve_trajectory_optimization();
+  return 0;
 }

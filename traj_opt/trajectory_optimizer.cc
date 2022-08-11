@@ -11,17 +11,17 @@
 namespace drake {
 namespace traj_opt {
 
+using geometry::GeometryId;
+using geometry::SignedDistancePair;
 using internal::PentaDiagonalFactorization;
 using internal::PentaDiagonalFactorizationStatus;
+using multibody::Body;
+using multibody::BodyIndex;
 using multibody::Joint;
 using multibody::JointIndex;
 using multibody::MultibodyPlant;
-using multibody::BodyIndex;
-using multibody::Body;
 using multibody::SpatialForce;
 using systems::System;
-using geometry::SignedDistancePair;
-using geometry::GeometryId;
 
 template <typename T>
 TrajectoryOptimizer<T>::TrajectoryOptimizer(
@@ -178,7 +178,7 @@ void TrajectoryOptimizer<T>::CalcContactForceContribution(
 
   for (const SignedDistancePair<T>& pair : signed_distance_pairs) {
     // Don't do any contact force computations if we're not in contact
-    if (pair.distance < 0 ) { 
+    if (pair.distance < 0) {
       // Compute normal forces at the witness points (expressed in the world
       // frame) according to our contact model.
       const T fn = F * pow(-pair.distance / delta, n);
