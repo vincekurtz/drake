@@ -43,33 +43,31 @@ struct SpinnerParams {
     a->Visit(DRAKE_NVP(play_initial_guess));
     a->Visit(DRAKE_NVP(linesearch_plot_every_iteration));
     a->Visit(DRAKE_NVP(print_debug_data));
+    a->Visit(DRAKE_NVP(F));
+    a->Visit(DRAKE_NVP(delta));
+    a->Visit(DRAKE_NVP(n));
   }
   std::vector<double> q_init;
   std::vector<double> v_init;
-
   std::vector<double> q_nom;
   std::vector<double> v_nom;
-
   std::vector<double> q_guess;
-
   std::vector<double> Qq;
   std::vector<double> Qv;
   std::vector<double> R;
-
   std::vector<double> Qfq;
   std::vector<double> Qfv;
-
   double time_step;
   int num_steps;
-
   int max_iters;
   std::string linesearch;
-
   bool play_optimal_trajectory;
   bool play_initial_guess;
-
   bool linesearch_plot_every_iteration;
   bool print_debug_data;
+  double F;
+  double delta;
+  double n;
 };
 
 using Eigen::Vector3d;
@@ -176,6 +174,12 @@ void solve_trajectory_optimization() {
   solver_params.linesearch_plot_every_iteration =
       options.linesearch_plot_every_iteration;
 
+  // Set contact parameters
+  // TODO(vincekurtz): figure out a better place to set these
+  solver_params.F = options.F;
+  solver_params.delta = options.delta;
+  solver_params.n = options.n;
+
   // Establish an initial guess
   const VectorXd qT_guess = Vector3d(options.q_guess.data());
   std::vector<VectorXd> q_guess;
@@ -196,8 +200,7 @@ void solve_trajectory_optimization() {
 
   SolverFlag status = optimizer.Solve(q_guess, &solution, &stats);
   DRAKE_ASSERT(status == SolverFlag::kSuccess);
-  std::cout << "Solved in " << stats.solve_time << " seconds."
-            << std::endl;
+  std::cout << "Solved in " << stats.solve_time << " seconds." << std::endl;
 
   // Report maximum torques on the unactuated and actuated joints
   double tau_max_f1 = 0;
@@ -214,10 +217,20 @@ void solve_trajectory_optimization() {
       tau_max_s = abs(solution.tau[t](2));
     }
   }
+  std::cout << std::endl;
   std::cout << "Max finger one torque : " << tau_max_f1 << std::endl;
   std::cout << "Max finger two torque : " << tau_max_f2 << std::endl;
   std::cout << "Max spinner torque    : " << tau_max_s << std::endl;
 
+  // Report desired and final state
+  std::cout << std::endl;
+  std::cout << "q_nom : " << opt_prob.q_nom.transpose() << std::endl;
+  std::cout << "q[T]  : " << solution.q[options.num_steps].transpose()
+            << std::endl;
+  std::cout << std::endl;
+  std::cout << "v_nom : " << opt_prob.v_nom.transpose() << std::endl;
+  std::cout << "v[T]  : " << solution.v[options.num_steps].transpose()
+            << std::endl;
 
   // Play back the result on the visualizer
   if (options.play_optimal_trajectory) {

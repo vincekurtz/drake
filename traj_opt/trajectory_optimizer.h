@@ -2,6 +2,7 @@
 
 #include <memory>
 #include <optional>
+#include <string>
 #include <tuple>
 #include <vector>
 
@@ -147,8 +148,7 @@ class TrajectoryOptimizer {
    *
    * @param state optimizer state to update.
    */
-  void CalcCacheTrajectoryData(
-      const TrajectoryOptimizerState<T>& state) const;
+  void CalcCacheTrajectoryData(const TrajectoryOptimizerState<T>& state) const;
 
   /**
    * Compute all of the "derivatives data" (dv/dq, dtau/dq) stored in the
@@ -156,8 +156,7 @@ class TrajectoryOptimizer {
    *
    * @param state optimizer state to update.
    */
-  void CalcCacheDerivativesData(
-      const TrajectoryOptimizerState<T>& state) const;
+  void CalcCacheDerivativesData(const TrajectoryOptimizerState<T>& state) const;
 
   /**
    * Return the total (unconstrained) cost of the optimization problem,

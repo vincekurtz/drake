@@ -5,6 +5,7 @@
 #include <fstream>
 #include <iostream>
 #include <limits>
+#include <string>
 
 #include "drake/traj_opt/penta_diagonal_solver.h"
 
@@ -24,10 +25,10 @@ using multibody::SpatialForce;
 using systems::System;
 
 template <typename T>
-TrajectoryOptimizer<T>::TrajectoryOptimizer(
-    const MultibodyPlant<T>* plant, Context<T>* context,
-    const ProblemDefinition& prob,
-    const SolverParameters& params)
+TrajectoryOptimizer<T>::TrajectoryOptimizer(const MultibodyPlant<T>* plant,
+                                            Context<T>* context,
+                                            const ProblemDefinition& prob,
+                                            const SolverParameters& params)
     : plant_(plant), context_(context), prob_(prob), params_(params) {
   // Define joint damping coefficients.
   joint_damping_ = VectorX<T>::Zero(plant_->num_velocities());
@@ -162,10 +163,9 @@ void TrajectoryOptimizer<T>::CalcContactForceContribution(
   using std::pow;
 
   // Parameters for our soft contact model
-  // TODO(vincekurtz): define for each body rather than hardcoding here
-  const T F = 1.0;         // force at delta meters of penetration
-  const T delta = 0.01;  // penetration distance at which we apply F newtons
-  const double n = 2;    // polynomial scaling factor
+  const double F = params_.F;
+  const double delta = params_.delta;
+  const double n = params_.n;
 
   // Get signed distance pairs
   const geometry::QueryObject<T>& query_object =
@@ -221,9 +221,10 @@ void TrajectoryOptimizer<T>::CalcContactForceContribution(
       forces->mutable_body_forces()[bodyB.node_index()] += F_BBo_W;
 
       // DEBUG
-      bool print=false;
+      bool print = false;
       if (print) {
-        std::cout << fmt::format("BodyA = {}, BodyB = {}\n", bodyA.name(), bodyB.name());
+        std::cout << fmt::format("BodyA = {}, BodyB = {}\n", bodyA.name(),
+                                 bodyB.name());
         std::cout << fmt::format(
             "t = {}, fn = {}, phi = {}, nhat = {}, f_ACa_W = {}\n",
             context_->get_time(), fn, pair.distance, pair.nhat_BA_W.transpose(),
@@ -620,24 +621,21 @@ void TrajectoryOptimizer<T>::CalcCacheTrajectoryData(
 template <typename T>
 const std::vector<VectorX<T>>& TrajectoryOptimizer<T>::EvalV(
     const TrajectoryOptimizerState<T>& state) const {
-  if (!state.cache().trajectory_data.up_to_date)
-    CalcCacheTrajectoryData(state);
+  if (!state.cache().trajectory_data.up_to_date) CalcCacheTrajectoryData(state);
   return state.cache().trajectory_data.v;
 }
 
 template <typename T>
 const std::vector<VectorX<T>>& TrajectoryOptimizer<T>::EvalA(
     const TrajectoryOptimizerState<T>& state) const {
-  if (!state.cache().trajectory_data.up_to_date)
-    CalcCacheTrajectoryData(state);
+  if (!state.cache().trajectory_data.up_to_date) CalcCacheTrajectoryData(state);
   return state.cache().trajectory_data.a;
 }
 
 template <typename T>
 const std::vector<VectorX<T>>& TrajectoryOptimizer<T>::EvalTau(
     const TrajectoryOptimizerState<T>& state) const {
-  if (!state.cache().trajectory_data.up_to_date)
-    CalcCacheTrajectoryData(state);
+  if (!state.cache().trajectory_data.up_to_date) CalcCacheTrajectoryData(state);
   return state.cache().trajectory_data.tau;
 }
 
@@ -750,10 +748,8 @@ std::tuple<double, int> TrajectoryOptimizer<T>::BacktrackingLinesearch(
   DRAKE_DEMAND(L_prime <= 0);
 
   // Exit early with alpha = 1 when we are close to convergence
-  // N.B. |g|/L converges to only around 1e-8 (due to finite differences), but
-  // L'/L appears to converge to something considerably smaller.
-  const double convergence_threshold = 1e-10;
-//      100 * std::numeric_limits<double>::epsilon();
+  const double convergence_threshold =
+      sqrt(std::numeric_limits<double>::epsilon());
   if (abs(L_prime) / abs(L) <= convergence_threshold) {
     return {1.0, 0};
   }
@@ -819,7 +815,7 @@ std::tuple<double, int> TrajectoryOptimizer<T>::ArmijoLinesearch(
 
   // Exit early with alpha = 1 when we are close to convergence
   const double convergence_threshold =
-      100 * std::numeric_limits<double>::epsilon();
+      sqrt(std::numeric_limits<double>::epsilon());
   if (abs(L_prime) / abs(L) <= convergence_threshold) {
     return {1.0, 0};
   }
@@ -917,9 +913,7 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
     // N.B. we use a separate state variable since we will need to compute
     // L(q+alpha*dq) (at the very least), and we don't want to change state.q
     auto [alpha, ls_iters] = Linesearch(state, dq, &scratch_state);
-    //double alpha = 1;
-    //int ls_iters = 0;
-    
+
     // Record linesearch data, if requested
     if (params_.linesearch_plot_every_iteration) {
       SaveLinesearchResidual(state, dq, &scratch_state,
@@ -942,7 +936,7 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
       solve_time = std::chrono::high_resolution_clock::now() - start_time;
       stats->solve_time = solve_time.count();
       stats->push_data(iter_time.count(), cost, ls_iters, alpha, g.norm());
-  
+
       // record the solution anyway
       solution->q = state.q();
       solution->v = EvalV(state);

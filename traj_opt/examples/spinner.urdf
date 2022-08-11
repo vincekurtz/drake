@@ -41,14 +41,7 @@
     <visual>
       <origin rpy="0 0 0" xyz="0 0 0.5"/>
       <geometry>
-        <cylinder length="0.9" radius=".05"/>
-      </geometry>
-      <material name="red"/>
-    </visual>
-    <visual>
-      <origin rpy="0 0 0" xyz="0 0 0.95"/>
-      <geometry>
-        <sphere radius=".05"/>
+        <capsule length="0.9" radius="0.05"/>
       </geometry>
       <material name="red"/>
     </visual>
@@ -136,46 +129,19 @@
       </geometry>
       <material name="green"/>
     </visual>
-    <!--
-    <visual>
-      <origin rpy="0 0 0" xyz="0 0 0"/>
-      <geometry>
-        <sphere radius="0.25"/>
-      </geometry>
-    </visual>
-    <visual>
-      <origin rpy="0 0 0" xyz="0 0 0.25"/>
-      <geometry>
-        <sphere radius="0.25"/>
-      </geometry>
-    </visual>
-    -->
     <visual>
       <origin rpy="0 0 0" xyz="0 0 -0.25"/>
       <geometry>
-        <sphere radius="0.25"/>
-        <!--<box size="0.5 0.5 0.5"/>-->
+        <!--<sphere radius="0.25"/>-->
+        <box size="0.5 0.5 0.5"/>
       </geometry>
+      <material name="blue"/>
     </visual>
-    <!--
-    <collision>
-      <origin rpy="0 0 0" xyz="0 0 0"/>
-      <geometry>
-        <sphere radius="0.25"/>
-      </geometry>
-    </collision>
-    <collision>
-      <origin rpy="0 0 0" xyz="0 0 0.25"/>
-      <geometry>
-        <sphere radius="0.25"/>
-      </geometry>
-    </collision>
-    -->
     <collision>
       <origin rpy="0 0 0" xyz="0 0 -0.25"/>
       <geometry>
-        <sphere radius="0.25"/>
-        <!--<box size="0.5 0.5 0.5"/>-->
+        <!--<sphere radius="0.25"/>-->
+        <box size="0.5 0.5 0.5"/>
       </geometry>
     </collision>
   </link>
