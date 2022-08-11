@@ -21,7 +21,7 @@ drake_root = os.getcwd()
 # exist is if either (1) linesearch fails or (2) you edit 
 # TrajectoryOptimizer::Solve to save the linesearch residual at a particular
 # iteration.
-data_file = drake_root + "/bazel-out/k8-opt/bin/traj_opt/examples/acrobot.runfiles/drake/linesearch_data.csv"
+data_file = drake_root + "/bazel-out/k8-opt/bin/traj_opt/examples/spinner.runfiles/drake/linesearch_data.csv"
 data = np.genfromtxt(data_file, delimiter=',', names=True)
 alpha = data["alpha"]
 residual = data["residual"]

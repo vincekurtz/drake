@@ -29,6 +29,7 @@ struct SpinnerParams {
     a->Visit(DRAKE_NVP(v_init));
     a->Visit(DRAKE_NVP(q_nom));
     a->Visit(DRAKE_NVP(v_nom));
+    a->Visit(DRAKE_NVP(q_guess));
     a->Visit(DRAKE_NVP(Qq));
     a->Visit(DRAKE_NVP(Qv));
     a->Visit(DRAKE_NVP(R));
@@ -38,12 +39,16 @@ struct SpinnerParams {
     a->Visit(DRAKE_NVP(num_steps));
     a->Visit(DRAKE_NVP(max_iters));
     a->Visit(DRAKE_NVP(linesearch));
+    a->Visit(DRAKE_NVP(play_optimal_trajectory));
+    a->Visit(DRAKE_NVP(play_initial_guess));
   }
   std::vector<double> q_init;
   std::vector<double> v_init;
 
   std::vector<double> q_nom;
   std::vector<double> v_nom;
+
+  std::vector<double> q_guess;
 
   std::vector<double> Qq;
   std::vector<double> Qv;
@@ -57,6 +62,9 @@ struct SpinnerParams {
 
   int max_iters;
   std::string linesearch;
+
+  bool play_optimal_trajectory;
+  bool play_initial_guess;
 };
 
 using Eigen::Vector3d;
@@ -161,11 +169,15 @@ void solve_trajectory_optimization() {
   solver_params.max_linesearch_iterations = 50;
 
   // Establish an initial guess
+  const VectorXd qT_guess = Vector3d(options.q_guess.data());
   std::vector<VectorXd> q_guess;
+  double lambda = 0;
   for (int t = 0; t <= options.num_steps; ++t) {
-    // q_guess.push_back(opt_prob.q_init + Vector3d(0.1*options.time_step*t, 0,
-    // 0));
-    q_guess.push_back(opt_prob.q_init);
+    lambda = (1.0 * t) / (1.0 * options.num_steps);
+    q_guess.push_back((1 - lambda) * opt_prob.q_init + lambda * qT_guess);
+  }
+  if (options.play_initial_guess) {
+    play_back_trajectory(q_guess, options.time_step);
   }
 
   // Solve the optimzation problem
@@ -180,7 +192,9 @@ void solve_trajectory_optimization() {
             << std::endl;
 
   // Play back the result on the visualizer
-  play_back_trajectory(solution.q, options.time_step);
+  if (options.play_optimal_trajectory) {
+    play_back_trajectory(solution.q, options.time_step);
+  }
 }
 
 }  // namespace spinner
