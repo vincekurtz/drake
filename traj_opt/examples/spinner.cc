@@ -171,12 +171,12 @@ void solve_trajectory_optimization() {
   // Solve the optimzation problem
   TrajectoryOptimizer<double> optimizer(&plant, &plant_context, opt_prob,
                                         solver_params);
-  Solution<double> solution;
-  SolutionData<double> solution_data;
+  TrajectoryOptimizerSolution<double> solution;
+  TrajectoryOptimizerStats<double> stats;
 
-  SolverFlag status = optimizer.Solve(q_guess, &solution, &solution_data);
+  SolverFlag status = optimizer.Solve(q_guess, &solution, &stats);
   DRAKE_ASSERT(status == SolverFlag::kSuccess);
-  std::cout << "Solved in " << solution_data.solve_time << " seconds."
+  std::cout << "Solved in " << stats.solve_time << " seconds."
             << std::endl;
 
   // Play back the result on the visualizer

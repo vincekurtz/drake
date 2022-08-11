@@ -39,10 +39,9 @@ class TrajectoryOptimizer {
    * @param params solver parameters, including max iterations, linesearch
    *               method, etc.
    */
-  TrajectoryOptimizer(
-      const MultibodyPlant<T>* plant, Context<T>* context,
-      const ProblemDefinition& prob,
-      const std::optional<SolverParameters>& params = std::nullopt);
+  TrajectoryOptimizer(const MultibodyPlant<T>* plant, Context<T>* context,
+                      const ProblemDefinition& prob,
+                      const SolverParameters& params = SolverParameters{});
 
   /**
    * Convienience function to get the timestep of this optimization problem.
@@ -80,27 +79,6 @@ class TrajectoryOptimizer {
   }
 
   /**
-   * Compute and return the total (unconstrained) cost of the optimization
-   * problem,
-   *
-   *     L(q) = x_err(T)'*Qf*x_err(T)
-   *                + dt*sum_{t=0}^{T-1} x_err(t)'*Q*x_err(t) + u(t)'*R*u(t),
-   *
-   * where:
-   *      x_err(t) = x(t) - x_nom is the state error,
-   *      T = num_steps() is the time horizon of the optimization problem,
-   *      x(t) = [q(t); v(t)] is the system state at time t,
-   *      u(t) are control inputs, and we assume (for now) that u(t) = tau(t),
-   *      Q{f} = diag([Qq{f}, Qv{f}]) are a block diagonal PSD state-error
-   *       weighting matrices,
-   *      R is a PSD control weighting matrix.
-   *
-   * @param state optimizer state, including q, v, and tau
-   * @return double, total cost
-   */
-  T CalcCost(const TrajectoryOptimizerState<T>& state) const;
-
-  /**
    * Compute the gradient of the unconstrained cost L(q).
    *
    * @param state optimizer state, including q, v, tau, gradients, etc.
@@ -130,24 +108,37 @@ class TrajectoryOptimizer {
    * initial guess
    * @param solution a container for the optimal solution, including velocities
    * and torques
-   * @param solution_data a container for other timing and iteration-specific
+   * @param stats a container for other timing and iteration-specific
    * data regarding the solve process.
    * @return SolverFlag
    */
   SolverFlag Solve(const std::vector<VectorX<T>>& q_guess,
-                   Solution<T>* solution, SolutionData<T>* solution_data) const;
+                   TrajectoryOptimizerSolution<T>* solution,
+                   TrajectoryOptimizerStats<T>* stats) const;
+
+  // Evaluator functions to get data from the state's cache, and update it if
+  // necessary.
+  const std::vector<VectorX<T>>& EvalV(
+      const TrajectoryOptimizerState<T>& state) const;
+  const std::vector<VectorX<T>>& EvalA(
+      const TrajectoryOptimizerState<T>& state) const;
+  const std::vector<VectorX<T>>& EvalTau(
+      const TrajectoryOptimizerState<T>& state) const;
+
+  const VelocityPartials<T>& EvalVelocityPartials(
+      const TrajectoryOptimizerState<T>& state) const;
+  const InverseDynamicsPartials<T>& EvalInverseDynamicsPartials(
+      const TrajectoryOptimizerState<T>& state) const;
+
+  const T EvalCost(const TrajectoryOptimizerState<T>& state) const;
+  const PentaDiagonalMatrix<T>& EvalHessian(
+      const TrajectoryOptimizerState<T>& state) const;
+  const VectorX<T>& EvalGradient(
+      const TrajectoryOptimizerState<T>& state) const;
 
  private:
   // Friend class to facilitate testing.
   friend class TrajectoryOptimizerTester;
-
-  /**
-   * Compute everything in the state's cache (v, a, tau, dv_dq, dtau_dq)
-   * to correspond to the state's generalized positions q.
-   *
-   * @param state optimizer state to update.
-   */
-  void UpdateCache(const TrajectoryOptimizerState<T>& state) const;
 
   /**
    * Compute all of the "trajectory data" (velocities v, accelerations a,
@@ -156,13 +147,43 @@ class TrajectoryOptimizer {
    *
    * @param state optimizer state to update.
    */
-  void UpdateCacheTrajectoryData(
+  void CalcCacheTrajectoryData(
       const TrajectoryOptimizerState<T>& state) const;
 
   /**
-   * Compute the total cost of the unconstrained problem.
+   * Compute all of the "derivatives data" (dv/dq, dtau/dq) stored in the
+   * state's cache to correspond to the state's generalized positions q.
    *
-   * This is for (finite-differences) testing purposes only.
+   * @param state optimizer state to update.
+   */
+  void CalcCacheDerivativesData(
+      const TrajectoryOptimizerState<T>& state) const;
+
+  /**
+   * Return the total (unconstrained) cost of the optimization problem,
+   *
+   *     L(q) = x_err(T)'*Qf*x_err(T)
+   *                + dt*sum_{t=0}^{T-1} x_err(t)'*Q*x_err(t) + u(t)'*R*u(t),
+   *
+   * where:
+   *      x_err(t) = x(t) - x_nom is the state error,
+   *      T = num_steps() is the time horizon of the optimization problem,
+   *      x(t) = [q(t); v(t)] is the system state at time t,
+   *      u(t) are control inputs, and we assume (for now) that u(t) = tau(t),
+   *      Q{f} = diag([Qq{f}, Qv{f}]) are a block diagonal PSD state-error
+   *       weighting matrices,
+   *      R is a PSD control weighting matrix.
+   *
+   * A cached version of this cost is stored in the state. If the cache is up to
+   * date, simply return that cost.
+   *
+   * @param state optimizer state
+   * @return double, total cost
+   */
+  T CalcCost(const TrajectoryOptimizerState<T>& state) const;
+
+  /**
+   * Compute the total cost of the unconstrained problem.
    *
    * @param q sequence of generalized positions
    * @param v sequence of generalized velocities (consistent with q)
@@ -347,19 +368,17 @@ class TrajectoryOptimizer {
    *
    *      min_{alpha} L(q + alpha*dq).
    *
-   * @param L the total cost L(q) at the last iteration
-   * @param q sequence of generalized positions from last iteration (our
-   * decision variables)
+   * @param state the optimizer state containing q and everything that we
+   *              compute from q
    * @param dq search direction, stacked as one large vector
-   * @param g gradient of the overall cost
-   * @param state TrajectoryOptimizerState used for computing L(q + alpha*dq)
+   * @param scratch_state scratch state variable used for computing L(q +
+   *                      alpha*dq)
    * @return double, the linesearch parameter alpha
    * @return int, the number of linesearch iterations
    */
-  std::tuple<double, int> Linesearch(const T L,
-                                     const std::vector<VectorX<T>>& q,
-                                     const VectorX<T>& dq, const VectorX<T>& g,
-                                     TrajectoryOptimizerState<T>* state) const;
+  std::tuple<double, int> Linesearch(
+      const TrajectoryOptimizerState<T>& state, const VectorX<T>& dq,
+      TrajectoryOptimizerState<T>* scratch_state) const;
 
   /**
    * Debugging function which saves the line-search residual
@@ -370,43 +389,29 @@ class TrajectoryOptimizer {
    *
    * This allows us to make a nice plot in python after the fact
    */
-  void SaveLinesearchResidual(const T L, const std::vector<VectorX<T>>& q,
+  void SaveLinesearchResidual(const TrajectoryOptimizerState<T>& state,
                               const VectorX<T>& dq,
-                              TrajectoryOptimizerState<T>* state) const;
+                              TrajectoryOptimizerState<T>* scratch_state) const;
 
   /**
    * Simple backtracking linesearch strategy to find alpha that satisfies
    *
-   *    L(q + alpha*dq) < L(q) - c*g'*dq
+   *    L(q + alpha*dq) < L(q) + c*g'*dq
    *
    * and is (approximately) a local minimizer of L(q + alpha*dq).
    */
   std::tuple<double, int> BacktrackingLinesearch(
-      const T L, const std::vector<VectorX<T>>& q, const VectorX<T>& dq,
-      const VectorX<T>& g, TrajectoryOptimizerState<T>* state) const;
+      const TrajectoryOptimizerState<T>& state, const VectorX<T>& dq,
+      TrajectoryOptimizerState<T>* scratch_state) const;
 
   /**
    * Simple backtracking linesearch strategy to find alpha that satisfies
    *
-   *    L(q + alpha*dq) < L(q) - c*g'*dq
+   *    L(q + alpha*dq) < L(q) + c*g'*dq
    */
   std::tuple<double, int> ArmijoLinesearch(
-      const T L, const std::vector<VectorX<T>>& q, const VectorX<T>& dq,
-      const VectorX<T>& g, TrajectoryOptimizerState<T>* state) const;
-
-  /**
-   * Update the sequence of generalized positions, q, stored in the given
-   * optimizer state, as
-   *
-   *    q = q + dq,
-   *
-   * where dq is a large vector which stacks changes in each q[t].
-   *
-   * @param dq vector of changes in generalized positions
-   * @param state optimizer state storing std::vector<VectorXd> q that we'll
-   * update.
-   */
-  void AddToQ(const VectorX<T>& dq, TrajectoryOptimizerState<T>* state) const;
+      const TrajectoryOptimizerState<T>& state, const VectorX<T>& dq,
+      TrajectoryOptimizerState<T>* scratch_state) const;
 
   // A model of the system that we are trying to find an optimal trajectory for.
   const MultibodyPlant<T>* plant_;

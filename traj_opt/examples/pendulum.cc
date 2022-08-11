@@ -48,36 +48,6 @@ using systems::DiagramBuilder;
 using systems::Simulator;
 
 /**
- * Save the solution data to a CSV file that we can process and make plots from
- * later.
- *
- * @param solution_data struct containing iteration and timing data
- */
-void save_to_csv(const SolutionData<double>& data) {
-  // Set file to write to
-  std::ofstream data_file;
-  data_file.open("pendulum_data.csv");
-
-  // Write a header
-  data_file
-      << "iter, time, cost, ls_iters, alpha, grad_norm\n";
-
-  const int num_iters = data.iteration_times.size();
-  for (int i = 0; i < num_iters; ++i) {
-    // Write the data
-    data_file << i << ", ";
-    data_file << data.iteration_times[i] << ", ";
-    data_file << data.iteration_costs[i] << ", ";
-    data_file << data.linesearch_iterations[i] << ", ";
-    data_file << data.linesearch_alphas[i] << ", ";
-    data_file << data.gradient_norm[i] << "\n";
-  }
-
-  // Close the file
-  data_file.close();
-}
-
-/**
  * Play back the given trajectory on the Drake visualizer.
  *
  * @param q sequence of generalized positions defining the trajectory
@@ -170,17 +140,17 @@ void solve_trajectory_optimization(double time_step, int num_steps) {
   // Solve the optimzation problem
   TrajectoryOptimizer<double> optimizer(&plant, context.get(), opt_prob,
                                         solver_params);
-  Solution<double> solution;
-  SolutionData<double> solution_data;
+  TrajectoryOptimizerSolution<double> solution;
+  TrajectoryOptimizerStats<double> stats;
 
-  SolverFlag status = optimizer.Solve(q_guess, &solution, &solution_data);
+  SolverFlag status = optimizer.Solve(q_guess, &solution, &stats);
   DRAKE_ASSERT(status == SolverFlag::kSuccess);
-  std::cout << "Solved in " << solution_data.solve_time << " seconds."
+  std::cout << "Solved in " << stats.solve_time << " seconds."
             << std::endl;
 
   // Save data to CSV, if requested
   if (FLAGS_save_data) {
-    save_to_csv(solution_data);
+    stats.SaveToCsv("pendulum_data.csv");
   }
 
   // Play back the result on the visualizer

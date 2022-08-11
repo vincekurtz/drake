@@ -129,10 +129,10 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumSwingup) {
   }
 
   // Solve the optimization problem
-  Solution<double> solution;
-  SolutionData<double> solution_data;
+  TrajectoryOptimizerSolution<double> solution;
+  TrajectoryOptimizerStats<double> stats;
 
-  SolverFlag status = optimizer.Solve(q_guess, &solution, &solution_data);
+  SolverFlag status = optimizer.Solve(q_guess, &solution, &stats);
   EXPECT_EQ(status, SolverFlag::kSuccess);
 
   // With such a large penalty on the final position, and such a low control
@@ -206,7 +206,7 @@ GTEST_TEST(TrajectoryOptimizerTest, HessianAcrobot) {
     }
   }
   state_ad.set_q(q_ad);
-  AutoDiffXd L_ad = optimizer_ad.CalcCost(state_ad);  // forces cache update
+  AutoDiffXd L_ad = optimizer_ad.EvalCost(state_ad);  // forces cache update
 
   // Formulate an equivalent least-squares problem, where
   //
@@ -224,8 +224,8 @@ GTEST_TEST(TrajectoryOptimizerTest, HessianAcrobot) {
   Matrix2d Qfq_sqrt = (2 * opt_prob.Qf_q).cwiseSqrt();
   Matrix2d Qfv_sqrt = (2 * opt_prob.Qf_v).cwiseSqrt();
 
-  const std::vector<VectorX<AutoDiffXd>>& v_ad = state_ad.cache().v;
-  const std::vector<VectorX<AutoDiffXd>>& u_ad = state_ad.cache().tau;
+  const std::vector<VectorX<AutoDiffXd>>& v_ad = optimizer_ad.EvalV(state_ad);
+  const std::vector<VectorX<AutoDiffXd>>& u_ad = optimizer_ad.EvalTau(state_ad);
 
   // Here we construct the residual
   //        [        ...           ]
@@ -253,7 +253,7 @@ GTEST_TEST(TrajectoryOptimizerTest, HessianAcrobot) {
 
   // Check that the cost from our least-squares formulation is correct
   const double kToleranceCost = 10 * std::numeric_limits<double>::epsilon();
-  double L = optimizer.CalcCost(state);
+  double L = optimizer.EvalCost(state);
   EXPECT_NEAR(L, L_lsqr.value(), kToleranceCost);
 
   // Check that the gradient from our least-squares formulation matches what we
@@ -413,7 +413,7 @@ GTEST_TEST(TrajectoryOptimizerTest, AutodiffGradient) {
   }
   state_ad.set_q(q_ad);
 
-  AutoDiffXd cost_ad = optimizer_ad.CalcCost(state_ad);
+  AutoDiffXd cost_ad = optimizer_ad.EvalCost(state_ad);
   VectorXd g_ad = cost_ad.derivatives();
 
   // We neglect the top row of the gradient, since we are setting it to zero.
@@ -549,7 +549,7 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcGradientPendulumNoGravity) {
   }
   state_ad.set_q(q_ad);
 
-  AutoDiffXd cost_ad = optimizer_ad.CalcCost(state_ad);
+  AutoDiffXd cost_ad = optimizer_ad.EvalCost(state_ad);
   VectorXd g_gt = cost_ad.derivatives();
   g_gt[0] = 0;  // q0 is fixed
 
@@ -596,7 +596,7 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcGradientPendulumNoGravity) {
   }
 
   const InverseDynamicsPartials<double>& id_partials =
-      state.cache().id_partials;
+      optimizer.EvalInverseDynamicsPartials(state);
   for (int t = 0; t < num_steps; ++t) {
     if (t > 0) {
       EXPECT_NEAR(id_partials.dtau_dqm[t](0), id_partials_gt.dtau_dqm[t](0),
@@ -613,7 +613,7 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcGradientPendulumNoGravity) {
   MatrixXd M(1, 1);
   for (int t = 0; t < num_steps; ++t) {
     plant.SetPositions(plant_context.get(), q[t]);
-    plant.SetVelocities(plant_context.get(), state.cache().v[t]);
+    plant.SetVelocities(plant_context.get(), optimizer.EvalV(state)[t]);
     plant.CalcMassMatrix(*plant_context, &M);
 
     EXPECT_NEAR(M(0, 0), m * l * l, std::numeric_limits<double>::epsilon());
@@ -622,12 +622,13 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcGradientPendulumNoGravity) {
   // Check our computation of tau(q)
   double tau;
   double tau_gt;
-  const std::vector<VectorXd>& v = state.cache().v;
-  const std::vector<VectorXd>& a = state.cache().a;
+  const std::vector<VectorXd>& v = optimizer.EvalV(state);
+  const std::vector<VectorXd>& a = optimizer.EvalA(state);
+  const std::vector<VectorXd>& tau_comp = optimizer.EvalTau(state);
   const double kToleranceTau = 10 * std::numeric_limits<double>::epsilon();
   for (int t = 0; t < num_steps; ++t) {
-    tau_gt = state.cache().tau[t](0);
-    tau = m * l * l * a[t](0) + b * v[t + 1](0);
+    tau = tau_comp[t](0);
+    tau_gt = m * l * l * a[t](0) + b * v[t + 1](0);
     EXPECT_NEAR(tau_gt, tau, kToleranceTau);
   }
 }
@@ -817,7 +818,7 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcCostFromState) {
   TrajectoryOptimizer<double> optimizer(&plant, context.get(), opt_prob);
   TrajectoryOptimizerState<double> state = optimizer.CreateState();
   state.set_q(q);
-  double L = optimizer.CalcCost(state);
+  double L = optimizer.EvalCost(state);
 
   // Compute the ground truth cost using an analytical model of the (linear)
   // pendulum dynamics.

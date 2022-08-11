@@ -12,9 +12,12 @@ import sys
 # A quick script to make a plot of solution data for the
 # acrobot swingup problem. 
 #
+# This script must be run from the "drake/" directory. 
+#
 ##
 
-drake_root = "/home/vincentkurtz/drake/"
+# drake/ directory, contains drake/bazel-out symlink
+drake_root = os.getcwd()
 
 # Define our optimization problem
 dt = 5e-2
@@ -53,7 +56,7 @@ if code != 0:
     sys.exit()
 
 # Bazel stores files in strange places
-data_file = drake_root + "bazel-out/k8-opt/bin/traj_opt/examples/acrobot.runfiles/drake/acrobot_data.csv"
+data_file = drake_root + "/bazel-out/k8-opt/bin/traj_opt/examples/acrobot.runfiles/drake/acrobot_data.csv"
 
 # Read data from the file and format nicely
 data = np.genfromtxt(data_file, delimiter=',', names=True)
@@ -77,7 +80,7 @@ ax3.set_ylabel("Linesearch Iters")
 ax4.plot(iters, data["alpha"])
 ax4.set_ylabel("alpha")
 
-ax5.plot(iters, data["grad_norm"])
+ax5.plot(iters, data["grad_norm"] / data["cost"])
 ax5.set_ylabel("$||g||$ / cost")
 ax5.set_yscale("log")
 ax5.set_yticks(np.logspace(-12,0,7))
