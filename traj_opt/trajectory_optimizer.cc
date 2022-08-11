@@ -221,13 +221,13 @@ void TrajectoryOptimizer<T>::CalcContactForceContribution(
       forces->mutable_body_forces()[bodyB.node_index()] += F_BBo_W;
 
       // DEBUG
-      bool print = false;
+      bool print = true;
       if (print) {
         std::cout << fmt::format("BodyA = {}, BodyB = {}\n", bodyA.name(),
                                  bodyB.name());
         std::cout << fmt::format(
-            "t = {}, fn = {}, phi = {}, nhat = {}, f_ACa_W = {}\n",
-            context_->get_time(), fn, pair.distance, pair.nhat_BA_W.transpose(),
+            "fn = {}\nphi ={}\nnhat = {}\nf_ACa_W = {}\n",
+            fn, pair.distance, pair.nhat_BA_W.transpose(),
             f_ACa_W.transpose());
       }
     }
