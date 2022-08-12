@@ -210,47 +210,44 @@ void solve_trajectory_optimization() {
     std::cout << "tau: " << tau[t].transpose() << std::endl;
   }
 
-  //TrajectoryOptimizerSolution<double> solution;
-  //TrajectoryOptimizerStats<double> stats;
+  TrajectoryOptimizerSolution<double> solution;
+  TrajectoryOptimizerStats<double> stats;
+  SolverFlag status = optimizer.Solve(q_guess, &solution, &stats);
+  DRAKE_ASSERT(status == SolverFlag::kSuccess);
+  std::cout << "Solved in " << stats.solve_time << " seconds." << std::endl;
+  // Report maximum torques on the unactuated and actuated joints
+  double tau_max_f1 = 0;
+  double tau_max_f2 = 0;
+  double tau_max_s = 0;
+  for (int t = 0; t < options.num_steps; ++t) {
+    if (abs(solution.tau[t](0)) > tau_max_f1) {
+      tau_max_f1 = abs(solution.tau[t](0));
+    }
+    if (abs(solution.tau[t](1)) > tau_max_f2) {
+      tau_max_f2 = abs(solution.tau[t](1));
+    }
+    if (abs(solution.tau[t](2)) > tau_max_s) {
+      tau_max_s = abs(solution.tau[t](2));
+    }
+  }
+  std::cout << std::endl;
+  std::cout << "Max finger one torque : " << tau_max_f1 << std::endl;
+  std::cout << "Max finger two torque : " << tau_max_f2 << std::endl;
+  std::cout << "Max spinner torque    : " << tau_max_s << std::endl;
+  // Report desired and final state
+  std::cout << std::endl;
+  std::cout << "q_nom : " << opt_prob.q_nom.transpose() << std::endl;
+  std::cout << "q[T]  : " << solution.q[options.num_steps].transpose()
+            << std::endl;
+  std::cout << std::endl;
+  std::cout << "v_nom : " << opt_prob.v_nom.transpose() << std::endl;
+  std::cout << "v[T]  : " << solution.v[options.num_steps].transpose()
+            << std::endl;
 
-  //SolverFlag status = optimizer.Solve(q_guess, &solution, &stats);
-  //DRAKE_ASSERT(status == SolverFlag::kSuccess);
-  //std::cout << "Solved in " << stats.solve_time << " seconds." << std::endl;
-
-  //// Report maximum torques on the unactuated and actuated joints
-  //double tau_max_f1 = 0;
-  //double tau_max_f2 = 0;
-  //double tau_max_s = 0;
-  //for (int t = 0; t < options.num_steps; ++t) {
-  //  if (abs(solution.tau[t](0)) > tau_max_f1) {
-  //    tau_max_f1 = abs(solution.tau[t](0));
-  //  }
-  //  if (abs(solution.tau[t](1)) > tau_max_f2) {
-  //    tau_max_f2 = abs(solution.tau[t](1));
-  //  }
-  //  if (abs(solution.tau[t](2)) > tau_max_s) {
-  //    tau_max_s = abs(solution.tau[t](2));
-  //  }
-  //}
-  //std::cout << std::endl;
-  //std::cout << "Max finger one torque : " << tau_max_f1 << std::endl;
-  //std::cout << "Max finger two torque : " << tau_max_f2 << std::endl;
-  //std::cout << "Max spinner torque    : " << tau_max_s << std::endl;
-
-  //// Report desired and final state
-  //std::cout << std::endl;
-  //std::cout << "q_nom : " << opt_prob.q_nom.transpose() << std::endl;
-  //std::cout << "q[T]  : " << solution.q[options.num_steps].transpose()
-  //          << std::endl;
-  //std::cout << std::endl;
-  //std::cout << "v_nom : " << opt_prob.v_nom.transpose() << std::endl;
-  //std::cout << "v[T]  : " << solution.v[options.num_steps].transpose()
-  //          << std::endl;
-
-  //// Play back the result on the visualizer
-  //if (options.play_optimal_trajectory) {
-  //  play_back_trajectory(solution.q, options.time_step);
-  //}
+  // Play back the result on the visualizer
+  if (options.play_optimal_trajectory) {
+    play_back_trajectory(solution.q, options.time_step);
+  }
 }
 
 }  // namespace spinner
