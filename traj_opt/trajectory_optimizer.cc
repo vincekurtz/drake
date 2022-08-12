@@ -68,6 +68,25 @@ TrajectoryOptimizer<T>::TrajectoryOptimizer(
     const int nv = joint.num_velocities();
     joint_damping_.segment(velocity_start, nv) = joint.damping_vector();
   }
+
+  // Initialize the augmented Lagrangian parameters
+  lambda.resize(params_.max_major_iterations);
+  mu.resize(params_.max_major_iterations, mu0);
+  for (int i = 0; i < params_.max_major_iterations; ++i) {
+    lambda[i] = lambda0 * Eigen::VectorXd::Ones(num_eq_constraints());
+  }
+}
+
+template <typename T>
+VectorX<T> TrajectoryOptimizer<T>::CalcConstraintViolations(
+    const std::vector<VectorX<T>>& tau) const {
+  VectorX<T> violations(num_eq_constraints());
+  for (int t = 0; t < num_steps(); ++t) {
+    for (int dof_id : prob_.unactuated_dof) {
+      violations[t * num_unactuated_dof() + dof_id] = tau[t][dof_id];
+    }
+  }
+  return violations;
 }
 
 template <typename T>
@@ -109,7 +128,8 @@ T TrajectoryOptimizer<T>::CalcCost(
     const std::vector<VectorX<T>>& tau,
     TrajectoryOptimizerWorkspace<T>* workspace) const {
   T cost = 0;
-  VectorX<T>& q_err = workspace->q_size_tmp1;
+  T augmented_cost = 0;
+  VectorX<T>& q_err = workspace->q_size_tmp;
   VectorX<T>& v_err = workspace->v_size_tmp1;
 
   // Running cost
@@ -119,7 +139,18 @@ T TrajectoryOptimizer<T>::CalcCost(
     cost += T(q_err.transpose() * prob_.Qq * q_err);
     cost += T(v_err.transpose() * prob_.Qv * v_err);
     cost += T(tau[t].transpose() * prob_.R * tau[t]);
+    // Augmented Lagrangian component
+    if (params_.augmented_lagrangian) {
+      for (int dof_id : prob_.unactuated_dof) {
+        augmented_cost += -lambda_iter[t * num_unactuated_dof() + dof_id] *
+                              T(tau[t][dof_id]) +
+                          mu_iter / 2 * (T(tau[t][dof_id] * tau[t][dof_id]));
+      }
+    }
   }
+
+  // Add the augmented cost to the unconstrained cost
+  cost += augmented_cost;
 
   // Scale running cost by dt (so the optimization problem we're solving doesn't
   // change so dramatically when we change the time step).
@@ -731,10 +762,27 @@ void TrajectoryOptimizer<T>::CalcGradient(
     taum_term = tau[t - 1].transpose() * 2 * prob_.R * dt * dtau_dqp[t - 1];
     taut_term = tau[t].transpose() * 2 * prob_.R * dt * dtau_dqt[t];
     if (t == num_steps() - 1) {
-      // There is no constrol input at the final timestep
+      // There is no control input at the final timestep
       taup_term.setZero(nq);
     } else {
       taup_term = tau[t + 1].transpose() * 2 * prob_.R * dt * dtau_dqm[t + 1];
+    }
+
+    // Contribution from the unactuation constraints
+    if (params_.augmented_lagrangian) {
+      for (auto dof_id : prob_.unactuated_dof) {
+        taum_term += (-lambda_iter[(t - 1) * num_unactuated_dof() + dof_id] +
+                      mu_iter * tau[t - 1][dof_id]) *
+                     (dt * dtau_dqp[t - 1].row(dof_id));
+        taut_term += (-lambda_iter[t * num_unactuated_dof() + dof_id] +
+                      mu_iter * tau[t][dof_id]) *
+                     (dt * dtau_dqt[t].row(dof_id));
+        if (t < num_steps() - 1) {
+          taup_term += (-lambda_iter[(t + 1) * num_unactuated_dof() + dof_id] +
+                        mu_iter * tau[t + 1][dof_id]) *
+                       (dt * dtau_dqm[t + 1].row(dof_id));
+        }
+      }
     }
 
     // Put it all together to get the gradient w.r.t q[t]
@@ -749,6 +797,17 @@ void TrajectoryOptimizer<T>::CalcGradient(
   qt_term = (q[num_steps()] - prob_.q_nom).transpose() * 2 * prob_.Qf_q;
   vt_term = (v[num_steps()] - prob_.v_nom).transpose() * 2 * prob_.Qf_v *
             dvt_dqt[num_steps()];
+
+  // Contribution from the unactuation constraints
+  if (params_.augmented_lagrangian) {
+    for (auto dof_id : prob_.unactuated_dof) {
+      taum_term +=
+          (-lambda_iter[(num_steps() - 1) * num_unactuated_dof() + dof_id] +
+           mu_iter * tau[num_steps() - 1][dof_id]) *
+          (dt * dtau_dqp[num_steps() - 1].row(dof_id));
+    }
+  }
+
   g->tail(nq) = qt_term + vt_term + taum_term;
 
   // Add proximal operator term to the gradient, if requested
@@ -787,6 +846,7 @@ void TrajectoryOptimizer<T>::CalcHessian(
   const MatrixX<T> R = 2 * prob_.R * dt;
   const MatrixX<T> Qf_q = 2 * prob_.Qf_q;
   const MatrixX<T> Qf_v = 2 * prob_.Qf_v;
+  const double mu_hessian = mu_iter * dt;
 
   const VelocityPartials<T>& v_partials = EvalVelocityPartials(state);
   const InverseDynamicsPartials<T>& id_partials =
@@ -828,10 +888,42 @@ void TrajectoryOptimizer<T>::CalcHessian(
       dgt_dqp += dvt_dqt[t + 1].transpose() * Qf_v * dvt_dqm[t + 1];
     }
 
+    // Contribution from the unactuation constraints
+    if (params_.augmented_lagrangian) {
+      for (auto dof_id : prob_.unactuated_dof) {
+        // dg_t/dq_t
+        dgt_dqt += mu_hessian * dtau_dqp[t - 1].transpose().col(dof_id) *
+                   dtau_dqp[t - 1].row(dof_id);
+        dgt_dqt += mu_hessian * dtau_dqt[t].transpose().col(dof_id) *
+                   dtau_dqt[t].row(dof_id);
+        // dg_t/dq_{t+1}
+        dgt_dqp += mu_hessian * dtau_dqp[t].transpose().col(dof_id) *
+                   dtau_dqt[t].row(dof_id);
+
+        if (t < num_steps() - 1) {
+          // dg_t/dq_t
+          dgt_dqt += mu_hessian * dtau_dqm[t + 1].transpose().col(dof_id) *
+                     dtau_dqm[t + 1].row(dof_id);
+          // dg_t/dq_{t+1}
+          dgt_dqp += mu_hessian * dtau_dqt[t + 1].transpose().col(dof_id) *
+                     dtau_dqm[t + 1].row(dof_id);
+        }
+      }
+    }
+
     // dg_t/dq_{t+2}
     if (t < num_steps() - 1) {
       MatrixX<T>& dgt_dqpp = A[t + 2];
       dgt_dqpp = dtau_dqp[t + 1].transpose() * R * dtau_dqm[t + 1];
+
+      // Contribution from the unactuation constraints
+      if (params_.augmented_lagrangian) {
+        for (auto dof_id : prob_.unactuated_dof) {
+          // dg_t/dq_{t+2}
+          dgt_dqpp += mu_hessian * dtau_dqp[t + 1].transpose().col(dof_id) *
+                      dtau_dqm[t + 1].row(dof_id);
+        }
+      }
     }
   }
 
@@ -847,6 +939,13 @@ void TrajectoryOptimizer<T>::CalcHessian(
     for (int t = 0; t <= num_steps(); ++t) {
       C[t] += params_.rho_proximal *
               state.proximal_operator_data().H_diag[t].asDiagonal();
+
+  // Contribution from the unactuation constraints
+  if (params_.augmented_lagrangian) {
+    for (auto dof_id : prob_.unactuated_dof) {
+      dgT_dqT += mu_hessian *
+                 dtau_dqp[num_steps() - 1].transpose().col(dof_id) *
+                 dtau_dqp[num_steps() - 1].row(dof_id);
     }
   }
 
@@ -1428,12 +1527,15 @@ template <typename T>
 SolverFlag TrajectoryOptimizer<T>::Solve(const std::vector<VectorX<T>>&,
                                          TrajectoryOptimizerSolution<T>*,
                                          TrajectoryOptimizerStats<T>*) const {
+SolverFlag TrajectoryOptimizer<T>::SolveGaussNewton(
+    const std::vector<VectorX<T>>&, TrajectoryOptimizerSolution<T>*,
+    TrajectoryOptimizerStats<T>*) const {
   throw std::runtime_error(
-      "TrajectoryOptimizer::Solve only supports T=double.");
+      "TrajectoryOptimizer::SolveGaussNewton only supports T=double.");
 }
 
 template <>
-SolverFlag TrajectoryOptimizer<double>::Solve(
+SolverFlag TrajectoryOptimizer<double>::SolveGaussNewton(
     const std::vector<VectorXd>& q_guess,
     TrajectoryOptimizerSolution<double>* solution,
     TrajectoryOptimizerStats<double>* stats) const {
@@ -1441,8 +1543,8 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
   DRAKE_DEMAND(q_guess[0] == prob_.q_init);
   DRAKE_DEMAND(static_cast<int>(q_guess.size()) == num_steps() + 1);
 
-  // stats must be empty
-  DRAKE_DEMAND(stats->is_empty());
+  // stats must be empty at the beginning
+  if (!params_.augmented_lagrangian) DRAKE_DEMAND(stats->is_empty());
 
   if (params_.method == SolverMethod::kLinesearch) {
     return SolveWithLinesearch(q_guess, solution, stats);
@@ -1548,6 +1650,14 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithLinesearch(
 
       // Save the linesearch residual to a csv file so we can plot in python
       SaveLinesearchResidual(state, dq, &scratch_state);
+
+      // We'll still record iteration data for playback later
+      iter_time = std::chrono::high_resolution_clock::now() - iter_start_time;
+      solve_time = std::chrono::high_resolution_clock::now() - start_time;
+      stats->solve_time.push_back(solve_time.count());
+      stats->push_data(iter_time.count(), cost, ls_iters, alpha, g.norm());
+
+      return SolverFlag::kLinesearchMaxIters;
     }
 
     // Compute the trust ratio (actual cost reduction / model cost reduction)
@@ -1614,7 +1724,7 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithLinesearch(
 
   // Record the total solve time
   solve_time = std::chrono::high_resolution_clock::now() - start_time;
-  stats->solve_time = solve_time.count();
+  stats->solve_time.push_back(solve_time.count());
 
   // Record the solution
   solution->q = state.q();
@@ -1790,6 +1900,91 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
   }
 
   return SolverFlag::kSuccess;
+}
+
+template <typename T>
+SolverFlag TrajectoryOptimizer<T>::Solve(const std::vector<VectorX<T>>&,
+                                         TrajectoryOptimizerSolution<T>*,
+                                         TrajectoryOptimizerStats<T>*) const {
+  throw std::runtime_error(
+      "TrajectoryOptimizer::Solve only supports T=double.");
+}
+
+template <>
+SolverFlag TrajectoryOptimizer<double>::Solve(
+    const std::vector<VectorXd>& q_guess,
+    TrajectoryOptimizerSolution<double>* solution,
+    TrajectoryOptimizerStats<double>* stats) const {
+  SolverFlag status = SolverFlag::kSuccess;
+  auto q_init = q_guess;
+  for (int i = 0; i < params_.max_major_iterations; i++) {
+    if (params_.augmented_lagrangian) {
+      // Report the major iteration
+      if (params_.verbose) {
+        std::cout << "\nMajor iteration: " << i << '\n';
+        std::cout
+            << "-------------------------------------------------------------"
+               "---------"
+            << std::endl;
+      }
+      // Assign augmented Lagrangian parameters
+      lambda_iter = lambda[i];
+      mu_iter = mu[i];
+    }
+    // Solve the sub-problem
+    status = SolveGaussNewton(q_init, solution, stats);
+
+    // Terminate if augmented Lagrangian is disabled
+    // TODO(aykut): Consider terminating if the solver failed
+    if (!params_.augmented_lagrangian) return status;
+
+    // Evaluate the constraint violations
+    auto violations = CalcConstraintViolations(solution->tau);
+
+    // Report constraint violations
+    if (params_.verbose)
+      std::cout << "\nConstraint violations:\n"
+                << violations
+                << "\nMax. violation: " << violations.lpNorm<Eigen::Infinity>()
+                << "\n\n";
+
+    // Update the augmented Lagrangian parameters
+    if (i < params_.max_major_iterations - 1) {
+      // Update the Lagrange multipliers
+      lambda[i + 1] = lambda[i] - mu[i] * violations;
+      if (params_.verbose) {
+        for (int j = 0; j < num_eq_constraints(); j++) {
+          std::cout << "lambda " << j << ": " << lambda[i](j) << "\t-->  "
+                    << lambda[i + 1](j) << '\n';
+        }
+      }
+
+      // Check for constraint satisfaction w.r.t. a tolerance
+      if (violations.lpNorm<Eigen::Infinity>() < constraint_tol) {
+        std::cout << "\nStopping b/c the max. constraint violation "
+                  << violations.maxCoeff()
+                  << " is smaller than the constraint satisfaction tolerance "
+                  << constraint_tol << "\n\n";
+        return status;
+      }
+      // TODO(aykut): Consider updating the constraint tolerance
+
+      // Update the penalty parameter
+      mu[i + 1] = mu_expand_coef * mu[i];
+      std::cout << "\nmu: " << mu[i] << "\t-->  " << mu[i + 1] << '\n';
+
+      // Update the initial guess
+      if (params_.update_init_guess) q_init = solution->q;
+    }
+
+    if (params_.verbose) {
+      std::cout << "\nPress Enter to continue...\n";
+      std::cin.get();
+    }
+  }
+
+  std::cout << "Reached the maximum number of major iterations\n";
+  return status;
 }
 
 }  // namespace traj_opt

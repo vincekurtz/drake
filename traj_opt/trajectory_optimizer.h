@@ -85,6 +85,22 @@ class TrajectoryOptimizer {
   int num_steps() const { return prob_.num_steps; }
 
   /**
+   * Convienience function to get the number of unactuated DOF in the system.
+   *
+   * @return int the number of unactuated DOF.
+   */
+  int num_unactuated_dof() const {
+    return static_cast<int>(prob_.unactuated_dof.size());
+  }
+
+  /**
+   * Convienience function to get the number of equality constraints.
+   *
+   * @return int the number of equality constraints.
+   */
+  int num_eq_constraints() const { return num_steps() * num_unactuated_dof(); }
+
+  /**
    * Convienience function to get a const reference to the multibody plant that
    * we are optimizing over.
    *
@@ -130,8 +146,23 @@ class TrajectoryOptimizer {
                    PentaDiagonalMatrix<T>* H) const;
 
   /**
-   * Solve the optimization from the given initial guess, which may or may not
-   * be dynamically feasible.
+   * Solve the unconstrained optimization from the given initial guess, which
+   * may or may not be dynamically feasible.
+   *
+   * @param q_guess a sequence of generalized positions corresponding to the
+   * initial guess
+   * @param solution a container for the optimal solution, including velocities
+   * and torques
+   * @param stats a container for other timing and iteration-specific
+   * data regarding the solve process.
+   * @return SolverFlag
+   */
+  SolverFlag SolveGaussNewton(const std::vector<VectorX<T>>& q_guess,
+                              TrajectoryOptimizerSolution<T>* solution,
+                              TrajectoryOptimizerStats<T>* stats) const;
+
+  /**
+   * Solve the optimization from the given initial guess.
    *
    * @param q_guess a sequence of generalized positions corresponding to the
    * initial guess
@@ -270,6 +301,14 @@ class TrajectoryOptimizer {
   T CalcCost(const std::vector<VectorX<T>>& q, const std::vector<VectorX<T>>& v,
              const std::vector<VectorX<T>>& tau,
              TrajectoryOptimizerWorkspace<T>* workspace) const;
+
+  /**
+   * Compute the vector of forces acting upon unactuated DOF
+   *
+   * @param tau sequence of generalized forces (consistent with q and v)
+   * @return vector of double, forces acting on unactuated DOF
+   */
+  VectorX<T> CalcConstraintViolations(const std::vector<VectorX<T>>& tau) const;
 
   /**
    * Compute a sequence of generalized velocities v from a sequence of
@@ -660,7 +699,14 @@ class TrajectoryOptimizer {
   VectorX<T> joint_damping_;
 
   // Various parameters
-  const SolverParameters params_;
+  SolverParameters params_;
+
+  // Augmented Lagrangian parameters
+  mutable std::vector<Eigen::VectorXd> lambda;
+  mutable std::vector<double> mu;
+  mutable Eigen::VectorXd lambda_iter;
+  mutable double mu_iter;
+  double lambda0 = 0.0, mu0 = 1e1, mu_expand_coef = 1e1, constraint_tol = 1e-4;
 };
 
 // Declare template specializations

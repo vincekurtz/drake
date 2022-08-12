@@ -38,7 +38,7 @@ struct TrajectoryOptimizerSolution {
 template <typename T>
 struct TrajectoryOptimizerStats {
   // Total solve time
-  double solve_time;
+  std::vector<double> solve_time;
 
   // Time for each iteration
   std::vector<double> iteration_times;

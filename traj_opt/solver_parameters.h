@@ -73,6 +73,10 @@ struct SolverParameters {
   bool save_lineplot_data = false;
   double lineplot_q_min = 0.0;
   double lineplot_q_max = 1.0;
+
+  // Augmented Lagrangian parameters
+  bool augmented_lagrangian = true, update_init_guess = true;
+  int max_major_iterations = 5;
 };
 
 }  // namespace traj_opt
