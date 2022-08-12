@@ -38,7 +38,7 @@ class TrajectoryOptimizer {
    */
   TrajectoryOptimizer(const MultibodyPlant<T>* plant,
                       const ProblemDefinition& prob,
-                      const SolverParameters& params = SolverParameters{});
+                      SolverParameters* params = SolverParameters{});
 
   /**
    * Convienience function to get the timestep of this optimization problem.
@@ -98,8 +98,23 @@ class TrajectoryOptimizer {
                    PentaDiagonalMatrix<T>* H) const;
 
   /**
-   * Solve the optimization from the given initial guess, which may or may not
-   * be dynamically feasible.
+   * Solve the unconstrained optimization from the given initial guess, which
+   * may or may not be dynamically feasible.
+   *
+   * @param q_guess a sequence of generalized positions corresponding to the
+   * initial guess
+   * @param solution a container for the optimal solution, including velocities
+   * and torques
+   * @param stats a container for other timing and iteration-specific
+   * data regarding the solve process.
+   * @return SolverFlag
+   */
+  SolverFlag SolveUnconstrained(const std::vector<VectorX<T>>& q_guess,
+                                TrajectoryOptimizerSolution<T>* solution,
+                                TrajectoryOptimizerStats<T>* stats) const;
+
+  /**
+   * Solve the optimization from the given initial guess.
    *
    * @param q_guess a sequence of generalized positions corresponding to the
    * initial guess
@@ -144,8 +159,7 @@ class TrajectoryOptimizer {
    *
    * @param state optimizer state to update.
    */
-  void CalcCacheTrajectoryData(
-      const TrajectoryOptimizerState<T>& state) const;
+  void CalcCacheTrajectoryData(const TrajectoryOptimizerState<T>& state) const;
 
   /**
    * Compute all of the "derivatives data" (dv/dq, dtau/dq) stored in the
@@ -153,8 +167,7 @@ class TrajectoryOptimizer {
    *
    * @param state optimizer state to update.
    */
-  void CalcCacheDerivativesData(
-      const TrajectoryOptimizerState<T>& state) const;
+  void CalcCacheDerivativesData(const TrajectoryOptimizerState<T>& state) const;
 
   /**
    * Return the total (unconstrained) cost of the optimization problem,
@@ -414,7 +427,7 @@ class TrajectoryOptimizer {
   VectorX<T> joint_damping_;
 
   // Various parameters
-  SolverParameters params_;
+  SolverParameters* params_;
 };
 
 }  // namespace traj_opt

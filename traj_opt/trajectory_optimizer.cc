@@ -21,7 +21,7 @@ using systems::System;
 template <typename T>
 TrajectoryOptimizer<T>::TrajectoryOptimizer(const MultibodyPlant<T>* plant,
                                             const ProblemDefinition& prob,
-                                            const SolverParameters& params)
+                                            SolverParameters* params)
     : plant_(plant), prob_(prob), params_(params) {
   // Create a context for dynamics computations
   context_ = plant_->CreateDefaultContext();
@@ -71,6 +71,10 @@ T TrajectoryOptimizer<T>::CalcCost(
     cost += T(q_err.transpose() * prob_.Qq * q_err);
     cost += T(v_err.transpose() * prob_.Qv * v_err);
     cost += T(tau[t].transpose() * prob_.R * tau[t]);
+    if (params_->augmented_lagrangian) {
+      cost += -params_->lambda * T(tau[t][0]) +
+              params_->mu / 2 * (T(tau[t][0]*tau[t][0]));
+    }
   }
 
   // Scale running cost by dt (so the optimization problem we're solving doesn't
@@ -527,24 +531,21 @@ void TrajectoryOptimizer<T>::CalcCacheTrajectoryData(
 template <typename T>
 const std::vector<VectorX<T>>& TrajectoryOptimizer<T>::EvalV(
     const TrajectoryOptimizerState<T>& state) const {
-  if (!state.cache().trajectory_data.up_to_date)
-    CalcCacheTrajectoryData(state);
+  if (!state.cache().trajectory_data.up_to_date) CalcCacheTrajectoryData(state);
   return state.cache().trajectory_data.v;
 }
 
 template <typename T>
 const std::vector<VectorX<T>>& TrajectoryOptimizer<T>::EvalA(
     const TrajectoryOptimizerState<T>& state) const {
-  if (!state.cache().trajectory_data.up_to_date)
-    CalcCacheTrajectoryData(state);
+  if (!state.cache().trajectory_data.up_to_date) CalcCacheTrajectoryData(state);
   return state.cache().trajectory_data.a;
 }
 
 template <typename T>
 const std::vector<VectorX<T>>& TrajectoryOptimizer<T>::EvalTau(
     const TrajectoryOptimizerState<T>& state) const {
-  if (!state.cache().trajectory_data.up_to_date)
-    CalcCacheTrajectoryData(state);
+  if (!state.cache().trajectory_data.up_to_date) CalcCacheTrajectoryData(state);
   return state.cache().trajectory_data.tau;
 }
 
@@ -625,9 +626,9 @@ std::tuple<double, int> TrajectoryOptimizer<T>::Linesearch(
     TrajectoryOptimizerState<T>* scratch_state) const {
   // The state's cache must be up to date, since we'll use the gradient and cost
   // information stored there.
-  if (params_.linesearch_method == LinesearchMethod::kArmijo) {
+  if (params_->linesearch_method == LinesearchMethod::kArmijo) {
     return ArmijoLinesearch(state, dq, scratch_state);
-  } else if (params_.linesearch_method == LinesearchMethod::kBacktracking) {
+  } else if (params_->linesearch_method == LinesearchMethod::kBacktracking) {
     return BacktrackingLinesearch(state, dq, scratch_state);
   } else {
     throw std::runtime_error("Unknown linesearch method");
@@ -744,21 +745,21 @@ std::tuple<double, int> TrajectoryOptimizer<T>::ArmijoLinesearch(
 
     ++i;
   } while ((L_new > L + c * alpha * L_prime) &&
-           (i < params_.max_linesearch_iterations));
+           (i < params_->max_linesearch_iterations));
 
   return {alpha, i};
 }
 
 template <typename T>
-SolverFlag TrajectoryOptimizer<T>::Solve(const std::vector<VectorX<T>>&,
-                                         TrajectoryOptimizerSolution<T>*,
-                                         TrajectoryOptimizerStats<T>*) const {
+SolverFlag TrajectoryOptimizer<T>::SolveUnconstrained(
+    const std::vector<VectorX<T>>&, TrajectoryOptimizerSolution<T>*,
+    TrajectoryOptimizerStats<T>*) const {
   throw std::runtime_error(
-      "TrajectoryOptimizer::Solve only supports T=double.");
+      "TrajectoryOptimizer::SolveUnconstrained only supports T=double.");
 }
 
 template <>
-SolverFlag TrajectoryOptimizer<double>::Solve(
+SolverFlag TrajectoryOptimizer<double>::SolveUnconstrained(
     const std::vector<VectorXd>& q_guess,
     TrajectoryOptimizerSolution<double>* solution,
     TrajectoryOptimizerStats<double>* stats) const {
@@ -780,7 +781,7 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
   double cost;
   VectorXd dq((num_steps() + 1) * plant().num_positions());
 
-  if (params_.verbose) {
+  if (params_->verbose) {
     // Define printout data
     std::cout << "-------------------------------------------------------------"
                  "---------"
@@ -824,12 +825,12 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
     // L(q+alpha*dq) (at the very least), and we don't want to change state.q
     auto [alpha, ls_iters] = Linesearch(state, dq, &scratch_state);
 
-    if (ls_iters >= params_.max_linesearch_iterations) {
+    if (ls_iters >= params_->max_linesearch_iterations) {
       // Early termination if linesearch is taking too long
-      if (params_.verbose) {
+      if (params_->verbose) {
         std::cout << "LINESEARCH FAILED" << std::endl;
         std::cout << "Reached maximum linesearch iterations ("
-                  << params_.max_linesearch_iterations << ")." << std::endl;
+                  << params_->max_linesearch_iterations << ")." << std::endl;
       }
 
       // Save the linesearch residual to a csv file so we can plot in python
@@ -850,7 +851,7 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
     iter_time = std::chrono::high_resolution_clock::now() - iter_start_time;
 
     // Nice little printout of our problem data
-    if (params_.verbose) {
+    if (params_->verbose) {
       printf("| %6d ", k);
       printf("| %8.3f ", cost);
       printf("| %7.4f ", alpha);
@@ -863,10 +864,10 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
     stats->push_data(iter_time.count(), cost, ls_iters, alpha, g.norm());
 
     ++k;
-  } while (k < params_.max_iterations);
+  } while (k < params_->max_iterations);
 
   // End the problem data printout
-  if (params_.verbose) {
+  if (params_->verbose) {
     std::cout << "-------------------------------------------------------------"
                  "---------"
               << std::endl;
@@ -882,6 +883,31 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
   solution->tau = EvalTau(state);
 
   return SolverFlag::kSuccess;
+}
+
+template <typename T>
+SolverFlag TrajectoryOptimizer<T>::Solve(const std::vector<VectorX<T>>&,
+                                         TrajectoryOptimizerSolution<T>*,
+                                         TrajectoryOptimizerStats<T>*) const {
+  throw std::runtime_error(
+      "TrajectoryOptimizer::Solve only supports T=double.");
+}
+
+template <>
+SolverFlag TrajectoryOptimizer<double>::Solve(
+    const std::vector<VectorXd>& q_guess,
+    TrajectoryOptimizerSolution<double>* solution,
+    TrajectoryOptimizerStats<double>* stats) const {
+	SolverFlag status = SolverFlag::kSuccess;
+  auto q_init = q_guess;
+  for (int i = 0; i < params_->max_major_iterations; i++) {
+		std::cout << "Major iteration: " << i << std::endl;
+    params_->mu *= 1.5;
+    status = SolveUnconstrained(q_init, solution, stats);
+    q_init = solution->q;
+  }
+
+  return status;
 }
 
 }  // namespace traj_opt

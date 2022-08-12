@@ -28,13 +28,13 @@ gravity = 9.81
 Qq = 0.0
 Qv = 1e-1
 R = 1e-1
-unactuated_penalty = 1e3
+unactuated_penalty = 1e-1
 Qfq = 1e2
 Qfv = 1e0
 
 # Solve the optimization problem
 options_string = " -- "
-options_string += "--visualize=false "
+options_string += "--visualize=true "
 options_string += "--save_data=true "
 options_string += f"--time_step={dt} "
 options_string += f"--num_steps={num_steps} "
@@ -60,6 +60,7 @@ data_file = drake_root + "/bazel-out/k8-opt/bin/traj_opt/examples/acrobot.runfil
 
 # Read data from the file and format nicely
 data = np.genfromtxt(data_file, delimiter=',', names=True)
+
 iters = data["iter"]
 
 # Make plots
