@@ -221,8 +221,7 @@ void TrajectoryOptimizer<T>::CalcContactForceContribution(
       forces->mutable_body_forces()[bodyB.node_index()] += F_BBo_W;
 
       // DEBUG
-      bool print = true;
-      if (print) {
+      if (params_.print_debug_data) {
         std::cout << fmt::format("BodyA = {}, BodyB = {}\n", bodyA.name(),
                                  bodyB.name());
         std::cout << fmt::format(
