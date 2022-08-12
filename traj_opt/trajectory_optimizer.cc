@@ -8,6 +8,7 @@
 #include <string>
 
 #include "drake/traj_opt/penta_diagonal_solver.h"
+#include "drake/geometry/scene_graph_inspector.h"
 
 namespace drake {
 namespace traj_opt {
@@ -174,6 +175,8 @@ void TrajectoryOptimizer<T>::CalcContactForceContribution(
           .template Eval<geometry::QueryObject<T>>(*context_);
   const std::vector<SignedDistancePair<T>>& signed_distance_pairs =
       query_object.ComputeSignedDistancePairwiseClosestPoints();
+  const drake::geometry::SceneGraphInspector<T>& inspector =
+      query_object.inspector();
 
   for (const SignedDistancePair<T>& pair : signed_distance_pairs) {
     // Don't do any contact force computations if we're not in contact
@@ -197,23 +200,32 @@ void TrajectoryOptimizer<T>::CalcContactForceContribution(
           plant().geometry_id_to_body_index().at(geometryB_id);
       const Body<T>& bodyB = plant().get_body(bodyB_index);
 
-      const math::RigidTransform<T>& X_WA =
+      // Body poses in world.
+      const math::RigidTransform<T>& X_WBa =
           plant().EvalBodyPoseInWorld(*context_, bodyA);
-      const math::RotationMatrix<T>& R_WA = X_WA.rotation();
-      const math::RigidTransform<T>& X_WB =
+      const math::RotationMatrix<T>& R_WBa = X_WBa.rotation();
+      const math::RigidTransform<T>& X_WBb =
           plant().EvalBodyPoseInWorld(*context_, bodyB);
-      const math::RotationMatrix<T>& R_WB = X_WB.rotation();
+      const math::RotationMatrix<T>& R_WBb = X_WBb.rotation();
 
+      // Geometry poses in body frames.
+      const math::RigidTransform<T> X_BaGa =
+          inspector.GetPoseInParent(geometryA_id).template cast<T>();
+      const math::RigidTransform<T> X_BbGb =
+          inspector.GetPoseInParent(geometryB_id).template cast<T>();
+    
       // Force on A, about Ao, expressed in W.
       const SpatialForce<T> F_ACa_W(Vector3<T>::Zero(), f_ACa_W);
-      const auto& p_AoCa_A = pair.p_ACa;
-      const Vector3<T> p_CaAo_W = -(R_WA * p_AoCa_A);
+      const auto& p_GaCa_Ga = pair.p_ACa;
+      const Vector3<T> p_AoCa_Ba = X_BaGa * p_GaCa_Ga;
+      const Vector3<T> p_CaAo_W = -(R_WBa * p_AoCa_Ba);
       const SpatialForce<T> F_AAo_W = F_ACa_W.Shift(p_CaAo_W);
 
       // Force on B, about Bo, expressed in W.
       const SpatialForce<T> F_BCb_W(Vector3<T>::Zero(), f_BCb_W);
-      const auto& p_BoCb_B = pair.p_BCb;
-      const Vector3<T> p_CbBo_W = -(R_WB * p_BoCb_B);
+      const auto& p_GbCb_Gb = pair.p_BCb;
+      const Vector3<T> p_BoCb_Bb = X_BbGb * p_GbCb_Gb;
+      const Vector3<T> p_CbBo_W = -(R_WBb * p_BoCb_Bb);
       const SpatialForce<T> F_BBo_W = F_BCb_W.Shift(p_CbBo_W);
 
       // Add the forces into the given MultibodyForces
@@ -221,7 +233,7 @@ void TrajectoryOptimizer<T>::CalcContactForceContribution(
       forces->mutable_body_forces()[bodyB.node_index()] += F_BBo_W;
 
       // DEBUG
-      bool print = true;
+      bool print = false;
       if (print) {
         std::cout << fmt::format("BodyA = {}, BodyB = {}\n", bodyA.name(),
                                  bodyB.name());
