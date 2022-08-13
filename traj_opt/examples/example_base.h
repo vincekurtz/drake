@@ -25,7 +25,6 @@ namespace drake {
 namespace traj_opt {
 namespace examples {
 
-using Eigen::Vector3d;
 using geometry::DrakeVisualizerd;
 using geometry::SceneGraph;
 using multibody::AddMultibodyPlant;
@@ -50,9 +49,8 @@ class TrajOptExample {
    */
   void SolveTrajectoryOptimization(const std::string options_file) const {
     // Load parameters from file
-    const TrajOptExampleParams options =
-        yaml::LoadYamlFile<TrajOptExampleParams>(
-            FindResourceOrThrow(options_file));
+    TrajOptExampleParams options = yaml::LoadYamlFile<TrajOptExampleParams>(
+        FindResourceOrThrow(options_file));
 
     // Create a system model
     // N.B. we need a whole diagram, including scene_graph, to handle contact
@@ -62,6 +60,8 @@ class TrajOptExample {
     auto [plant, scene_graph] = AddMultibodyPlant(config, &builder);
     CreatePlantModel(&plant);
     plant.Finalize();
+    const int nq = plant.num_positions();
+    const int nv = plant.num_positions();
 
     auto diagram = builder.Build();
     std::unique_ptr<systems::Context<double>> diagram_context =
@@ -72,22 +72,25 @@ class TrajOptExample {
     // Set up an optimization problem
     ProblemDefinition opt_prob;
     opt_prob.num_steps = options.num_steps;
-    opt_prob.q_init = Vector3d(options.q_init.data());
-    opt_prob.v_init = Vector3d(options.v_init.data());
-    opt_prob.Qq = Vector3d(options.Qq.data()).asDiagonal();
-    opt_prob.Qv = Vector3d(options.Qv.data()).asDiagonal();
-    opt_prob.Qf_q = Vector3d(options.Qfq.data()).asDiagonal();
-    opt_prob.Qf_v = Vector3d(options.Qfv.data()).asDiagonal();
-    opt_prob.R = Vector3d(options.R.data()).asDiagonal();
-    opt_prob.q_nom = Vector3d(options.q_nom.data());
-    opt_prob.v_nom = Vector3d(options.v_nom.data());
+    opt_prob.q_init = Eigen::Map<VectorXd>(options.q_init.data(), nq);
+    opt_prob.v_init = Eigen::Map<VectorXd>(options.v_init.data(), nv);
+    opt_prob.Qq = Eigen::Map<VectorXd>(options.Qq.data(), nq).asDiagonal();
+    opt_prob.Qv = Eigen::Map<VectorXd>(options.Qv.data(), nv).asDiagonal();
+    opt_prob.Qf_q = Eigen::Map<VectorXd>(options.Qfq.data(), nq).asDiagonal();
+    opt_prob.Qf_v = Eigen::Map<VectorXd>(options.Qfv.data(), nv).asDiagonal();
+    opt_prob.R = Eigen::Map<VectorXd>(options.R.data(), nv).asDiagonal();
+    opt_prob.q_nom = Eigen::Map<VectorXd>(options.q_nom.data(), nq);
+    opt_prob.v_nom = Eigen::Map<VectorXd>(options.v_nom.data(), nv);
 
     // Set our solver parameters
     SolverParameters solver_params;
     if (options.linesearch == "backtracking") {
       solver_params.linesearch_method = LinesearchMethod::kBacktracking;
-    } else {
+    } else if (options.linesearch == "armijo") {
       solver_params.linesearch_method = LinesearchMethod::kArmijo;
+    } else {
+      throw std::runtime_error(fmt::format("Unknown linesearch Option '{}'",
+                                           solver_params.linesearch_method));
     }
     solver_params.max_iterations = options.max_iters;
     solver_params.max_linesearch_iterations = 60;
@@ -102,7 +105,7 @@ class TrajOptExample {
     solver_params.n = options.n;
 
     // Establish an initial guess
-    const VectorXd qT_guess = Vector3d(options.q_guess.data());
+    const VectorXd qT_guess = Eigen::Map<VectorXd>(options.q_guess.data(), nq);
     std::vector<VectorXd> q_guess;
     double lambda = 0;
     for (int t = 0; t <= options.num_steps; ++t) {
@@ -122,25 +125,21 @@ class TrajOptExample {
     SolverFlag status = optimizer.Solve(q_guess, &solution, &stats);
     DRAKE_ASSERT(status == SolverFlag::kSuccess);
     std::cout << "Solved in " << stats.solve_time << " seconds." << std::endl;
-    // Report maximum torques on the unactuated and actuated joints
-    double tau_max_f1 = 0;
-    double tau_max_f2 = 0;
-    double tau_max_s = 0;
+
+    // Report maximum torques on all DoFs
+    VectorXd tau_max = VectorXd::Zero(nv);
+    VectorXd abs_tau_t = VectorXd::Zero(nv);
     for (int t = 0; t < options.num_steps; ++t) {
-      if (abs(solution.tau[t](0)) > tau_max_f1) {
-        tau_max_f1 = abs(solution.tau[t](0));
-      }
-      if (abs(solution.tau[t](1)) > tau_max_f2) {
-        tau_max_f2 = abs(solution.tau[t](1));
-      }
-      if (abs(solution.tau[t](2)) > tau_max_s) {
-        tau_max_s = abs(solution.tau[t](2));
+      abs_tau_t = solution.tau[t].cwiseAbs();
+      for (int i = 0; i < nv; ++i) {
+        if (abs_tau_t(i) > tau_max(i)) {
+          tau_max(i) = abs_tau_t(i);
+        }
       }
     }
     std::cout << std::endl;
-    std::cout << "Max finger one torque : " << tau_max_f1 << std::endl;
-    std::cout << "Max finger two torque : " << tau_max_f2 << std::endl;
-    std::cout << "Max spinner torque    : " << tau_max_s << std::endl;
+    std::cout << "Max torques: " << tau_max.transpose() << std::endl;
+
     // Report desired and final state
     std::cout << std::endl;
     std::cout << "q_nom : " << opt_prob.q_nom.transpose() << std::endl;
@@ -172,7 +171,6 @@ class TrajOptExample {
    *
    * @param q sequence of generalized positions defining the trajectory
    * @param time_step time step (seconds) for the discretization
-   * TODO(vincekurtz): add realtime rate option
    */
   void PlayBackTrajectory(const std::vector<VectorXd>& q,
                           const double time_step) const {
@@ -205,6 +203,7 @@ class TrajOptExample {
       diagram->Publish(*diagram_context);
 
       // Hack to make the playback roughly realtime
+      // TODO(vincekurtz): add realtime rate option?
       std::this_thread::sleep_for(std::chrono::duration<double>(time_step));
     }
   }
