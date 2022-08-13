@@ -66,6 +66,7 @@ drake_cc_binary(
     ],
     test_rule_args = [],
     deps = [
+        ":example_base",
         ":yaml_config",
         "//common:find_resource",
         "//geometry:drake_visualizer",
@@ -77,6 +78,23 @@ drake_cc_binary(
         "//traj_opt:problem_definition",
         "//traj_opt:trajectory_optimizer",
         "@gflags",
+    ],
+)
+
+drake_cc_library(
+    name = "example_base",
+    srcs = [],
+    hdrs = ["example_base.h"],
+    deps = [
+        ":yaml_config",
+        "//common:find_resource",
+        "//geometry:drake_visualizer",
+        "//multibody/parsing",
+        "//multibody/plant",
+        "//multibody/plant:contact_results_to_lcm",
+        "//systems/framework:diagram",
+        "//traj_opt:problem_definition",
+        "//traj_opt:trajectory_optimizer",
     ],
 )
 
