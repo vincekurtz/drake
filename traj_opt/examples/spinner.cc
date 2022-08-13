@@ -4,7 +4,6 @@
 #include <thread>
 
 #include "drake/common/find_resource.h"
-#include "drake/common/yaml/yaml_io.h"
 #include "drake/geometry/drake_visualizer.h"
 #include "drake/geometry/scene_graph.h"
 #include "drake/multibody/parsing/parser.h"
@@ -13,6 +12,7 @@
 #include "drake/multibody/plant/multibody_plant_config_functions.h"
 #include "drake/systems/analysis/simulator.h"
 #include "drake/systems/framework/diagram_builder.h"
+#include "drake/traj_opt/examples/yaml_config.h"
 #include "drake/traj_opt/problem_definition.h"
 #include "drake/traj_opt/trajectory_optimizer.h"
 
@@ -20,55 +20,6 @@ namespace drake {
 namespace traj_opt {
 namespace examples {
 namespace spinner {
-
-// Options from YAML, see spinner.yaml for explanations
-struct SpinnerParams {
-  template <typename Archive>
-  void Serialize(Archive* a) {
-    a->Visit(DRAKE_NVP(q_init));
-    a->Visit(DRAKE_NVP(v_init));
-    a->Visit(DRAKE_NVP(q_nom));
-    a->Visit(DRAKE_NVP(v_nom));
-    a->Visit(DRAKE_NVP(q_guess));
-    a->Visit(DRAKE_NVP(Qq));
-    a->Visit(DRAKE_NVP(Qv));
-    a->Visit(DRAKE_NVP(R));
-    a->Visit(DRAKE_NVP(Qfq));
-    a->Visit(DRAKE_NVP(Qfv));
-    a->Visit(DRAKE_NVP(time_step));
-    a->Visit(DRAKE_NVP(num_steps));
-    a->Visit(DRAKE_NVP(max_iters));
-    a->Visit(DRAKE_NVP(linesearch));
-    a->Visit(DRAKE_NVP(play_optimal_trajectory));
-    a->Visit(DRAKE_NVP(play_initial_guess));
-    a->Visit(DRAKE_NVP(linesearch_plot_every_iteration));
-    a->Visit(DRAKE_NVP(print_debug_data));
-    a->Visit(DRAKE_NVP(F));
-    a->Visit(DRAKE_NVP(delta));
-    a->Visit(DRAKE_NVP(n));
-  }
-  std::vector<double> q_init;
-  std::vector<double> v_init;
-  std::vector<double> q_nom;
-  std::vector<double> v_nom;
-  std::vector<double> q_guess;
-  std::vector<double> Qq;
-  std::vector<double> Qv;
-  std::vector<double> R;
-  std::vector<double> Qfq;
-  std::vector<double> Qfv;
-  double time_step;
-  int num_steps;
-  int max_iters;
-  std::string linesearch;
-  bool play_optimal_trajectory;
-  bool play_initial_guess;
-  bool linesearch_plot_every_iteration;
-  bool print_debug_data;
-  double F;
-  double delta;
-  double n;
-};
 
 using Eigen::Vector3d;
 using geometry::DrakeVisualizerd;
@@ -128,7 +79,7 @@ void play_back_trajectory(std::vector<VectorXd> q, double time_step) {
  */
 void solve_trajectory_optimization() {
   // DEBUG: load parameters from file
-  const SpinnerParams options = yaml::LoadYamlFile<SpinnerParams>(
+  const TrajOptExampleParams options = yaml::LoadYamlFile<TrajOptExampleParams>(
       FindResourceOrThrow("drake/traj_opt/examples/spinner.yaml"));
 
   // Create a system model

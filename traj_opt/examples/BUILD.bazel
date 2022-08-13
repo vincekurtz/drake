@@ -4,6 +4,7 @@
 load(
     "@drake//tools/skylark:drake_cc.bzl",
     "drake_cc_binary",
+    "drake_cc_library",
 )
 load("//tools/lint:lint.bzl", "add_lint_tests")
 
@@ -65,8 +66,8 @@ drake_cc_binary(
     ],
     test_rule_args = [],
     deps = [
+        ":yaml_config",
         "//common:find_resource",
-        "//common/yaml",
         "//geometry:drake_visualizer",
         "//multibody/parsing",
         "//multibody/plant",
@@ -76,6 +77,15 @@ drake_cc_binary(
         "//traj_opt:problem_definition",
         "//traj_opt:trajectory_optimizer",
         "@gflags",
+    ],
+)
+
+drake_cc_library(
+    name = "yaml_config",
+    srcs = [],
+    hdrs = ["yaml_config.h"],
+    deps = [
+        "//common/yaml",
     ],
 )
 
