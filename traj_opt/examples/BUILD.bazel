@@ -15,22 +15,14 @@ drake_cc_binary(
     srcs = ["acrobot.cc"],
     add_test_rule = 1,
     data = [
+        ":acrobot.yaml",
         "//examples/acrobot:prod_models",
     ],
-    test_rule_args = [
-        "-max_iters=20",
-        "-visualize=false",
-    ],
     deps = [
+        ":example_base",
         "//common:find_resource",
-        "//geometry:drake_visualizer",
         "//multibody/parsing",
         "//multibody/plant",
-        "//systems/analysis:simulator",
-        "//systems/framework:diagram",
-        "//traj_opt:problem_definition",
-        "//traj_opt:trajectory_optimizer",
-        "@gflags",
     ],
 )
 
@@ -67,17 +59,9 @@ drake_cc_binary(
     test_rule_args = [],
     deps = [
         ":example_base",
-        ":yaml_config",
         "//common:find_resource",
-        "//geometry:drake_visualizer",
         "//multibody/parsing",
         "//multibody/plant",
-        "//multibody/plant:contact_results_to_lcm",
-        "//systems/analysis:simulator",
-        "//systems/framework:diagram",
-        "//traj_opt:problem_definition",
-        "//traj_opt:trajectory_optimizer",
-        "@gflags",
     ],
 )
 
@@ -89,9 +73,7 @@ drake_cc_library(
         ":yaml_config",
         "//common:find_resource",
         "//geometry:drake_visualizer",
-        "//multibody/parsing",
         "//multibody/plant",
-        "//multibody/plant:contact_results_to_lcm",
         "//systems/framework:diagram",
         "//traj_opt:problem_definition",
         "//traj_opt:trajectory_optimizer",

@@ -38,6 +38,7 @@ struct TrajOptExampleParams {
     a->Visit(DRAKE_NVP(play_initial_guess));
     a->Visit(DRAKE_NVP(linesearch_plot_every_iteration));
     a->Visit(DRAKE_NVP(print_debug_data));
+    a->Visit(DRAKE_NVP(save_solver_stats_csv));
     a->Visit(DRAKE_NVP(F));
     a->Visit(DRAKE_NVP(delta));
     a->Visit(DRAKE_NVP(n));
@@ -60,6 +61,7 @@ struct TrajOptExampleParams {
   bool play_initial_guess;
   bool linesearch_plot_every_iteration;
   bool print_debug_data;
+  bool save_solver_stats_csv;
   double F;
   double delta;
   double n;

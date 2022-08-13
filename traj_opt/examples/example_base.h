@@ -1,7 +1,6 @@
 #pragma once
 
 #include <chrono>
-#include <fstream>
 #include <iostream>
 #include <memory>
 #include <string>
@@ -11,11 +10,8 @@
 #include "drake/common/find_resource.h"
 #include "drake/geometry/drake_visualizer.h"
 #include "drake/geometry/scene_graph.h"
-#include "drake/multibody/parsing/parser.h"
-#include "drake/multibody/plant/contact_results_to_lcm.h"
 #include "drake/multibody/plant/multibody_plant.h"
 #include "drake/multibody/plant/multibody_plant_config_functions.h"
-#include "drake/systems/analysis/simulator.h"
 #include "drake/systems/framework/diagram_builder.h"
 #include "drake/traj_opt/examples/yaml_config.h"
 #include "drake/traj_opt/problem_definition.h"
@@ -28,7 +24,6 @@ namespace examples {
 using geometry::DrakeVisualizerd;
 using geometry::SceneGraph;
 using multibody::AddMultibodyPlant;
-using multibody::ConnectContactResultsToDrakeVisualizer;
 using multibody::MultibodyPlantConfig;
 using multibody::Parser;
 using systems::DiagramBuilder;
@@ -123,8 +118,11 @@ class TrajOptExample {
     TrajectoryOptimizerSolution<double> solution;
     TrajectoryOptimizerStats<double> stats;
     SolverFlag status = optimizer.Solve(q_guess, &solution, &stats);
-    DRAKE_ASSERT(status == SolverFlag::kSuccess);
-    std::cout << "Solved in " << stats.solve_time << " seconds." << std::endl;
+    if (status != SolverFlag::kSuccess) {
+      std::cout << "Solver failed!" << std::endl;
+    } else {
+      std::cout << "Solved in " << stats.solve_time << " seconds." << std::endl;
+    }
 
     // Report maximum torques on all DoFs
     VectorXd tau_max = VectorXd::Zero(nv);
@@ -149,6 +147,11 @@ class TrajOptExample {
     std::cout << "v_nom : " << opt_prob.v_nom.transpose() << std::endl;
     std::cout << "v[T]  : " << solution.v[options.num_steps].transpose()
               << std::endl;
+
+    // Save stats to CSV for later plotting
+    if (options.save_solver_stats_csv) {
+      stats.SaveToCsv("solver_stats.csv");
+    }
 
     // Play back the result on the visualizer
     if (options.play_optimal_trajectory) {
