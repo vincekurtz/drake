@@ -30,21 +30,15 @@ drake_cc_binary(
     name = "pendulum",
     srcs = ["pendulum.cc"],
     add_test_rule = 1,
-    data = ["//examples/pendulum:prod_models"],
-    test_rule_args = [
-        "-num_steps=100",
-        "-visualize=false",
+    data = [
+        ":pendulum.yaml",
+        "//examples/pendulum:prod_models",
     ],
     deps = [
+        ":example_base",
         "//common:find_resource",
-        "//geometry:drake_visualizer",
         "//multibody/parsing",
         "//multibody/plant",
-        "//systems/analysis:simulator",
-        "//systems/framework:diagram",
-        "//traj_opt:problem_definition",
-        "//traj_opt:trajectory_optimizer",
-        "@gflags",
     ],
 )
 
