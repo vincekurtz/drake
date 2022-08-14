@@ -40,7 +40,7 @@ play_initial_guess : false
 # Debugging parameters
 linesearch_plot_every_iteration : false
 print_debug_data : false
-save_solver_stats_csv : false
+save_solver_stats_csv : true
 
 # Contact model parameters (not relevant to pendulum)
 F : 0.5       # force at delta meters of penetration
