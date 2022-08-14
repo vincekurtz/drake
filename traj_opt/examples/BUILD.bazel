@@ -47,8 +47,11 @@ drake_cc_binary(
     srcs = ["spinner.cc"],
     add_test_rule = 1,
     data = [
-        ":spinner.urdf",
         ":spinner.yaml",
+        ":spinner_capsule.urdf",
+        ":spinner_rectangle.urdf",
+        ":spinner_sphere.urdf",
+        ":spinner_square.urdf",
     ],
     test_rule_args = [],
     deps = [
@@ -56,6 +59,7 @@ drake_cc_binary(
         "//common:find_resource",
         "//multibody/parsing",
         "//multibody/plant",
+        "@gflags",
     ],
 )
 
