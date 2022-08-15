@@ -54,6 +54,18 @@ struct TrajectoryOptimizerStats {
   // Norm of the gradient at each iteration
   std::vector<T> gradient_norm;
 
+  // dq norm
+  std::vector<T> dq_norm;
+
+  // g norm scaled
+  std::vector<T> g_norm_scaled;
+
+  // H diag norm
+  std::vector<T> H_diag_norm;
+
+  // Trust region ratio (L(q) - L(q+dq)) / (m(q) - m(q+dq))
+  std::vector<T> trust_region_ratio;
+
   /**
    * Add the data from one iteration to the stored lists
    *
@@ -93,7 +105,7 @@ struct TrajectoryOptimizerStats {
     data_file.open(fname);
 
     // Write a header
-    data_file << "iter, time, cost, ls_iters, alpha, grad_norm\n";
+    data_file << "iter, time, cost, ls_iters, alpha, dq_norm, g_norm_scaled, H_diag_norm, trust_region_ratio, grad_norm\n";
 
     const int num_iters = iteration_times.size();
     for (int i = 0; i < num_iters; ++i) {
@@ -103,7 +115,12 @@ struct TrajectoryOptimizerStats {
       data_file << iteration_costs[i] << ", ";
       data_file << linesearch_iterations[i] << ", ";
       data_file << linesearch_alphas[i] << ", ";
+      data_file << dq_norm[i] << ", ";
+      data_file << g_norm_scaled[i] << ", ";
+      data_file << H_diag_norm[i] << ", ";
+      data_file << trust_region_ratio[i] << ", ";
       data_file << gradient_norm[i] << "\n";
+
     }
 
     // Close the file

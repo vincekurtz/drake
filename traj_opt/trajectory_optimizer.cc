@@ -57,7 +57,21 @@ T TrajectoryOptimizer<T>::CalcCost(
     const TrajectoryOptimizerState<T>& state) const {
   const std::vector<VectorX<T>>& v = EvalV(state);
   const std::vector<VectorX<T>>& tau = EvalTau(state);
-  return CalcCost(state.q(), v, tau, &state.workspace);
+  T cost = CalcCost(state.q(), v, tau, &state.workspace);
+
+  // DEBUG: proximal operator cost
+  if (params_.proximal) {
+    if (q_last_.size() > 0) {  // ignore on first iteration
+      const PentaDiagonalMatrix<T> H = EvalHessian(state);
+      const std::vector<MatrixX<T>>& C = H.C();
+      for (int t = 0; t <= num_steps(); ++t) {
+        cost += T(params_.rho * 0.5 * (state.q()[t] - q_last_[t]).transpose() * C[t] *
+                  (state.q()[t] - q_last_[t]));
+      }
+    }
+  }
+
+  return cost;
 }
 
 template <typename T>
@@ -499,6 +513,18 @@ void TrajectoryOptimizer<T>::CalcGradient(
   vt_term = (v[num_steps()] - prob_.v_nom).transpose() * 2 * prob_.Qf_v *
             dvt_dqt[num_steps()];
   g->tail(nq) = qt_term + vt_term + taum_term;
+
+  // DEBUG: proximal operator term
+  if (params_.proximal) {
+    if (q_last_.size() > 0) {  // ignore on first iteration
+      const PentaDiagonalMatrix<T> H = EvalHessian(state);
+      const std::vector<MatrixX<T>>& C = H.C();
+      for (int t = 0; t <= num_steps(); ++t) {
+        g->segment(t * nq, nq) +=
+            params_.rho * C[t] * (state.q()[t] - q_last_[t]);
+      }
+    }
+  }
 }
 
 template <typename T>
@@ -578,6 +604,14 @@ void TrajectoryOptimizer<T>::CalcHessian(
   dgT_dqT += dvt_dqt[num_steps()].transpose() * Qf_v * dvt_dqt[num_steps()];
   dgT_dqT +=
       dtau_dqp[num_steps() - 1].transpose() * R * dtau_dqp[num_steps() - 1];
+
+  // DEBUG: add to diagonal 
+  using std::max;
+  const int nq = plant().num_positions();
+  for (auto& Cb : C) {
+    Cb += params_.rho * max(1., Cb.norm()) * MatrixX<T>::Identity(nq, nq);    
+    //Cb += params_.rho * MatrixX<T>::Identity(nq, nq);    
+  }
 
   // Copy lower triangular part to upper triangular part
   H->MakeSymmetric();
@@ -694,7 +728,7 @@ void TrajectoryOptimizer<T>::SaveLinesearchResidual(
 
   std::ofstream data_file;
   data_file.open(filename);
-  data_file << "alpha, residual\n";  // header
+  data_file << "alpha, cost, gradient, dq, dq_scaled, L_prime \n";  // header
 
   double alpha = alpha_min;
   while (alpha <= alpha_max) {
@@ -705,7 +739,24 @@ void TrajectoryOptimizer<T>::SaveLinesearchResidual(
     // phi(alpha) = L(q + alpha * dq) - L
     scratch_state->set_q(state.q());
     scratch_state->AddToQ(alpha * dq);
-    data_file << EvalCost(*scratch_state) - EvalCost(state) << "\n";
+    data_file << EvalCost(*scratch_state) - EvalCost(state) << ", ";
+
+    //DEBUG: plot norm of gradient instead
+    const VectorX<T>& g = EvalGradient(*scratch_state);
+    data_file << g.norm() << ", ";
+    data_file << dq.norm() << ", ";
+    const std::vector<MatrixX<T>>& C = EvalHessian(*scratch_state).C();
+    VectorX<T> c_diag(dq.size());
+    int i = 0;
+    using std::abs;
+    for (const auto& Cb : C) {
+      for (int k =0; k< plant().num_positions(); ++k) {
+        c_diag[i++] = abs(Cb(k, k));
+      }
+    }
+    VectorX<T> dq_scaled = dq.array() / c_diag.array();
+    data_file << dq_scaled.norm() << ", ";
+    data_file << g.dot(dq) << "\n";
 
     alpha += dalpha;
   }
@@ -843,7 +894,7 @@ std::tuple<double, int> TrajectoryOptimizer<T>::ArmijoLinesearch(
 template <typename T>
 SolverFlag TrajectoryOptimizer<T>::Solve(const std::vector<VectorX<T>>&,
                                          TrajectoryOptimizerSolution<T>*,
-                                         TrajectoryOptimizerStats<T>*) const {
+                                         TrajectoryOptimizerStats<T>*) {
   throw std::runtime_error(
       "TrajectoryOptimizer::Solve only supports T=double.");
 }
@@ -852,7 +903,7 @@ template <>
 SolverFlag TrajectoryOptimizer<double>::Solve(
     const std::vector<VectorXd>& q_guess,
     TrajectoryOptimizerSolution<double>* solution,
-    TrajectoryOptimizerStats<double>* stats) const {
+    TrajectoryOptimizerStats<double>* stats)  {
   // The guess must be consistent with the initial condition
   DRAKE_DEMAND(q_guess[0] == prob_.q_init);
   DRAKE_DEMAND(static_cast<int>(q_guess.size()) == num_steps() + 1);
@@ -898,6 +949,11 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
     // Compute the total cost
     cost = EvalCost(state);
 
+    // Cost should be decreasing monotonically
+    //if (k > 0) {
+    //  DRAKE_DEMAND(cost <= stats->iteration_costs[k-1] + 1e-6);
+    //}
+
     // Compute gradient and Hessian
     const VectorXd& g = EvalGradient(state);
     const PentaDiagonalMatrix<double>& H = EvalHessian(state);
@@ -910,6 +966,8 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
     }
     Hchol.SolveInPlace(&dq);
 
+
+
     // Solve the linsearch
     // N.B. we use a separate state variable since we will need to compute
     // L(q+alpha*dq) (at the very least), and we don't want to change state.q
@@ -918,7 +976,7 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
     // Record linesearch data, if requested
     if (params_.linesearch_plot_every_iteration) {
       SaveLinesearchResidual(state, dq, &scratch_state,
-                             fmt::format("linesearch_data_{}.csv", k));
+                              fmt::format("linesearch_data_{}.csv", k));
     }
 
     if (ls_iters >= params_.max_linesearch_iterations) {
@@ -927,6 +985,18 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
         std::cout << "LINESEARCH FAILED" << std::endl;
         std::cout << "Reached maximum linesearch iterations ("
                   << params_.max_linesearch_iterations << ")." << std::endl;
+      }
+    
+      if (params_.print_debug_data) {
+        double condition_number = 1 / H.MakeDense().ldlt().rcond();
+        double L_prime = g.transpose() * dq;
+        std::cout << "Condition #: " << condition_number << std::endl;
+        std::cout << "|| dq ||   : " << dq.norm() << std::endl;
+        std::cout << "||  g ||   : " << g.norm() << std::endl;
+        std::cout << "L'         : " << L_prime << std::endl;
+        std::cout << "L          : " << cost << std::endl;
+        std::cout << "L' / L     : " << L_prime / cost << std::endl;
+        std::cout << "||diag(H)||: " << H.MakeDense().diagonal().norm() << std::endl;
       }
 
       // Save the linesearch residual to a csv file so we can plot in python
@@ -937,6 +1007,11 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
       solve_time = std::chrono::high_resolution_clock::now() - start_time;
       stats->solve_time = solve_time.count();
       stats->push_data(iter_time.count(), cost, ls_iters, alpha, g.norm());
+      stats->dq_norm.push_back(dq.norm());   //debug
+      const VectorXd H_diag = H.MakeDense().diagonal();
+      const VectorXd g_scaled = g.array() / H_diag.array();
+      stats->g_norm_scaled.push_back(g_scaled.norm());
+      stats->H_diag_norm.push_back(H_diag.norm());
 
       // record the solution anyway
       solution->q = state.q();
@@ -946,8 +1021,15 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
       return SolverFlag::kLinesearchMaxIters;
     }
 
+    // DEBUG: compute trust region ratio
+    double L_of_q = cost;
+    double m_of_q = cost;
+    double m_of_q_new = cost + g.dot(dq) + 0.5 * dq.transpose() * H.MakeDense() * dq;
+
     // Update the decision variables
     state.AddToQ(alpha * dq);
+
+    double L_of_q_new = EvalCost(state);  // trust region ratio
 
     iter_time = std::chrono::high_resolution_clock::now() - iter_start_time;
 
@@ -971,10 +1053,34 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
       std::cout << "L'         : " << L_prime << std::endl;
       std::cout << "L          : " << cost << std::endl;
       std::cout << "L' / L     : " << L_prime / cost << std::endl;
+      std::cout << "||diag(H)||: " << H.MakeDense().diagonal().norm() << std::endl;
+      if (k > 0) {
+        std::cout << "L[k] - L[k-1]: " << cost - stats->iteration_costs[k-1] << std::endl;
+      }
     }
 
     // Record iteration data
     stats->push_data(iter_time.count(), cost, ls_iters, alpha, g.norm());
+
+    //DEBUG
+    const VectorXd H_diag = H.MakeDense().diagonal();
+    const VectorXd g_scaled = g.array() / H_diag.array();
+    double actual_reduction = L_of_q - L_of_q_new;
+    double predicted_reduction = m_of_q - m_of_q_new;
+
+    stats->dq_norm.push_back(dq.norm());
+    stats->g_norm_scaled.push_back(g_scaled.norm());
+    stats->H_diag_norm.push_back(H_diag.norm());
+    stats->trust_region_ratio.push_back(actual_reduction / predicted_reduction);
+      
+    std::cout << "TR ratio   : " << actual_reduction / predicted_reduction << std::endl;
+
+    //DEBUG
+    q_last_.clear();
+    const int nq = plant().num_positions();
+    for (const VectorXd& qt : state.q()) {
+      q_last_.push_back( MatrixXd::Identity(nq, nq) * qt);
+    }
 
     ++k;
   } while (k < params_.max_iterations);

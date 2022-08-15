@@ -35,13 +35,33 @@ else:
 data_file = drake_root + "/bazel-out/k8-opt/bin/traj_opt/examples/spinner.runfiles/drake/" + filename
 data = np.genfromtxt(data_file, delimiter=',', names=True)
 alpha = data["alpha"]
-residual = data["residual"]
+cost = data["cost"]
+gradient = data["gradient"]
+L_prime = data["L_prime"]
+dq = data["dq"]
+dq_scaled = data["dq_scaled"]
 
-plt.plot(alpha, residual)
+plt.figure()
+plt.plot(alpha, cost)
 plt.axvline(0.0, linestyle='--', color='grey', linewidth=1)
 plt.axvline(1.0, linestyle='--', color='grey', linewidth=1)
 plt.xlabel(r"Linesearch Parameter $\alpha$")
-plt.ylabel(r"Linesearch Residual $L(q+\alpha\Delta q) - L(q)$")
+plt.ylabel(r"Cost $L(q+\alpha\Delta q) - L(q)$")
+
+plt.figure()
+plt.plot(alpha, gradient)
+plt.axvline(0.0, linestyle='--', color='grey', linewidth=1)
+plt.axvline(1.0, linestyle='--', color='grey', linewidth=1)
+plt.xlabel(r"Linesearch Parameter $\alpha$")
+plt.ylabel(r"Norm of Gradient $\|g\|$")
+
+plt.figure()
+plt.plot(alpha, L_prime)
+plt.axvline(0.0, linestyle='--', color='grey', linewidth=1)
+plt.axvline(1.0, linestyle='--', color='grey', linewidth=1)
+plt.axhline(0.0, linestyle='--', color='grey', linewidth=1)
+plt.xlabel(r"Linesearch Parameter $\alpha$")
+plt.ylabel(r"$L' = g' \Delta q$")
 
 plt.show()
 

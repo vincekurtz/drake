@@ -115,7 +115,7 @@ class TrajectoryOptimizer {
    */
   SolverFlag Solve(const std::vector<VectorX<T>>& q_guess,
                    TrajectoryOptimizerSolution<T>* solution,
-                   TrajectoryOptimizerStats<T>* stats) const;
+                   TrajectoryOptimizerStats<T>* stats) ;
 
   // Evaluator functions to get data from the state's cache, and update it if
   // necessary.
@@ -429,6 +429,9 @@ class TrajectoryOptimizer {
 
   // Various parameters
   const SolverParameters params_;
+
+  // DEBUG: state from last iteration
+  std::vector<VectorX<T>> q_last_;
 };
 
 }  // namespace traj_opt
