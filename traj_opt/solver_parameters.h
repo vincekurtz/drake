@@ -32,8 +32,8 @@ struct SolverParameters {
   // later plotting)
   bool linesearch_plot_every_iteration = false;
 
-  double rho = 0.1;
   bool proximal = false;
+  double rho = 0.1;
 
   // Contact model parameters
   // TODO(vincekurtz): this is definitely the wrong place to specify the contact

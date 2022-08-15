@@ -61,12 +61,15 @@ T TrajectoryOptimizer<T>::CalcCost(
 
   // DEBUG: proximal operator cost
   if (params_.proximal) {
-    if (q_last_.size() > 0) {  // ignore on first iteration
-      const PentaDiagonalMatrix<T> H = EvalHessian(state);
+    if (!state.proximal_operator_data.first_iteration) {
+      const std::vector<VectorX<T>>& q = state.q();
+      const std::vector<VectorX<T>>& q_previous =
+          state.proximal_operator_data.q_previous;
+      const PentaDiagonalMatrix<T> H = state.proximal_operator_data.H_previous;
       const std::vector<MatrixX<T>>& C = H.C();
       for (int t = 0; t <= num_steps(); ++t) {
-        cost += T(params_.rho * 0.5 * (state.q()[t] - q_last_[t]).transpose() * C[t] *
-                  (state.q()[t] - q_last_[t]));
+        cost += T(params_.rho * 0.5 * (q[t] - q_previous[t]).transpose() *
+                  C[t] * (q[t] - q_previous[t]));
       }
     }
   }
@@ -966,8 +969,6 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
     }
     Hchol.SolveInPlace(&dq);
 
-
-
     // Solve the linsearch
     // N.B. we use a separate state variable since we will need to compute
     // L(q+alpha*dq) (at the very least), and we don't want to change state.q
@@ -1075,11 +1076,9 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
       
     std::cout << "TR ratio   : " << actual_reduction / predicted_reduction << std::endl;
 
-    //DEBUG
-    q_last_.clear();
-    const int nq = plant().num_positions();
-    for (const VectorXd& qt : state.q()) {
-      q_last_.push_back( MatrixXd::Identity(nq, nq) * qt);
+    // Set data from this iteration for the proximal operator stuff
+    if (params_.proximal) { 
+      state.proximal_operator_data.q_previous = state.q();
     }
 
     ++k;

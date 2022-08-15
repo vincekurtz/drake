@@ -81,6 +81,30 @@ struct TrajectoryOptimizerCache {
 };
 
 /**
+ * Struct for storing data that we need for adding a "proximal operator" term to
+ * the cost.
+ *
+ * The proximal operator adds a term
+ *
+ *    1/2 * rho * (q_k - q_{k-1}) * diag(H_{k-1}) * (q_k - q_{k-1})
+ *
+ * to the cost, which helps ensure that we take relatively small steps.
+ *
+ */
+template <typename T>
+struct ProximalOperatorData {
+  // The sequence of generalized positions (decision variables) at iteration k-1
+  std::vector<VectorX<T>> q_previous;
+
+  // The Hessian at iteration k-1
+  PentaDiagonalMatrix<T> H_previous;
+
+  // Flag for indicating whether this is the first iteration, since H_{k-1} and
+  // q_{k-1} are not defined for the first iteration.
+  bool first_iteration = true;
+}
+
+/**
  * Struct for storing the "state" of the trajectory optimizer.
  *
  * The only actual state is the sequence of generalized positions q at each
@@ -162,6 +186,12 @@ class TrajectoryOptimizerState {
    */
   mutable TrajectoryOptimizerWorkspace<T> workspace;
 
+  /**
+   * Stores the decision variables (q) and the Hessian (H) evaluated at the
+   * previous iteration, so we can add a proximal operator term to the cost.
+   */
+  ProximalOperatorData<T> proximal_operator_data;
+
  private:
   // Number of timesteps in the optimization problem
   const int num_steps_;
@@ -174,7 +204,7 @@ class TrajectoryOptimizerState {
   // TODO(vincekurtz): consider storing as a single VectorX<T> for better memory
   // layout.
   std::vector<VectorX<T>> q_;
-
+  
   // Storage for all other quantities that are computed from q, and are useful
   // for our calculations
   mutable TrajectoryOptimizerCache<T> cache_;

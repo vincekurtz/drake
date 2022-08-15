@@ -36,14 +36,14 @@ linesearch : "armijo"  # linesearch strategy, {armino, backtracking}
 
 # Playback/visualization parameters
 play_optimal_trajectory : true
-play_initial_guess : true
+play_initial_guess : false
 
 # Debugging parameters
 linesearch_plot_every_iteration : false
-print_debug_data : true
+print_debug_data : false
 save_solver_stats_csv : true
 
-rho : 0
+rho : 1e-8
 proximal : true
 
 # Contact model parameters
