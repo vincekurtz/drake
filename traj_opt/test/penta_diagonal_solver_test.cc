@@ -14,6 +14,27 @@ namespace drake {
 namespace traj_opt {
 namespace internal {
 
+GTEST_TEST(PentaDiagonalMatrixTest, MultiplyBy) {
+  // Generate a random penta-diagonal matrix
+  const int block_size = 2;
+  const int num_blocks = 5;
+  const int size = num_blocks * block_size;
+  const MatrixXd A = MatrixXd::Random(size, size);
+  const PentaDiagonalMatrix<double> H =
+      PentaDiagonalMatrix<double>::MakeSymmetricFromLowerDense(A, num_blocks,
+                                                               block_size);
+
+  // Multiply by an arbitrary vector
+  const VectorXd v = VectorXd::LinSpaced(size, 0.1, 1.1);
+
+  const VectorXd prod = H.MultiplyBy(v);
+  const VectorXd prod_expected = H.MakeDense() * v;
+
+  const double kTolerance = std::numeric_limits<double>::epsilon() * size;
+  EXPECT_TRUE(CompareMatrices(prod, prod_expected, kTolerance,
+                              MatrixCompareType::relative));
+}
+
 GTEST_TEST(PentaDiagonalMatrixTest, SymmetricMatrixEmpty) {
   const std::vector<MatrixXd> empty_diagonal;
   PentaDiagonalMatrix<double> M(empty_diagonal, empty_diagonal, empty_diagonal);

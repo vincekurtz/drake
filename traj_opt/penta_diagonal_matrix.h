@@ -92,6 +92,9 @@ class PentaDiagonalMatrix {
 
   MatrixX<T> MakeDense() const;
 
+  // Multiply this matrix by a vector of the correct size
+  VectorX<T> MultiplyBy(const VectorX<T>& v) const;
+
   // The size k of each of the blocks in the diagonals. All blocks have the same
   // size k x k.
   int block_size() const { return A_.size() == 0 ? 0 : A_[0].rows(); }
