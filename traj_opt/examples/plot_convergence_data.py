@@ -36,7 +36,7 @@ data = np.genfromtxt(data_file, delimiter=',', names=True)
 iters = data["iter"]
 
 # Make plots
-fig, ax = plt.subplots(4,2,sharex=True,figsize=(16,11))
+fig, ax = plt.subplots(5,2,sharex=True,figsize=(16,11))
 
 fig.suptitle(f"{example_name} convergence data")
 
@@ -54,6 +54,9 @@ ax[2][0].set_ylabel("Linesearch Iters")
 ax[3][0].plot(iters, data["alpha"])
 ax[3][0].set_ylabel("alpha")
 
+ax[4][0].plot(iters, data["trust_region_ratio"])
+ax[4][0].set_ylabel("trust region ratio")
+
 ax[0][1].plot(iters, data["cost"])
 ax[0][1].set_ylabel("Cost")
 ax[0][1].set_yscale("log")
@@ -70,9 +73,9 @@ ax[3][1].plot(iters, data["grad_norm"] / data["cost"])
 ax[3][1].set_ylabel("$||g|| / cost$")
 ax[3][1].set_yscale("log")
 
-ax[3][0].set_xlabel("Iteration")
-ax[3][0].xaxis.set_major_locator(MaxNLocator(integer=True))
-ax[3][1].set_xlabel("Iteration")
-ax[3][1].xaxis.set_major_locator(MaxNLocator(integer=True))
+ax[4][0].set_xlabel("Iteration")
+ax[4][0].xaxis.set_major_locator(MaxNLocator(integer=True))
+ax[4][1].set_xlabel("Iteration")
+ax[4][1].xaxis.set_major_locator(MaxNLocator(integer=True))
 
 plt.show()

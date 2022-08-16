@@ -185,7 +185,8 @@ class TrajectoryOptimizerState {
   mutable TrajectoryOptimizerWorkspace<T> workspace;
 
   /**
-   * Getter for the decision variables and Hessian diagonal at the previous iteration
+   * Getter for the decision variables and Hessian diagonal at the previous
+   * iteration
    */
   const ProximalOperatorData<T>& proximal_operator_data() const {
     return proximal_operator_data_;
@@ -205,7 +206,7 @@ class TrajectoryOptimizerState {
 
     // Set Hessian diagonal
     const std::vector<MatrixX<T>>& C = H.C();
-    for (unsigned int t=0; t<C.size(); ++t) {
+    for (unsigned int t = 0; t < C.size(); ++t) {
       proximal_operator_data_.H_diag[t] = C[t].diagonal();
     }
   }
@@ -226,7 +227,7 @@ class TrajectoryOptimizerState {
   // Struct to store the diagonal of the Hessian and the decision variables (q)
   // from the previous iteration
   ProximalOperatorData<T> proximal_operator_data_;
-  
+
   // Storage for all other quantities that are computed from q, and are useful
   // for our calculations
   mutable TrajectoryOptimizerCache<T> cache_;

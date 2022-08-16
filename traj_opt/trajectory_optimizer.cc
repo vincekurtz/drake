@@ -67,8 +67,8 @@ T TrajectoryOptimizer<T>::CalcCost(
     const std::vector<VectorX<T>>& H_diag =
         state.proximal_operator_data().H_diag;
     for (int t = 0; t <= num_steps(); ++t) {
-      cost += T(0.5 * params_.rho_proximal * (q[t] - q_last[t]).transpose() * H_diag[t].asDiagonal() *
-                (q[t] - q_last[t]));
+      cost += T(0.5 * params_.rho_proximal * (q[t] - q_last[t]).transpose() *
+                H_diag[t].asDiagonal() * (q[t] - q_last[t]));
     }
   }
 
@@ -608,8 +608,9 @@ void TrajectoryOptimizer<T>::CalcHessian(
 
   // Add proximal operator terms to the Hessian, if requested
   if (params_.proximal_operator) {
-    for (int t=0; t<=num_steps(); ++t) {
-      C[t] += params_.rho_proximal * state.proximal_operator_data().H_diag[t].asDiagonal();
+    for (int t = 0; t <= num_steps(); ++t) {
+      C[t] += params_.rho_proximal *
+              state.proximal_operator_data().H_diag[t].asDiagonal();
     }
   }
 
@@ -728,7 +729,7 @@ void TrajectoryOptimizer<T>::SaveLinesearchResidual(
 
   std::ofstream data_file;
   data_file.open(filename);
-  data_file << "alpha, cost, gradient, dq, dq_scaled, L_prime \n";  // header
+  data_file << "alpha, cost, gradient, dq, L_prime \n";  // header
 
   double alpha = alpha_min;
   while (alpha <= alpha_max) {
@@ -741,21 +742,14 @@ void TrajectoryOptimizer<T>::SaveLinesearchResidual(
     scratch_state->AddToQ(alpha * dq);
     data_file << EvalCost(*scratch_state) - EvalCost(state) << ", ";
 
-    //DEBUG: plot norm of gradient instead
+    // Record the norm of the gradient
     const VectorX<T>& g = EvalGradient(*scratch_state);
     data_file << g.norm() << ", ";
+
+    // Record the norm of the search direction
     data_file << dq.norm() << ", ";
-    const std::vector<MatrixX<T>>& C = EvalHessian(*scratch_state).C();
-    VectorX<T> c_diag(dq.size());
-    int i = 0;
-    using std::abs;
-    for (const auto& Cb : C) {
-      for (int k =0; k< plant().num_positions(); ++k) {
-        c_diag[i++] = abs(Cb(k, k));
-      }
-    }
-    VectorX<T> dq_scaled = dq.array() / c_diag.array();
-    data_file << dq_scaled.norm() << ", ";
+
+    // Record the derivative of the linesearch residual w.r.t alpha
     data_file << g.dot(dq) << "\n";
 
     alpha += dalpha;
@@ -922,6 +916,15 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
   double cost;
   VectorXd dq((num_steps() + 1) * plant().num_positions());
 
+  // Set proximal operator data for the first iteration
+  // N.B. since state.proximal_operator_data.H_diag is initialized to zero, this
+  // first computation of the Hessian, which is for scaling purposes only, will
+  // not include the proximal operator term.
+  if (params_.proximal_operator) {
+    state.set_proximal_operator_data(q_guess, EvalHessian(state));
+    scratch_state.set_proximal_operator_data(q_guess, EvalHessian(state));
+  }
+
   if (params_.verbose) {
     // Define printout data
     std::cout << "-------------------------------------------------------------"
@@ -942,8 +945,8 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
   std::chrono::duration<double> solve_time;
 
   // Gauss-Newton iterations
-  int k = 0;                        // iteration counter
-  bool linesearch_failed = false;   // linesearch success flag
+  int k = 0;                       // iteration counter
+  bool linesearch_failed = false;  // linesearch success flag
   do {
     iter_start_time = std::chrono::high_resolution_clock::now();
 
@@ -970,7 +973,7 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
     // Record linesearch data, if requested
     if (params_.linesearch_plot_every_iteration) {
       SaveLinesearchResidual(state, dq, &scratch_state,
-                              fmt::format("linesearch_data_{}.csv", k));
+                             fmt::format("linesearch_data_{}.csv", k));
     }
 
     if (ls_iters >= params_.max_linesearch_iterations) {
@@ -992,6 +995,7 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
     // Update the stored decision variables for the proximal operator cost
     if (params_.proximal_operator) {
       state.set_proximal_operator_data(state.q(), H);
+      scratch_state.set_proximal_operator_data(state.q(), H);
     }
 
     iter_time = std::chrono::high_resolution_clock::now() - iter_start_time;
@@ -1016,15 +1020,18 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
       std::cout << "L'         : " << L_prime << std::endl;
       std::cout << "L          : " << cost << std::endl;
       std::cout << "L' / L     : " << L_prime / cost << std::endl;
-      std::cout << "||diag(H)||: " << H.MakeDense().diagonal().norm() << std::endl;
+      std::cout << "||diag(H)||: " << H.MakeDense().diagonal().norm()
+                << std::endl;
       if (k > 0) {
-        std::cout << "L[k] - L[k-1]: " << cost - stats->iteration_costs[k-1] << std::endl;
+        std::cout << "L[k] - L[k-1]: " << cost - stats->iteration_costs[k - 1]
+                  << std::endl;
       }
     }
 
     // Record iteration data
-    double tr_ratio = NAN;
-    stats->push_data(iter_time.count(), cost, ls_iters, alpha, dq.norm(), tr_ratio, g.norm());
+    double tr_ratio = NAN;  // TODO(vincekurtz): compute the trust-region ratio
+    stats->push_data(iter_time.count(), cost, ls_iters, alpha, dq.norm(),
+                     tr_ratio, g.norm());
 
     ++k;
   } while (k < params_.max_iterations && !linesearch_failed);
@@ -1050,7 +1057,6 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
   } else {
     return SolverFlag::kSuccess;
   }
-
 }
 
 }  // namespace traj_opt

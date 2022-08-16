@@ -39,7 +39,6 @@ cost = data["cost"]
 gradient = data["gradient"]
 L_prime = data["L_prime"]
 dq = data["dq"]
-dq_scaled = data["dq_scaled"]
 
 plt.figure()
 plt.plot(alpha, cost)

@@ -69,7 +69,8 @@ struct TrajectoryOptimizerStats {
    * @param linesearch_iters number of linesearch iterations
    * @param alpha linesearch parameter
    * @param dq_norm norm of the linesearch direction Δq
-   * @param tr_ratio trust region ratio: actual cost reduction / expected cost reduction
+   * @param tr_ratio trust region ratio: actual cost reduction / expected cost
+   * reduction
    * @param grad_norm norm of the gradient
    */
   void push_data(double iter_time, T iter_cost, int linesearch_iters,
@@ -105,7 +106,8 @@ struct TrajectoryOptimizerStats {
     data_file.open(fname);
 
     // Write a header
-    data_file << "iter, time, cost, ls_iters, alpha, dq_norm, trust_region_ratio, grad_norm\n";
+    data_file << "iter, time, cost, ls_iters, alpha, dq_norm, "
+                 "trust_region_ratio, grad_norm\n";
 
     const int num_iters = iteration_times.size();
     for (int i = 0; i < num_iters; ++i) {
@@ -118,7 +120,6 @@ struct TrajectoryOptimizerStats {
       data_file << dq_norms[i] << ", ";
       data_file << trust_region_ratios[i] << ", ";
       data_file << gradient_norms[i] << "\n";
-
     }
 
     // Close the file

@@ -429,7 +429,6 @@ class TrajectoryOptimizer {
 
   // Various parameters
   const SolverParameters params_;
-
 };
 
 }  // namespace traj_opt
