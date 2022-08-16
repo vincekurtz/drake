@@ -42,8 +42,6 @@ struct TrajOptExampleParams {
     a->Visit(DRAKE_NVP(F));
     a->Visit(DRAKE_NVP(delta));
     a->Visit(DRAKE_NVP(n));
-    a->Visit(DRAKE_NVP(rho));
-    a->Visit(DRAKE_NVP(proximal));
   }
   std::vector<double> q_init;
   std::vector<double> v_init;
@@ -67,8 +65,6 @@ struct TrajOptExampleParams {
   double F;
   double delta;
   double n;
-  double rho;
-  bool proximal;
 };
 
 }  // namespace examples

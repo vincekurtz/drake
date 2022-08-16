@@ -52,19 +52,14 @@ struct TrajectoryOptimizerStats {
   std::vector<double> linesearch_alphas;
 
   // Norm of the gradient at each iteration
-  std::vector<T> gradient_norm;
+  std::vector<T> gradient_norms;
 
-  // dq norm
-  std::vector<T> dq_norm;
+  // Norm of the search direction at each iteration
+  std::vector<T> dq_norms;
 
-  // g norm scaled
-  std::vector<T> g_norm_scaled;
-
-  // H diag norm
-  std::vector<T> H_diag_norm;
-
-  // Trust region ratio (L(q) - L(q+dq)) / (m(q) - m(q+dq))
-  std::vector<T> trust_region_ratio;
+  // Trust region ratio (L(q) - L(q+dq)) / (m(q) - m(q+dq)), where m is a
+  // quadratic model of the cost
+  std::vector<T> trust_region_ratios;
 
   /**
    * Add the data from one iteration to the stored lists
@@ -73,15 +68,19 @@ struct TrajectoryOptimizerStats {
    * @param iter_cost cost at this iteration
    * @param linesearch_iters number of linesearch iterations
    * @param alpha linesearch parameter
+   * @param dq_norm norm of the linesearch direction Δq
+   * @param tr_ratio trust region ratio: actual cost reduction / expected cost reduction
    * @param grad_norm norm of the gradient
    */
   void push_data(double iter_time, T iter_cost, int linesearch_iters,
-                 double alpha, T grad_norm) {
+                 double alpha, T dq_norm, T tr_ratio, T grad_norm) {
     iteration_times.push_back(iter_time);
     iteration_costs.push_back(iter_cost);
     linesearch_iterations.push_back(linesearch_iters);
     linesearch_alphas.push_back(alpha);
-    gradient_norm.push_back(grad_norm);
+    dq_norms.push_back(dq_norm);
+    trust_region_ratios.push_back(tr_ratio);
+    gradient_norms.push_back(grad_norm);
   }
 
   /**
@@ -90,7 +89,8 @@ struct TrajectoryOptimizerStats {
   bool is_empty() const {
     return ((iteration_times.size() == 0) && (iteration_costs.size() == 0) &&
             (linesearch_iterations.size() == 0) &&
-            (linesearch_alphas.size() == 0) && (gradient_norm.size() == 0));
+            (linesearch_alphas.size() == 0) && (dq_norms.size() == 0) &&
+            (trust_region_ratios.size() == 0) && (gradient_norms.size() == 0));
   }
 
   /**
@@ -105,7 +105,7 @@ struct TrajectoryOptimizerStats {
     data_file.open(fname);
 
     // Write a header
-    data_file << "iter, time, cost, ls_iters, alpha, dq_norm, g_norm_scaled, H_diag_norm, trust_region_ratio, grad_norm\n";
+    data_file << "iter, time, cost, ls_iters, alpha, dq_norm, trust_region_ratio, grad_norm\n";
 
     const int num_iters = iteration_times.size();
     for (int i = 0; i < num_iters; ++i) {
@@ -115,11 +115,9 @@ struct TrajectoryOptimizerStats {
       data_file << iteration_costs[i] << ", ";
       data_file << linesearch_iterations[i] << ", ";
       data_file << linesearch_alphas[i] << ", ";
-      data_file << dq_norm[i] << ", ";
-      data_file << g_norm_scaled[i] << ", ";
-      data_file << H_diag_norm[i] << ", ";
-      data_file << trust_region_ratio[i] << ", ";
-      data_file << gradient_norm[i] << "\n";
+      data_file << dq_norms[i] << ", ";
+      data_file << trust_region_ratios[i] << ", ";
+      data_file << gradient_norms[i] << "\n";
 
     }
 

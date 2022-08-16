@@ -93,10 +93,6 @@ class TrajOptExample {
     solver_params.linesearch_plot_every_iteration =
         options.linesearch_plot_every_iteration;
 
-    // debug
-    solver_params.rho = options.rho;
-    solver_params.proximal = options.proximal;
-
     // Set contact parameters
     // TODO(vincekurtz): figure out a better place to set these
     solver_params.F = options.F;

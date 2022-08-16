@@ -59,21 +59,6 @@ T TrajectoryOptimizer<T>::CalcCost(
   const std::vector<VectorX<T>>& tau = EvalTau(state);
   T cost = CalcCost(state.q(), v, tau, &state.workspace);
 
-  // DEBUG: proximal operator cost
-  if (params_.proximal) {
-    if (!state.proximal_operator_data.first_iteration) {
-      const std::vector<VectorX<T>>& q = state.q();
-      const std::vector<VectorX<T>>& q_previous =
-          state.proximal_operator_data.q_previous;
-      const PentaDiagonalMatrix<T> H = state.proximal_operator_data.H_previous;
-      const std::vector<MatrixX<T>>& C = H.C();
-      for (int t = 0; t <= num_steps(); ++t) {
-        cost += T(params_.rho * 0.5 * (q[t] - q_previous[t]).transpose() *
-                  C[t] * (q[t] - q_previous[t]));
-      }
-    }
-  }
-
   return cost;
 }
 
@@ -516,18 +501,6 @@ void TrajectoryOptimizer<T>::CalcGradient(
   vt_term = (v[num_steps()] - prob_.v_nom).transpose() * 2 * prob_.Qf_v *
             dvt_dqt[num_steps()];
   g->tail(nq) = qt_term + vt_term + taum_term;
-
-  // DEBUG: proximal operator term
-  if (params_.proximal) {
-    if (q_last_.size() > 0) {  // ignore on first iteration
-      const PentaDiagonalMatrix<T> H = EvalHessian(state);
-      const std::vector<MatrixX<T>>& C = H.C();
-      for (int t = 0; t <= num_steps(); ++t) {
-        g->segment(t * nq, nq) +=
-            params_.rho * C[t] * (state.q()[t] - q_last_[t]);
-      }
-    }
-  }
 }
 
 template <typename T>
@@ -945,17 +918,13 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
   std::chrono::duration<double> solve_time;
 
   // Gauss-Newton iterations
-  int k = 0;  // iteration counter
+  int k = 0;                        // iteration counter
+  bool linesearch_failed = false;   // linesearch success flag
   do {
     iter_start_time = std::chrono::high_resolution_clock::now();
 
     // Compute the total cost
     cost = EvalCost(state);
-
-    // Cost should be decreasing monotonically
-    //if (k > 0) {
-    //  DRAKE_DEMAND(cost <= stats->iteration_costs[k-1] + 1e-6);
-    //}
 
     // Compute gradient and Hessian
     const VectorXd& g = EvalGradient(state);
@@ -981,56 +950,20 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
     }
 
     if (ls_iters >= params_.max_linesearch_iterations) {
-      // Early termination if linesearch is taking too long
+      linesearch_failed = true;
+
       if (params_.verbose) {
         std::cout << "LINESEARCH FAILED" << std::endl;
         std::cout << "Reached maximum linesearch iterations ("
                   << params_.max_linesearch_iterations << ")." << std::endl;
       }
-    
-      if (params_.print_debug_data) {
-        double condition_number = 1 / H.MakeDense().ldlt().rcond();
-        double L_prime = g.transpose() * dq;
-        std::cout << "Condition #: " << condition_number << std::endl;
-        std::cout << "|| dq ||   : " << dq.norm() << std::endl;
-        std::cout << "||  g ||   : " << g.norm() << std::endl;
-        std::cout << "L'         : " << L_prime << std::endl;
-        std::cout << "L          : " << cost << std::endl;
-        std::cout << "L' / L     : " << L_prime / cost << std::endl;
-        std::cout << "||diag(H)||: " << H.MakeDense().diagonal().norm() << std::endl;
-      }
 
       // Save the linesearch residual to a csv file so we can plot in python
       SaveLinesearchResidual(state, dq, &scratch_state);
-
-      // We'll still record iteration data for playback later
-      iter_time = std::chrono::high_resolution_clock::now() - iter_start_time;
-      solve_time = std::chrono::high_resolution_clock::now() - start_time;
-      stats->solve_time = solve_time.count();
-      stats->push_data(iter_time.count(), cost, ls_iters, alpha, g.norm());
-      stats->dq_norm.push_back(dq.norm());   //debug
-      const VectorXd H_diag = H.MakeDense().diagonal();
-      const VectorXd g_scaled = g.array() / H_diag.array();
-      stats->g_norm_scaled.push_back(g_scaled.norm());
-      stats->H_diag_norm.push_back(H_diag.norm());
-
-      // record the solution anyway
-      solution->q = state.q();
-      solution->v = EvalV(state);
-      solution->tau = EvalTau(state);
-
-      return SolverFlag::kLinesearchMaxIters;
     }
-
-    // DEBUG: compute trust region ratio
-    double L_of_q = cost;
-    double m_of_q = cost;
-    double m_of_q_new = cost + g.dot(dq) + 0.5 * dq.transpose() * H.MakeDense() * dq;
 
     // Update the decision variables
     state.AddToQ(alpha * dq);
-
-    double L_of_q_new = EvalCost(state);  // trust region ratio
 
     iter_time = std::chrono::high_resolution_clock::now() - iter_start_time;
 
@@ -1061,28 +994,11 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
     }
 
     // Record iteration data
-    stats->push_data(iter_time.count(), cost, ls_iters, alpha, g.norm());
-
-    //DEBUG
-    const VectorXd H_diag = H.MakeDense().diagonal();
-    const VectorXd g_scaled = g.array() / H_diag.array();
-    double actual_reduction = L_of_q - L_of_q_new;
-    double predicted_reduction = m_of_q - m_of_q_new;
-
-    stats->dq_norm.push_back(dq.norm());
-    stats->g_norm_scaled.push_back(g_scaled.norm());
-    stats->H_diag_norm.push_back(H_diag.norm());
-    stats->trust_region_ratio.push_back(actual_reduction / predicted_reduction);
-      
-    std::cout << "TR ratio   : " << actual_reduction / predicted_reduction << std::endl;
-
-    // Set data from this iteration for the proximal operator stuff
-    if (params_.proximal) { 
-      state.proximal_operator_data.q_previous = state.q();
-    }
+    double tr_ratio = NAN;
+    stats->push_data(iter_time.count(), cost, ls_iters, alpha, dq.norm(), tr_ratio, g.norm());
 
     ++k;
-  } while (k < params_.max_iterations);
+  } while (k < params_.max_iterations && !linesearch_failed);
 
   // End the problem data printout
   if (params_.verbose) {
@@ -1100,7 +1016,12 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
   solution->v = EvalV(state);
   solution->tau = EvalTau(state);
 
-  return SolverFlag::kSuccess;
+  if (linesearch_failed) {
+    return SolverFlag::kLinesearchMaxIters;
+  } else {
+    return SolverFlag::kSuccess;
+  }
+
 }
 
 }  // namespace traj_opt

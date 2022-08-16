@@ -36,54 +36,39 @@ data = np.genfromtxt(data_file, delimiter=',', names=True)
 iters = data["iter"]
 
 # Make plots
-f, (ax1, ax2, ax3, ax4, ax5) = plt.subplots(5,1,sharex=True,figsize=(8,11))
-ax1.set_title(f"{example_name} convergence data")
+fig, ax = plt.subplots(4,2,sharex=True,figsize=(16,11))
 
-ax1.plot(iters, data["time"])
-ax1.set_ylabel("Time (s)")
-ax1.set_ylim((0,0.05))
+fig.suptitle(f"{example_name} convergence data")
 
-ax2.plot(iters, data["cost"] - data["cost"][-1])
-ax2.set_ylabel("Cost")
-ax2.set_yscale("log")
+ax[0][0].plot(iters, data["time"])
+ax[0][0].set_ylabel("Compute Time (s)")
+ax[0][0].set_ylim((0,0.05))
 
-ax3.plot(iters, data["ls_iters"])
-ax3.set_ylabel("Linesearch Iters")
+ax[1][0].plot(iters, data["cost"] - data["cost"][-1])
+ax[1][0].set_ylabel("Cost (minus baseline)")
+ax[1][0].set_yscale("log")
 
-ax4.plot(iters, data["alpha"])
-ax4.set_ylabel("alpha")
+ax[2][0].plot(iters, data["ls_iters"])
+ax[2][0].set_ylabel("Linesearch Iters")
 
-ax5.plot(iters, data["grad_norm"] / data["cost"])
-ax5.set_ylabel("$||g||$ / cost")
-ax5.set_yscale("log")
+ax[3][0].plot(iters, data["alpha"])
+ax[3][0].set_ylabel("alpha")
 
-ax5.set_xlabel("Iteration")
-ax5.xaxis.set_major_locator(MaxNLocator(integer=True))
+ax[0][1].plot(iters, data["grad_norm"])
+ax[0][1].set_ylabel("$||g||$")
+ax[0][1].set_yscale("log")
 
-# DEBUG
-f, (ax1, ax2, ax3, ax4, ax5) = plt.subplots(5,1,sharex=True,figsize=(8,11))
-ax1.set_title(f"{example_name} extra convergence data")
-ax1.plot(iters, data["grad_norm"])
-ax1.set_ylabel("||g||")
-ax1.set_yscale("log")
+ax[1][1].plot(iters, data["dq_norm"])
+ax[1][1].set_ylabel("$||\Delta q||$")
+ax[1][1].set_yscale("log")
 
-ax2.plot(iters, data["dq_norm"])
-ax2.set_ylabel("|| dq ||")
-ax2.set_yscale("log")
+ax[2][1].plot(iters, data["grad_norm"] / data["cost"])
+ax[2][1].set_ylabel("$||g|| / cost$")
+ax[2][1].set_yscale("log")
 
-ax3.plot(iters, data["g_norm_scaled"])
-ax3.set_ylabel("|| g / diag(H)||")
-ax3.set_yscale("log")
-
-ax4.plot(iters, data["trust_region_ratio"])
-ax4.set_ylabel("trust region ratio")
-ax4.set_ylim((0,2))
-
-ax5.plot(iters, data["H_diag_norm"])
-ax5.set_ylabel("|| diag(H)||")
-ax5.set_yscale("log")
-
-ax5.set_xlabel("Iteration")
-ax5.xaxis.set_major_locator(MaxNLocator(integer=True))
+ax[3][0].set_xlabel("Iteration")
+ax[3][0].xaxis.set_major_locator(MaxNLocator(integer=True))
+ax[3][1].set_xlabel("Iteration")
+ax[3][1].xaxis.set_major_locator(MaxNLocator(integer=True))
 
 plt.show()
