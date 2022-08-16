@@ -413,6 +413,27 @@ class TrajectoryOptimizer {
       const TrajectoryOptimizerState<T>& state, const VectorX<T>& dq,
       TrajectoryOptimizerState<T>* scratch_state) const;
 
+  /**
+   * Compute the trust region ratio
+   *
+   *           L(q) - L(q + dq)
+   *    rho =  ----------------
+   *             m(0) - m(dq)
+   *
+   * which compares the actual reduction in cost to the reduction in cost
+   * predicted by the quadratic model
+   *
+   *    m(dq) = L + g'*dq + 1/2 dq'*H*dq
+   *
+   * @param state optimizer state containing q and everything computed from q
+   * @param dq change in q, stacked in one large vector
+   * @param scratch_state scratch state variable used to compute L(q+dq)
+   * @return T, the trust region ratio
+   */
+  T CalcTrustRegionRatio(const TrajectoryOptimizerState<T>& state,
+                         const VectorX<T>& dq,
+                         TrajectoryOptimizerState<T>* scratch_state) const;
+
   // A model of the system that we are trying to find an optimal trajectory for.
   const MultibodyPlant<T>* plant_;
 

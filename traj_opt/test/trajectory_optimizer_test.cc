@@ -10,6 +10,8 @@
 #include "drake/multibody/parsing/parser.h"
 #include "drake/multibody/plant/multibody_plant.h"
 #include "drake/traj_opt/inverse_dynamics_partials.h"
+#include "drake/traj_opt/penta_diagonal_matrix.h"
+#include "drake/traj_opt/penta_diagonal_solver.h"
 #include "drake/traj_opt/problem_definition.h"
 #include "drake/traj_opt/trajectory_optimizer_state.h"
 #include "drake/traj_opt/trajectory_optimizer_workspace.h"
@@ -72,6 +74,13 @@ class TrajectoryOptimizerTester {
       TrajectoryOptimizerWorkspace<double>* workspace, VectorXd* tau) {
     optimizer.CalcInverseDynamicsSingleTimeStep(q, v, a, workspace, tau);
   }
+
+  static double CalcTrustRegionRatio(
+      const TrajectoryOptimizer<double>& optimizer,
+      const TrajectoryOptimizerState<double>& state, const VectorXd& dq,
+      TrajectoryOptimizerState<double>* scratch_state) {
+    return optimizer.CalcTrustRegionRatio(state, dq, scratch_state);
+  }
 };
 
 namespace internal {
@@ -84,6 +93,67 @@ using multibody::DiscreteContactSolver;
 using multibody::MultibodyPlant;
 using multibody::Parser;
 using test::LimitMalloc;
+
+/**
+ * Test our computation of the trust-region ratio, which should be exactly 1
+ * when our quadratic model of the cost matches the true cost. This is the case
+ * for the simple pendulum without gravity.
+ */
+GTEST_TEST(TrajectoryOptimizerTest, TrustRegionRatio) {
+  // Define an optimization problem
+  const int num_steps = 5;
+  const double dt = 5e-2;
+
+  ProblemDefinition opt_prob;
+  opt_prob.num_steps = num_steps;
+  opt_prob.q_init = Vector1d(0.1);
+  opt_prob.v_init = Vector1d(0.0);
+  opt_prob.Qq = 1.0 * MatrixXd::Identity(1, 1);
+  opt_prob.Qv = 2.0 * MatrixXd::Identity(1, 1);
+  opt_prob.Qf_q = 3.0 * MatrixXd::Identity(1, 1);
+  opt_prob.Qf_v = 4.0 * MatrixXd::Identity(1, 1);
+  opt_prob.R = 5.0 * MatrixXd::Identity(1, 1);
+  opt_prob.q_nom = Vector1d(M_PI);
+  opt_prob.v_nom = Vector1d(-0.3);
+
+  // Create a pendulum model
+  MultibodyPlant<double> plant(dt);
+  const std::string urdf_file =
+      FindResourceOrThrow("drake/examples/pendulum/Pendulum.urdf");
+  Parser(&plant).AddAllModelsFromFile(urdf_file);
+  plant.mutable_gravity_field().set_gravity_vector(VectorXd::Zero(3));
+  plant.Finalize();
+  auto context = plant.CreateDefaultContext();
+
+  // Create an optimizer
+  SolverParameters solver_params;
+  TrajectoryOptimizer<double> optimizer(&plant, context.get(), opt_prob,
+                                        solver_params);
+
+  // Create state, scratch state, and an initial guess
+  std::vector<VectorXd> q_guess;
+  for (int t = 0; t <= num_steps; ++t) {
+    q_guess.push_back(opt_prob.q_init + 0.01 * t * MatrixXd::Identity(1, 1));
+  }
+  TrajectoryOptimizerState<double> state = optimizer.CreateState();
+  TrajectoryOptimizerState<double> scratch_state = optimizer.CreateState();
+  state.set_q(q_guess);
+  scratch_state.set_q(q_guess);
+
+  // Solve for the search direction
+  const PentaDiagonalMatrix<double>& H = optimizer.EvalHessian(state);
+  const VectorXd& g = optimizer.EvalGradient(state);
+  VectorXd dq = -g;
+  PentaDiagonalFactorization Hchol(H);
+  Hchol.SolveInPlace(&dq);
+
+  // Compute the trust region ratio, which should be 1
+  double trust_region_ratio = TrajectoryOptimizerTester::CalcTrustRegionRatio(
+      optimizer, state, dq, &scratch_state);
+
+  const double kTolerance = sqrt(std::numeric_limits<double>::epsilon());
+  EXPECT_NEAR(trust_region_ratio, 1.0, kTolerance);
+}
 
 /**
  * Test our optimizer with a simple pendulum swingup task.
@@ -120,7 +190,6 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumSwingup) {
 
   TrajectoryOptimizer<double> optimizer(&plant, context.get(), opt_prob,
                                         solver_params);
-  TrajectoryOptimizerState<double> state = optimizer.CreateState();
 
   // Set an initial guess
   std::vector<VectorXd> q_guess;

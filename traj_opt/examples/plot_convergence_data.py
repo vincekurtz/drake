@@ -56,6 +56,7 @@ ax[3][0].set_ylabel("alpha")
 
 ax[4][0].plot(iters, data["trust_region_ratio"])
 ax[4][0].set_ylabel("trust region ratio")
+ax[4][0].set_ylim((-1,3))
 
 ax[0][1].plot(iters, data["cost"])
 ax[0][1].set_ylabel("Cost")

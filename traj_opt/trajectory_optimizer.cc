@@ -886,6 +886,28 @@ std::tuple<double, int> TrajectoryOptimizer<T>::ArmijoLinesearch(
 }
 
 template <typename T>
+T TrajectoryOptimizer<T>::CalcTrustRegionRatio(
+    const TrajectoryOptimizerState<T>& state, const VectorX<T>& dq,
+    TrajectoryOptimizerState<T>* scratch_state) const {
+  const T L_old = EvalCost(state);  // L(q)
+
+  // Compute actual reduction in cost
+  scratch_state->set_q(state.q());
+  scratch_state->AddToQ(dq);
+  const T L_new = EvalCost(*scratch_state);  // L(q + dq)
+  const T actual_reduction = L_old - L_new;
+
+  // Compute predicted reduction in cost
+  const VectorX<T>& g = EvalGradient(state);
+  const PentaDiagonalMatrix<T>& H = EvalHessian(state);
+  const T gradient_term = g.dot(dq);
+  const T hessian_term = 0.5 * dq.transpose() * H.MakeDense() * dq;
+  const T predicted_reduction = -gradient_term - hessian_term;
+
+  return actual_reduction / predicted_reduction;
+}
+
+template <typename T>
 SolverFlag TrajectoryOptimizer<T>::Solve(const std::vector<VectorX<T>>&,
                                          TrajectoryOptimizerSolution<T>*,
                                          TrajectoryOptimizerStats<T>*) const {
@@ -989,6 +1011,9 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
       SaveLinesearchResidual(state, dq, &scratch_state);
     }
 
+    // Compute the trust region ratio.
+    double tr_ratio = CalcTrustRegionRatio(state, alpha * dq, &scratch_state);
+
     // Update the decision variables
     state.AddToQ(alpha * dq);
 
@@ -1029,7 +1054,6 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
     }
 
     // Record iteration data
-    double tr_ratio = NAN;  // TODO(vincekurtz): compute the trust-region ratio
     stats->push_data(iter_time.count(), cost, ls_iters, alpha, dq.norm(),
                      tr_ratio, g.norm());
 
