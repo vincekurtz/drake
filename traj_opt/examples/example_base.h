@@ -78,6 +78,8 @@ class TrajOptExample {
     opt_prob.v_nom = Eigen::Map<VectorXd>(options.v_nom.data(), nv);
 
     // Set our solver parameters
+    // TODO(vincekurtz): consider separate functions mapping options to opt_prob
+    // and mapping options to solver_params
     SolverParameters solver_params;
     if (options.linesearch == "backtracking") {
       solver_params.linesearch_method = LinesearchMethod::kBacktracking;
@@ -92,6 +94,9 @@ class TrajOptExample {
     solver_params.print_debug_data = options.print_debug_data;
     solver_params.linesearch_plot_every_iteration =
         options.linesearch_plot_every_iteration;
+
+    solver_params.proximal_operator = options.proximal_operator;
+    solver_params.rho_proximal = options.rho_proximal;
 
     // Set contact parameters
     // TODO(vincekurtz): figure out a better place to set these

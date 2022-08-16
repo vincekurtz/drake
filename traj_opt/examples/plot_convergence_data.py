@@ -40,13 +40,13 @@ fig, ax = plt.subplots(4,2,sharex=True,figsize=(16,11))
 
 fig.suptitle(f"{example_name} convergence data")
 
-ax[0][0].plot(iters, data["time"])
-ax[0][0].set_ylabel("Compute Time (s)")
-ax[0][0].set_ylim((0,0.05))
+ax[0][0].plot(iters, data["cost"] - data["cost"][-1])
+ax[0][0].set_ylabel("Cost (minus baseline)")
+ax[0][0].set_yscale("log")
 
-ax[1][0].plot(iters, data["cost"] - data["cost"][-1])
-ax[1][0].set_ylabel("Cost (minus baseline)")
-ax[1][0].set_yscale("log")
+ax[1][0].plot(iters, data["time"])
+ax[1][0].set_ylabel("Compute Time (s)")
+ax[1][0].set_ylim((0,0.05))
 
 ax[2][0].plot(iters, data["ls_iters"])
 ax[2][0].set_ylabel("Linesearch Iters")
@@ -54,17 +54,21 @@ ax[2][0].set_ylabel("Linesearch Iters")
 ax[3][0].plot(iters, data["alpha"])
 ax[3][0].set_ylabel("alpha")
 
-ax[0][1].plot(iters, data["grad_norm"])
-ax[0][1].set_ylabel("$||g||$")
+ax[0][1].plot(iters, data["cost"])
+ax[0][1].set_ylabel("Cost")
 ax[0][1].set_yscale("log")
 
-ax[1][1].plot(iters, data["dq_norm"])
-ax[1][1].set_ylabel("$||\Delta q||$")
+ax[1][1].plot(iters, data["grad_norm"])
+ax[1][1].set_ylabel("$||g||$")
 ax[1][1].set_yscale("log")
 
-ax[2][1].plot(iters, data["grad_norm"] / data["cost"])
-ax[2][1].set_ylabel("$||g|| / cost$")
+ax[2][1].plot(iters, data["dq_norm"])
+ax[2][1].set_ylabel("$||\Delta q||$")
 ax[2][1].set_yscale("log")
+
+ax[3][1].plot(iters, data["grad_norm"] / data["cost"])
+ax[3][1].set_ylabel("$||g|| / cost$")
+ax[3][1].set_yscale("log")
 
 ax[3][0].set_xlabel("Iteration")
 ax[3][0].xaxis.set_major_locator(MaxNLocator(integer=True))

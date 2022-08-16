@@ -59,6 +59,19 @@ T TrajectoryOptimizer<T>::CalcCost(
   const std::vector<VectorX<T>>& tau = EvalTau(state);
   T cost = CalcCost(state.q(), v, tau, &state.workspace);
 
+  // Add a proximal operator term to the cost, if requested
+  if (params_.proximal_operator) {
+    const std::vector<VectorX<T>>& q = state.q();
+    const std::vector<VectorX<T>>& q_last =
+        state.proximal_operator_data().q_last;
+    const std::vector<VectorX<T>>& H_diag =
+        state.proximal_operator_data().H_diag;
+    for (int t = 0; t <= num_steps(); ++t) {
+      cost += T(0.5 * params_.rho_proximal * (q[t] - q_last[t]).transpose() * H_diag[t].asDiagonal() *
+                (q[t] - q_last[t]));
+    }
+  }
+
   return cost;
 }
 
@@ -501,6 +514,18 @@ void TrajectoryOptimizer<T>::CalcGradient(
   vt_term = (v[num_steps()] - prob_.v_nom).transpose() * 2 * prob_.Qf_v *
             dvt_dqt[num_steps()];
   g->tail(nq) = qt_term + vt_term + taum_term;
+
+  // Add proximal operator term to the gradient, if requested
+  if (params_.proximal_operator) {
+    const std::vector<VectorX<T>>& q_last =
+        state.proximal_operator_data().q_last;
+    const std::vector<VectorX<T>>& H_diag =
+        state.proximal_operator_data().H_diag;
+    for (int t = 0; t <= num_steps(); ++t) {
+      g->segment(t * nq, nq) +=
+          params_.rho_proximal * H_diag[t].asDiagonal() * (q[t] - q_last[t]);
+    }
+  }
 }
 
 template <typename T>
@@ -581,12 +606,11 @@ void TrajectoryOptimizer<T>::CalcHessian(
   dgT_dqT +=
       dtau_dqp[num_steps() - 1].transpose() * R * dtau_dqp[num_steps() - 1];
 
-  // DEBUG: add to diagonal 
-  using std::max;
-  const int nq = plant().num_positions();
-  for (auto& Cb : C) {
-    Cb += params_.rho * max(1., Cb.norm()) * MatrixX<T>::Identity(nq, nq);    
-    //Cb += params_.rho * MatrixX<T>::Identity(nq, nq);    
+  // Add proximal operator terms to the Hessian, if requested
+  if (params_.proximal_operator) {
+    for (int t=0; t<=num_steps(); ++t) {
+      C[t] += params_.rho_proximal * state.proximal_operator_data().H_diag[t].asDiagonal();
+    }
   }
 
   // Copy lower triangular part to upper triangular part
@@ -870,7 +894,7 @@ std::tuple<double, int> TrajectoryOptimizer<T>::ArmijoLinesearch(
 template <typename T>
 SolverFlag TrajectoryOptimizer<T>::Solve(const std::vector<VectorX<T>>&,
                                          TrajectoryOptimizerSolution<T>*,
-                                         TrajectoryOptimizerStats<T>*) {
+                                         TrajectoryOptimizerStats<T>*) const {
   throw std::runtime_error(
       "TrajectoryOptimizer::Solve only supports T=double.");
 }
@@ -879,7 +903,7 @@ template <>
 SolverFlag TrajectoryOptimizer<double>::Solve(
     const std::vector<VectorXd>& q_guess,
     TrajectoryOptimizerSolution<double>* solution,
-    TrajectoryOptimizerStats<double>* stats)  {
+    TrajectoryOptimizerStats<double>* stats) const {
   // The guess must be consistent with the initial condition
   DRAKE_DEMAND(q_guess[0] == prob_.q_init);
   DRAKE_DEMAND(static_cast<int>(q_guess.size()) == num_steps() + 1);
@@ -964,6 +988,11 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
 
     // Update the decision variables
     state.AddToQ(alpha * dq);
+
+    // Update the stored decision variables for the proximal operator cost
+    if (params_.proximal_operator) {
+      state.set_proximal_operator_data(state.q(), H);
+    }
 
     iter_time = std::chrono::high_resolution_clock::now() - iter_start_time;
 
