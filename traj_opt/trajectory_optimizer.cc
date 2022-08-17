@@ -907,9 +907,11 @@ T TrajectoryOptimizer<T>::CalcTrustRegionRatio(
   const double eps = 100 * std::numeric_limits<T>::epsilon();
   if ((predicted_reduction < eps) &&
       (actual_reduction < eps)) {
-    // Low predicted reduction indicates that we are very close to optimality,
-    // so set rho = 1
-    return 1.0;
+    // Predicted and actual reduction are essentially zero, meaning we are close
+    // to convergence. If this is the case, we want to set a trust ratio that is
+    // large enough that we accept dq, but not so large that we increase the
+    // trust region.
+    return 0.7;
   }
 
   return actual_reduction / predicted_reduction;
