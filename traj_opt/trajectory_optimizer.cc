@@ -897,18 +897,20 @@ T TrajectoryOptimizer<T>::CalcTrustRegionRatio(
   const T hessian_term = 0.5 * dq.transpose() * H.MultiplyBy(dq);
   const T predicted_reduction = -gradient_term - hessian_term;
 
-  if (predicted_reduction < 10 * std::numeric_limits<T>::epsilon()) {
-    // Low predicted reduction indicates that we are very close to optimality,
-    // so set rho = 1
-    return 1.0;
-  }
-
   // Compute actual reduction in cost
   scratch_state->set_q(state.q());
   scratch_state->AddToQ(dq);
   const T L_old = EvalCost(state);           // L(q)
   const T L_new = EvalCost(*scratch_state);  // L(q + dq)
   const T actual_reduction = L_old - L_new;
+
+  const double eps = 100 * std::numeric_limits<T>::epsilon();
+  if ((predicted_reduction < eps) &&
+      (actual_reduction < eps)) {
+    // Low predicted reduction indicates that we are very close to optimality,
+    // so set rho = 1
+    return 1.0;
+  }
 
   return actual_reduction / predicted_reduction;
 }
@@ -1269,8 +1271,6 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
 
   // Variables that we'll update throughout the main loop
   int k = 0;                  // iteration counter
-  int tr_iters = 0;           // counter for how many times we modify the trust
-                              // region in each iteration
   double Delta = Delta0;      // trust region size
   double rho;                 // trust region ratio
   bool tr_constraint_active;  // flag for whether the trust region constraint is
@@ -1278,20 +1278,12 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
 
   // Define printout data
   const std::string separator_bar =
-      "------------------------------------------------------------------------"
-      "--------";
+      "------------------------------------------------------------------------";
   const std::string printout_labels =
-      "|  iter  |   cost   |    Δ    |    ρ    |  TR_iters  |  time (s)  |  "
-      "|g|/cost  |";
-
-  if (params_.verbose) {
-    std::cout << separator_bar << std::endl;
-    std::cout << printout_labels << std::endl;
-    std::cout << separator_bar << std::endl;
-  }
+      "|  iter  |   cost   |    Δ    |    ρ    |  time (s)  |  |g|/cost  |";
 
   while (k < params_.max_iterations) {
-    // Obtain the candiate update
+    // Obtain the candiate update dq
     tr_constraint_active = CalcDoglegPoint(state, Delta, &dq);
 
     // Compute the trust region ratio
@@ -1301,62 +1293,56 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
       // If the ratio is small, our quadratic approximation is bad, so reduce
       // the trust region
       Delta *= 0.25;
-      ++tr_iters;
     } else if ((rho > 0.75) && tr_constraint_active) {
       // If the ratio is very large and we're at the boundary of the trust region,
       // our quadratic approximation is good so increase the size of the trust region.
       Delta = min(2 * Delta, Delta_max);
-      ++tr_iters;
     }
 
     // If the ratio is large enough, accept the change and move on
     if (rho > eta) {
-      // Update the decision variables, q += dq
       state.AddToQ(dq);  // q += dq
+    }
+    // Else (rho <= eta), the trust region ratio is too small to accept dq, so
+    // we'll need to so keep reducing the trust region. Note that the trust
+    // region should already have been reduced, since eta < 1/4.
 
-      // Compute iteration timing
-      iter_time = std::chrono::high_resolution_clock::now() - iter_start_time;
-      iter_start_time = std::chrono::high_resolution_clock::now();
-      
-      // Printout statistics from this iteration
-      if (params_.verbose) {
-        if ((k % 50) == 0) {
-          // Refresh the labels for easy reading
-          std::cout << separator_bar << std::endl;
-          std::cout << printout_labels << std::endl;
-          std::cout << separator_bar << std::endl;
-        }
-        printf("| %6d ", k);
-        printf("| %8.3f ", EvalCost(state));
-        printf("| %7.1e ", Delta);
-        printf("| %7.4f ", rho);
-        printf("| %6d     ", tr_iters);
-        printf("| %8.8f ", iter_time.count());
-        printf("| %10.3e |\n", EvalGradient(state).norm() / EvalCost(state));
+    // N.B. if this is the case, we haven't touched state, so we should be
+    // reusing the cached gradient and Hessian in the next iteration.
+    // TODO(vincekurtz): should we be caching the factorization of the Hessian,
+    // as well as the Hessian itself?
+
+    // Compute iteration timing
+    iter_time = std::chrono::high_resolution_clock::now() - iter_start_time;
+    iter_start_time = std::chrono::high_resolution_clock::now();
+    
+    // Printout statistics from this iteration
+    if (params_.verbose) {
+      if ((k % 50) == 0) {
+        // Refresh the labels for easy reading
+        std::cout << separator_bar << std::endl;
+        std::cout << printout_labels << std::endl;
+        std::cout << separator_bar << std::endl;
       }
-
-      // Record statistics from this iteration
-      stats->push_data(iter_time.count(),            // iteration time
-                       EvalCost(state),              // cost
-                       tr_iters,                     // sub-problem iterations
-                       NAN,                          // linesearch parameter
-                       Delta,                        // trust region size
-                       dq.norm(),                    // step size
-                       rho,                          // trust region ratio
-                       EvalGradient(state).norm());  // gradient size
-
-      // (re)set iteration counters
-      tr_iters = 0;
-      ++k;
-    } else {
-      // If we've gotten here, the trust region ratio is too small (< eta) to
-      // accept dq, so we'll need to so keep reducing the trust region. Note that
-      // the trust region should already have been reduced, since eta < 1/4.
-      DRAKE_DEMAND(tr_iters > 0);  // sanity check that we've changed Delta
+      printf("| %6d ", k);
+      printf("| %8.3f ", EvalCost(state));
+      printf("| %7.1e ", Delta);
+      printf("| %7.4f ", rho);
+      printf("| %8.8f ", iter_time.count());
+      printf("| %10.3e |\n", EvalGradient(state).norm() / EvalCost(state));
     }
 
-    // TODO(vincekurtz) exit with non-success flag if tr_iters exceeds some
-    // threshold
+    // Record statistics from this iteration
+    stats->push_data(iter_time.count(),            // iteration time
+                     EvalCost(state),              // cost
+                     0,                            // linesearch iterations
+                     NAN,                          // linesearch parameter
+                     Delta,                        // trust region size
+                     dq.norm(),                    // step size
+                     rho,                          // trust region ratio
+                     EvalGradient(state).norm());  // gradient size
+
+    ++k;
   }
 
   // Finish our printout

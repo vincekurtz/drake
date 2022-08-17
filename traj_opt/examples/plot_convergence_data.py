@@ -48,8 +48,8 @@ ax[1][0].plot(iters, data["time"])
 ax[1][0].set_ylabel("Compute Time (s)")
 ax[1][0].set_ylim((0,0.05))
 
-ax[2][0].plot(iters, data["sub_iters"])
-ax[2][0].set_ylabel("Subproblem Iters")
+ax[2][0].plot(iters, data["ls_iters"])
+ax[2][0].set_ylabel("Linesearch Iters")
 
 ax[3][0].plot(iters, data["delta"])
 ax[3][0].set_ylabel("Trust-Region Size $\Delta$")

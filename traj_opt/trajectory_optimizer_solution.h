@@ -47,7 +47,7 @@ struct TrajectoryOptimizerStats {
 
   // Number of linesearch iterations, or number of times the trust-region was
   // modified, for each outer iteration
-  std::vector<int> subproblem_iterations;
+  std::vector<int> linesearch_iterations;
 
   // Linsearch parameter alpha for each iteration
   std::vector<double> linesearch_alphas;
@@ -70,7 +70,7 @@ struct TrajectoryOptimizerStats {
    *
    * @param iter_time compute time for this iteration
    * @param iter_cost cost at this iteration
-   * @param subproblem_iters number of linesearch or trust-region iterations
+   * @param linesearch_iters number of linesearch or trust-region iterations
    * @param alpha linesearch parameter
    * @param delta trust region raidus
    * @param dq_norm norm of the linesearch direction Δq
@@ -78,11 +78,11 @@ struct TrajectoryOptimizerStats {
    * reduction
    * @param grad_norm norm of the gradient
    */
-  void push_data(double iter_time, T iter_cost, int subproblem_iters,
+  void push_data(double iter_time, T iter_cost, int linesearch_iters,
                  double alpha, double delta, T dq_norm, T tr_ratio, T grad_norm) {
     iteration_times.push_back(iter_time);
     iteration_costs.push_back(iter_cost);
-    subproblem_iterations.push_back(subproblem_iters);
+    linesearch_iterations.push_back(linesearch_iters);
     linesearch_alphas.push_back(alpha);
     trust_region_radii.push_back(delta);
     dq_norms.push_back(dq_norm);
@@ -95,7 +95,7 @@ struct TrajectoryOptimizerStats {
    */
   bool is_empty() const {
     return ((iteration_times.size() == 0) && (iteration_costs.size() == 0) &&
-            (subproblem_iterations.size() == 0) &&
+            (linesearch_iterations.size() == 0) &&
             (linesearch_alphas.size() == 0) &&
             (trust_region_radii.size() == 0) && (dq_norms.size() == 0) &&
             (trust_region_ratios.size() == 0) && (gradient_norms.size() == 0));
@@ -113,7 +113,7 @@ struct TrajectoryOptimizerStats {
     data_file.open(fname);
 
     // Write a header
-    data_file << "iter, time, cost, sub_iters, alpha, delta, dq_norm, "
+    data_file << "iter, time, cost, ls_iters, alpha, delta, dq_norm, "
                  "trust_region_ratio, grad_norm\n";
 
     const int num_iters = iteration_times.size();
@@ -122,7 +122,7 @@ struct TrajectoryOptimizerStats {
       data_file << i << ", ";
       data_file << iteration_times[i] << ", ";
       data_file << iteration_costs[i] << ", ";
-      data_file << subproblem_iterations[i] << ", ";
+      data_file << linesearch_iterations[i] << ", ";
       data_file << linesearch_alphas[i] << ", ";
       data_file << trust_region_radii[i] << ", ";
       data_file << dq_norms[i] << ", ";
