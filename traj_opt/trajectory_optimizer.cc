@@ -897,7 +897,7 @@ T TrajectoryOptimizer<T>::CalcTrustRegionRatio(
   const T hessian_term = 0.5 * dq.transpose() * H.MultiplyBy(dq);
   const T predicted_reduction = -gradient_term - hessian_term;
 
-  if (predicted_reduction < sqrt(std::numeric_limits<T>::epsilon())) {
+  if (predicted_reduction < 10 * std::numeric_limits<T>::epsilon()) {
     // Low predicted reduction indicates that we are very close to optimality,
     // so set rho = 1
     return 1.0;
@@ -936,6 +936,32 @@ void TrajectoryOptimizer<T>::CalcCauchyPoint(
 
   // Cauchy point is given by τpₛ
   *dq = tau * ps;
+}
+
+template <typename T>
+T TrajectoryOptimizer<T>::SolveDoglegQuadratic(const T& a, const T& b,
+                                               const T& c) const {
+  using std::sqrt;
+  // Check that a is positive
+  DRAKE_DEMAND(a > 0);
+
+  // If a is essentially zero, just solve bx + c = 0
+  if (a < std::numeric_limits<double>::epsilon()) {
+    return -c / b;
+  }
+
+  // Normalize everything by a
+  const T b_tilde = b / a;
+  const T c_tilde = c / a;
+
+  // We know that a real root exists
+  const T determinant = b_tilde * b_tilde - 4 * c_tilde;
+  DRAKE_DEMAND(determinant > 0);
+
+  // We know that there is only one positive root, so we just take the big root
+  T s = (-b_tilde + sqrt(determinant)) / 2;
+
+  return s;
 }
 
 template <typename T>
@@ -988,14 +1014,11 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
   // for s ∈ (0,1), and setting
   //
   //    δq = pU + s( pH − pU )
-  double a = (pH - pU).dot(pH - pU);
-  double b = 2 * pU.dot(pH - pU);
-  double c = pU.dot(pU) - Delta * Delta;
+  const double a = (pH - pU).dot(pH - pU);
+  const double b = 2 * pU.dot(pH - pU);
+  const double c = pU.dot(pU) - Delta * Delta;
 
-  // TODO(vincekurtz): implement separate function for this with better numerics
-  // N.B. we know that a is positive and there is only one positive solution, so
-  // we don't need to worry about any other roots
-  double s = (-b + sqrt(b * b - 4 * a * c)) / (2 * a);
+  double s = SolveDoglegQuadratic(a, b, c);
 
   *dq = pU + s * (pH - pU);
 

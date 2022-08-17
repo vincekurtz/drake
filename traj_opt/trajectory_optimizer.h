@@ -498,6 +498,27 @@ class TrajectoryOptimizer {
   bool CalcDoglegPoint(const TrajectoryOptimizerState<T>& state,
                        const double Delta, VectorX<T>* dq) const;
 
+  /**
+   * Solve the scalar quadratic equation
+   *
+   *    a x² + b x + c = 0
+   *
+   * for the positive root. This problem arises from finding the intersection
+   * between the trust region and the second leg of the dogleg path. Provided we
+   * have properly checked that the trust region does intersect this seconds
+   * leg, this quadratic equation has some special properties:
+   *
+   *     - a is strictly positive
+   *     - there is exactly one positive root
+   *     - this positive root is in (0,1)
+   *
+   * @param a the first coefficient
+   * @param b the second coefficient
+   * @param c the third coefficient
+   * @return T the positive root
+   */
+  T SolveDoglegQuadratic(const T& a, const T& b, const T&c) const;
+
   // A model of the system that we are trying to find an optimal trajectory for.
   const MultibodyPlant<T>* plant_;
 
