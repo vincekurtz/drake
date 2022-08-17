@@ -34,6 +34,7 @@ struct TrajOptExampleParams {
     a->Visit(DRAKE_NVP(num_steps));
     a->Visit(DRAKE_NVP(max_iters));
     a->Visit(DRAKE_NVP(linesearch));
+    a->Visit(DRAKE_NVP(method));
     a->Visit(DRAKE_NVP(proximal_operator));
     a->Visit(DRAKE_NVP(rho_proximal));
     a->Visit(DRAKE_NVP(play_optimal_trajectory));
@@ -59,6 +60,7 @@ struct TrajOptExampleParams {
   int num_steps;
   int max_iters;
   std::string linesearch;
+  std::string method;
   bool proximal_operator;
   double rho_proximal;
   bool play_optimal_trajectory;

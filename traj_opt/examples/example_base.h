@@ -81,14 +81,25 @@ class TrajOptExample {
     // TODO(vincekurtz): consider separate functions mapping options to opt_prob
     // and mapping options to solver_params
     SolverParameters solver_params;
+
     if (options.linesearch == "backtracking") {
       solver_params.linesearch_method = LinesearchMethod::kBacktracking;
     } else if (options.linesearch == "armijo") {
       solver_params.linesearch_method = LinesearchMethod::kArmijo;
     } else {
-      throw std::runtime_error(fmt::format("Unknown linesearch Option '{}'",
-                                           solver_params.linesearch_method));
+      throw std::runtime_error(
+          fmt::format("Unknown linesearch method '{}'", options.linesearch));
     }
+
+    if (options.method == "linesearch") {
+      solver_params.method = SolverMethod::kLinesearch;
+    } else if (options.method == "trust_region") {
+      solver_params.method = SolverMethod::kTrustRegion;
+    } else {
+      throw std::runtime_error(
+          fmt::format("Unknown solver method '{}'", options.method));
+    }
+
     solver_params.max_iterations = options.max_iters;
     solver_params.max_linesearch_iterations = 60;
     solver_params.print_debug_data = options.print_debug_data;

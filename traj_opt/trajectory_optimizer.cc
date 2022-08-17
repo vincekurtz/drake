@@ -1022,9 +1022,9 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
   // stats must be empty
   DRAKE_DEMAND(stats->is_empty());
 
-  if (params_.solver_strategy == SolverStrategy::kLinesearch) {
+  if (params_.method == SolverMethod::kLinesearch) {
     return SolveWithLinesearch(q_guess, solution, stats);
-  } else if (params_.solver_strategy == SolverStrategy::kTrustRegion) {
+  } else if (params_.method == SolverMethod::kTrustRegion) {
     return SolveWithTrustRegion(q_guess, solution, stats);
   } else {
     throw std::runtime_error("Unsupported solver strategy!");
