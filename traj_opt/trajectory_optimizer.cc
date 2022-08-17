@@ -889,20 +889,26 @@ template <typename T>
 T TrajectoryOptimizer<T>::CalcTrustRegionRatio(
     const TrajectoryOptimizerState<T>& state, const VectorX<T>& dq,
     TrajectoryOptimizerState<T>* scratch_state) const {
-  const T L_old = EvalCost(state);  // L(q)
-
-  // Compute actual reduction in cost
-  scratch_state->set_q(state.q());
-  scratch_state->AddToQ(dq);
-  const T L_new = EvalCost(*scratch_state);  // L(q + dq)
-  const T actual_reduction = L_old - L_new;
-
+  
   // Compute predicted reduction in cost
   const VectorX<T>& g = EvalGradient(state);
   const PentaDiagonalMatrix<T>& H = EvalHessian(state);
   const T gradient_term = g.dot(dq);
   const T hessian_term = 0.5 * dq.transpose() * H.MultiplyBy(dq);
   const T predicted_reduction = -gradient_term - hessian_term;
+
+  if (predicted_reduction < sqrt(std::numeric_limits<T>::epsilon())) {
+    // Low predicted reduction indicates that we are very close to optimality,
+    // so set rho = 1
+    return 1.0;
+  }
+
+  // Compute actual reduction in cost
+  scratch_state->set_q(state.q());
+  scratch_state->AddToQ(dq);
+  const T L_old = EvalCost(state);           // L(q)
+  const T L_new = EvalCost(*scratch_state);  // L(q + dq)
+  const T actual_reduction = L_old - L_new;
 
   return actual_reduction / predicted_reduction;
 }
@@ -1215,52 +1221,102 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
   // Allocate a separate state variable for computations like L(q + dq)
   TrajectoryOptimizerState<double> scratch_state(state);
 
+  // Allocate the update vector q_{k+1} = q_k + dq
+  VectorXd dq(plant().num_positions() * (num_steps() + 1));
+  
+  // Allocate timing variables
+  auto start_time = std::chrono::high_resolution_clock::now();
+  auto iter_start_time = std::chrono::high_resolution_clock::now();
+  std::chrono::duration<double> iter_time;
+  std::chrono::duration<double> solve_time;
+
   // Trust region parameters
   // TODO(vincekurtz) set these elsewhere
   const double Delta_max = 1000;  // Maximum trust region size
-  const double Delta0 = 10;       // Initial trust region size
+  const double Delta0 = 0.01;     // Initial trust region size
   const double eta = 0.1;  // Trust region ratio threshold - we accept steps if
                            // the trust region ratio is above this threshold
 
-  VectorXd dq(plant().num_positions() * (num_steps() + 1));  // update vector q_{k+1} = q_k + dq
 
-  int k = 0;              // iteration counter
-  //int tr_iters = 0;       // counter for how many times we modify the trust
-                          // region in each iteration.
-  double Delta = Delta0;  // trust region size
-  double rho;             // trust region ratio
+  // Variables that we'll update throughout the main loop
+  int k = 0;                  // iteration counter
+  int tr_iters = 0;           // counter for how many times we modify the trust
+                              // region without updating q
+  double Delta = Delta0;      // trust region size
+  double rho;                 // trust region ratio
+  bool tr_constraint_active;  // flag for whether the trust region constraint is
+                              // active
+
+  if (params_.verbose) {
+    // Define printout data
+    std::cout << "-------------------------------------------------------------"
+                 "-------------------"
+              << std::endl;
+    std::cout << "|  iter  |   cost   |    Δ    |    ρ    |  TR_iters  |  time (s)  |  "
+                 "|g|/cost  |"
+              << std::endl;
+    std::cout << "-------------------------------------------------------------"
+                 "-------------------"
+              << std::endl;
+  }
 
   while (k < params_.max_iterations) {
-    // Obtain the search direction dq
-    // TODO(vincekurtz): use dogleg instead of Cauchy point
-    CalcCauchyPoint(state, Delta, &dq);
+    // Obtain the candiate update
+    tr_constraint_active = CalcDoglegPoint(state, Delta, &dq);
 
-    // Evaluate the trust region ratio
+    // Compute the trust region ratio
     rho = CalcTrustRegionRatio(state, dq, &scratch_state);
 
     if (rho < 0.25) {
       // If the ratio is small, our quadratic approximation is bad, so reduce
       // the trust region
       Delta *= 0.25;
-    } else if (rho > 0.75) {
-      // If the ratio is very large, our quadratic approximation is good, so
-      // increase the trust region
+    } else if ((rho > 0.75) && tr_constraint_active) {
+      // If the ratio is very large and we're at the boundary of the trust region,
+      // our quadratic approximation is good so increase the size of the trust region.
       Delta = min(2 * Delta, Delta_max);
     }
 
     // If the ratio is large enough, accept the change and move on
     if (rho > eta) {
+      // Update the decision variables, q += dq
       state.AddToQ(dq);  // q += dq
+
+      // Reset things for the next iteration 
+      tr_iters = 0;
+      iter_time = std::chrono::high_resolution_clock::now() - iter_start_time;
+      iter_start_time = std::chrono::high_resolution_clock::now();
       
-      // Print stuff
-      std::cout << k << "  " << EvalCost(state) << "  " << rho << "  " << Delta << std::endl;
+      // Nice little printout of our problem data
+      if (params_.verbose) {
+        printf("| %6d ", k);
+        printf("| %8.3f ", EvalCost(state));
+        printf("| %7.4f ", Delta);
+        printf("| %7.4f ", rho);
+        printf("| %6d     ", tr_iters);
+        printf("| %8.8f ", iter_time.count());
+        printf("| %10.3e |\n", EvalGradient(state).norm() / EvalCost(state));
+      }
+
+      // Save solver stats
+
       ++k;
     }
     
     // Otherwise, keep reducing the trust region before continuing this iteration
+    // TODO(vincekurtz) exit with non-success flag if tr_iters exceeds some threshold
+    ++tr_iters;
   }
 
-  (void) stats;
+  // Finish our printout
+  if (params_.verbose) {
+    std::cout << "-------------------------------------------------------------"
+                 "-------------------"
+              << std::endl;
+  }
+
+  solve_time = std::chrono::high_resolution_clock::now() - start_time;
+  stats->solve_time = solve_time.count();
 
   // Record the solution
   solution->q = state.q();
