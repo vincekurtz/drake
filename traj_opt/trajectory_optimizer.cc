@@ -1171,8 +1171,14 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithLinesearch(
     }
 
     // Record iteration data
-    stats->push_data(iter_time.count(), cost, ls_iters, alpha, dq.norm(),
-                     tr_ratio, g.norm());
+    stats->push_data(iter_time.count(),  // iteration time
+                     cost,               // cost
+                     ls_iters,           // sub-problem iterations
+                     alpha,              // linesearch parameter
+                     NAN,                // trust region size
+                     dq.norm(),          // step size
+                     tr_ratio,           // trust region ratio
+                     g.norm());          // gradient size
 
     ++k;
   } while (k < params_.max_iterations && !linesearch_failed);
@@ -1247,17 +1253,18 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
   bool tr_constraint_active;  // flag for whether the trust region constraint is
                               // active
 
+  // Define printout data
+  const std::string separator_bar =
+      "------------------------------------------------------------------------"
+      "--------";
+  const std::string printout_labels =
+      "|  iter  |   cost   |    Δ    |    ρ    |  TR_iters  |  time (s)  |  "
+      "|g|/cost  |";
+
   if (params_.verbose) {
-    // Define printout data
-    std::cout << "-------------------------------------------------------------"
-                 "-------------------"
-              << std::endl;
-    std::cout << "|  iter  |   cost   |    Δ    |    ρ    |  TR_iters  |  time (s)  |  "
-                 "|g|/cost  |"
-              << std::endl;
-    std::cout << "-------------------------------------------------------------"
-                 "-------------------"
-              << std::endl;
+    std::cout << separator_bar << std::endl;
+    std::cout << printout_labels << std::endl;
+    std::cout << separator_bar << std::endl;
   }
 
   while (k < params_.max_iterations) {
@@ -1282,37 +1289,53 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
       // Update the decision variables, q += dq
       state.AddToQ(dq);  // q += dq
 
-      // Reset things for the next iteration 
-      tr_iters = 0;
+      // Compute iteration timing
       iter_time = std::chrono::high_resolution_clock::now() - iter_start_time;
       iter_start_time = std::chrono::high_resolution_clock::now();
       
-      // Nice little printout of our problem data
+      // Printout statistics from this iteration
       if (params_.verbose) {
+        if ((k % 50) == 0) {
+          // Refresh the labels for easy reading
+          std::cout << separator_bar << std::endl;
+          std::cout << printout_labels << std::endl;
+          std::cout << separator_bar << std::endl;
+        }
         printf("| %6d ", k);
         printf("| %8.3f ", EvalCost(state));
-        printf("| %7.4f ", Delta);
+        printf("| %7.1e ", Delta);
         printf("| %7.4f ", rho);
         printf("| %6d     ", tr_iters);
         printf("| %8.8f ", iter_time.count());
         printf("| %10.3e |\n", EvalGradient(state).norm() / EvalCost(state));
       }
 
-      // Save solver stats
+      // Record statistics from this iteration
+      stats->push_data(iter_time.count(),            // iteration time
+                       EvalCost(state),              // cost
+                       tr_iters,                     // sub-problem iterations
+                       NAN,                          // linesearch parameter
+                       Delta,                        // trust region size
+                       dq.norm(),                    // step size
+                       rho,                          // trust region ratio
+                       EvalGradient(state).norm());  // gradient size
 
+      // (re)set iteration counters
+      tr_iters = 0;
       ++k;
+    } else { // rho <= eta
+      // The trust region ratio is too small, so keep reducing the trust region
+      // before continuing this iteration
+      // TODO(vincekurtz) exit with non-success flag if tr_iters exceeds some
+      // threshold
+      ++tr_iters;  // TODO: increment this when we change the trust region
     }
     
-    // Otherwise, keep reducing the trust region before continuing this iteration
-    // TODO(vincekurtz) exit with non-success flag if tr_iters exceeds some threshold
-    ++tr_iters;
   }
 
   // Finish our printout
   if (params_.verbose) {
-    std::cout << "-------------------------------------------------------------"
-                 "-------------------"
-              << std::endl;
+    std::cout << separator_bar << std::endl;
   }
 
   solve_time = std::chrono::high_resolution_clock::now() - start_time;
