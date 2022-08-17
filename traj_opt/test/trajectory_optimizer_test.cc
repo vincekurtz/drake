@@ -139,39 +139,38 @@ GTEST_TEST(TrajectoryOptimzierTest, DoglegPoint) {
   q.push_back(Vector1d(1.5)); 
   state.set_q(q);
 
-  VectorXd dq(num_steps + 1);
-  double Delta;
+  // Allocate variables for small, medium, and large trust region sizes.
+  VectorXd dq_small(num_steps + 1);
+  VectorXd dq_medium(num_steps + 1);
+  VectorXd dq_large(num_steps + 1);
+  const double Delta_small = 1e-3;
+  const double Delta_medium = 1.0;  // hand-chosen to intersect the second leg
+  const double Delta_large = 1e3;
   bool trust_region_constraint_active;
+  const double kTolerance = std::numeric_limits<double>::epsilon() / dt;
 
   // Compute the dogleg point for a very small trust region
-  Delta = 0.001;
   trust_region_constraint_active =
-      TrajectoryOptimizerTester::CalcDoglegPoint(optimizer, state, Delta, &dq);
+      TrajectoryOptimizerTester::CalcDoglegPoint(optimizer, state, Delta_small, &dq_small);
 
-  std::cout << "dq: " << dq.transpose() << std::endl;
-  std::cout << "trust region active: " << trust_region_constraint_active << std::endl;
-
-  const double kTolerance = std::numeric_limits<double>::epsilon() / dt;
   EXPECT_TRUE(trust_region_constraint_active);
-  EXPECT_NEAR(dq.norm(), Delta, kTolerance);
+  EXPECT_NEAR(dq_small.norm(), Delta_small, kTolerance);
 
   // Compute the dogleg point for a very large trust region
-  Delta = 1e3;
   trust_region_constraint_active =
-      TrajectoryOptimizerTester::CalcDoglegPoint(optimizer, state, Delta, &dq);
-  
-  std::cout << "dq: " << dq.transpose() << std::endl;
-  std::cout << "trust region active: " << trust_region_constraint_active << std::endl;
+      TrajectoryOptimizerTester::CalcDoglegPoint(optimizer, state, Delta_large, &dq_large);
   
   EXPECT_FALSE(trust_region_constraint_active);
+  EXPECT_GT(dq_large.norm(), dq_small.norm());
 
   // Compute the dogleg point for a medium-sized trust region
-  Delta = 1.0;
   trust_region_constraint_active =
-      TrajectoryOptimizerTester::CalcDoglegPoint(optimizer, state, Delta, &dq);
+      TrajectoryOptimizerTester::CalcDoglegPoint(optimizer, state, Delta_medium, &dq_medium);
   
-  std::cout << "dq: " << dq.transpose() << std::endl;
-  std::cout << "trust region active: " << trust_region_constraint_active << std::endl;
+  EXPECT_TRUE(trust_region_constraint_active);
+  EXPECT_NEAR(dq_medium.norm(), Delta_medium, kTolerance);
+  EXPECT_GT(dq_large.norm(), dq_medium.norm());
+  EXPECT_GT(dq_medium.norm(), dq_small.norm());
 
 }
 

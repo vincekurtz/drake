@@ -952,13 +952,10 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
   // Compute the unconstrained minimizer of m(δq) = L(q) + g(q)'*δq + 1/2
   // δq'*H(q)*δq along -g
   // TODO(vincekurtz): use pU and pH from the workspace
-  const VectorXd pU = - ( g.dot(g) / gHg ) * g;
+  const VectorXd pU = -(g.dot(g) / gHg) * g;
 
   // Check if the trust region is smaller than this unconstrained minimizer
   if (Delta <= pU.norm()) {
-    std::cout << "in case 1" << std::endl;
-    std::cout << "pU : " << pU.transpose() << std::endl;
-    std::cout << "|pU| : " << pU.norm() << std::endl;
     // If so, δq is where the first leg of the dogleg path intersects the trust
     // region.
     *dq = (Delta / pU.norm()) * pU;
@@ -973,29 +970,26 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
 
   // Check if the trust region is large enough to just take the full Newton step
   if (Delta >= pH.norm()) {
-    std::cout << "in case 2" << std::endl;
-    std::cout << "pH : " << pH.transpose() << std::endl;
-    std::cout << "|pH| : " << pH.norm() << std::endl;
     *dq = pH;
     return false;  // the trust region constraint is not active
   }
 
-  // Compute the intersection between the second leg of the dogleg path and the trust region
-  std::cout << "in case 3" << std::endl;
-
-  // We'll do this by solving the (scalar) quadratic
+  // Compute the intersection between the second leg of the dogleg path and the
+  // trust region. We'll do this by solving the (scalar) quadratic
   //
   //    ‖ pU + s( pH − pU ) ‖² = Δ²
   //
   // for s ∈ (0,1), and setting
   //
   //    δq = pU + s( pH − pU )
-  double a = (pH - pU).dot(pH - pU);   
+  double a = (pH - pU).dot(pH - pU);
   double b = 2 * pU.dot(pH - pU);
   double c = pU.dot(pU) - Delta * Delta;
 
   // TODO(vincekurtz): implement separate function for this with better numerics
-  double s =  (-b + sqrt( b * b - 4 * a * c)) / (2 * a);
+  // N.B. we know that a is positive and there is only one positive solution, so
+  // we don't need to worry about any other roots
+  double s = (-b + sqrt(b * b - 4 * a * c)) / (2 * a);
 
   *dq = pU + s * (pH - pU);
 
