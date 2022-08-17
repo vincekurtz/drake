@@ -51,8 +51,9 @@ ax[1][0].set_ylim((0,0.05))
 ax[2][0].plot(iters, data["sub_iters"])
 ax[2][0].set_ylabel("Subproblem Iters")
 
-ax[3][0].plot(iters, data["alpha"])
-ax[3][0].set_ylabel(r"Linesearch Param $\alpha$")
+ax[3][0].plot(iters, data["delta"])
+ax[3][0].set_ylabel("Trust-Region Size $\Delta$")
+ax[3][0].set_yscale("log")
 
 ax[4][0].plot(iters, data["trust_region_ratio"])
 ax[4][0].set_ylabel("trust region ratio")
@@ -74,9 +75,8 @@ ax[3][1].plot(iters, data["grad_norm"] / data["cost"])
 ax[3][1].set_ylabel("$||g|| / cost$")
 ax[3][1].set_yscale("log")
 
-ax[4][1].plot(iters, data["delta"])
-ax[4][1].set_ylabel("Trust-Region Size $\Delta$")
-ax[4][1].set_yscale("log")
+ax[4][1].plot(iters, data["alpha"])
+ax[4][1].set_ylabel(r"Linesearch Param $\alpha$")
 
 ax[4][0].set_xlabel("Iteration")
 ax[4][0].xaxis.set_major_locator(MaxNLocator(integer=True))

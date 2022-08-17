@@ -1247,7 +1247,7 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
   // Variables that we'll update throughout the main loop
   int k = 0;                  // iteration counter
   int tr_iters = 0;           // counter for how many times we modify the trust
-                              // region without updating q
+                              // region in each iteration
   double Delta = Delta0;      // trust region size
   double rho;                 // trust region ratio
   bool tr_constraint_active;  // flag for whether the trust region constraint is
@@ -1278,10 +1278,12 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
       // If the ratio is small, our quadratic approximation is bad, so reduce
       // the trust region
       Delta *= 0.25;
+      ++tr_iters;
     } else if ((rho > 0.75) && tr_constraint_active) {
       // If the ratio is very large and we're at the boundary of the trust region,
       // our quadratic approximation is good so increase the size of the trust region.
       Delta = min(2 * Delta, Delta_max);
+      ++tr_iters;
     }
 
     // If the ratio is large enough, accept the change and move on
@@ -1323,14 +1325,15 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
       // (re)set iteration counters
       tr_iters = 0;
       ++k;
-    } else { // rho <= eta
-      // The trust region ratio is too small, so keep reducing the trust region
-      // before continuing this iteration
-      // TODO(vincekurtz) exit with non-success flag if tr_iters exceeds some
-      // threshold
-      ++tr_iters;  // TODO: increment this when we change the trust region
+    } else {
+      // If we've gotten here, the trust region ratio is too small (< eta) to
+      // accept dq, so we'll need to so keep reducing the trust region. Note that
+      // the trust region should already have been reduced, since eta < 1/4.
+      DRAKE_DEMAND(tr_iters > 0);  // sanity check that we've changed Delta
     }
-    
+
+    // TODO(vincekurtz) exit with non-success flag if tr_iters exceeds some
+    // threshold
   }
 
   // Finish our printout
