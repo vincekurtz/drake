@@ -904,14 +904,14 @@ T TrajectoryOptimizer<T>::CalcTrustRegionRatio(
   const T L_new = EvalCost(*scratch_state);  // L(q + dq)
   const T actual_reduction = L_old - L_new;
 
-  const double eps = 100 * std::numeric_limits<T>::epsilon();
+  const double eps = 10 * std::numeric_limits<T>::epsilon() / time_step() / time_step();
   if ((predicted_reduction < eps) &&
       (actual_reduction < eps)) {
     // Predicted and actual reduction are essentially zero, meaning we are close
     // to convergence. If this is the case, we want to set a trust ratio that is
     // large enough that we accept dq, but not so large that we increase the
     // trust region.
-    return 0.7;
+    return 0.4;
   }
 
   return actual_reduction / predicted_reduction;
@@ -1342,7 +1342,7 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
       // If the ratio is small, our quadratic approximation is bad, so reduce
       // the trust region
       Delta *= 0.25;
-    } else if ((rho > 0.75) && tr_constraint_active) {
+    } else if ((rho > 0.7) && tr_constraint_active) {
       // If the ratio is very large and we're at the boundary of the trust region,
       // increase the size of the trust region.
       Delta = min(2 * Delta, Delta_max);

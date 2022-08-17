@@ -40,7 +40,6 @@ fig, ax = plt.subplots(5,2,sharex=True,figsize=(16,11))
 
 fig.suptitle(f"{example_name} convergence data")
 
-
 ax[0,0].plot(iters, data["cost"])
 ax[0,0].set_ylabel("Cost")
 ax[0,0].set_yscale("log")
@@ -74,7 +73,7 @@ ax[1,1].set_ylim((-1,3))
 
 ax[2,1].plot(iters, data["time"])
 ax[2,1].set_ylabel("Compute Time (s)")
-ax[2,1].set_ylim((0,0.05))
+ax[2,1].set_ylim((0,0.02))
 
 ax[3,1].plot(iters, data["ls_iters"])
 ax[3,1].set_ylabel("Linesearch Iters")
