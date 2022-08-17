@@ -1290,31 +1290,24 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
 
     // Compute the trust region ratio
     rho = CalcTrustRegionRatio(state, dq, &scratch_state);
-
-    if (rho < 0.25) {
-      // If the ratio is small, our quadratic approximation is bad, so reduce
-      // the trust region
-      Delta *= 0.25;
-    } else if ((rho > 0.75) && tr_constraint_active) {
-      // If the ratio is very large and we're at the boundary of the trust region,
-      // our quadratic approximation is good so increase the size of the trust region.
-      Delta = min(2 * Delta, Delta_max);
-    }
-
-    // If the ratio is large enough, accept the change and move on
+    
+    // If the ratio is large enough, accept the change
     if (rho > eta) {
       state.AddToQ(dq);  // q += dq
     }
     // Else (rho <= eta), the trust region ratio is too small to accept dq, so
     // we'll need to so keep reducing the trust region. Note that the trust
-    // region should already have been reduced, since eta < 1/4.
-
-    // N.B. if this is the case, we haven't touched state, so we should be
-    // reusing the cached gradient and Hessian in the next iteration.
+    // region will be reduced in this case, since eta < 0.25.
+    
+    // N.B. if this is the case (q_{k+1} = q_k), we haven't touched state, so we
+    // should be reusing the cached gradient and Hessian in the next iteration.
     // TODO(vincekurtz): should we be caching the factorization of the Hessian,
     // as well as the Hessian itself?
 
     // Compute iteration timing
+    // N.B. this is in kind of a weird place because we want to record
+    // statistics before updating the trust-region size. That ensures that 
+    // ‖ δq ‖ ≤ Δ in our logs.
     iter_time = std::chrono::high_resolution_clock::now() - iter_start_time;
     iter_start_time = std::chrono::high_resolution_clock::now();
     
@@ -1343,6 +1336,17 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
                      dq.norm(),                    // step size
                      rho,                          // trust region ratio
                      EvalGradient(state).norm());  // gradient size
+
+    // Update the size of the trust-region, if necessary
+    if (rho < 0.25) {
+      // If the ratio is small, our quadratic approximation is bad, so reduce
+      // the trust region
+      Delta *= 0.25;
+    } else if ((rho > 0.75) && tr_constraint_active) {
+      // If the ratio is very large and we're at the boundary of the trust region,
+      // increase the size of the trust region.
+      Delta = min(2 * Delta, Delta_max);
+    }
 
     ++k;
   }
