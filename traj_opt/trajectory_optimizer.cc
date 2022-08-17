@@ -901,10 +901,105 @@ T TrajectoryOptimizer<T>::CalcTrustRegionRatio(
   const VectorX<T>& g = EvalGradient(state);
   const PentaDiagonalMatrix<T>& H = EvalHessian(state);
   const T gradient_term = g.dot(dq);
-  const T hessian_term = 0.5 * dq.transpose() * H.MakeDense() * dq;
+  const T hessian_term = 0.5 * dq.transpose() * H.MultiplyBy(dq);
   const T predicted_reduction = -gradient_term - hessian_term;
 
   return actual_reduction / predicted_reduction;
+}
+
+template <typename T>
+void TrajectoryOptimizer<T>::CalcCauchyPoint(
+    const TrajectoryOptimizerState<T>& state, const double Delta,
+    VectorX<T>* dq) const {
+  using std::min;
+  const VectorX<T>& g = EvalGradient(state);
+  const PentaDiagonalMatrix<T>& H = EvalHessian(state);
+  const T g_norm = g.norm();
+  const T gHg = g.transpose() * H.MultiplyBy(g);
+
+  // Solution to min_{p} L + g'*p  s.t. ‖ p ‖ ≤ Δ
+  const VectorX<T> ps = - Delta / g_norm * g;
+
+  // Minimizer of quadratic cost s.t. ‖ τpₛ ‖ ≤ Δ
+  T tau;
+  if ( gHg <= 0 ) {
+    tau = 1.;
+  } else {
+    tau = min(1., pow(g_norm, 3) / (Delta * gHg));
+  }
+
+  // Cauchy point is given by τpₛ
+  *dq = tau * ps;
+}
+
+template <typename T>
+bool TrajectoryOptimizer<T>::CalcDoglegPoint(const TrajectoryOptimizerState<T>&,
+                                             const double, VectorX<T>*) const {
+  // Only T=double is supported here, since pentadigonal matrix factorization is
+  // (sometimes) required to compute the dogleg point.
+  throw std::runtime_error(
+      "TrajectoryOptimizer::CalcDoglegPoint only supports T=double");
+}
+
+template <>
+bool TrajectoryOptimizer<double>::CalcDoglegPoint(
+    const TrajectoryOptimizerState<double>& state, const double Delta,
+    VectorXd* dq) const {
+  const VectorXd& g = EvalGradient(state);
+  const PentaDiagonalMatrix<double>& H = EvalHessian(state);
+  const double gHg = g.transpose() * H.MultiplyBy(g);
+
+  // Compute the unconstrained minimizer of m(δq) = L(q) + g(q)'*δq + 1/2
+  // δq'*H(q)*δq along -g
+  // TODO(vincekurtz): use pU and pH from the workspace
+  const VectorXd pU = - ( g.dot(g) / gHg ) * g;
+
+  // Check if the trust region is smaller than this unconstrained minimizer
+  if (Delta <= pU.norm()) {
+    std::cout << "in case 1" << std::endl;
+    std::cout << "pU : " << pU.transpose() << std::endl;
+    std::cout << "|pU| : " << pU.norm() << std::endl;
+    // If so, δq is where the first leg of the dogleg path intersects the trust
+    // region.
+    *dq = (Delta / pU.norm()) * pU;
+    return true;  // the trust region constraint is active
+  }
+
+  // Compute the full Gauss-Newton step
+  VectorXd pH = -g;
+  PentaDiagonalFactorization Hchol(H);
+  DRAKE_DEMAND(Hchol.status() == PentaDiagonalFactorizationStatus::kSuccess);
+  Hchol.SolveInPlace(&pH);
+
+  // Check if the trust region is large enough to just take the full Newton step
+  if (Delta >= pH.norm()) {
+    std::cout << "in case 2" << std::endl;
+    std::cout << "pH : " << pH.transpose() << std::endl;
+    std::cout << "|pH| : " << pH.norm() << std::endl;
+    *dq = pH;
+    return false;  // the trust region constraint is not active
+  }
+
+  // Compute the intersection between the second leg of the dogleg path and the trust region
+  std::cout << "in case 3" << std::endl;
+
+  // We'll do this by solving the (scalar) quadratic
+  //
+  //    ‖ pU + s( pH − pU ) ‖² = Δ²
+  //
+  // for s ∈ (0,1), and setting
+  //
+  //    δq = pU + s( pH − pU )
+  double a = (pH - pU).dot(pH - pU);   
+  double b = 2 * pU.dot(pH - pU);
+  double c = pU.dot(pU) - Delta * Delta;
+
+  // TODO(vincekurtz): implement separate function for this with better numerics
+  double s =  (-b + sqrt( b * b - 4 * a * c)) / (2 * a);
+
+  *dq = pU + s * (pH - pU);
+
+  return true;  // the trust region constraint is active
 }
 
 template <typename T>
@@ -927,6 +1022,28 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
   // stats must be empty
   DRAKE_DEMAND(stats->is_empty());
 
+  if (params_.solver_strategy == SolverStrategy::kLinesearch) {
+    return SolveWithLinesearch(q_guess, solution, stats);
+  } else if (params_.solver_strategy == SolverStrategy::kTrustRegion) {
+    return SolveWithTrustRegion(q_guess, solution, stats);
+  } else {
+    throw std::runtime_error("Unsupported solver strategy!");
+  }
+}
+
+template <typename T>
+SolverFlag TrajectoryOptimizer<T>::SolveWithLinesearch(const std::vector<VectorX<T>>&,
+                                         TrajectoryOptimizerSolution<T>*,
+                                         TrajectoryOptimizerStats<T>*) const {
+  throw std::runtime_error(
+      "TrajectoryOptimizer::SolveWithLinesearch only supports T=double.");
+}
+
+template <>
+SolverFlag TrajectoryOptimizer<double>::SolveWithLinesearch(
+    const std::vector<VectorXd>& q_guess,
+    TrajectoryOptimizerSolution<double>* solution,
+    TrajectoryOptimizerStats<double>* stats) const {
   // Allocate a state variable
   TrajectoryOptimizerState<double> state = CreateState();
   state.set_q(q_guess);
@@ -1081,6 +1198,82 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
   } else {
     return SolverFlag::kSuccess;
   }
+}
+
+template <typename T>
+SolverFlag TrajectoryOptimizer<T>::SolveWithTrustRegion(const std::vector<VectorX<T>>&,
+                                         TrajectoryOptimizerSolution<T>*,
+                                         TrajectoryOptimizerStats<T>*) const {
+  throw std::runtime_error(
+      "TrajectoryOptimizer::SolveWithTrustRegion only supports T=double.");
+}
+
+template <>
+SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
+    const std::vector<VectorXd>& q_guess,
+    TrajectoryOptimizerSolution<double>* solution,
+    TrajectoryOptimizerStats<double>* stats) const {
+  using std::min;
+  // Allocate a state variable to store q and everything that is computed from q
+  TrajectoryOptimizerState<double> state = CreateState();
+  state.set_q(q_guess);
+
+  // Allocate a separate state variable for computations like L(q + dq)
+  TrajectoryOptimizerState<double> scratch_state(state);
+
+  // Trust region parameters
+  // TODO(vincekurtz) set these elsewhere
+  const double Delta_max = 1000;  // Maximum trust region size
+  const double Delta0 = 10;       // Initial trust region size
+  const double eta = 0.1;  // Trust region ratio threshold - we accept steps if
+                           // the trust region ratio is above this threshold
+
+  VectorXd dq(plant().num_positions() * (num_steps() + 1));  // update vector q_{k+1} = q_k + dq
+
+  int k = 0;              // iteration counter
+  //int tr_iters = 0;       // counter for how many times we modify the trust
+                          // region in each iteration.
+  double Delta = Delta0;  // trust region size
+  double rho;             // trust region ratio
+
+  while (k < params_.max_iterations) {
+    // Obtain the search direction dq
+    // TODO(vincekurtz): use dogleg instead of Cauchy point
+    CalcCauchyPoint(state, Delta, &dq);
+
+    // Evaluate the trust region ratio
+    rho = CalcTrustRegionRatio(state, dq, &scratch_state);
+
+    if (rho < 0.25) {
+      // If the ratio is small, our quadratic approximation is bad, so reduce
+      // the trust region
+      Delta *= 0.25;
+    } else if (rho > 0.75) {
+      // If the ratio is very large, our quadratic approximation is good, so
+      // increase the trust region
+      Delta = min(2 * Delta, Delta_max);
+    }
+
+    // If the ratio is large enough, accept the change and move on
+    if (rho > eta) {
+      state.AddToQ(dq);  // q += dq
+      
+      // Print stuff
+      std::cout << k << "  " << EvalCost(state) << "  " << rho << "  " << Delta << std::endl;
+      ++k;
+    }
+    
+    // Otherwise, keep reducing the trust region before continuing this iteration
+  }
+
+  (void) stats;
+
+  // Record the solution
+  solution->q = state.q();
+  solution->v = EvalV(state);
+  solution->tau = EvalTau(state);
+  
+  return SolverFlag::kSuccess;
 }
 
 }  // namespace traj_opt

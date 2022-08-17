@@ -11,7 +11,16 @@ enum LinesearchMethod {
   kBacktracking
 };
 
+enum SolverStrategy {
+  kLinesearch,
+  kTrustRegion
+};
+
 struct SolverParameters {
+  // Which overall optimization strategy to use - linesearch or trust region
+  // TODO(vincekurtz): better name for this?
+  SolverStrategy solver_strategy = SolverStrategy::kTrustRegion;
+
   // Which linesearch strategy to use
   LinesearchMethod linesearch_method = LinesearchMethod::kArmijo;
 

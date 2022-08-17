@@ -81,6 +81,12 @@ class TrajectoryOptimizerTester {
       TrajectoryOptimizerState<double>* scratch_state) {
     return optimizer.CalcTrustRegionRatio(state, dq, scratch_state);
   }
+
+  static bool CalcDoglegPoint(const TrajectoryOptimizer<double>& optimizer,
+                                const TrajectoryOptimizerState<double>& state,
+                                const double Delta, VectorXd* dq) {
+    return optimizer.CalcDoglegPoint(state, Delta, dq);
+  }
 };
 
 namespace internal {
@@ -93,6 +99,81 @@ using multibody::DiscreteContactSolver;
 using multibody::MultibodyPlant;
 using multibody::Parser;
 using test::LimitMalloc;
+
+/**
+ * Test our computation of the dogleg point for trust-region optimization
+ */
+GTEST_TEST(TrajectoryOptimzierTest, DoglegPoint) {
+  // Define a super simple optimization problem, where we know the solution is
+  // q = [0 0 0].
+  const int num_steps = 2;
+  const double dt = 5e-2;
+
+  ProblemDefinition opt_prob;
+  opt_prob.num_steps = num_steps;
+  opt_prob.q_init = Vector1d(0.0);
+  opt_prob.v_init = Vector1d(0.0);
+  opt_prob.Qq = 0.0 * MatrixXd::Identity(1, 1);
+  opt_prob.Qv = 0.0 * MatrixXd::Identity(1, 1);
+  opt_prob.Qf_q = 1.0 * MatrixXd::Identity(1, 1);
+  opt_prob.Qf_v = 0.0 * MatrixXd::Identity(1, 1);
+  opt_prob.R = 1.0 * MatrixXd::Identity(1, 1);
+  opt_prob.q_nom = Vector1d(0.0);
+  opt_prob.v_nom = Vector1d(0.0);
+
+  MultibodyPlant<double> plant(dt);
+  const std::string urdf_file =
+      FindResourceOrThrow("drake/examples/pendulum/Pendulum.urdf");
+  Parser(&plant).AddAllModelsFromFile(urdf_file);
+  //plant.mutable_gravity_field().set_gravity_vector(VectorXd::Zero(3));
+  plant.Finalize();
+  auto context = plant.CreateDefaultContext();
+  
+  TrajectoryOptimizer<double> optimizer(&plant, context.get(), opt_prob);
+  TrajectoryOptimizerState<double> state = optimizer.CreateState();
+
+  // Choose a q that is away from the optimal solution
+  std::vector<VectorXd> q;
+  q.push_back(Vector1d(0.0));
+  q.push_back(Vector1d(1.5)); 
+  q.push_back(Vector1d(1.5)); 
+  state.set_q(q);
+
+  VectorXd dq(num_steps + 1);
+  double Delta;
+  bool trust_region_constraint_active;
+
+  // Compute the dogleg point for a very small trust region
+  Delta = 0.001;
+  trust_region_constraint_active =
+      TrajectoryOptimizerTester::CalcDoglegPoint(optimizer, state, Delta, &dq);
+
+  std::cout << "dq: " << dq.transpose() << std::endl;
+  std::cout << "trust region active: " << trust_region_constraint_active << std::endl;
+
+  const double kTolerance = std::numeric_limits<double>::epsilon() / dt;
+  EXPECT_TRUE(trust_region_constraint_active);
+  EXPECT_NEAR(dq.norm(), Delta, kTolerance);
+
+  // Compute the dogleg point for a very large trust region
+  Delta = 1e3;
+  trust_region_constraint_active =
+      TrajectoryOptimizerTester::CalcDoglegPoint(optimizer, state, Delta, &dq);
+  
+  std::cout << "dq: " << dq.transpose() << std::endl;
+  std::cout << "trust region active: " << trust_region_constraint_active << std::endl;
+  
+  EXPECT_FALSE(trust_region_constraint_active);
+
+  // Compute the dogleg point for a medium-sized trust region
+  Delta = 1.0;
+  trust_region_constraint_active =
+      TrajectoryOptimizerTester::CalcDoglegPoint(optimizer, state, Delta, &dq);
+  
+  std::cout << "dq: " << dq.transpose() << std::endl;
+  std::cout << "trust region active: " << trust_region_constraint_active << std::endl;
+
+}
 
 /**
  * Test our computation of the trust-region ratio, which should be exactly 1
