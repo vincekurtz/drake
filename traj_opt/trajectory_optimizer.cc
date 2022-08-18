@@ -1239,8 +1239,8 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
   // Trust region parameters
   const double Delta_max = 1000;  // Maximum trust region size
   const double Delta0 = 0.01;     // Initial trust region size
-  const double eta = 0.1;  // Trust region ratio threshold - we accept steps if
-                           // the trust region ratio is above this threshold
+  const double eta = 0.0;         // Trust ratio threshold - we accept steps if
+                                  // the trust ratio is above this threshold
 
   // Variables that we'll update throughout the main loop
   int k = 0;                  // iteration counter
@@ -1265,6 +1265,12 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
 
     // If the ratio is large enough, accept the change
     if (rho > eta) {
+      // Update the coefficients for the proximal operator cost
+      if (params_.proximal_operator) {
+        state.set_proximal_operator_data(state.q(), EvalHessian(state));
+        scratch_state.set_proximal_operator_data(state.q(), EvalHessian(state));
+      }
+
       state.AddToQ(dq);  // q += dq
     }
     // Else (rho <= eta), the trust region ratio is too small to accept dq, so
@@ -1314,8 +1320,8 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
       // If the ratio is small, our quadratic approximation is bad, so reduce
       // the trust region
       Delta *= 0.25;
-    } else if ((rho > 0.7) && tr_constraint_active) {
-      // If the ratio is very large and we're at the boundary of the trust
+    } else if ((rho > 0.75) && tr_constraint_active) {
+      // If the ratio is large and we're at the boundary of the trust
       // region, increase the size of the trust region.
       Delta = min(2 * Delta, Delta_max);
     }
