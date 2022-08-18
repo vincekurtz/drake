@@ -921,20 +921,24 @@ T TrajectoryOptimizer<T>::SolveDoglegQuadratic(const T& a, const T& b,
   // Check that a is positive
   DRAKE_DEMAND(a > 0);
 
-  // If a is essentially zero, just solve bx + c = 0
+  T s;
   if (a < std::numeric_limits<double>::epsilon()) {
-    return -c / b;
+    // If a is essentially zero, just solve bx + c = 0
+    s = -c / b;
+  } else {
+    // Normalize everything by a
+    const T b_tilde = b / a;
+    const T c_tilde = c / a;
+
+    const T determinant = b_tilde * b_tilde - 4 * c_tilde;
+    DRAKE_DEMAND(determinant > 0);  // We know a real root exists
+
+    // We know that there is only one positive root, so we just take the big
+    // root
+    s = (-b_tilde + sqrt(determinant)) / 2;
   }
 
-  // Normalize everything by a
-  const T b_tilde = b / a;
-  const T c_tilde = c / a;
-
-  const T determinant = b_tilde * b_tilde - 4 * c_tilde;
-  DRAKE_DEMAND(determinant > 0);  // We know a real root exists
-
-  // We know that there is only one positive root, so we just take the big root
-  T s = (-b_tilde + sqrt(determinant)) / 2;
+  // We know the solution is between zero and one
   DRAKE_DEMAND(0 < s);
   DRAKE_DEMAND(s < 1);
 
@@ -954,6 +958,7 @@ template <>
 bool TrajectoryOptimizer<double>::CalcDoglegPoint(
     const TrajectoryOptimizerState<double>& state, const double Delta,
     VectorXd* dq) const {
+  // N.B. We'll rescale pU and pH by Δ for better numerics
   const VectorXd& g = EvalGradient(state);
   const PentaDiagonalMatrix<double>& H = EvalHessian(state);
   const double gHg = g.transpose() * H.MultiplyBy(g);
@@ -961,10 +966,10 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
   // Compute the unconstrained minimizer of m(δq) = L(q) + g(q)'*δq + 1/2
   // δq'*H(q)*δq along -g
   VectorXd& pU = state.workspace.q_size_tmp1;
-  pU = -(g.dot(g) / gHg) * g;
+  pU = -(g.dot(g) / gHg) * g / Delta;
 
   // Check if the trust region is smaller than this unconstrained minimizer
-  if (Delta <= pU.norm()) {
+  if (1.0 <= pU.norm()) {
     // If so, δq is where the first leg of the dogleg path intersects the trust
     // region.
     *dq = (Delta / pU.norm()) * pU;
@@ -973,14 +978,14 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
 
   // Compute the full Gauss-Newton step
   VectorXd& pH = state.workspace.q_size_tmp2;
-  pH = -g;
+  pH = -g / Delta;
   PentaDiagonalFactorization Hchol(H);
   DRAKE_DEMAND(Hchol.status() == PentaDiagonalFactorizationStatus::kSuccess);
   Hchol.SolveInPlace(&pH);
 
   // Check if the trust region is large enough to just take the full Newton step
-  if (Delta >= pH.norm()) {
-    *dq = pH;
+  if (1.0 >= pH.norm()) {
+    *dq = pH * Delta;
     return false;  // the trust region constraint is not active
   }
 
@@ -994,10 +999,10 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
   //    δq = pU + s( pH − pU )
   const double a = (pH - pU).dot(pH - pU);
   const double b = 2 * pU.dot(pH - pU);
-  const double c = pU.dot(pU) - Delta * Delta;
+  const double c = pU.dot(pU) - 1.0;
   const double s = SolveDoglegQuadratic(a, b, c);
 
-  *dq = pU + s * (pH - pU);
+  *dq = (pU + s * (pH - pU)) * Delta;
 
   return true;  // the trust region constraint is active
 }
