@@ -67,8 +67,8 @@ ax[0,1].plot(iters, data["cost"] - data["cost"][-1])
 ax[0,1].set_ylabel("Cost (minus baseline)")
 ax[0,1].set_yscale("log")
 
-ax[1,1].plot(iters, data["trust_region_ratio"])
-ax[1,1].set_ylabel("trust region ratio")
+ax[1,1].plot(iters, data["trust_ratio"])
+ax[1,1].set_ylabel("trust ratio")
 ax[1,1].set_ylim((-1,3))
 
 ax[2,1].plot(iters, data["time"])

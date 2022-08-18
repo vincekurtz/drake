@@ -463,8 +463,8 @@ class TrajectoryOptimizer {
    * @return T, the trust region ratio
    */
   T CalcTrustRatio(const TrajectoryOptimizerState<T>& state,
-                         const VectorX<T>& dq,
-                         TrajectoryOptimizerState<T>* scratch_state) const;
+                   const VectorX<T>& dq,
+                   TrajectoryOptimizerState<T>* scratch_state) const;
 
   /**
    * Compute the dogleg step δq, which approximates the solution to the
@@ -502,7 +502,7 @@ class TrajectoryOptimizer {
    * @param c the third coefficient
    * @return T the positive root
    */
-  T SolveDoglegQuadratic(const T& a, const T& b, const T&c) const;
+  T SolveDoglegQuadratic(const T& a, const T& b, const T& c) const;
 
   // A model of the system that we are trying to find an optimal trajectory for.
   const MultibodyPlant<T>* plant_;

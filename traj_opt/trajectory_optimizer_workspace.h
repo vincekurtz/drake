@@ -25,7 +25,8 @@ struct TrajectoryOptimizerWorkspace {
     const int nv = plant.num_velocities();
 
     // Set vector sizes
-    q_size_tmp.resize(nq);
+    q_size_tmp1.resize(nq);
+    q_size_tmp2.resize(nq);
 
     v_size_tmp1.resize(nv);
     v_size_tmp2.resize(nv);
@@ -47,7 +48,8 @@ struct TrajectoryOptimizerWorkspace {
   MultibodyForces<T> f_ext;
 
   // Storage of size nq
-  VectorX<T> q_size_tmp;
+  VectorX<T> q_size_tmp1;
+  VectorX<T> q_size_tmp2;
 
   // Storage of size nv
   // These are named v, tau, and a, but this distinction is just for

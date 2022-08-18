@@ -83,8 +83,8 @@ class TrajectoryOptimizerTester {
   }
 
   static bool CalcDoglegPoint(const TrajectoryOptimizer<double>& optimizer,
-                                const TrajectoryOptimizerState<double>& state,
-                                const double Delta, VectorXd* dq) {
+                              const TrajectoryOptimizerState<double>& state,
+                              const double Delta, VectorXd* dq) {
     return optimizer.CalcDoglegPoint(state, Delta, dq);
   }
 };
@@ -127,15 +127,15 @@ GTEST_TEST(TrajectoryOptimzierTest, DoglegPoint) {
   Parser(&plant).AddAllModelsFromFile(urdf_file);
   plant.Finalize();
   auto context = plant.CreateDefaultContext();
-  
+
   TrajectoryOptimizer<double> optimizer(&plant, context.get(), opt_prob);
   TrajectoryOptimizerState<double> state = optimizer.CreateState();
 
   // Choose a q that is away from the optimal solution
   std::vector<VectorXd> q;
   q.push_back(Vector1d(0.0));
-  q.push_back(Vector1d(1.5)); 
-  q.push_back(Vector1d(1.5)); 
+  q.push_back(Vector1d(1.5));
+  q.push_back(Vector1d(1.5));
   state.set_q(q);
 
   // Allocate variables for small, medium, and large trust region sizes.
@@ -149,28 +149,27 @@ GTEST_TEST(TrajectoryOptimzierTest, DoglegPoint) {
   const double kTolerance = std::numeric_limits<double>::epsilon() / dt;
 
   // Compute the dogleg point for a very small trust region
-  trust_region_constraint_active =
-      TrajectoryOptimizerTester::CalcDoglegPoint(optimizer, state, Delta_small, &dq_small);
+  trust_region_constraint_active = TrajectoryOptimizerTester::CalcDoglegPoint(
+      optimizer, state, Delta_small, &dq_small);
 
   EXPECT_TRUE(trust_region_constraint_active);
   EXPECT_NEAR(dq_small.norm(), Delta_small, kTolerance);
 
   // Compute the dogleg point for a very large trust region
-  trust_region_constraint_active =
-      TrajectoryOptimizerTester::CalcDoglegPoint(optimizer, state, Delta_large, &dq_large);
-  
+  trust_region_constraint_active = TrajectoryOptimizerTester::CalcDoglegPoint(
+      optimizer, state, Delta_large, &dq_large);
+
   EXPECT_FALSE(trust_region_constraint_active);
   EXPECT_GT(dq_large.norm(), dq_small.norm());
 
   // Compute the dogleg point for a medium-sized trust region
-  trust_region_constraint_active =
-      TrajectoryOptimizerTester::CalcDoglegPoint(optimizer, state, Delta_medium, &dq_medium);
-  
+  trust_region_constraint_active = TrajectoryOptimizerTester::CalcDoglegPoint(
+      optimizer, state, Delta_medium, &dq_medium);
+
   EXPECT_TRUE(trust_region_constraint_active);
   EXPECT_NEAR(dq_medium.norm(), Delta_medium, kTolerance);
   EXPECT_GT(dq_large.norm(), dq_medium.norm());
   EXPECT_GT(dq_medium.norm(), dq_small.norm());
-
 }
 
 /**
@@ -227,7 +226,7 @@ GTEST_TEST(TrajectoryOptimizerTest, TrustRatio) {
   Hchol.SolveInPlace(&dq);
 
   // Compute the trust ratio, which should be 1
-  double trust_ratio= TrajectoryOptimizerTester::CalcTrustRatio(
+  double trust_ratio = TrajectoryOptimizerTester::CalcTrustRatio(
       optimizer, state, dq, &scratch_state);
 
   const double kTolerance = sqrt(std::numeric_limits<double>::epsilon());

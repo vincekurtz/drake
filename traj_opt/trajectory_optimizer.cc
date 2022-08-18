@@ -81,7 +81,7 @@ T TrajectoryOptimizer<T>::CalcCost(
     const std::vector<VectorX<T>>& tau,
     TrajectoryOptimizerWorkspace<T>* workspace) const {
   T cost = 0;
-  VectorX<T>& q_err = workspace->q_size_tmp;
+  VectorX<T>& q_err = workspace->q_size_tmp1;
   VectorX<T>& v_err = workspace->v_size_tmp1;
 
   // Running cost
@@ -208,10 +208,10 @@ void TrajectoryOptimizer<T>::CalcContactForceContribution(
       const GeometryId geometryA_id = pair.id_A;
       const GeometryId geometryB_id = pair.id_B;
 
-      BodyIndex bodyA_index =
+      const BodyIndex bodyA_index =
           plant().geometry_id_to_body_index().at(geometryA_id);
       const Body<T>& bodyA = plant().get_body(bodyA_index);
-      BodyIndex bodyB_index =
+      const BodyIndex bodyB_index =
           plant().geometry_id_to_body_index().at(geometryB_id);
       const Body<T>& bodyB = plant().get_body(bodyB_index);
 
@@ -279,7 +279,7 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsFiniteDiff(
 
   // Get references to perturbed versions of q, v, tau, and a, at (t-1, t, t).
   // These are all of the quantities that change when we perturb q_t.
-  VectorX<T>& q_eps_t = workspace->q_size_tmp;
+  VectorX<T>& q_eps_t = workspace->q_size_tmp1;
   VectorX<T>& v_eps_t = workspace->v_size_tmp1;
   VectorX<T>& v_eps_tp = workspace->v_size_tmp2;
   VectorX<T>& a_eps_tm = workspace->a_size_tmp1;
@@ -469,7 +469,7 @@ void TrajectoryOptimizer<T>::CalcGradient(
   g->topRows(plant().num_positions()).setZero();
 
   // Scratch variables for storing intermediate cost terms
-  VectorX<T>& qt_term = workspace->q_size_tmp;
+  VectorX<T>& qt_term = workspace->q_size_tmp1;
   VectorX<T>& vt_term = workspace->v_size_tmp1;
   VectorX<T>& vp_term = workspace->v_size_tmp2;
   VectorX<T>& taum_term = workspace->tau_size_tmp1;
@@ -783,7 +783,6 @@ std::tuple<double, int> TrajectoryOptimizer<T>::BacktrackingLinesearch(
   const VectorX<T>& g = EvalGradient(state);
 
   // Linesearch parameters
-  // TODO(vincekurtz): set these in SolverOptions
   const double c = 1e-4;
   const double rho = 0.8;
 
@@ -848,7 +847,6 @@ std::tuple<double, int> TrajectoryOptimizer<T>::ArmijoLinesearch(
   const VectorX<T>& g = EvalGradient(state);
 
   // Linesearch parameters
-  // TODO(vincekurtz): set these in SolverOptions
   const double c = 1e-4;
   const double rho = 0.8;
 
@@ -889,7 +887,6 @@ template <typename T>
 T TrajectoryOptimizer<T>::CalcTrustRatio(
     const TrajectoryOptimizerState<T>& state, const VectorX<T>& dq,
     TrajectoryOptimizerState<T>* scratch_state) const {
-  
   // Compute predicted reduction in cost
   const VectorX<T>& g = EvalGradient(state);
   const PentaDiagonalMatrix<T>& H = EvalHessian(state);
@@ -904,9 +901,9 @@ T TrajectoryOptimizer<T>::CalcTrustRatio(
   const T L_new = EvalCost(*scratch_state);  // L(q + dq)
   const T actual_reduction = L_old - L_new;
 
-  const double eps = 10 * std::numeric_limits<T>::epsilon() / time_step() / time_step();
-  if ((predicted_reduction < eps) &&
-      (actual_reduction < eps)) {
+  const double eps =
+      10 * std::numeric_limits<T>::epsilon() / time_step() / time_step();
+  if ((predicted_reduction < eps) && (actual_reduction < eps)) {
     // Predicted and actual reduction are essentially zero, meaning we are close
     // to convergence. If this is the case, we want to set a trust ratio that is
     // large enough that we accept dq, but not so large that we increase the
@@ -933,12 +930,13 @@ T TrajectoryOptimizer<T>::SolveDoglegQuadratic(const T& a, const T& b,
   const T b_tilde = b / a;
   const T c_tilde = c / a;
 
-  // We know that a real root exists
   const T determinant = b_tilde * b_tilde - 4 * c_tilde;
-  DRAKE_DEMAND(determinant > 0);
+  DRAKE_DEMAND(determinant > 0);  // We know a real root exists
 
   // We know that there is only one positive root, so we just take the big root
   T s = (-b_tilde + sqrt(determinant)) / 2;
+  DRAKE_DEMAND(0 < s);
+  DRAKE_DEMAND(s < 1);
 
   return s;
 }
@@ -962,8 +960,8 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
 
   // Compute the unconstrained minimizer of m(δq) = L(q) + g(q)'*δq + 1/2
   // δq'*H(q)*δq along -g
-  // TODO(vincekurtz): use pU and pH from the workspace
-  const VectorXd pU = -(g.dot(g) / gHg) * g;
+  VectorXd& pU = state.workspace.q_size_tmp1;
+  pU = -(g.dot(g) / gHg) * g;
 
   // Check if the trust region is smaller than this unconstrained minimizer
   if (Delta <= pU.norm()) {
@@ -974,7 +972,8 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
   }
 
   // Compute the full Gauss-Newton step
-  VectorXd pH = -g;
+  VectorXd& pH = state.workspace.q_size_tmp2;
+  pH = -g;
   PentaDiagonalFactorization Hchol(H);
   DRAKE_DEMAND(Hchol.status() == PentaDiagonalFactorizationStatus::kSuccess);
   Hchol.SolveInPlace(&pH);
@@ -996,8 +995,7 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
   const double a = (pH - pU).dot(pH - pU);
   const double b = 2 * pU.dot(pH - pU);
   const double c = pU.dot(pU) - Delta * Delta;
-
-  double s = SolveDoglegQuadratic(a, b, c);
+  const double s = SolveDoglegQuadratic(a, b, c);
 
   *dq = pU + s * (pH - pU);
 
@@ -1034,9 +1032,9 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
 }
 
 template <typename T>
-SolverFlag TrajectoryOptimizer<T>::SolveWithLinesearch(const std::vector<VectorX<T>>&,
-                                         TrajectoryOptimizerSolution<T>*,
-                                         TrajectoryOptimizerStats<T>*) const {
+SolverFlag TrajectoryOptimizer<T>::SolveWithLinesearch(
+    const std::vector<VectorX<T>>&, TrajectoryOptimizerSolution<T>*,
+    TrajectoryOptimizerStats<T>*) const {
   throw std::runtime_error(
       "TrajectoryOptimizer::SolveWithLinesearch only supports T=double.");
 }
@@ -1209,9 +1207,9 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithLinesearch(
 }
 
 template <typename T>
-SolverFlag TrajectoryOptimizer<T>::SolveWithTrustRegion(const std::vector<VectorX<T>>&,
-                                         TrajectoryOptimizerSolution<T>*,
-                                         TrajectoryOptimizerStats<T>*) const {
+SolverFlag TrajectoryOptimizer<T>::SolveWithTrustRegion(
+    const std::vector<VectorX<T>>&, TrajectoryOptimizerSolution<T>*,
+    TrajectoryOptimizerStats<T>*) const {
   throw std::runtime_error(
       "TrajectoryOptimizer::SolveWithTrustRegion only supports T=double.");
 }
@@ -1231,7 +1229,7 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
 
   // Allocate the update vector q_{k+1} = q_k + dq
   VectorXd dq(plant().num_positions() * (num_steps() + 1));
-  
+
   // Allocate timing variables
   auto start_time = std::chrono::high_resolution_clock::now();
   auto iter_start_time = std::chrono::high_resolution_clock::now();
@@ -1239,12 +1237,10 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
   std::chrono::duration<double> solve_time;
 
   // Trust region parameters
-  // TODO(vincekurtz) set these elsewhere
   const double Delta_max = 1000;  // Maximum trust region size
   const double Delta0 = 0.01;     // Initial trust region size
   const double eta = 0.1;  // Trust region ratio threshold - we accept steps if
                            // the trust region ratio is above this threshold
-
 
   // Variables that we'll update throughout the main loop
   int k = 0;                  // iteration counter
@@ -1255,7 +1251,8 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
 
   // Define printout data
   const std::string separator_bar =
-      "------------------------------------------------------------------------";
+      "-----------------------------------------------------------------------"
+      "-";
   const std::string printout_labels =
       "|  iter  |   cost   |    Δ    |    ρ    |  time (s)  |  |g|/cost  |";
 
@@ -1265,7 +1262,7 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
 
     // Compute the trust region ratio
     rho = CalcTrustRatio(state, dq, &scratch_state);
-    
+
     // If the ratio is large enough, accept the change
     if (rho > eta) {
       state.AddToQ(dq);  // q += dq
@@ -1273,7 +1270,7 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
     // Else (rho <= eta), the trust region ratio is too small to accept dq, so
     // we'll need to so keep reducing the trust region. Note that the trust
     // region will be reduced in this case, since eta < 0.25.
-    
+
     // N.B. if this is the case (q_{k+1} = q_k), we haven't touched state, so we
     // should be reusing the cached gradient and Hessian in the next iteration.
     // TODO(vincekurtz): should we be caching the factorization of the Hessian,
@@ -1281,11 +1278,11 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
 
     // Compute iteration timing
     // N.B. this is in kind of a weird place because we want to record
-    // statistics before updating the trust-region size. That ensures that 
+    // statistics before updating the trust-region size. That ensures that
     // ‖ δq ‖ ≤ Δ in our logs.
     iter_time = std::chrono::high_resolution_clock::now() - iter_start_time;
     iter_start_time = std::chrono::high_resolution_clock::now();
-    
+
     // Printout statistics from this iteration
     if (params_.verbose) {
       if ((k % 50) == 0) {
@@ -1318,8 +1315,8 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
       // the trust region
       Delta *= 0.25;
     } else if ((rho > 0.7) && tr_constraint_active) {
-      // If the ratio is very large and we're at the boundary of the trust region,
-      // increase the size of the trust region.
+      // If the ratio is very large and we're at the boundary of the trust
+      // region, increase the size of the trust region.
       Delta = min(2 * Delta, Delta_max);
     }
 
@@ -1338,7 +1335,7 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
   solution->q = state.q();
   solution->v = EvalV(state);
   solution->tau = EvalTau(state);
-  
+
   return SolverFlag::kSuccess;
 }
 

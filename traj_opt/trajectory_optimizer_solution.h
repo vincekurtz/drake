@@ -3,9 +3,9 @@
 #include <fstream>
 #include <string>
 #include <vector>
-#include <drake/common/text_logging.h>
 
 #include "drake/common/eigen_types.h"
+#include "drake/common/text_logging.h"
 
 namespace drake {
 namespace traj_opt {
@@ -80,7 +80,8 @@ struct TrajectoryOptimizerStats {
    * @param grad_norm norm of the gradient
    */
   void push_data(double iter_time, T iter_cost, int linesearch_iters,
-                 double alpha, double delta, T dq_norm, T trust_ratio, T grad_norm) {
+                 double alpha, double delta, T dq_norm, T trust_ratio,
+                 T grad_norm) {
     iteration_times.push_back(iter_time);
     iteration_costs.push_back(iter_cost);
     linesearch_iterations.push_back(linesearch_iters);
