@@ -467,21 +467,6 @@ class TrajectoryOptimizer {
                          TrajectoryOptimizerState<T>* scratch_state) const;
 
   /**
-   * Compute the Cauchy point, a (very) rough approximation to the trust-region
-   * sub-problem
-   *
-   *   min_{δq} L(q) + g(q)'*δq + 1/2 δq'*H(q)*δq
-   *   s.t.     ‖ δq ‖ <= Δ
-   *
-   * @param state the optimizer state, containing q and the ability to compute
-   * g(q) and H(q)
-   * @param Delta the trust region size
-   * @param dq  the Cauchy point
-   */
-  void CalcCauchyPoint(const TrajectoryOptimizerState<T>& state,
-                       const double Delta, VectorX<T>* dq) const;
-
-  /**
    * Compute the dogleg step δq, which approximates the solution to the
    * trust-region sub-problem
    *

@@ -918,31 +918,6 @@ T TrajectoryOptimizer<T>::CalcTrustRatio(
 }
 
 template <typename T>
-void TrajectoryOptimizer<T>::CalcCauchyPoint(
-    const TrajectoryOptimizerState<T>& state, const double Delta,
-    VectorX<T>* dq) const {
-  using std::min;
-  const VectorX<T>& g = EvalGradient(state);
-  const PentaDiagonalMatrix<T>& H = EvalHessian(state);
-  const T g_norm = g.norm();
-  const T gHg = g.transpose() * H.MultiplyBy(g);
-
-  // Solution to min_{p} L + g'*p  s.t. ‖ p ‖ ≤ Δ
-  const VectorX<T> ps = - Delta / g_norm * g;
-
-  // Minimizer of quadratic cost s.t. ‖ τpₛ ‖ ≤ Δ
-  T tau;
-  if ( gHg <= 0 ) {
-    tau = 1.;
-  } else {
-    tau = min(1., pow(g_norm, 3) / (Delta * gHg));
-  }
-
-  // Cauchy point is given by τpₛ
-  *dq = tau * ps;
-}
-
-template <typename T>
 T TrajectoryOptimizer<T>::SolveDoglegQuadratic(const T& a, const T& b,
                                                const T& c) const {
   using std::sqrt;

@@ -125,7 +125,6 @@ GTEST_TEST(TrajectoryOptimzierTest, DoglegPoint) {
   const std::string urdf_file =
       FindResourceOrThrow("drake/examples/pendulum/Pendulum.urdf");
   Parser(&plant).AddAllModelsFromFile(urdf_file);
-  //plant.mutable_gravity_field().set_gravity_vector(VectorXd::Zero(3));
   plant.Finalize();
   auto context = plant.CreateDefaultContext();
   
