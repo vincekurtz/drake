@@ -901,8 +901,7 @@ T TrajectoryOptimizer<T>::CalcTrustRatio(
   const T L_new = EvalCost(*scratch_state);  // L(q + dq)
   const T actual_reduction = L_old - L_new;
 
-  const double eps =
-      10 * std::numeric_limits<T>::epsilon() / time_step() / time_step();
+  const double eps = std::numeric_limits<T>::epsilon();
   if ((predicted_reduction < eps) && (actual_reduction < eps)) {
     // Predicted and actual reduction are essentially zero, meaning we are close
     // to convergence. If this is the case, we want to set a trust ratio that is
@@ -923,7 +922,12 @@ T TrajectoryOptimizer<T>::SolveDoglegQuadratic(const T& a, const T& b,
 
   // If a is essentially zero, just solve bx + c = 0
   if (a < std::numeric_limits<double>::epsilon()) {
-    return -c / b;
+    T s = -c / b;
+    std::cout << fmt::format("a : {}\nb : {}\nc : {}\ns : {}\n", a, b, c, s);
+    DRAKE_DEMAND(0 < s);
+    DRAKE_DEMAND(s < 1);
+    
+    return s;
   }
 
   // Normalize everything by a
@@ -958,13 +962,27 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
   const PentaDiagonalMatrix<double>& H = EvalHessian(state);
   const double gHg = g.transpose() * H.MultiplyBy(g);
 
+  // DEBUG
+  VectorXd& g_last = state.workspace.g_k_minus_1;
+  const double dot_product = g.dot(g_last) / g.norm() / g_last.norm();
+  const double theta = acos(dot_product);
+  std::cout << fmt::format("cos(theta): {}\n", dot_product);
+  std::cout << fmt::format("theta     : {}\n", theta);
+  MatrixXd H_dense = H.MakeDense();
+  VectorXd D = H_dense.diagonal().cwiseSqrt().cwiseInverse();
+  MatrixXd H_scaled = D.asDiagonal() * H_dense * D.asDiagonal();
+  H_scaled.block(0,0,plant().num_positions(), plant().num_positions()).setIdentity();
+  std::cout << fmt::format("cond(H) : {:e}\n", 1 / H_dense.ldlt().rcond());
+  std::cout << fmt::format("cond(H_scaled) : {:e}\n", 1 / H_scaled.ldlt().rcond());
+  g_last = g;
+
   // Compute the unconstrained minimizer of m(δq) = L(q) + g(q)'*δq + 1/2
   // δq'*H(q)*δq along -g
   VectorXd& pU = state.workspace.q_size_tmp1;
-  pU = -(g.dot(g) / gHg) * g;
+  pU = -(g.dot(g) / gHg) * g / Delta;
 
   // Check if the trust region is smaller than this unconstrained minimizer
-  if (Delta <= pU.norm()) {
+  if (1.0 <= pU.norm()) {
     // If so, δq is where the first leg of the dogleg path intersects the trust
     // region.
     *dq = (Delta / pU.norm()) * pU;
@@ -973,14 +991,14 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
 
   // Compute the full Gauss-Newton step
   VectorXd& pH = state.workspace.q_size_tmp2;
-  pH = -g;
+  pH = -g / Delta;
   PentaDiagonalFactorization Hchol(H);
   DRAKE_DEMAND(Hchol.status() == PentaDiagonalFactorizationStatus::kSuccess);
   Hchol.SolveInPlace(&pH);
 
   // Check if the trust region is large enough to just take the full Newton step
-  if (Delta >= pH.norm()) {
-    *dq = pH;
+  if (1.0 >= pH.norm()) {
+    *dq = pH * Delta;
     return false;  // the trust region constraint is not active
   }
 
@@ -994,10 +1012,14 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
   //    δq = pU + s( pH − pU )
   const double a = (pH - pU).dot(pH - pU);
   const double b = 2 * pU.dot(pH - pU);
-  const double c = pU.dot(pU) - Delta * Delta;
+  const double c = pU.dot(pU) - 1.0;
   const double s = SolveDoglegQuadratic(a, b, c);
 
-  *dq = pU + s * (pH - pU);
+  std::cout << fmt::format("|pH| : {}\n", pH.norm());
+  std::cout << fmt::format("|pU| : {}\n", pU.norm());
+  std::cout << fmt::format("|pH - pU| : {}\n", (pH-pU).norm());
+
+  *dq = (pU + s * (pH - pU) ) * Delta;
 
   return true;  // the trust region constraint is active
 }

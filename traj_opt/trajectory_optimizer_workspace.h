@@ -68,6 +68,9 @@ struct TrajectoryOptimizerWorkspace {
   // Storage of sequence of q
   std::vector<VectorX<T>> q_sequence_tmp1;
   std::vector<VectorX<T>> q_sequence_tmp2;
+
+  //DEBUG
+  VectorX<T> g_k_minus_1;
 };
 
 }  // namespace traj_opt
