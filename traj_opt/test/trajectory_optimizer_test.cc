@@ -75,11 +75,11 @@ class TrajectoryOptimizerTester {
     optimizer.CalcInverseDynamicsSingleTimeStep(q, v, a, workspace, tau);
   }
 
-  static double CalcTrustRegionRatio(
+  static double CalcTrustRatio(
       const TrajectoryOptimizer<double>& optimizer,
       const TrajectoryOptimizerState<double>& state, const VectorXd& dq,
       TrajectoryOptimizerState<double>* scratch_state) {
-    return optimizer.CalcTrustRegionRatio(state, dq, scratch_state);
+    return optimizer.CalcTrustRatio(state, dq, scratch_state);
   }
 
   static bool CalcDoglegPoint(const TrajectoryOptimizer<double>& optimizer,
@@ -175,11 +175,11 @@ GTEST_TEST(TrajectoryOptimzierTest, DoglegPoint) {
 }
 
 /**
- * Test our computation of the trust-region ratio, which should be exactly 1
+ * Test our computation of the trust ratio, which should be exactly 1
  * when our quadratic model of the cost matches the true cost. This is the case
  * for the simple pendulum without gravity.
  */
-GTEST_TEST(TrajectoryOptimizerTest, TrustRegionRatio) {
+GTEST_TEST(TrajectoryOptimizerTest, TrustRatio) {
   // Define an optimization problem
   const int num_steps = 5;
   const double dt = 5e-2;
@@ -227,12 +227,12 @@ GTEST_TEST(TrajectoryOptimizerTest, TrustRegionRatio) {
   PentaDiagonalFactorization Hchol(H);
   Hchol.SolveInPlace(&dq);
 
-  // Compute the trust region ratio, which should be 1
-  double trust_region_ratio = TrajectoryOptimizerTester::CalcTrustRegionRatio(
+  // Compute the trust ratio, which should be 1
+  double trust_ratio= TrajectoryOptimizerTester::CalcTrustRatio(
       optimizer, state, dq, &scratch_state);
 
   const double kTolerance = sqrt(std::numeric_limits<double>::epsilon());
-  EXPECT_NEAR(trust_region_ratio, 1.0, kTolerance);
+  EXPECT_NEAR(trust_ratio, 1.0, kTolerance);
 }
 
 /**

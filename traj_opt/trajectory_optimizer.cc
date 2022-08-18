@@ -886,7 +886,7 @@ std::tuple<double, int> TrajectoryOptimizer<T>::ArmijoLinesearch(
 }
 
 template <typename T>
-T TrajectoryOptimizer<T>::CalcTrustRegionRatio(
+T TrajectoryOptimizer<T>::CalcTrustRatio(
     const TrajectoryOptimizerState<T>& state, const VectorX<T>& dq,
     TrajectoryOptimizerState<T>* scratch_state) const {
   
@@ -1155,8 +1155,8 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithLinesearch(
       SaveLinesearchResidual(state, dq, &scratch_state);
     }
 
-    // Compute the trust region ratio.
-    double tr_ratio = CalcTrustRegionRatio(state, alpha * dq, &scratch_state);
+    // Compute the trust ratio (actual cost reduction / model cost reduction)
+    double trust_ratio = CalcTrustRatio(state, alpha * dq, &scratch_state);
 
     // Update the decision variables
     state.AddToQ(alpha * dq);
@@ -1204,7 +1204,7 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithLinesearch(
                      alpha,              // linesearch parameter
                      NAN,                // trust region size
                      dq.norm(),          // step size
-                     tr_ratio,           // trust region ratio
+                     trust_ratio,        // trust ratio
                      g.norm());          // gradient size
 
     ++k;
@@ -1289,7 +1289,7 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
     tr_constraint_active = CalcDoglegPoint(state, Delta, &dq);
 
     // Compute the trust region ratio
-    rho = CalcTrustRegionRatio(state, dq, &scratch_state);
+    rho = CalcTrustRatio(state, dq, &scratch_state);
     
     // If the ratio is large enough, accept the change
     if (rho > eta) {

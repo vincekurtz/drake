@@ -446,7 +446,7 @@ class TrajectoryOptimizer {
       TrajectoryOptimizerState<T>* scratch_state) const;
 
   /**
-   * Compute the trust region ratio
+   * Compute the trust ratio
    *
    *           L(q) - L(q + dq)
    *    rho =  ----------------
@@ -462,7 +462,7 @@ class TrajectoryOptimizer {
    * @param scratch_state scratch state variable used to compute L(q+dq)
    * @return T, the trust region ratio
    */
-  T CalcTrustRegionRatio(const TrajectoryOptimizerState<T>& state,
+  T CalcTrustRatio(const TrajectoryOptimizerState<T>& state,
                          const VectorX<T>& dq,
                          TrajectoryOptimizerState<T>* scratch_state) const;
 
