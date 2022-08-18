@@ -44,7 +44,11 @@ struct TrajOptExampleParams {
     a->Visit(DRAKE_NVP(save_solver_stats_csv));
     a->Visit(DRAKE_NVP(F));
     a->Visit(DRAKE_NVP(delta));
-    a->Visit(DRAKE_NVP(n));
+    a->Visit(DRAKE_NVP(stiffness_exponent));
+    a->Visit(DRAKE_NVP(dissipation_velocity));
+    a->Visit(DRAKE_NVP(dissipation_exponent));
+    a->Visit(DRAKE_NVP(stiction_velocity));
+    a->Visit(DRAKE_NVP(friction_coefficient));
   }
   std::vector<double> q_init;
   std::vector<double> v_init;
@@ -70,7 +74,11 @@ struct TrajOptExampleParams {
   bool save_solver_stats_csv;
   double F;
   double delta;
-  double n;
+  double stiffness_exponent;
+  double dissipation_velocity;
+  double dissipation_exponent;
+  double stiction_velocity;
+  double friction_coefficient;
 };
 
 }  // namespace examples

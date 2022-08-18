@@ -113,7 +113,11 @@ class TrajOptExample {
     // TODO(vincekurtz): figure out a better place to set these
     solver_params.F = options.F;
     solver_params.delta = options.delta;
-    solver_params.n = options.n;
+    solver_params.stiffness_exponent = options.stiffness_exponent;
+    solver_params.dissipation_velocity = options.dissipation_velocity;
+    solver_params.dissipation_exponent = options.dissipation_exponent;
+    solver_params.friction_coefficient = options.friction_coefficient;
+    solver_params.stiction_velocity = options.stiction_velocity;
 
     // Establish an initial guess
     const VectorXd qT_guess = Eigen::Map<VectorXd>(options.q_guess.data(), nq);
