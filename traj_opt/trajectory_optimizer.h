@@ -56,6 +56,15 @@ class TrajectoryOptimizer {
   int num_steps() const { return prob_.num_steps; }
 
   /**
+   * Convienience function to get the number of equality constraints.
+   *
+   * @return int the number of equality constraints.
+   */
+  int num_eq_constraints() const {
+    return prob_.num_steps * int(prob_.unactuated_dof.size());
+  }
+
+  /**
    * Convienience function to get a const reference to the multibody plant that
    * we are optimizing over.
    *
@@ -109,9 +118,9 @@ class TrajectoryOptimizer {
    * data regarding the solve process.
    * @return SolverFlag
    */
-  SolverFlag SolveUnconstrained(const std::vector<VectorX<T>>& q_guess,
-                                TrajectoryOptimizerSolution<T>* solution,
-                                TrajectoryOptimizerStats<T>* stats) const;
+  SolverFlag SolveGaussNewton(const std::vector<VectorX<T>>& q_guess,
+                              TrajectoryOptimizerSolution<T>* solution,
+                              TrajectoryOptimizerStats<T>* stats) const;
 
   /**
    * Solve the optimization from the given initial guess.
@@ -204,6 +213,15 @@ class TrajectoryOptimizer {
   T CalcCost(const std::vector<VectorX<T>>& q, const std::vector<VectorX<T>>& v,
              const std::vector<VectorX<T>>& tau,
              TrajectoryOptimizerWorkspace<T>* workspace) const;
+
+  /**
+   * Compute the vector of forces acting upon unactuated DOF
+   *
+   * @param tau sequence of generalized forces (consistent with q and v)
+   * @return vector of double, forces acting on unactuated DOF
+   */
+  std::vector<T> CalcConstraintViolations(
+      const std::vector<VectorX<T>>& tau) const;
 
   /**
    * Compute a sequence of generalized velocities v from a sequence of
@@ -428,6 +446,14 @@ class TrajectoryOptimizer {
 
   // Various parameters
   SolverParameters* params_;
+
+  // Augmented Lagrangian parameters
+  std::vector<Eigen::VectorXd> lambda;
+  std::vector<double> mu;
+  double lambda0 = 0.0;
+  double mu0 = 0.0;
+  mutable Eigen::VectorXd lambda_iter;
+  mutable double mu_iter;
 };
 
 }  // namespace traj_opt

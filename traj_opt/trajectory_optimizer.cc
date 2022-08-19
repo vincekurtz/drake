@@ -35,6 +35,34 @@ TrajectoryOptimizer<T>::TrajectoryOptimizer(const MultibodyPlant<T>* plant,
     const int nv = joint.num_velocities();
     joint_damping_.segment(velocity_start, nv) = joint.damping_vector();
   }
+
+  // Initialize the augmented Lagrangian parameters
+  lambda.resize(params_->max_major_iterations);
+  mu.resize(params_->max_major_iterations, mu0);
+  for (int i = 0; i < params_->max_major_iterations; ++i) {
+    lambda[i] = lambda0 * Eigen::VectorXd::Ones(num_eq_constraints());
+  }
+
+  std::cout << "\nNum. of time steps: " << num_steps();
+  std::cout << "\nNum. of eq. constraints: " << num_eq_constraints();
+  std::cout << "\nLambda:\n";
+  for (int i = 0; i < params_->max_major_iterations; ++i)
+    std::cout << "lambda" << i << ": " << lambda[i].transpose() << "\n";
+  for (int i = 0; i < params_->max_major_iterations; ++i)
+    std::cout << "mu" << i << ": " << mu[i] << "\n";
+  std::cin.get();
+}
+
+template <typename T>
+std::vector<T> TrajectoryOptimizer<T>::CalcConstraintViolations(
+    const std::vector<VectorX<T>>& tau) const {
+  std::vector<T> violations;
+  for (int t = 0; t < num_steps(); ++t) {
+    for (int dof_id : prob_.unactuated_dof) {
+      violations.push_back(tau[t][dof_id]);
+    }
+  }
+  return violations;
 }
 
 template <typename T>
@@ -61,6 +89,7 @@ T TrajectoryOptimizer<T>::CalcCost(
     const std::vector<VectorX<T>>& tau,
     TrajectoryOptimizerWorkspace<T>* workspace) const {
   T cost = 0;
+  T augmented_cost = 0;
   VectorX<T>& q_err = workspace->q_size_tmp;
   VectorX<T>& v_err = workspace->v_size_tmp1;
 
@@ -72,10 +101,13 @@ T TrajectoryOptimizer<T>::CalcCost(
     cost += T(v_err.transpose() * prob_.Qv * v_err);
     cost += T(tau[t].transpose() * prob_.R * tau[t]);
     if (params_->augmented_lagrangian) {
-      cost += -params_->lambda * T(tau[t][0]) +
-              params_->mu / 2 * (T(tau[t][0]*tau[t][0]));
+      for (int dof_id : prob_.unactuated_dof) {
+        augmented_cost += -lambda_iter[t * num_steps() + dof_id] * T(tau[t][dof_id]) +
+                mu_iter / 2 * (T(tau[t][dof_id] * tau[t][dof_id]));
+      }
     }
   }
+  std::cout << "\n\tCost: " << cost << ", aug. cost: " << augmented_cost << "\n\n";
 
   // Scale running cost by dt (so the optimization problem we're solving doesn't
   // change so dramatically when we change the time step).
@@ -751,15 +783,15 @@ std::tuple<double, int> TrajectoryOptimizer<T>::ArmijoLinesearch(
 }
 
 template <typename T>
-SolverFlag TrajectoryOptimizer<T>::SolveUnconstrained(
+SolverFlag TrajectoryOptimizer<T>::SolveGaussNewton(
     const std::vector<VectorX<T>>&, TrajectoryOptimizerSolution<T>*,
     TrajectoryOptimizerStats<T>*) const {
   throw std::runtime_error(
-      "TrajectoryOptimizer::SolveUnconstrained only supports T=double.");
+      "TrajectoryOptimizer::SolveGaussNewton only supports T=double.");
 }
 
 template <>
-SolverFlag TrajectoryOptimizer<double>::SolveUnconstrained(
+SolverFlag TrajectoryOptimizer<double>::SolveGaussNewton(
     const std::vector<VectorXd>& q_guess,
     TrajectoryOptimizerSolution<double>* solution,
     TrajectoryOptimizerStats<double>* stats) const {
@@ -767,8 +799,8 @@ SolverFlag TrajectoryOptimizer<double>::SolveUnconstrained(
   DRAKE_DEMAND(q_guess[0] == prob_.q_init);
   DRAKE_DEMAND(static_cast<int>(q_guess.size()) == num_steps() + 1);
 
-  // stats must be empty
-  DRAKE_DEMAND(stats->is_empty());
+  // stats must be empty at the beginning
+  if (!params_->augmented_lagrangian) DRAKE_DEMAND(stats->is_empty());
 
   // Allocate a state variable
   TrajectoryOptimizerState<double> state = CreateState();
@@ -839,7 +871,7 @@ SolverFlag TrajectoryOptimizer<double>::SolveUnconstrained(
       // We'll still record iteration data for playback later
       iter_time = std::chrono::high_resolution_clock::now() - iter_start_time;
       solve_time = std::chrono::high_resolution_clock::now() - start_time;
-      stats->solve_time = solve_time.count();
+      stats->solve_time.push_back(solve_time.count());
       stats->push_data(iter_time.count(), cost, ls_iters, alpha, g.norm());
 
       return SolverFlag::kLinesearchMaxIters;
@@ -875,7 +907,7 @@ SolverFlag TrajectoryOptimizer<double>::SolveUnconstrained(
 
   // Record the total solve time
   solve_time = std::chrono::high_resolution_clock::now() - start_time;
-  stats->solve_time = solve_time.count();
+  stats->solve_time.push_back(solve_time.count());
 
   // Record the solution
   solution->q = state.q();
@@ -898,13 +930,45 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
     const std::vector<VectorXd>& q_guess,
     TrajectoryOptimizerSolution<double>* solution,
     TrajectoryOptimizerStats<double>* stats) const {
-	SolverFlag status = SolverFlag::kSuccess;
+  SolverFlag status = SolverFlag::kSuccess;
   auto q_init = q_guess;
   for (int i = 0; i < params_->max_major_iterations; i++) {
-		std::cout << "Major iteration: " << i << std::endl;
-    params_->mu *= 1.5;
-    status = SolveUnconstrained(q_init, solution, stats);
+    // Report the major iteration
+    if (params_->verbose) {
+      std::cout << "\nMajor iteration: " << i << "\n";
+      std::cout
+          << "-------------------------------------------------------------"
+             "---------"
+          << std::endl;
+    }
+    // Assign augmented Lagrangian parameters
+    lambda_iter = lambda[i];
+    mu_iter = mu[i];
+    // Solve the sub-problem
+    status = SolveGaussNewton(q_init, solution, stats);
+    // Terminate if augmented Lagrangian is disabled or the solver failed
+    if (!params_->augmented_lagrangian || status != SolverFlag::kSuccess)
+      return status;
+    // Update the initial guess
     q_init = solution->q;
+    // Evaluate the constraint violations
+    auto violations = CalcConstraintViolations(solution->tau);
+
+    std::cout << "\nTau:\n";
+    for (int j = 0; j < num_steps(); ++j) {
+      std::cout << solution->tau[j].transpose() << "\n";
+    }
+    std::cout << "Constraint violations:\n";
+    for (int j = 0; j < num_steps() * int(prob_.unactuated_dof.size()); ++j) {
+      std::cout << violations[j] << "\n";
+    }
+    std::cin.get();
+
+    // Update the Lagrange multiplier
+    // params->lambda -= params->mu *
+    // Update the penalty parameter
+    // TODO: Select new tolerance
+    // mu *= 1e0;
   }
 
   return status;

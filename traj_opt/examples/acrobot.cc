@@ -141,6 +141,9 @@ void solve_trajectory_optimization(double time_step, int num_steps) {
     q_guess.push_back(opt_prob.q_init);
   }
 
+  // Set the indices of anactuated DOF
+  opt_prob.unactuated_dof = {0};
+
   // Solve the optimzation problem
   TrajectoryOptimizer<double> optimizer(&plant, opt_prob, &solver_params);
   TrajectoryOptimizerSolution<double> solution;
@@ -149,7 +152,8 @@ void solve_trajectory_optimization(double time_step, int num_steps) {
   SolverFlag status = optimizer.Solve(q_guess, &solution, &stats);
 
   if (status == SolverFlag::kSuccess) {
-    std::cout << "Solved in " << stats.solve_time << " seconds." << std::endl;
+    std::cout << "Solved in " << stats.solve_time[-1] << " seconds."
+              << std::endl;
     // Report maximum torques applied to the unactuated shoulder and actuated
     // elbow.
     double max_unactuated_torque = 0;

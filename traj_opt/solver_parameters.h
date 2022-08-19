@@ -25,12 +25,8 @@ struct SolverParameters {
   bool verbose = true;
 
   // Augmented Lagrangian parameters
-  bool augmented_lagrangian = false;
-  int max_major_iterations = 10;
-  double lambda = 10.0;
-  double mu = 1.0;
-  double omega = 1.0/mu;
-  double nu = 1.0/std::pow(mu, 0.1);
+  bool augmented_lagrangian = true;
+  int max_major_iterations = 2;
 };
 
 }  // namespace traj_opt

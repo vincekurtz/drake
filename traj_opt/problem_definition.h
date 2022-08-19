@@ -54,6 +54,9 @@ struct ProblemDefinition {
 
   // Target generalized velocities
   VectorXd v_nom;
+
+  // Indices of the unactuated DOF
+  std::vector<int> unactuated_dof;
 };
 
 }  // namespace traj_opt
