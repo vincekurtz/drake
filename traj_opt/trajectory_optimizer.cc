@@ -719,6 +719,38 @@ TrajectoryOptimizer<T>::EvalInverseDynamicsPartials(
 }
 
 template <typename T>
+void TrajectoryOptimizer<T>::SaveCostForPlotting(
+    TrajectoryOptimizerState<T>* scratch_state) const {
+  std::ofstream data_file;
+  data_file.open("contour_data.csv");
+  data_file << "q1, q2, L\n"; // header
+
+  // Establish variable ranges and number of samples
+  // TODO(vincekurtz): make range parameters, and set a fixed (reasonable)
+  // number of sample points
+  const double q1_min = 1.00;
+  const double q1_max = 1.81;
+  const double q2_min = -0.12;
+  const double q2_max = 0.02;
+  const double dq1 = 5e-3;
+  const double dq2 = 5e-3;
+
+  T cost;
+  std::vector<VectorX<T>> q = scratch_state->q();
+  for (double q1 = q1_min; q1 <= q1_max; q1 += dq1) {
+    for (double q2 = q2_min; q2 <= q2_max; q2 += dq2) {
+      q[1](0) = q1;
+      q[1](1) = q2;
+      scratch_state->set_q(q);
+      cost = EvalCost(*scratch_state);
+      data_file << fmt::format("{}, {}, {}\n", q1, q2, cost);
+    }
+  }
+
+  data_file.close();
+}
+
+template <typename T>
 void TrajectoryOptimizer<T>::SaveLinesearchResidual(
     const TrajectoryOptimizerState<T>& state, const VectorX<T>& dq,
     TrajectoryOptimizerState<T>* scratch_state,
@@ -919,7 +951,6 @@ T TrajectoryOptimizer<T>::SolveDoglegQuadratic(const T& a, const T& b,
   // If a is essentially zero, just solve bx + c = 0
   if (a < std::numeric_limits<double>::epsilon()) {
     T s = -c / b;
-    std::cout << fmt::format("a : {}\nb : {}\nc : {}\ns : {}\n", a, b, c, s);
     DRAKE_DEMAND(0 < s);
     DRAKE_DEMAND(s < 1);
     
@@ -959,18 +990,18 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
   const double gHg = g.transpose() * H.MultiplyBy(g);
 
   // DEBUG
-  VectorXd& g_last = state.workspace.g_k_minus_1;
-  const double dot_product = g.dot(g_last) / g.norm() / g_last.norm();
-  const double theta = acos(dot_product);
-  std::cout << fmt::format("cos(theta): {}\n", dot_product);
-  std::cout << fmt::format("theta     : {}\n", theta);
-  MatrixXd H_dense = H.MakeDense();
-  VectorXd D = H_dense.diagonal().cwiseSqrt().cwiseInverse();
-  MatrixXd H_scaled = D.asDiagonal() * H_dense * D.asDiagonal();
-  H_scaled.block(0,0,plant().num_positions(), plant().num_positions()).setIdentity();
-  std::cout << fmt::format("cond(H) : {:e}\n", 1 / H_dense.ldlt().rcond());
-  std::cout << fmt::format("cond(H_scaled) : {:e}\n", 1 / H_scaled.ldlt().rcond());
-  g_last = g;
+  //VectorXd& g_last = state.workspace.g_k_minus_1;
+  //const double dot_product = g.dot(g_last) / g.norm() / g_last.norm();
+  //const double theta = acos(dot_product);
+  //std::cout << fmt::format("cos(theta): {}\n", dot_product);
+  //std::cout << fmt::format("theta     : {}\n", theta);
+  //MatrixXd H_dense = H.MakeDense();
+  //VectorXd D = H_dense.diagonal().cwiseSqrt().cwiseInverse();
+  //MatrixXd H_scaled = D.asDiagonal() * H_dense * D.asDiagonal();
+  //H_scaled.block(0,0,plant().num_positions(), plant().num_positions()).setIdentity();
+  //std::cout << fmt::format("cond(H) : {:e}\n", 1 / H_dense.ldlt().rcond());
+  //std::cout << fmt::format("cond(H_scaled) : {:e}\n", 1 / H_scaled.ldlt().rcond());
+  //g_last = g;
 
   // Compute the unconstrained minimizer of m(δq) = L(q) + g(q)'*δq + 1/2
   // δq'*H(q)*δq along -g
@@ -1011,9 +1042,9 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
   const double c = pU.dot(pU) - 1.0;
   const double s = SolveDoglegQuadratic(a, b, c);
 
-  std::cout << fmt::format("|pH| : {}\n", pH.norm());
-  std::cout << fmt::format("|pU| : {}\n", pU.norm());
-  std::cout << fmt::format("|pH - pU| : {}\n", (pH-pU).norm());
+  //std::cout << fmt::format("|pH| : {}\n", pH.norm());
+  //std::cout << fmt::format("|pU| : {}\n", pU.norm());
+  //std::cout << fmt::format("|pH - pU| : {}\n", (pH-pU).norm());
 
   *dq = (pU + s * (pH - pU) ) * Delta;
 
@@ -1323,6 +1354,9 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
       printf("| %10.3e |\n", EvalGradient(state).norm() / EvalCost(state));
     }
 
+    //DEBUG:
+    std::cout << "q: " << state.q()[1].transpose() << std::endl;
+
     // Record statistics from this iteration
     stats->push_data(iter_time.count(),            // iteration time
                      EvalCost(state),              // cost
@@ -1359,6 +1393,9 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
   solution->q = state.q();
   solution->v = EvalV(state);
   solution->tau = EvalTau(state);
+
+  // DEBUG: record data for a contour plot
+  SaveCostForPlotting(&scratch_state);
 
   return SolverFlag::kSuccess;
 }

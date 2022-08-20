@@ -504,6 +504,17 @@ class TrajectoryOptimizer {
    */
   T SolveDoglegQuadratic(const T& a, const T& b, const T& c) const;
 
+  /**
+   * Save the cost L(q) for a variety of values of q so that we can make a
+   * contour plot (later) in python.
+   *
+   * Only changes the first two values of q(t) at t=1, so we can plot in 2d.
+   *
+   * @param scratch_state State variable used to compute L(q) for a variety of
+   * values of q.
+   */
+  void SaveCostForPlotting(TrajectoryOptimizerState<T>* scratch_state) const;
+
   // A model of the system that we are trying to find an optimal trajectory for.
   const MultibodyPlant<T>* plant_;
 
