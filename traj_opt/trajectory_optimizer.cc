@@ -903,11 +903,7 @@ T TrajectoryOptimizer<T>::CalcTrustRatio(
 
   const double eps = std::numeric_limits<T>::epsilon();
   if ((predicted_reduction < eps) && (actual_reduction < eps)) {
-    // Predicted and actual reduction are essentially zero, meaning we are close
-    // to convergence. If this is the case, we want to set a trust ratio that is
-    // large enough that we accept dq, but not so large that we increase the
-    // trust region.
-    return 0.4;
+    return 1.0;
   }
 
   return actual_reduction / predicted_reduction;
@@ -1267,7 +1263,7 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
   // Variables that we'll update throughout the main loop
   int k = 0;                  // iteration counter
   double Delta = Delta0;      // trust region size
-  double rho = 0.5;                 // trust region ratio
+  double rho;                 // trust region ratio
   bool tr_constraint_active;  // flag for whether the trust region constraint is
                               // active
 
