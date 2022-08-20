@@ -5,7 +5,7 @@
 ##
 
 # Initial state, ordered by [finger 1, finger 2, spinner]
-q_init : [0.2, 1.5, 0.0]
+q_init : [0.3, 1.5, 0.0]
 v_init : [0.0, 0.0, 0.0]
 
 # Target state
@@ -27,11 +27,11 @@ Qfq : [0.0, 0.0, 10.0]  # Terminal cost
 Qfv : [0.1, 0.1, 1.0]
 
 # Problem definition parameters
-time_step : 0.05   # Discretization timestep (seconds)
-num_steps : 40     # number of timesteps
+time_step : 1.00   # Discretization timestep (seconds)
+num_steps : 1      # number of timesteps
 
 # Solver parameters
-max_iters : 500             # maximum Gauss-Newton iterations
+max_iters : 200             # maximum Gauss-Newton iterations
 method : "trust_region"     # solver method, {linesearch, trust_region}
 linesearch : "armijo"       # linesearch strategy, {armino, backtracking}
 proximal_operator : false   # whether to add a proximal operator cost term
