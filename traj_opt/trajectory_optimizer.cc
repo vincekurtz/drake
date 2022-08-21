@@ -719,32 +719,42 @@ TrajectoryOptimizer<T>::EvalInverseDynamicsPartials(
 }
 
 template <typename T>
-void TrajectoryOptimizer<T>::SaveCostForPlotting(
+void TrajectoryOptimizer<T>::SaveContourPlotDataFirstTwoVariables(
     TrajectoryOptimizerState<T>* scratch_state) const {
   std::ofstream data_file;
   data_file.open("contour_data.csv");
   data_file << "q1, q2, L\n"; // header
 
-  // Establish variable ranges and number of samples
-  // TODO(vincekurtz): make range parameters, and set a fixed (reasonable)
-  // number of sample points
+  // Establish sample points
   const double q1_min = 1.00;
   const double q1_max = 1.81;
   const double q2_min = -0.12;
   const double q2_max = 0.02;
-  const double dq1 = 5e-3;
-  const double dq2 = 5e-3;
+  const int nq1 = 50;
+  const int nq2 = 50;
+  const double dq1 = (q1_max - q1_min) / nq1;
+  const double dq2 = (q2_max - q2_min) / nq2;
 
   T cost;
   std::vector<VectorX<T>> q = scratch_state->q();
-  for (double q1 = q1_min; q1 <= q1_max; q1 += dq1) {
-    for (double q2 = q2_min; q2 <= q2_max; q2 += dq2) {
+  double q1 = q1_min;
+  for (int i = 0; i < nq1; ++i) {
+    double q2 = q2_min;
+    for (int j = 0; j < nq2; ++j) {
+      // Update q
       q[1](0) = q1;
       q[1](1) = q2;
+
+      // Compute L(q)
       scratch_state->set_q(q);
       cost = EvalCost(*scratch_state);
+
+      // Write to the file
       data_file << fmt::format("{}, {}, {}\n", q1, q2, cost);
+
+      q2 += dq2;
     }
+    q1 += dq1;
   }
 
   data_file.close();
@@ -1394,8 +1404,8 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
   solution->v = EvalV(state);
   solution->tau = EvalTau(state);
 
-  // DEBUG: record data for a contour plot
-  SaveCostForPlotting(&scratch_state);
+  // DEBUG: record L(q) for various values of q so we can make a contour plot
+  SaveContourPlotDataFirstTwoVariables(&scratch_state);
 
   return SolverFlag::kSuccess;
 }

@@ -513,7 +513,8 @@ class TrajectoryOptimizer {
    * @param scratch_state State variable used to compute L(q) for a variety of
    * values of q.
    */
-  void SaveCostForPlotting(TrajectoryOptimizerState<T>* scratch_state) const;
+  void SaveContourPlotDataFirstTwoVariables(
+      TrajectoryOptimizerState<T>* scratch_state) const;
 
   // A model of the system that we are trying to find an optimal trajectory for.
   const MultibodyPlant<T>* plant_;

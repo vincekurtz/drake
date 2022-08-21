@@ -33,7 +33,11 @@ ax.set_zlim((1e1,1e6))
 # Make a contour plot
 plt.subplot(2,1,2)
 levels = np.logspace(1, 5.5, 30)
-plt.tricontourf(q1,q2,cost, levels=levels)
+#plt.tricontour(q1,q2,cost, levels=levels)
+Q1 = q1.reshape((50,50))
+Q2 = q2.reshape((50,50))
+L = cost.reshape((50,50))
+plt.contour(Q1,Q2,L, levels=levels)
 
 print("Minimum cost: %s" % min(cost))
 
