@@ -516,6 +516,30 @@ class TrajectoryOptimizer {
   void SaveContourPlotDataFirstTwoVariables(
       TrajectoryOptimizerState<T>* scratch_state) const;
 
+  /**
+   * Clear the file `quadratic_data.csv` and write a csv header so we can later
+   * record iteration data with SaveQuadraticDataFirstTwoVariables().
+   */
+  void SetupQuadraticDataFile() const;
+
+  /**
+   * Save the cost L(q), gradient g(q), and Hessian approximation H(q) for the
+   * first two variables of the optimization problem at the given iteration.
+   *
+   * @warning this appends a row to `quadratic_data.csv`, without
+   * establishing any csv header or clearning the file. Make sure to call
+   * SetupQuadraticDataFile() first.
+   *
+   * @param iter_num iteration number that we're on
+   * @param Delta trust region radius
+   * @param dq variable step for this iteration.
+   * @param state optimizer state containing q, from which we can compute L, g,
+   * and H
+   */
+  void SaveQuadraticDataFirstTwoVariables(
+      const int iter_num, const double Delta, const VectorX<T>& dq,
+      const TrajectoryOptimizerState<T>& state) const;
+
   // A model of the system that we are trying to find an optimal trajectory for.
   const MultibodyPlant<T>* plant_;
 

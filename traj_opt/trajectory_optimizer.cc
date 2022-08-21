@@ -761,6 +761,42 @@ void TrajectoryOptimizer<T>::SaveContourPlotDataFirstTwoVariables(
 }
 
 template <typename T>
+void TrajectoryOptimizer<T>::SetupQuadraticDataFile() const {
+  std::ofstream data_file;
+  data_file.open("quadratic_data.csv");
+  data_file << "iter, q1, q2, dq1, dq2, Delta, cost , g1, g2, H11, H12, H21, H22\n";
+  data_file.close();
+}
+
+template <typename T>
+void TrajectoryOptimizer<T>::SaveQuadraticDataFirstTwoVariables(
+    const int iter, const double Delta, const VectorX<T>& dq,
+    const TrajectoryOptimizerState<T>& state) const {
+  std::ofstream data_file;
+  data_file.open("quadratic_data.csv", std::ios_base::app);
+
+  const int nq = plant().num_positions();
+  const T q1 = state.q()[1](0);
+  const T q2 = state.q()[1](1);
+  const T dq1 = dq(nq);
+  const T dq2 = dq(nq + 1);
+
+  const VectorX<T>& g = EvalGradient(state);
+  const MatrixX<T>& H = EvalHessian(state).MakeDense();
+  const T g1 = g(nq);
+  const T g2 = g(nq + 1);
+  const T H11 = H(nq, nq);
+  const T H12 = H(nq, nq + 1);
+  const T H21 = H(nq + 1, nq);
+  const T H22 = H(nq + 1, nq + 1);
+
+  data_file << fmt::format(
+      "{}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}\n", iter, q1, q2, dq1,
+      dq2, Delta, EvalCost(state), g1, g2, H11, H12, H21, H22);
+  data_file.close();
+}
+
+template <typename T>
 void TrajectoryOptimizer<T>::SaveLinesearchResidual(
     const TrajectoryOptimizerState<T>& state, const VectorX<T>& dq,
     TrajectoryOptimizerState<T>* scratch_state,
@@ -1289,6 +1325,9 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
   // Allocate the update vector q_{k+1} = q_k + dq
   VectorXd dq(plant().num_positions() * (num_steps() + 1));
 
+  // DEBUG: set up a file to record our quadratic approximation for each iter.
+  SetupQuadraticDataFile();
+
   // Allocate timing variables
   auto start_time = std::chrono::high_resolution_clock::now();
   auto iter_start_time = std::chrono::high_resolution_clock::now();
@@ -1321,6 +1360,9 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
 
     // Compute the trust region ratio
     rho = CalcTrustRatio(state, dq, &scratch_state);
+
+    //DEBUG: save our quadratic approximation in the first two variables
+    SaveQuadraticDataFirstTwoVariables(k, Delta, dq, state);
 
     // If the ratio is large enough, accept the change
     if (rho > eta) {
@@ -1363,9 +1405,6 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
       printf("| %8.8f ", iter_time.count());
       printf("| %10.3e |\n", EvalGradient(state).norm() / EvalCost(state));
     }
-
-    //DEBUG:
-    std::cout << "q: " << state.q()[1].transpose() << std::endl;
 
     // Record statistics from this iteration
     stats->push_data(iter_time.count(),            // iteration time
