@@ -49,3 +49,9 @@ save_solver_stats_csv : true
 F : 1.0         # force at delta meters of penetration
 delta : 0.01  # penetration distance with F newtons of normal force
 n : 2         # polynomial smoothing factor
+
+# Contour plot ranges
+contour_q1_min : 1.00
+contour_q1_max : 1.81
+contour_q2_min : -0.12
+contour_q2_max : 0.02

@@ -24,20 +24,21 @@ cost = data["L"]
 
 # Get iteration data (q_k, L_k, Delta_k, g_k, h_k)
 
-# Make a 3D surface plot
-fig = plt.figure()
-ax = fig.add_subplot(211, projection='3d')
-ax.plot_trisurf(q1,q2,cost)
-ax.set_zlim((1e1,1e6))
+# Set up a plot
+fig = plt.figure(figsize=(8,11))
+ax1 = fig.add_subplot(211, projection='3d')
+ax2 = fig.add_subplot(212)
 
-# Make a contour plot
-plt.subplot(2,1,2)
-levels = np.logspace(1, 5.5, 30)
-#plt.tricontour(q1,q2,cost, levels=levels)
-Q1 = q1.reshape((50,50))
-Q2 = q2.reshape((50,50))
-L = cost.reshape((50,50))
-plt.contour(Q1,Q2,L, levels=levels)
+# Make a 3D surface plot on the first subplot
+ax1.plot_trisurf(q1,q2,cost)
+#ax1.set_zlim((1e1,1e6))
+
+# Make a contour plot on the second subplot
+levels = np.logspace(1, 7, 30)
+plt.contour(q1.reshape((50,50)),
+            q2.reshape((50,50)),
+            cost.reshape((50,50)),
+            levels=levels)
 
 print("Minimum cost: %s" % min(cost))
 

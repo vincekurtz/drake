@@ -115,6 +115,12 @@ class TrajOptExample {
     solver_params.delta = options.delta;
     solver_params.n = options.n;
 
+    // Set range for making contour plot of the first two variables
+    solver_params.contour_q1_min = options.contour_q1_min;
+    solver_params.contour_q1_max = options.contour_q1_max;
+    solver_params.contour_q2_min = options.contour_q2_min;
+    solver_params.contour_q2_max = options.contour_q2_max;
+
     // Establish an initial guess
     const VectorXd qT_guess = Eigen::Map<VectorXd>(options.q_guess.data(), nq);
     std::vector<VectorXd> q_guess;

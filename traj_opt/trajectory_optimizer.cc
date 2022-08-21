@@ -726,10 +726,10 @@ void TrajectoryOptimizer<T>::SaveContourPlotDataFirstTwoVariables(
   data_file << "q1, q2, L\n"; // header
 
   // Establish sample points
-  const double q1_min = 1.00;
-  const double q1_max = 1.81;
-  const double q2_min = -0.12;
-  const double q2_max = 0.02;
+  const double q1_min = params_.contour_q1_min;
+  const double q1_max = params_.contour_q1_max;
+  const double q2_min = params_.contour_q2_min;
+  const double q2_max = params_.contour_q2_max;
   const int nq1 = 50;
   const int nq2 = 50;
   const double dq1 = (q1_max - q1_min) / nq1;
