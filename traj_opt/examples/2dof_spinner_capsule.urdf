@@ -72,30 +72,10 @@
       </geometry>
       <material name="red"/>
     </visual>
-    <!--
     <collision>
       <origin rpy="0 0 0" xyz="0 0 0.5"/>
       <geometry>
         <capsule length="0.9" radius="0.05"/>
-      </geometry>
-    </collision>
-    <collision>
-      <origin rpy="0 0 0" xyz="0 0 0.05"/>
-      <geometry>
-        <sphere radius=".05"/>
-      </geometry>
-    </collision>
-    <collision>
-      <origin rpy="0 0 0" xyz="0 0 0.5"/>
-      <geometry>
-        <cylinder length="0.9" radius=".05"/>
-      </geometry>
-    </collision>
-    -->
-    <collision>
-      <origin rpy="0 0 0" xyz="0 0 0.95"/>
-      <geometry>
-        <sphere radius=".05"/>
       </geometry>
     </collision>
   </link>
