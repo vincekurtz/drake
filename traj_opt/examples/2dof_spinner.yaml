@@ -22,7 +22,7 @@ Qq : [0.0, 0.1]  # Running cost
 Qv : [1.0, 0.1]
 R : [1e0, 1e6]  
 
-Qfq : [0.0, 10.0]  # Terminal cost
+Qfq : [10.0, 10.0]  # Terminal cost
 Qfv : [0.1, 1.0]
 
 # Problem definition parameters
@@ -47,11 +47,16 @@ save_solver_stats_csv : true
 
 # Contact model parameters
 F : 1.0         # force at delta meters of penetration
-delta : 0.01  # penetration distance with F newtons of normal force
+delta : 0.03  # penetration distance with F newtons of normal force
 n : 2         # polynomial smoothing factor
 
-# Contour plot ranges
+# Contour plot parameters
+save_contour_data : true
 contour_q1_min : 1.00
 contour_q1_max : 1.81
 contour_q2_min : -0.12
 contour_q2_max : 0.02
+#contour_q1_min : 1.44
+#contour_q1_max : 1.52
+#contour_q2_min : -0.044
+#contour_q2_max : -0.0225

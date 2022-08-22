@@ -721,17 +721,18 @@ TrajectoryOptimizer<T>::EvalInverseDynamicsPartials(
 template <typename T>
 void TrajectoryOptimizer<T>::SaveContourPlotDataFirstTwoVariables(
     TrajectoryOptimizerState<T>* scratch_state) const {
+  using std::sqrt;
   std::ofstream data_file;
   data_file.open("contour_data.csv");
-  data_file << "q1, q2, L\n"; // header
+  data_file << "q1, q2, L, g1, g2, H11, H22\n"; // header
 
   // Establish sample points
   const double q1_min = params_.contour_q1_min;
   const double q1_max = params_.contour_q1_max;
   const double q2_min = params_.contour_q2_min;
   const double q2_max = params_.contour_q2_max;
-  const int nq1 = 50;
-  const int nq2 = 50;
+  const int nq1 = 150;
+  const int nq2 = 150;
   const double dq1 = (q1_max - q1_min) / nq1;
   const double dq2 = (q2_max - q2_min) / nq2;
 
@@ -749,8 +750,11 @@ void TrajectoryOptimizer<T>::SaveContourPlotDataFirstTwoVariables(
       scratch_state->set_q(q);
       cost = EvalCost(*scratch_state);
 
+      const MatrixX<T> H = EvalHessian(*scratch_state).MakeDense();
+      const VectorX<T> g = EvalGradient(*scratch_state);
+
       // Write to the file
-      data_file << fmt::format("{}, {}, {}\n", q1, q2, cost);
+      data_file << fmt::format("{}, {}, {}, {}, {}, {}, {}\n", q1, q2, cost, g(2), g(3), H(2,2), H(3,3));
 
       q2 += dq2;
     }
@@ -1325,8 +1329,10 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
   // Allocate the update vector q_{k+1} = q_k + dq
   VectorXd dq(plant().num_positions() * (num_steps() + 1));
 
-  // DEBUG: set up a file to record our quadratic approximation for each iter.
-  SetupQuadraticDataFile();
+  // Set up a file to record iteration data for a contour plot
+  if (params_.save_contour_data) {
+    SetupQuadraticDataFile();
+  }
 
   // Allocate timing variables
   auto start_time = std::chrono::high_resolution_clock::now();
@@ -1361,8 +1367,11 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
     // Compute the trust region ratio
     rho = CalcTrustRatio(state, dq, &scratch_state);
 
-    //DEBUG: save our quadratic approximation in the first two variables
-    SaveQuadraticDataFirstTwoVariables(k, Delta, dq, state);
+    // Save data related to our quadratic approximation (for the first two
+    // variables)
+    if (params_.save_contour_data) {
+      SaveQuadraticDataFirstTwoVariables(k, Delta, dq, state);
+    }
 
     // If the ratio is large enough, accept the change
     if (rho > eta) {
@@ -1443,8 +1452,10 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
   solution->v = EvalV(state);
   solution->tau = EvalTau(state);
 
-  // DEBUG: record L(q) for various values of q so we can make a contour plot
-  SaveContourPlotDataFirstTwoVariables(&scratch_state);
+  // Record L(q) for various values of q so we can make a contour plot
+  if (params_.save_contour_data) {
+    SaveContourPlotDataFirstTwoVariables(&scratch_state);
+  }
 
   return SolverFlag::kSuccess;
 }

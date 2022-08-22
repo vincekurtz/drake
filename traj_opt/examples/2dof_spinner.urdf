@@ -72,29 +72,6 @@
       </geometry>
       <material name="red"/>
     </visual>
-    <!--
-    <visual>
-      <origin rpy="0 0 0" xyz="0 0 0.05"/>
-      <geometry>
-        <sphere radius=".05"/>
-      </geometry>
-      <material name="red"/>
-    </visual>
-    <visual>
-      <origin rpy="0 0 0" xyz="0 0 0.5"/>
-      <geometry>
-        <cylinder length="0.9" radius=".05"/>
-      </geometry>
-      <material name="red"/>
-    </visual>
-    <visual>
-      <origin rpy="0 0 0" xyz="0 0 0.95"/>
-      <geometry>
-        <sphere radius=".05"/>
-      </geometry>
-      <material name="red"/>
-    </visual>
-    -->
     <collision>
       <origin rpy="0 0 0" xyz="0 0 0.5"/>
       <geometry>
@@ -115,12 +92,14 @@
       </geometry>
     </collision>
     -->
+    <!--
     <collision>
       <origin rpy="0 0 0" xyz="0 0 0.95"/>
       <geometry>
         <sphere radius=".05"/>
       </geometry>
     </collision>
+    -->
   </link>
   <joint name="theta_two" type="continuous">
     <parent link="finger_one"/>

@@ -59,7 +59,8 @@ struct SolverParameters {
   double delta = 0.01;  // penetration distance at which we apply F newtons
   double n = 2;         // polynomial scaling factor
 
-  // Ranges for making a contour plot with the first two decision variables. 
+  // Flags for making a contour plot with the first two decision variables. 
+  bool save_contour_data = false;
   double contour_q1_min = 0.0;
   double contour_q1_max = 1.0;
   double contour_q2_min = 0.0;
