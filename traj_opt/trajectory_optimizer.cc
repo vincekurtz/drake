@@ -901,14 +901,10 @@ T TrajectoryOptimizer<T>::CalcTrustRatio(
   const T L_new = EvalCost(*scratch_state);  // L(q + dq)
   const T actual_reduction = L_old - L_new;
 
-  const double eps =
-      10 * std::numeric_limits<T>::epsilon() / time_step() / time_step();
+  const double eps = std::numeric_limits<T>::epsilon();
   if ((predicted_reduction < eps) && (actual_reduction < eps)) {
-    // Predicted and actual reduction are essentially zero, meaning we are close
-    // to convergence. If this is the case, we want to set a trust ratio that is
-    // large enough that we accept dq, but not so large that we increase the
-    // trust region.
-    return 0.4;
+    // Predicted and actual reduction are essentially zero
+    return 1.0;
   }
 
   return actual_reduction / predicted_reduction;
