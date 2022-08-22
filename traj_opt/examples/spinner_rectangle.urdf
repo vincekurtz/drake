@@ -87,15 +87,69 @@
       <material name="red"/>
     </visual>
     <collision>
-      <origin rpy="0 0 0" xyz="0 0 0.05"/>
+      <origin rpy="0 0 0" xyz="0 0 0.95"/>
       <geometry>
         <sphere radius=".05"/>
       </geometry>
     </collision>
     <collision>
-      <origin rpy="0 0 0" xyz="0 0 0.5"/>
+      <origin rpy="0 0 0" xyz="0 0 0.90"/>
       <geometry>
-        <cylinder length="0.9" radius=".05"/>
+        <sphere radius=".05"/>
+      </geometry>
+    </collision>
+    <collision>
+      <origin rpy="0 0 0" xyz="0 0 0.80"/>
+      <geometry>
+        <sphere radius=".05"/>
+      </geometry>
+    </collision>
+    <collision>
+      <origin rpy="0 0 0" xyz="0 0 0.70"/>
+      <geometry>
+        <sphere radius=".05"/>
+      </geometry>
+    </collision>
+    <collision>
+      <origin rpy="0 0 0" xyz="0 0 0.60"/>
+      <geometry>
+        <sphere radius=".05"/>
+      </geometry>
+    </collision>
+    <collision>
+      <origin rpy="0 0 0" xyz="0 0 0.50"/>
+      <geometry>
+        <sphere radius=".05"/>
+      </geometry>
+    </collision>
+    <collision>
+      <origin rpy="0 0 0" xyz="0 0 0.40"/>
+      <geometry>
+        <sphere radius=".05"/>
+      </geometry>
+    </collision>
+    <collision>
+      <origin rpy="0 0 0" xyz="0 0 0.30"/>
+      <geometry>
+        <sphere radius=".05"/>
+      </geometry>
+    </collision>
+    <collision>
+      <origin rpy="0 0 0" xyz="0 0 0.20"/>
+      <geometry>
+        <sphere radius=".05"/>
+      </geometry>
+    </collision>
+    <collision>
+      <origin rpy="0 0 0" xyz="0 0 0.10"/>
+      <geometry>
+        <sphere radius=".05"/>
+      </geometry>
+    </collision>
+    <collision>
+      <origin rpy="0 0 0" xyz="0 0 0.05"/>
+      <geometry>
+        <sphere radius=".05"/>
       </geometry>
     </collision>
     <collision>

@@ -1239,7 +1239,7 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
 
   // Trust region parameters
   const double Delta_max = 1000;  // Maximum trust region size
-  const double Delta0 = 0.01;     // Initial trust region size
+  const double Delta0 = 1e0;      // Initial trust region size
   const double eta = 0.0;         // Trust ratio threshold - we accept steps if
                                   // the trust ratio is above this threshold
 

@@ -86,20 +86,76 @@
       </geometry>
       <material name="red"/>
     </visual>
+    <!--
+    Capsule collision geometry introduces significant error in signed
+    distances, which is a big problem for finite-differences. For this
+    reason, we use a bunch of spheres instead.
+
+    See https://drake.mit.edu/doxygen_cxx/classdrake_1_1geometry_1_1_query_object.html#a0918d61334404a7680145cb882a18d52
+    for details.
+    -->
     <collision>
-      <origin rpy="0 0 0" xyz="0 0 0.05"/>
+      <origin rpy="0 0 0" xyz="0 0 0.95"/>
       <geometry>
         <sphere radius=".05"/>
       </geometry>
     </collision>
     <collision>
-      <origin rpy="0 0 0" xyz="0 0 0.5"/>
+      <origin rpy="0 0 0" xyz="0 0 0.90"/>
       <geometry>
-        <cylinder length="0.9" radius=".05"/>
+        <sphere radius=".05"/>
       </geometry>
     </collision>
     <collision>
-      <origin rpy="0 0 0" xyz="0 0 0.95"/>
+      <origin rpy="0 0 0" xyz="0 0 0.80"/>
+      <geometry>
+        <sphere radius=".05"/>
+      </geometry>
+    </collision>
+    <collision>
+      <origin rpy="0 0 0" xyz="0 0 0.70"/>
+      <geometry>
+        <sphere radius=".05"/>
+      </geometry>
+    </collision>
+    <collision>
+      <origin rpy="0 0 0" xyz="0 0 0.60"/>
+      <geometry>
+        <sphere radius=".05"/>
+      </geometry>
+    </collision>
+    <collision>
+      <origin rpy="0 0 0" xyz="0 0 0.50"/>
+      <geometry>
+        <sphere radius=".05"/>
+      </geometry>
+    </collision>
+    <collision>
+      <origin rpy="0 0 0" xyz="0 0 0.40"/>
+      <geometry>
+        <sphere radius=".05"/>
+      </geometry>
+    </collision>
+    <collision>
+      <origin rpy="0 0 0" xyz="0 0 0.30"/>
+      <geometry>
+        <sphere radius=".05"/>
+      </geometry>
+    </collision>
+    <collision>
+      <origin rpy="0 0 0" xyz="0 0 0.20"/>
+      <geometry>
+        <sphere radius=".05"/>
+      </geometry>
+    </collision>
+    <collision>
+      <origin rpy="0 0 0" xyz="0 0 0.10"/>
+      <geometry>
+        <sphere radius=".05"/>
+      </geometry>
+    </collision>
+    <collision>
+      <origin rpy="0 0 0" xyz="0 0 0.05"/>
       <geometry>
         <sphere radius=".05"/>
       </geometry>
