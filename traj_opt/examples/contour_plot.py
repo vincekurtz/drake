@@ -28,28 +28,81 @@ else:
 # N.B. Must run this script from the drake/ directory (containing bazel-out symlink)
 drake_root = os.getcwd();
 data_file = drake_root + "/bazel-out/k8-opt/bin/traj_opt/examples/2dof_spinner.runfiles/drake/contour_data.csv"
+ns = 150    # number of sample points in each axis
 
 data = np.genfromtxt(data_file, delimiter=',', names=True)
-q1 = data["q1"]
-q2 = data["q2"]
-cost = data["L"]
-g1 = data["g1"]
-g2 = data["g2"]
-H11 = data["H11"]
-H22 = data["H22"]
+q1 = data["q1"].reshape((ns,ns))
+q2 = data["q2"].reshape((ns,ns))
+cost = data["L"].reshape((ns,ns))
+g1 = data["g1"].reshape((ns,ns))
+g2 = data["g2"].reshape((ns,ns))
+H11 = data["H11"].reshape((ns,ns))
+H12 = data["H12"].reshape((ns,ns))
+H21 = data["H21"].reshape((ns,ns))
+H22 = data["H22"].reshape((ns,ns))
 
-print(H11[0])
-print(H22[0])
+# Plot cost as a function of q
+plt.figure()
+levels = np.linspace(np.min(cost), np.max(cost), 50)
+plt.contour(q1, q2, cost, levels=levels)
+plt.title("Cost")
+plt.xlabel("$q_1$")
+plt.ylabel("$q_2$")
 
-# Plot cost, gradient, and Hessian for a particular slice 
-ns = 150    # number of sample points in each axis
-q1_square = q1.reshape((ns,ns))
-q2_square = q2.reshape((ns,ns))
-cost_square = cost.reshape((ns,ns))
-g1_square = g1.reshape((ns,ns))
-g2_square = g2.reshape((ns,ns))
-H11_square = H11.reshape((ns,ns))
-H22_square = H22.reshape((ns,ns))
+# Plot the gradient in each direction as a function of q
+plt.figure()
+plt.suptitle("Gradient")
+
+plt.subplot(2,1,1)
+levels = np.linspace(np.min(g1), np.max(g1), 50)
+plt.contour(q1, q2, g1, levels=levels)
+plt.title("$g_1$")
+plt.xlabel("$q_1$")
+plt.ylabel("$q_2$")
+
+plt.subplot(2,1,2)
+levels = np.linspace(np.min(g2), np.max(g2), 50)
+plt.contour(q1, q2, g2, levels=levels)
+plt.title("$g_2$")
+plt.xlabel("$q_1$")
+plt.ylabel("$q_2$")
+
+# Plot each element of the Hessian as a function of q
+
+plt.figure()
+plt.suptitle("Hessian")
+
+plt.subplot(2,2,1)
+levels = np.linspace(np.min(H11), np.max(H11), 50)
+plt.contour(q1, q2, H11, levels=levels)
+plt.title("$H_{11}$")
+plt.xlabel("$q_1$")
+plt.ylabel("$q_2$")
+
+plt.subplot(2,2,2)
+levels = np.linspace(np.min(H12), np.max(H12), 50)
+plt.contour(q1, q2, H12, levels=levels)
+plt.title("$H_{12}$")
+plt.xlabel("$q_1$")
+plt.ylabel("$q_2$")
+
+plt.subplot(2,2,3)
+levels = np.linspace(np.min(H21), np.max(H21), 50)
+plt.contour(q1, q2, H21, levels=levels)
+plt.title("$H_{21}$")
+plt.xlabel("$q_1$")
+plt.ylabel("$q_2$")
+
+plt.subplot(2,2,4)
+levels = np.linspace(np.min(H22), np.max(H22), 50)
+plt.contour(q1, q2, H22, levels=levels)
+plt.title("$H_{22}$")
+plt.xlabel("$q_1$")
+plt.ylabel("$q_2$")
+
+plt.show()
+
+sys.exit()
 
 #print(q1_square[14,0])
 #print(q2_square[14,0])

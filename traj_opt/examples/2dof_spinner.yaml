@@ -52,11 +52,11 @@ n : 2         # polynomial smoothing factor
 
 # Contour plot parameters
 save_contour_data : true
-contour_q1_min : 1.25
-contour_q1_max : 1.41
-contour_q2_min : -0.45
-contour_q2_max : 0.0
-#contour_q1_min : 1.44
-#contour_q1_max : 1.52
-#contour_q2_min : -0.044
-#contour_q2_max : -0.0225
+#contour_q1_min : 1.25
+#contour_q1_max : 1.41
+#contour_q2_min : -0.45
+#contour_q2_max : 0.0
+contour_q1_min : 1.3341
+contour_q1_max : 1.3345
+contour_q2_min : -0.2788
+contour_q2_max : -0.2786

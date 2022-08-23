@@ -724,7 +724,7 @@ void TrajectoryOptimizer<T>::SaveContourPlotDataFirstTwoVariables(
   using std::sqrt;
   std::ofstream data_file;
   data_file.open("contour_data.csv");
-  data_file << "q1, q2, L, g1, g2, H11, H22, g_norm, H_norm\n"; // header
+  data_file << "q1, q2, L, g1, g2, H11, H12, H21, H22, g_norm, H_norm\n"; // header
 
   // Establish sample points
   const double q1_min = params_.contour_q1_min;
@@ -754,7 +754,10 @@ void TrajectoryOptimizer<T>::SaveContourPlotDataFirstTwoVariables(
       const VectorX<T> g = EvalGradient(*scratch_state);
 
       // Write to the file
-      data_file << fmt::format("{}, {}, {}, {}, {}, {}, {}, {}, {}\n", q1, q2, cost, g(2), g(3), H(2,2), H(3,3), g.norm(), H.block(2,2,2,2).norm());
+      data_file << fmt::format("{}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}\n",
+                               q1, q2, cost, g(2), g(3), H(2, 2), H(2, 3),
+                               H(3, 2), H(3, 3), g.norm(),
+                               H.block(2, 2, 2, 2).norm());
 
       q2 += dq2;
     }
