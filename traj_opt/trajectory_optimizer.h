@@ -516,6 +516,37 @@ class TrajectoryOptimizer {
   void SaveContourPlotDataFirstTwoVariables(
       TrajectoryOptimizerState<T>* scratch_state) const;
 
+  /** 
+   * Save the cost, gradient, and Hessian accross a range of values of q(1)[0], where
+   * q(1)[0] is the first state variable at timestep t=1. 
+   * 
+   * This data will be used later to make debugging plots of L, g, and H.
+   * 
+   * @param scratch_state State variable used to compute L(q), g(q), and H(q).
+   */
+  void SaveLinePlotDataFirstVariable(
+      TrajectoryOptimizerState<T>* scratch_state) const;
+  
+  /**
+   * Clear the file `iteration_data.csv` and write a csv header so we can later
+   * record iteration data with SaveIterationData().
+   */
+  void SetupIterationDataFile() const;
+
+  /**
+   * Save iteration-specific data (like cost, q, etc) to a file.
+   *
+   * @param iter_num iteration number
+   * @param Delta trust region radius
+   * @param dq change in first decision variable
+   * @param rho trust ratio
+   * @param state state variable used to store q and compute L(q), g(q), H(q),
+   * etc
+   */
+  void SaveIterationData(const int iter_num, const double Delta,
+                         const double dq, const double rho,
+                         const TrajectoryOptimizerState<T>& state) const;
+
   /**
    * Clear the file `quadratic_data.csv` and write a csv header so we can later
    * record iteration data with SaveQuadraticDataFirstTwoVariables().

@@ -67,7 +67,16 @@ ax[0,1].plot(iters, data["cost"] - data["cost"][-1])
 ax[0,1].set_ylabel("Cost (minus baseline)")
 ax[0,1].set_yscale("log")
 
-ax[1,1].plot(iters, data["trust_ratio"])
+iters_tr_accepted = []
+tr_accepted = []
+eta = 0.0
+for i in range(len(iters)):
+    if data["trust_ratio"][i] > eta:
+        tr_accepted.append(data["trust_ratio"][i])
+        iters_tr_accepted.append(iters[i])
+
+#ax[1,1].plot(iters, data["trust_ratio"])
+ax[1,1].plot(iters_tr_accepted, tr_accepted)
 ax[1,1].set_ylabel("trust ratio")
 ax[1,1].set_ylim((-1,3))
 

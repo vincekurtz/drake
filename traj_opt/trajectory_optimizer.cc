@@ -719,6 +719,66 @@ TrajectoryOptimizer<T>::EvalInverseDynamicsPartials(
 }
 
 template <typename T>
+void TrajectoryOptimizer<T>::SaveLinePlotDataFirstVariable(
+    TrajectoryOptimizerState<T>* scratch_state) const {
+  std::ofstream data_file;
+  data_file.open("lineplot_data.csv");
+  data_file << "q, L, g, H\n"; // header
+
+  // Establish sample points
+  const double q_min = params_.lineplot_q_min;
+  const double q_max = params_.lineplot_q_max;
+  const double num_samples = 10000;
+  const double dq = (q_max - q_min) / num_samples;
+
+  const int nq = plant().num_positions();
+
+  // Make a mutable copy of the decision variables
+  std::vector<VectorX<T>> q = scratch_state->q();
+  double qi = q_min;
+  for (int i = 0; i < num_samples; ++i) {
+    // Set the decision variables q
+    q[1](0) = qi;
+    scratch_state->set_q(q);
+
+    // Compute cost, gradient, and Hessian for the first decision variable
+    const T& L = EvalCost(*scratch_state);
+    const T& g = EvalGradient(*scratch_state)[nq];
+    const T& H = EvalHessian(*scratch_state).C()[1](0,0);
+
+    // Write to the file
+    data_file << fmt::format("{}, {}, {}, {}\n", qi, L, g, H);
+
+    // Move to the next value of q
+    qi += dq;
+  }
+}
+
+template <typename T>
+void TrajectoryOptimizer<T>::SetupIterationDataFile() const {
+  std::ofstream data_file;
+  data_file.open("iteration_data.csv");
+  data_file << "iter, q, cost, Delta, rho, dq\n";
+  data_file.close();
+}
+
+template <typename T>
+void TrajectoryOptimizer<T>::SaveIterationData(
+    const int iter, const double Delta, const double rho, const double dq,
+    const TrajectoryOptimizerState<T>& state) const {
+  std::ofstream data_file;
+  data_file.open("iteration_data.csv", std::ios_base::app);
+
+  const T& q = state.q()[1](0);  // assuming 1-DoF and 1 timestep
+  const T& cost = EvalCost(state);
+
+  data_file << fmt::format("{}, {}, {}, {}, {}, {}\n", iter, q, cost, Delta, rho, dq);
+
+  data_file.close();
+}
+
+
+template <typename T>
 void TrajectoryOptimizer<T>::SaveContourPlotDataFirstTwoVariables(
     TrajectoryOptimizerState<T>* scratch_state) const {
   using std::sqrt;
@@ -1336,6 +1396,9 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
   if (params_.save_contour_data) {
     SetupQuadraticDataFile();
   }
+  if (params_.save_lineplot_data) {
+    SetupIterationDataFile();
+  }
 
   // Allocate timing variables
   auto start_time = std::chrono::high_resolution_clock::now();
@@ -1374,6 +1437,9 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
     // variables)
     if (params_.save_contour_data) {
       SaveQuadraticDataFirstTwoVariables(k, Delta, dq, state);
+    }
+    if (params_.save_lineplot_data) {
+      SaveIterationData(k, Delta, rho, dq(1), state);
     }
 
     // If the ratio is large enough, accept the change
@@ -1455,9 +1521,12 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
   solution->v = EvalV(state);
   solution->tau = EvalTau(state);
 
-  // Record L(q) for various values of q so we can make a contour plot
+  // Record L(q) for various values of q so we can make plots
   if (params_.save_contour_data) {
     SaveContourPlotDataFirstTwoVariables(&scratch_state);
+  }
+  if (params_.save_lineplot_data) {
+    SaveLinePlotDataFirstVariable(&scratch_state);
   }
 
   return SolverFlag::kSuccess;

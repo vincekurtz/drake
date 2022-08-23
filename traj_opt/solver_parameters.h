@@ -65,6 +65,11 @@ struct SolverParameters {
   double contour_q1_max = 1.0;
   double contour_q2_min = 0.0;
   double contour_q2_max = 1.0;
+
+  // Flags for making line plots with the first decision variable
+  bool save_lineplot_data = false;
+  double lineplot_q_min = 0.0;
+  double lineplot_q_max = 1.0;
 };
 
 }  // namespace traj_opt

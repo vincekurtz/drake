@@ -122,6 +122,11 @@ class TrajOptExample {
     solver_params.contour_q2_min = options.contour_q2_min;
     solver_params.contour_q2_max = options.contour_q2_max;
 
+    // Parameters for making line plots of the first variable
+    solver_params.save_lineplot_data = options.save_lineplot_data;
+    solver_params.lineplot_q_min = options.lineplot_q_min;
+    solver_params.lineplot_q_max = options.lineplot_q_max;
+
     // Establish an initial guess
     const VectorXd qT_guess = Eigen::Map<VectorXd>(options.q_guess.data(), nq);
     std::vector<VectorXd> q_guess;
@@ -163,9 +168,8 @@ class TrajOptExample {
 
     // Report desired and final state
     std::cout << std::endl;
-    std::cout << "q_nom : " << opt_prob.q_nom.transpose() << std::endl;
-    std::cout << "q[T]  : " << solution.q[options.num_steps].transpose()
-              << std::endl;
+    std::cout << fmt::format("q_nom : {}\n", opt_prob.q_nom.transpose());
+    std::cout << fmt::format("q[T]  : {}\n", solution.q[options.num_steps].transpose());
     std::cout << std::endl;
     std::cout << "v_nom : " << opt_prob.v_nom.transpose() << std::endl;
     std::cout << "v[T]  : " << solution.v[options.num_steps].transpose()
