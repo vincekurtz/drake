@@ -101,7 +101,7 @@ class TrajOptExample {
     }
 
     solver_params.max_iterations = options.max_iters;
-    solver_params.max_linesearch_iterations = 60;
+    solver_params.max_linesearch_iterations = 160;
     solver_params.print_debug_data = options.print_debug_data;
     solver_params.linesearch_plot_every_iteration =
         options.linesearch_plot_every_iteration;
