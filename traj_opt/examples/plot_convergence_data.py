@@ -18,7 +18,7 @@ import sys
 
 # Command-line flags determine which example (pendulum, acrobot, spinner) we're
 # dealing with. 
-possible_example_names = ["pendulum", "acrobot", "spinner", "2dof_spinner"]
+possible_example_names = ["pendulum", "acrobot", "spinner", "2dof_spinner", "wall_ball"]
 if (len(sys.argv) != 2) or (sys.argv[1] not in possible_example_names):
     print(f"Usage: {sys.argv[0]} {possible_example_names}")
     print("\nThe corresponding example must be run first (e.g. 'bazel run traj_opt/examples:pendulum`), with 'save_solver_stats_csv=true'")
