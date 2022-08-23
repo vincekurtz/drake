@@ -891,7 +891,9 @@ T TrajectoryOptimizer<T>::CalcTrustRatio(
   const VectorX<T>& g = EvalGradient(state);
   const PentaDiagonalMatrix<T>& H = EvalHessian(state);
   const T gradient_term = g.dot(dq);
-  const T hessian_term = 0.5 * dq.transpose() * H.MultiplyBy(dq);
+  VectorX<T>& Hdq = state.workspace.q_times_num_steps_size_tmp;
+  H.MultiplyBy(dq, &Hdq);
+  const T hessian_term = 0.5 * dq.transpose() * Hdq;
   const T predicted_reduction = -gradient_term - hessian_term;
 
   // Compute actual reduction in cost
@@ -957,7 +959,9 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
   // N.B. We'll rescale pU and pH by Δ to avoid roundoff error
   const VectorXd& g = EvalGradient(state);
   const PentaDiagonalMatrix<double>& H = EvalHessian(state);
-  const double gHg = g.transpose() * H.MultiplyBy(g);
+  VectorXd& Hg = state.workspace.q_times_num_steps_size_tmp;
+  H.MultiplyBy(g, &Hg);
+  const double gHg = g.transpose() * Hg;
 
   // Compute the unconstrained minimizer of m(δq) = L(q) + g(q)'*δq + 1/2
   // δq'*H(q)*δq along -g

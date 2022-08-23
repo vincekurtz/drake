@@ -93,7 +93,7 @@ class PentaDiagonalMatrix {
   MatrixX<T> MakeDense() const;
 
   // Multiply this matrix by a vector of the correct size
-  VectorX<T> MultiplyBy(const VectorX<T>& v) const;
+  void MultiplyBy(const VectorX<T>& v, VectorX<T>* result) const;
 
   // The size k of each of the blocks in the diagonals. All blocks have the same
   // size k x k.

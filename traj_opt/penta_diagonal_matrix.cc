@@ -178,13 +178,14 @@ bool PentaDiagonalMatrix<T>::VerifyAllBlocksOfSameSize(
 }
 
 template <typename T>
-VectorX<T> PentaDiagonalMatrix<T>::MultiplyBy(const VectorX<T>& v) const {
+void PentaDiagonalMatrix<T>::MultiplyBy(const VectorX<T>& v,
+                                              VectorX<T>* result) const {
   DRAKE_DEMAND(v.size() == rows());
+  DRAKE_DEMAND(result->size() == cols());
   const int bs = block_size();
 
-  VectorX<T> result(cols());
   for (int i = 0; i < block_rows(); ++i) {
-    auto result_block = result.segment(i * bs, bs);
+    auto result_block = result->segment(i * bs, bs);
 
     // Diagonal blocks are always present
     result_block = C_[i] * v.segment(i * bs, bs);
@@ -203,7 +204,6 @@ VectorX<T> PentaDiagonalMatrix<T>::MultiplyBy(const VectorX<T>& v) const {
       result_block += E_[i] * v.segment((i + 2) * bs, bs);
     }
   }
-  return result;
 }
 
 }  // namespace internal

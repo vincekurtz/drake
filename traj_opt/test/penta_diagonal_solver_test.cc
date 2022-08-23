@@ -26,9 +26,13 @@ GTEST_TEST(PentaDiagonalMatrixTest, MultiplyBy) {
 
   // Multiply by an arbitrary vector
   const VectorXd v = VectorXd::LinSpaced(size, 0.1, 1.1);
+  VectorXd prod(size);
 
-  const VectorXd prod = H.MultiplyBy(v);
+  H.MultiplyBy(v, &prod);
   const VectorXd prod_expected = H.MakeDense() * v;
+
+  std::cout << prod << std::endl;
+  std::cout << prod_expected << std::endl;
 
   const double kTolerance = std::numeric_limits<double>::epsilon() * size;
   EXPECT_TRUE(CompareMatrices(prod, prod_expected, kTolerance,
