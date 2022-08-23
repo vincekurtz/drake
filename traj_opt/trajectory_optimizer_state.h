@@ -209,6 +209,8 @@ class TrajectoryOptimizerState {
     for (unsigned int t = 0; t < C.size(); ++t) {
       proximal_operator_data_.H_diag[t] = C[t].diagonal();
     }
+
+    invalidate_cache();
   }
 
  private:

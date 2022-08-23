@@ -954,7 +954,7 @@ template <>
 bool TrajectoryOptimizer<double>::CalcDoglegPoint(
     const TrajectoryOptimizerState<double>& state, const double Delta,
     VectorXd* dq) const {
-  // N.B. We'll rescale pU and pH by Δ for better numerics
+  // N.B. We'll rescale pU and pH by Δ to avoid roundoff error
   const VectorXd& g = EvalGradient(state);
   const PentaDiagonalMatrix<double>& H = EvalHessian(state);
   const double gHg = g.transpose() * H.MultiplyBy(g);
@@ -962,7 +962,7 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
   // Compute the unconstrained minimizer of m(δq) = L(q) + g(q)'*δq + 1/2
   // δq'*H(q)*δq along -g
   VectorXd& pU = state.workspace.q_size_tmp1;
-  pU = -(g.dot(g) / gHg) * g / Delta;
+  pU = -(g.dot(g) / gHg) * g / Delta;  // normalize by Δ
 
   // Check if the trust region is smaller than this unconstrained minimizer
   if (1.0 <= pU.norm()) {
@@ -974,7 +974,7 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
 
   // Compute the full Gauss-Newton step
   VectorXd& pH = state.workspace.q_size_tmp2;
-  pH = -g / Delta;
+  pH = -g / Delta;  // normalize by Δ
   PentaDiagonalFactorization Hchol(H);
   DRAKE_DEMAND(Hchol.status() == PentaDiagonalFactorizationStatus::kSuccess);
   Hchol.SolveInPlace(&pH);
@@ -988,11 +988,15 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
   // Compute the intersection between the second leg of the dogleg path and the
   // trust region. We'll do this by solving the (scalar) quadratic
   //
-  //    ‖ pU + s( pH − pU ) ‖² = Δ²
+  //    ‖ pU + s( pH − pU ) ‖² = y²
   //
-  // for s ∈ (0,1), and setting
+  // for s ∈ (0,1),
   //
-  //    δq = pU + s( pH − pU )
+  // and setting
+  //
+  //    δq = pU + s( pH − pU ).
+  //
+  // Note that we normalize by Δ to minimize roundoff error.
   const double a = (pH - pU).dot(pH - pU);
   const double b = 2 * pU.dot(pH - pU);
   const double c = pU.dot(pU) - 1.0;
@@ -1238,7 +1242,7 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
   std::chrono::duration<double> solve_time;
 
   // Trust region parameters
-  const double Delta_max = 1000;  // Maximum trust region size
+  const double Delta_max = 1.0;   // Maximum trust region size
   const double Delta0 = 1e0;      // Initial trust region size
   const double eta = 0.0;         // Trust ratio threshold - we accept steps if
                                   // the trust ratio is above this threshold
