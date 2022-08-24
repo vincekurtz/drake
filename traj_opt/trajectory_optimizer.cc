@@ -331,30 +331,38 @@ template <typename T>
 void TrajectoryOptimizer<T>::CalcInverseDynamicsPartials(
     const TrajectoryOptimizerState<T>& state,
     InverseDynamicsPartials<T>* id_partials) const {
-  TrajectoryOptimizerWorkspace<T>& workspace = state.workspace;
+  // Compute partial derivatives of inverse dynamics d(tau)/d(q)
+  if (params_.gradient_strategy == GradientStrategy::kFiniteDifferences) {
+    CalcInverseDynamicsPartialsFiniteDiff(state, id_partials);
+  } else if (params_.gradient_strategy ==
+             GradientStrategy::kAnalyticalApproximation) {
+    CalcInverseDynamicsPartialsAnalyticalApproximation(state, id_partials);
+  } else {
+    throw std::runtime_error("Unknown gradient strategy");
+  }
+}
+
+template <typename T>
+void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsAnalyticalApproximation(
+    const TrajectoryOptimizerState<T>& state,
+    InverseDynamicsPartials<T>* id_partials) const {
+  std::cout << "using analytical gradient approximation" << std::endl;
+  CalcInverseDynamicsPartialsFiniteDiff(state, id_partials);
+}
+
+template <typename T>
+void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsFiniteDiff(
+    const TrajectoryOptimizerState<T>& state,
+    InverseDynamicsPartials<T>* id_partials) const {
+  using std::abs;
+  using std::max;
+  DRAKE_DEMAND(id_partials->size() == num_steps());
 
   // Get the trajectory data
   const std::vector<VectorX<T>>& q = state.q();
   const std::vector<VectorX<T>>& v = EvalV(state);
   const std::vector<VectorX<T>>& a = EvalA(state);
   const std::vector<VectorX<T>>& tau = EvalTau(state);
-
-  // Compute partial derivatives of inverse dynamics d(tau)/d(q)
-  // TODO(vincekurtz): use a solver flag to choose between finite differences
-  // and an analytical approximation
-  CalcInverseDynamicsPartialsFiniteDiff(q, v, a, tau, &workspace, id_partials);
-}
-
-template <typename T>
-void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsFiniteDiff(
-    const std::vector<VectorX<T>>& q, const std::vector<VectorX<T>>& v,
-    const std::vector<VectorX<T>>& a, const std::vector<VectorX<T>>& tau,
-    TrajectoryOptimizerWorkspace<T>* workspace,
-    InverseDynamicsPartials<T>* id_partials) const {
-  using std::abs;
-  using std::max;
-  // Check that id_partials has been allocated correctly.
-  DRAKE_DEMAND(id_partials->size() == num_steps());
 
   // Get references to the partials that we'll be setting
   std::vector<MatrixX<T>>& dtau_dqm = id_partials->dtau_dqm;
@@ -363,15 +371,16 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsFiniteDiff(
 
   // Get references to perturbed versions of q, v, tau, and a, at (t-1, t, t).
   // These are all of the quantities that change when we perturb q_t.
-  VectorX<T>& q_eps_t = workspace->q_size_tmp1;
-  VectorX<T>& v_eps_t = workspace->v_size_tmp1;
-  VectorX<T>& v_eps_tp = workspace->v_size_tmp2;
-  VectorX<T>& a_eps_tm = workspace->a_size_tmp1;
-  VectorX<T>& a_eps_t = workspace->a_size_tmp2;
-  VectorX<T>& a_eps_tp = workspace->a_size_tmp3;
-  VectorX<T>& tau_eps_tm = workspace->tau_size_tmp1;
-  VectorX<T>& tau_eps_t = workspace->tau_size_tmp2;
-  VectorX<T>& tau_eps_tp = workspace->tau_size_tmp3;
+  TrajectoryOptimizerWorkspace<T>& workspace = state.workspace;
+  VectorX<T>& q_eps_t = workspace.q_size_tmp1;
+  VectorX<T>& v_eps_t = workspace.v_size_tmp1;
+  VectorX<T>& v_eps_tp = workspace.v_size_tmp2;
+  VectorX<T>& a_eps_tm = workspace.a_size_tmp1;
+  VectorX<T>& a_eps_t = workspace.a_size_tmp2;
+  VectorX<T>& a_eps_tp = workspace.a_size_tmp3;
+  VectorX<T>& tau_eps_tm = workspace.tau_size_tmp1;
+  VectorX<T>& tau_eps_t = workspace.tau_size_tmp2;
+  VectorX<T>& tau_eps_tp = workspace.tau_size_tmp3;
 
   // Store small perturbations
   const double eps = sqrt(std::numeric_limits<double>::epsilon());
@@ -433,20 +442,20 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsFiniteDiff(
       // via finite differencing
       if (t > 0) {
         // tau[t-1] = ID(q[t], v[t], a[t-1])
-        CalcInverseDynamicsSingleTimeStep(q_eps_t, v_eps_t, a_eps_tm, workspace,
-                                          &tau_eps_tm);
+        CalcInverseDynamicsSingleTimeStep(q_eps_t, v_eps_t, a_eps_tm,
+                                          &workspace, &tau_eps_tm);
         dtau_dqp[t - 1].col(i) = (tau_eps_tm - tau[t - 1]) / dq_i;
       }
       if (t < num_steps()) {
         // tau[t] = ID(q[t+1], v[t+1], a[t])
         CalcInverseDynamicsSingleTimeStep(q[t + 1], v_eps_tp, a_eps_t,
-                                          workspace, &tau_eps_t);
+                                          &workspace, &tau_eps_t);
         dtau_dqt[t].col(i) = (tau_eps_t - tau[t]) / dq_i;
       }
       if (t < num_steps() - 1) {
         // tau[t+1] = ID(q[t+2], v[t+2], a[t+1])
         CalcInverseDynamicsSingleTimeStep(q[t + 2], v[t + 2], a_eps_tp,
-                                          workspace, &tau_eps_tp);
+                                          &workspace, &tau_eps_tp);
         dtau_dqm[t + 1].col(i) = (tau_eps_tp - tau[t + 1]) / dq_i;
       }
 

@@ -13,10 +13,21 @@ enum LinesearchMethod {
 
 enum SolverMethod { kLinesearch, kTrustRegion };
 
+enum GradientStrategy {
+  // Compute dtau/dq using finite differences
+  kFiniteDifferences,
+
+  // Compute dtau/dq using an analytical approximation
+  kAnalyticalApproximation
+};
+
 struct SolverParameters {
   // Which overall optimization strategy to use - linesearch or trust region
   // TODO(vincekurtz): better name for this?
   SolverMethod method = SolverMethod::kTrustRegion;
+
+  // How to compute the derivatives of inverse dynamics (dtau/dq)
+  GradientStrategy gradient_strategy = GradientStrategy::kFiniteDifferences;
 
   // Which linesearch strategy to use
   LinesearchMethod linesearch_method = LinesearchMethod::kArmijo;

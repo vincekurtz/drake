@@ -99,6 +99,92 @@ using multibody::Parser;
 using test::LimitMalloc;
 
 /**
+ * Test our analytical approximation of the gradients of inverse dynamics
+ * on a simple linear system - the pendulum without gravity.
+ */
+GTEST_TEST(TrajectoryOptimizerTest, PendulumDtauDqAnalytical) {
+  const int num_steps = 5;
+  const double dt = 1e-2;
+
+  // Set up a system model
+  MultibodyPlant<double> plant(dt);
+  const std::string urdf_file =
+      FindResourceOrThrow("drake/examples/pendulum/Pendulum.urdf");
+  Parser(&plant).AddAllModelsFromFile(urdf_file);
+  // plant.mutable_gravity_field().set_gravity_vector(VectorXd::Zero(3));
+  plant.Finalize();
+  auto context = plant.CreateDefaultContext();
+
+  // Create a trajectory optimizer
+  ProblemDefinition opt_prob;
+  opt_prob.q_init = Vector1d(0.0);
+  opt_prob.v_init = Vector1d(0.1);
+  opt_prob.num_steps = num_steps;
+  SolverParameters solver_params;
+  solver_params.gradient_strategy = GradientStrategy::kAnalyticalApproximation;
+  TrajectoryOptimizer<double> optimizer(&plant, context.get(), opt_prob,
+                                        solver_params);
+  TrajectoryOptimizerState<double> state = optimizer.CreateState();
+
+  // Create some fake data
+  std::vector<VectorXd> q;
+  q.push_back(opt_prob.q_init);
+  for (int t = 1; t <= num_steps; ++t) {
+    q.push_back(Vector1d(0.0 + 0.6 * t));
+  }
+  state.set_q(q);
+
+  // Compute inverse dynamics partials
+  InverseDynamicsPartials<double> grad_data(num_steps, 1, 1);
+  TrajectoryOptimizerTester::CalcInverseDynamicsPartials(optimizer, state,
+                                                         &grad_data);
+
+  // Compute ground truth partials from the pendulum model
+  //
+  //     m*l^2*a + m*g*l*sin(q) + b*v = tau
+  //
+  // where q is the joint angle and a = dv/dt, v = dq/dt.
+  const double m = 1.0;
+  const double l = 0.5;
+  const double b = 0.1;
+  const double g = 9.81;
+
+  InverseDynamicsPartials<double> grad_data_gt(num_steps, 1, 1);
+  for (int t = 0; t < num_steps; ++t) {
+    // dtau[t]/dq[t+1]
+    grad_data_gt.dtau_dqp[t](0, 0) =
+        1 / dt / dt * m * l * l + 1 / dt * b + m * g * l * cos(q[t + 1](0));
+
+    // dtau[t]/dq[t]
+    grad_data_gt.dtau_dqt[t](0, 0) = -2 / dt / dt * m * l * l - 1 / dt * b;
+
+    if (t == 0) {
+      // v[0] is constant
+      grad_data_gt.dtau_dqt[t](0, 0) = -1 / dt / dt * m * l * l - 1 / dt * b;
+    }
+
+    // dtau[t]/dq[t-1]
+    grad_data_gt.dtau_dqm[t](0, 0) = 1 / dt / dt * m * l * l;
+
+    // Derivatives w.r.t. q[t-1] do not exist
+    if (t == 0) {
+      grad_data_gt.dtau_dqm[t](0, 0) = NAN;
+    }
+  }
+
+  // Compare the computed values and the analytical ground truth
+  const double kTolerance = sqrt(std::numeric_limits<double>::epsilon());
+  for (int t = 0; t < num_steps; ++t) {
+    EXPECT_TRUE(CompareMatrices(grad_data.dtau_dqm[t], grad_data_gt.dtau_dqm[t],
+                                kTolerance, MatrixCompareType::relative));
+    EXPECT_TRUE(CompareMatrices(grad_data.dtau_dqt[t], grad_data_gt.dtau_dqt[t],
+                                kTolerance, MatrixCompareType::relative));
+    EXPECT_TRUE(CompareMatrices(grad_data.dtau_dqp[t], grad_data_gt.dtau_dqp[t],
+                                kTolerance, MatrixCompareType::relative));
+  }
+}
+
+/**
  *Test our computation of the mass matrix at each timestep
  */
 GTEST_TEST(TrajectoryOptimizerTest, CalcMassMatrix) {
@@ -123,15 +209,6 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcMassMatrix) {
   opt_prob.q_init.setConstant(0.1);
   opt_prob.v_init = VectorXd(7);
   opt_prob.v_init.setConstant(0.2);
-  opt_prob.Qq = 0.1 * MatrixXd::Identity(7, 7);
-  opt_prob.Qv = 0.2 * MatrixXd::Identity(7, 7);
-  opt_prob.Qf_q = 0.3 * MatrixXd::Identity(7, 7);
-  opt_prob.Qf_v = 0.4 * MatrixXd::Identity(7, 7);
-  opt_prob.R = 0.5 * MatrixXd::Identity(7, 7);
-  opt_prob.q_nom = VectorXd(7);
-  opt_prob.q_nom.setConstant(-0.2);
-  opt_prob.v_nom = VectorXd(7);
-  opt_prob.v_nom.setConstant(-0.1);
 
   // Create an optimizer
   TrajectoryOptimizer<double> optimizer(&plant, context.get(), opt_prob);
@@ -264,9 +341,7 @@ GTEST_TEST(TrajectoryOptimizerTest, TrustRatio) {
   auto context = plant.CreateDefaultContext();
 
   // Create an optimizer
-  SolverParameters solver_params;
-  TrajectoryOptimizer<double> optimizer(&plant, context.get(), opt_prob,
-                                        solver_params);
+  TrajectoryOptimizer<double> optimizer(&plant, context.get(), opt_prob);
 
   // Create state, scratch state, and an initial guess
   std::vector<VectorXd> q_guess;

@@ -362,19 +362,27 @@ class TrajectoryOptimizer {
    *
    * using finite differences.
    *
-   * For testing purposes only - this is very inefficient.
-   *
-   * @param q sequence of generalized positions
-   * @param v sequence of generalized velocities (computed from q)
-   * @param a sequence of generalized accelerations (computed from q)
-   * @param tau sequence of generalized forces (computed from q)
-   * @param workspace scratch space for intermediate computations
+   * @param state optimizer state containing q (and various things we can
+   * compute from q)
    * @param id_partials struct for holding dtau/dq
    */
   void CalcInverseDynamicsPartialsFiniteDiff(
-      const std::vector<VectorX<T>>& q, const std::vector<VectorX<T>>& v,
-      const std::vector<VectorX<T>>& a, const std::vector<VectorX<T>>& tau,
-      TrajectoryOptimizerWorkspace<T>* workspace,
+      const TrajectoryOptimizerState<T>& state,
+      InverseDynamicsPartials<T>* id_partials) const;
+
+  /**
+   * Compute partial derivatives of the inverse dynamics
+   *
+   *    tau_t = ID(q_{t-1}, q_t, q_{t+1})
+   *
+   * using an analytical approximation.
+   *
+   * @param state optimizer state containing q (and various things we can
+   * compute from q)
+   * @param id_partials struct for holding dtau/dq
+   */
+  void CalcInverseDynamicsPartialsAnalyticalApproximation(
+      const TrajectoryOptimizerState<T>& state,
       InverseDynamicsPartials<T>* id_partials) const;
 
   /**
