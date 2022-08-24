@@ -307,6 +307,27 @@ void TrajectoryOptimizer<T>::CalcContactForceContribution(
 }
 
 template <typename T>
+const std::vector<MatrixX<T>>& TrajectoryOptimizer<T>::EvalMassMatrix(
+    const TrajectoryOptimizerState<T>& state) const {
+  if (!state.cache().mass_matrix_up_to_date) {
+    CalcMassMatrix(state, &state.mutable_cache().mass_matrix);
+    state.mutable_cache().mass_matrix_up_to_date = true;
+  }
+  return state.cache().mass_matrix;
+}
+
+template <typename T>
+void TrajectoryOptimizer<T>::CalcMassMatrix(
+    const TrajectoryOptimizerState<T>& state,
+    std::vector<MatrixX<T>>* mass_matrix) const {
+  const std::vector<VectorX<T>>& q = state.q();
+  for (int t = 0; t < num_steps(); ++t) {
+    plant().SetPositions(context_, q[t+1]);
+    plant().CalcMassMatrix(*context_, &mass_matrix->at(t));
+  }
+}
+
+template <typename T>
 void TrajectoryOptimizer<T>::CalcInverseDynamicsPartials(
     const TrajectoryOptimizerState<T>& state,
     InverseDynamicsPartials<T>* id_partials) const {

@@ -35,6 +35,7 @@ struct TrajectoryOptimizerCache {
     trajectory_data.v.assign(num_steps + 1, VectorX<T>(nv));
     trajectory_data.a.assign(num_steps, VectorX<T>(nv));
     trajectory_data.tau.assign(num_steps, VectorX<T>(nv));
+    mass_matrix.assign(num_steps, MatrixX<T>(nv,nv));
   }
 
   // Data used to compute the cost L(q)
@@ -73,6 +74,10 @@ struct TrajectoryOptimizerCache {
   // Our Hessian approximation of the unconstrained cost ∇²L
   PentaDiagonalMatrix<T> hessian;
   bool hessian_up_to_date{false};
+
+  // The mass matrix M(q_{t+1}) at each timestep t = [1 .. num_steps]
+  std::vector<MatrixX<T>> mass_matrix;
+  bool mass_matrix_up_to_date{false};
 };
 
 template <typename T>
@@ -237,6 +242,7 @@ class TrajectoryOptimizerState {
     cache_.cost_up_to_date = false;
     cache_.gradient_up_to_date = false;
     cache_.hessian_up_to_date = false;
+    cache_.mass_matrix_up_to_date = false;
   }
 };
 

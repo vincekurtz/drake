@@ -99,6 +99,68 @@ using multibody::Parser;
 using test::LimitMalloc;
 
 /**
+ *Test our computation of the mass matrix at each timestep
+ */
+GTEST_TEST(TrajectoryOptimizerTest, CalcMassMatrix) {
+  const int num_steps = 3;
+  const double dt = 1e-2;
+
+  // Create a robot model
+  MultibodyPlant<double> plant(dt);
+  const std::string urdf_file = FindResourceOrThrow(
+      "drake/manipulation/models/iiwa_description/urdf/"
+      "iiwa14_no_collision.urdf");
+  Parser(&plant).AddAllModelsFromFile(urdf_file);
+  plant.set_discrete_contact_solver(DiscreteContactSolver::kSap);
+  plant.WeldFrames(plant.world_frame(), plant.GetFrameByName("base"));
+  plant.Finalize();
+  auto context = plant.CreateDefaultContext();
+
+  // Set up an optimization problem
+  ProblemDefinition opt_prob;
+  opt_prob.num_steps = num_steps;
+  opt_prob.q_init = VectorXd(7);
+  opt_prob.q_init.setConstant(0.1);
+  opt_prob.v_init = VectorXd(7);
+  opt_prob.v_init.setConstant(0.2);
+  opt_prob.Qq = 0.1 * MatrixXd::Identity(7, 7);
+  opt_prob.Qv = 0.2 * MatrixXd::Identity(7, 7);
+  opt_prob.Qf_q = 0.3 * MatrixXd::Identity(7, 7);
+  opt_prob.Qf_v = 0.4 * MatrixXd::Identity(7, 7);
+  opt_prob.R = 0.5 * MatrixXd::Identity(7, 7);
+  opt_prob.q_nom = VectorXd(7);
+  opt_prob.q_nom.setConstant(-0.2);
+  opt_prob.v_nom = VectorXd(7);
+  opt_prob.v_nom.setConstant(-0.1);
+
+  // Create an optimizer
+  TrajectoryOptimizer<double> optimizer(&plant, context.get(), opt_prob);
+  TrajectoryOptimizerState<double> state = optimizer.CreateState();
+
+  // Make some fake data
+  std::vector<VectorXd> q(num_steps + 1);
+  q[0] = opt_prob.q_init;
+  for (int t = 1; t <= num_steps; ++t) {
+    q[t] = q[t - 1] + 2.3 * dt * MatrixXd::Identity(7, 7);
+  }
+  state.set_q(q);
+
+  // Compute M(q_{t+1}) for each timestep
+  const std::vector<MatrixXd> mass_matrix = optimizer.EvalMassMatrix(state);
+
+  // Compare with the ground truth
+  MatrixXd M_gt(7,7);
+  const double kTolerance = std::numeric_limits<double>::epsilon();
+  for (int t=0; t < num_steps; ++t) {
+    plant.SetPositions(context.get(), q[t+1]);
+    plant.CalcMassMatrix(*context, &M_gt);
+
+    EXPECT_TRUE(CompareMatrices(mass_matrix[t], M_gt, kTolerance,
+                                MatrixCompareType::relative));
+  }
+}
+
+/**
  * Test our computation of the dogleg point for trust-region optimization
  */
 GTEST_TEST(TrajectoryOptimizerTest, DoglegPoint) {

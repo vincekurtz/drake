@@ -137,6 +137,9 @@ class TrajectoryOptimizer {
   const VectorX<T>& EvalGradient(
       const TrajectoryOptimizerState<T>& state) const;
 
+  const std::vector<MatrixX<T>>& EvalMassMatrix(
+      const TrajectoryOptimizerState<T>& state) const;
+
  private:
   // Friend class to facilitate testing.
   friend class TrajectoryOptimizerTester;
@@ -315,6 +318,16 @@ class TrajectoryOptimizer {
   void CalcContactForceContribution(MultibodyForces<T>* forces) const;
 
   /**
+   * Compute the mass matrix M(q_{t+1}) at each timestep from t=0 to
+   * t=num_steps.
+   *
+   * @param state optimizer state containing q at each timestep
+   * @param mass_matrix vector of mass matrices to set
+   */
+  void CalcMassMatrix(const TrajectoryOptimizerState<T>& state,
+                      std::vector<MatrixX<T>>* mass_matrix) const;
+
+  /**
    * Compute partial derivatives of the inverse dynamics
    *
    *    tau_t = ID(q_{t-1}, q_t, q_{t+1})
@@ -327,26 +340,6 @@ class TrajectoryOptimizer {
    */
   void CalcInverseDynamicsPartials(
       const TrajectoryOptimizerState<T>& state,
-      InverseDynamicsPartials<T>* id_partials) const;
-
-  /**
-   * Compute partial derivatives of the inverse dynamics
-   *
-   *    tau_t = ID(q_{t-1}, q_t, q_{t+1})
-   *
-   * and store them in the given InverseDynamicsPartials struct.
-   *
-   * @param q sequence of generalized positions
-   * @param v sequence of generalized velocities (computed from q)
-   * @param a sequence of generalized accelerations (computed from q)
-   * @param tau sequence of generalized forces (computed from q)
-   * @param workspace scratch space for intermediate computations
-   * @param id_partials struct for holding dtau/dq
-   */
-  void CalcInverseDynamicsPartials(
-      const std::vector<VectorX<T>>& q, const std::vector<VectorX<T>>& v,
-      const std::vector<VectorX<T>>& a, const std::vector<VectorX<T>>& tau,
-      TrajectoryOptimizerWorkspace<T>* workspace,
       InverseDynamicsPartials<T>* id_partials) const;
 
   /**
