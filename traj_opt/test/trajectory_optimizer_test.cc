@@ -111,7 +111,7 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumDtauDqAnalytical) {
   const std::string urdf_file =
       FindResourceOrThrow("drake/examples/pendulum/Pendulum.urdf");
   Parser(&plant).AddAllModelsFromFile(urdf_file);
-  // plant.mutable_gravity_field().set_gravity_vector(VectorXd::Zero(3));
+  plant.mutable_gravity_field().set_gravity_vector(VectorXd::Zero(3));
   plant.Finalize();
   auto context = plant.CreateDefaultContext();
 
@@ -147,7 +147,7 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumDtauDqAnalytical) {
   const double m = 1.0;
   const double l = 0.5;
   const double b = 0.1;
-  const double g = 9.81;
+  const double g = 0.0;
 
   InverseDynamicsPartials<double> grad_data_gt(num_steps, 1, 1);
   for (int t = 0; t < num_steps; ++t) {
@@ -173,7 +173,7 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumDtauDqAnalytical) {
   }
 
   // Compare the computed values and the analytical ground truth
-  const double kTolerance = sqrt(std::numeric_limits<double>::epsilon());
+  const double kTolerance = 10 * std::numeric_limits<double>::epsilon();
   for (int t = 0; t < num_steps; ++t) {
     EXPECT_TRUE(CompareMatrices(grad_data.dtau_dqm[t], grad_data_gt.dtau_dqm[t],
                                 kTolerance, MatrixCompareType::relative));

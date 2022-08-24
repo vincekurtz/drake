@@ -346,8 +346,46 @@ template <typename T>
 void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsAnalyticalApproximation(
     const TrajectoryOptimizerState<T>& state,
     InverseDynamicsPartials<T>* id_partials) const {
-  std::cout << "using analytical gradient approximation" << std::endl;
-  CalcInverseDynamicsPartialsFiniteDiff(state, id_partials);
+  DRAKE_DEMAND(id_partials->size() == num_steps());
+  // TODO(vincekurtz) add contact contribution
+
+  // Extract terms we need from the cache
+  const std::vector<MatrixX<T>>& mass_matrix = EvalMassMatrix(state);
+  const VelocityPartials<T>& velocity_partials = EvalVelocityPartials(state);
+  const std::vector<MatrixX<T>>& dv_dqm = velocity_partials.dvt_dqm;
+  const std::vector<MatrixX<T>>& dv_dqt = velocity_partials.dvt_dqt;
+
+  // Compute some other handy terms
+  const T da_dvt = -1 / time_step();
+  const T da_dvp = 1 / time_step();
+
+  // Set d tau(t) / d q(t-1)
+  std::vector<MatrixX<T>>& dtau_dqm = id_partials->dtau_dqm;
+  for (int t = 1; t < num_steps(); ++t) {
+    dtau_dqm[t] = mass_matrix[t] * da_dvt * dv_dqm[t];
+  }
+
+  // Set d tau(t) / d q(t)
+  std::vector<MatrixX<T>>& dtau_dqt = id_partials->dtau_dqt;
+  for (int t = 0; t < num_steps(); ++t) {
+    if (t == 0) {
+      // At the first timestep, v is constant so
+      // da(t)/dq(t) = da(t)/dv(t+1) * dv(t+1)/dq(t)
+      dtau_dqt[t] = mass_matrix[t] * da_dvp * dv_dqm[t + 1] +
+                    joint_damping_.asDiagonal() * dv_dqm[t + 1];
+    } else {
+      dtau_dqt[t] =
+          mass_matrix[t] * (da_dvp * dv_dqm[t + 1] + da_dvt * dv_dqt[t]) +
+          joint_damping_.asDiagonal() * dv_dqm[t + 1];
+    }
+  }
+
+  // Set d tau(t) / d q(t+1)
+  std::vector<MatrixX<T>>& dtau_dqp = id_partials->dtau_dqp;
+  for (int t = 0; t < num_steps(); ++t) {
+    dtau_dqp[t] = mass_matrix[t] * da_dvp * dv_dqt[t + 1] +
+                  joint_damping_.asDiagonal() * dv_dqt[t + 1];
+  }
 }
 
 template <typename T>
