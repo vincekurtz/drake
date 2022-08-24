@@ -929,7 +929,7 @@ std::tuple<double, int> TrajectoryOptimizer<T>::BacktrackingLinesearch(
 
   // Linesearch parameters
   const double c = 1e-4;
-  const double rho = 0.95;
+  const double rho = 0.8;
 
   double alpha = 1.0;
   T L_prime = g.transpose() * dq;  // gradient of L w.r.t. alpha
@@ -1036,7 +1036,9 @@ T TrajectoryOptimizer<T>::CalcTrustRatio(
   const VectorX<T>& g = EvalGradient(state);
   const PentaDiagonalMatrix<T>& H = EvalHessian(state);
   const T gradient_term = g.dot(dq);
-  const T hessian_term = 0.5 * dq.transpose() * H.MultiplyBy(dq);
+  VectorX<T>& Hdq = state.workspace.q_times_num_steps_size_tmp;
+  H.MultiplyBy(dq, &Hdq);
+  const T hessian_term = 0.5 * dq.transpose() * Hdq;
   const T predicted_reduction = -gradient_term - hessian_term;
 
   // Compute actual reduction in cost
@@ -1048,6 +1050,7 @@ T TrajectoryOptimizer<T>::CalcTrustRatio(
 
   const double eps = std::numeric_limits<T>::epsilon();
   if ((predicted_reduction < eps) && (actual_reduction < eps)) {
+    // Predicted and actual reduction are essentially zero
     return 1.0;
   }
 
@@ -1061,24 +1064,24 @@ T TrajectoryOptimizer<T>::SolveDoglegQuadratic(const T& a, const T& b,
   // Check that a is positive
   DRAKE_DEMAND(a > 0);
 
-  // If a is essentially zero, just solve bx + c = 0
+  T s;
   if (a < std::numeric_limits<double>::epsilon()) {
-    T s = -c / b;
-    DRAKE_DEMAND(0 < s);
-    DRAKE_DEMAND(s < 1);
-    
-    return s;
+    // If a is essentially zero, just solve bx + c = 0
+    s = -c / b;
+  } else {
+    // Normalize everything by a
+    const T b_tilde = b / a;
+    const T c_tilde = c / a;
+
+    const T determinant = b_tilde * b_tilde - 4 * c_tilde;
+    DRAKE_DEMAND(determinant > 0);  // We know a real root exists
+
+    // We know that there is only one positive root, so we just take the big
+    // root
+    s = (-b_tilde + sqrt(determinant)) / 2;
   }
 
-  // Normalize everything by a
-  const T b_tilde = b / a;
-  const T c_tilde = c / a;
-
-  const T determinant = b_tilde * b_tilde - 4 * c_tilde;
-  DRAKE_DEMAND(determinant > 0);  // We know a real root exists
-
-  // We know that there is only one positive root, so we just take the big root
-  T s = (-b_tilde + sqrt(determinant)) / 2;
+  // We know the solution is between zero and one
   DRAKE_DEMAND(0 < s);
   DRAKE_DEMAND(s < 1);
 
@@ -1098,28 +1101,17 @@ template <>
 bool TrajectoryOptimizer<double>::CalcDoglegPoint(
     const TrajectoryOptimizerState<double>& state, const double Delta,
     VectorXd* dq) const {
+  // N.B. We'll rescale pU and pH by Δ to avoid roundoff error
   const VectorXd& g = EvalGradient(state);
   const PentaDiagonalMatrix<double>& H = EvalHessian(state);
-  const double gHg = g.transpose() * H.MultiplyBy(g);
-
-  // DEBUG
-  //VectorXd& g_last = state.workspace.g_k_minus_1;
-  //const double dot_product = g.dot(g_last) / g.norm() / g_last.norm();
-  //const double theta = acos(dot_product);
-  //std::cout << fmt::format("cos(theta): {}\n", dot_product);
-  //std::cout << fmt::format("theta     : {}\n", theta);
-  //MatrixXd H_dense = H.MakeDense();
-  //VectorXd D = H_dense.diagonal().cwiseSqrt().cwiseInverse();
-  //MatrixXd H_scaled = D.asDiagonal() * H_dense * D.asDiagonal();
-  //H_scaled.block(0,0,plant().num_positions(), plant().num_positions()).setIdentity();
-  //std::cout << fmt::format("cond(H) : {:e}\n", 1 / H_dense.ldlt().rcond());
-  //std::cout << fmt::format("cond(H_scaled) : {:e}\n", 1 / H_scaled.ldlt().rcond());
-  //g_last = g;
+  VectorXd& Hg = state.workspace.q_times_num_steps_size_tmp;
+  H.MultiplyBy(g, &Hg);
+  const double gHg = g.transpose() * Hg;
 
   // Compute the unconstrained minimizer of m(δq) = L(q) + g(q)'*δq + 1/2
   // δq'*H(q)*δq along -g
   VectorXd& pU = state.workspace.q_size_tmp1;
-  pU = -(g.dot(g) / gHg) * g / Delta;
+  pU = -(g.dot(g) / gHg) * g / Delta;  // normalize by Δ
 
   // Check if the trust region is smaller than this unconstrained minimizer
   if (1.0 <= pU.norm()) {
@@ -1131,7 +1123,7 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
 
   // Compute the full Gauss-Newton step
   VectorXd& pH = state.workspace.q_size_tmp2;
-  pH = -g / Delta;
+  pH = -g / Delta;  // normalize by Δ
   PentaDiagonalFactorization Hchol(H);
   DRAKE_DEMAND(Hchol.status() == PentaDiagonalFactorizationStatus::kSuccess);
   Hchol.SolveInPlace(&pH);
@@ -1145,21 +1137,21 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
   // Compute the intersection between the second leg of the dogleg path and the
   // trust region. We'll do this by solving the (scalar) quadratic
   //
-  //    ‖ pU + s( pH − pU ) ‖² = Δ²
+  //    ‖ pU + s( pH − pU ) ‖² = y²
   //
-  // for s ∈ (0,1), and setting
+  // for s ∈ (0,1),
   //
-  //    δq = pU + s( pH − pU )
+  // and setting
+  //
+  //    δq = pU + s( pH − pU ).
+  //
+  // Note that we normalize by Δ to minimize roundoff error.
   const double a = (pH - pU).dot(pH - pU);
   const double b = 2 * pU.dot(pH - pU);
   const double c = pU.dot(pU) - 1.0;
   const double s = SolveDoglegQuadratic(a, b, c);
 
-  //std::cout << fmt::format("|pH| : {}\n", pH.norm());
-  //std::cout << fmt::format("|pU| : {}\n", pU.norm());
-  //std::cout << fmt::format("|pH - pU| : {}\n", (pH-pU).norm());
-
-  *dq = (pU + s * (pH - pU) ) * Delta;
+  *dq = (pU + s * (pH - pU)) * Delta;
 
   return true;  // the trust region constraint is active
 }
@@ -1407,8 +1399,8 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
   std::chrono::duration<double> solve_time;
 
   // Trust region parameters
-  const double Delta_max = 1000;  // Maximum trust region size
-  const double Delta0 = 1.01;     // Initial trust region size
+  const double Delta_max = 1.0;   // Maximum trust region size
+  const double Delta0 = 1e0;      // Initial trust region size
   const double eta = 0.0;         // Trust ratio threshold - we accept steps if
                                   // the trust ratio is above this threshold
 

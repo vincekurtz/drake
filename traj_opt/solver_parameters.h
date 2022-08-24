@@ -38,7 +38,9 @@ struct SolverParameters {
   bool print_debug_data = false;
 
   // Flag for whether to record linesearch data to a file at each iteration (for
-  // later plotting)
+  // later plotting). This saves a file called "linesearch_data_[k].csv" for
+  // each iteration, where k is the iteration number. This file can then be
+  // found somewhere in drake/bazel-out/.
   bool linesearch_plot_every_iteration = false;
 
   // Flag for whether to add a proximal operator term,

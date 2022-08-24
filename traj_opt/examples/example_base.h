@@ -101,7 +101,7 @@ class TrajOptExample {
     }
 
     solver_params.max_iterations = options.max_iters;
-    solver_params.max_linesearch_iterations = 160;
+    solver_params.max_linesearch_iterations = 60;
     solver_params.print_debug_data = options.print_debug_data;
     solver_params.linesearch_plot_every_iteration =
         options.linesearch_plot_every_iteration;
@@ -168,8 +168,9 @@ class TrajOptExample {
 
     // Report desired and final state
     std::cout << std::endl;
-    std::cout << fmt::format("q_nom : {}\n", opt_prob.q_nom.transpose());
-    std::cout << fmt::format("q[T]  : {}\n", solution.q[options.num_steps].transpose());
+    std::cout << "q_nom : " << opt_prob.q_nom.transpose() << std::endl;
+    std::cout << "q[T]  : " << solution.q[options.num_steps].transpose()
+              << std::endl;
     std::cout << std::endl;
     std::cout << "v_nom : " << opt_prob.v_nom.transpose() << std::endl;
     std::cout << "v[T]  : " << solution.v[options.num_steps].transpose()
