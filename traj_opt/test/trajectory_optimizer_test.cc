@@ -55,11 +55,9 @@ class TrajectoryOptimizerTester {
 
   static void CalcInverseDynamicsPartials(
       const TrajectoryOptimizer<double>& optimizer,
-      const std::vector<VectorXd>& q, const std::vector<VectorXd>& v,
-      const std::vector<VectorXd>& a, const std::vector<VectorXd>& tau,
-      TrajectoryOptimizerWorkspace<double>* workspace,
+      const TrajectoryOptimizerState<double>& state,
       InverseDynamicsPartials<double>* id_partials) {
-    optimizer.CalcInverseDynamicsPartials(q, v, a, tau, workspace, id_partials);
+    optimizer.CalcInverseDynamicsPartials(state, id_partials);
   }
 
   static void CalcGradientFiniteDiff(
@@ -103,7 +101,7 @@ using test::LimitMalloc;
 /**
  * Test our computation of the dogleg point for trust-region optimization
  */
-GTEST_TEST(TrajectoryOptimzierTest, DoglegPoint) {
+GTEST_TEST(TrajectoryOptimizerTest, DoglegPoint) {
   // Define a super simple optimization problem, where we know the solution is
   // q = [0 0 0].
   const int num_steps = 2;
@@ -853,6 +851,7 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumDtauDq) {
   opt_prob.num_steps = num_steps;
   TrajectoryOptimizer<double> optimizer(&plant, context.get(), opt_prob);
   TrajectoryOptimizerWorkspace<double> workspace(num_steps, plant);
+  TrajectoryOptimizerState<double> state = optimizer.CreateState();
 
   // Create some fake data
   std::vector<VectorXd> q;
@@ -860,18 +859,12 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumDtauDq) {
   for (int t = 1; t <= num_steps; ++t) {
     q.push_back(Vector1d(0.0 + 0.6 * t));
   }
+  state.set_q(q);
 
   // Compute inverse dynamics partials
   InverseDynamicsPartials<double> grad_data(num_steps, 1, 1);
-  std::vector<VectorXd> v(num_steps + 1);
-  std::vector<VectorXd> a(num_steps);
-  std::vector<VectorXd> tau(num_steps);
-  TrajectoryOptimizerTester::CalcVelocities(optimizer, q, &v);
-  TrajectoryOptimizerTester::CalcAccelerations(optimizer, v, &a);
-  TrajectoryOptimizerTester::CalcInverseDynamics(optimizer, q, v, a, &workspace,
-                                                 &tau);
-  TrajectoryOptimizerTester::CalcInverseDynamicsPartials(
-      optimizer, q, v, a, tau, &workspace, &grad_data);
+  TrajectoryOptimizerTester::CalcInverseDynamicsPartials(optimizer, state,
+                                                         &grad_data);
 
   // Compute ground truth partials from the pendulum model
   //

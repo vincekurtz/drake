@@ -308,13 +308,20 @@ void TrajectoryOptimizer<T>::CalcContactForceContribution(
 
 template <typename T>
 void TrajectoryOptimizer<T>::CalcInverseDynamicsPartials(
-    const std::vector<VectorX<T>>& q, const std::vector<VectorX<T>>& v,
-    const std::vector<VectorX<T>>& a, const std::vector<VectorX<T>>& tau,
-    TrajectoryOptimizerWorkspace<T>* workspace,
+    const TrajectoryOptimizerState<T>& state,
     InverseDynamicsPartials<T>* id_partials) const {
+  TrajectoryOptimizerWorkspace<T>& workspace = state.workspace;
+
+  // Get the trajectory data
+  const std::vector<VectorX<T>>& q = state.q();
+  const std::vector<VectorX<T>>& v = EvalV(state);
+  const std::vector<VectorX<T>>& a = EvalA(state);
+  const std::vector<VectorX<T>>& tau = EvalTau(state);
+
+  // Compute partial derivatives of inverse dynamics d(tau)/d(q)
   // TODO(vincekurtz): use a solver flag to choose between finite differences
   // and an analytical approximation
-  CalcInverseDynamicsPartialsFiniteDiff(q, v, a, tau, workspace, id_partials);
+  CalcInverseDynamicsPartialsFiniteDiff(q, v, a, tau, &workspace, id_partials);
 }
 
 template <typename T>
@@ -589,6 +596,7 @@ const VectorX<T>& TrajectoryOptimizer<T>::EvalGradient(
     const TrajectoryOptimizerState<T>& state) const {
   if (!state.cache().gradient_up_to_date) {
     CalcGradient(state, &state.mutable_cache().gradient);
+    state.mutable_cache().gradient_up_to_date = true;
   }
   return state.cache().gradient;
 }
@@ -679,6 +687,7 @@ const PentaDiagonalMatrix<T>& TrajectoryOptimizer<T>::EvalHessian(
     const TrajectoryOptimizerState<T>& state) const {
   if (!state.cache().hessian_up_to_date) {
     CalcHessian(state, &state.mutable_cache().hessian);
+    state.mutable_cache().hessian_up_to_date = true;
   }
   return state.cache().hessian;
 }
@@ -732,46 +741,25 @@ const std::vector<VectorX<T>>& TrajectoryOptimizer<T>::EvalTau(
 }
 
 template <typename T>
-void TrajectoryOptimizer<T>::CalcCacheDerivativesData(
-    const TrajectoryOptimizerState<T>& state) const {
-  TrajectoryOptimizerCache<T>& cache = state.mutable_cache();
-  TrajectoryOptimizerWorkspace<T>& workspace = state.workspace;
-
-  // Get the trajectory data
-  const std::vector<VectorX<T>>& q = state.q();
-  const std::vector<VectorX<T>>& v = EvalV(state);
-  const std::vector<VectorX<T>>& a = EvalA(state);
-  const std::vector<VectorX<T>>& tau = EvalTau(state);
-
-  // Some aliases
-  InverseDynamicsPartials<T>& id_partials = cache.derivatives_data.id_partials;
-  VelocityPartials<T>& v_partials = cache.derivatives_data.v_partials;
-
-  // Compute partial derivatives of inverse dynamics d(tau)/d(q)
-  CalcInverseDynamicsPartials(q, v, a, tau, &workspace, &id_partials);
-
-  // Compute partial derivatives of velocities d(v)/d(q)
-  CalcVelocityPartials(q, &v_partials);
-
-  // Set cache invalidation flag
-  cache.derivatives_data.up_to_date = true;
-}
-
-template <typename T>
 const VelocityPartials<T>& TrajectoryOptimizer<T>::EvalVelocityPartials(
     const TrajectoryOptimizerState<T>& state) const {
-  if (!state.cache().derivatives_data.up_to_date)
-    CalcCacheDerivativesData(state);
-  return state.cache().derivatives_data.v_partials;
+  if (!state.cache().velocity_partials_up_to_date) {
+    CalcVelocityPartials(state.q(), &state.mutable_cache().velocity_partials);
+    state.mutable_cache().velocity_partials_up_to_date = true;
+  }
+  return state.cache().velocity_partials;
 }
 
 template <typename T>
 const InverseDynamicsPartials<T>&
 TrajectoryOptimizer<T>::EvalInverseDynamicsPartials(
     const TrajectoryOptimizerState<T>& state) const {
-  if (!state.cache().derivatives_data.up_to_date)
-    CalcCacheDerivativesData(state);
-  return state.cache().derivatives_data.id_partials;
+  if (!state.cache().inverse_dynamics_partials_up_to_date) {
+    CalcInverseDynamicsPartials(
+        state, &state.mutable_cache().inverse_dynamics_partials);
+    state.mutable_cache().inverse_dynamics_partials_up_to_date = true;
+  }
+  return state.cache().inverse_dynamics_partials;
 }
 
 template <typename T>

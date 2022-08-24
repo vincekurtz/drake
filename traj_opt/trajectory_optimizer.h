@@ -183,14 +183,6 @@ class TrajectoryOptimizer {
   void CalcCacheTrajectoryData(const TrajectoryOptimizerState<T>& state) const;
 
   /**
-   * Compute all of the "derivatives data" (dv/dq, dtau/dq) stored in the
-   * state's cache to correspond to the state's generalized positions q.
-   *
-   * @param state optimizer state to update.
-   */
-  void CalcCacheDerivativesData(const TrajectoryOptimizerState<T>& state) const;
-
-  /**
    * Return the total (unconstrained) cost of the optimization problem,
    *
    *     L(q) = x_err(T)'*Qf*x_err(T)
@@ -321,6 +313,21 @@ class TrajectoryOptimizer {
    *      context_
    */
   void CalcContactForceContribution(MultibodyForces<T>* forces) const;
+
+  /**
+   * Compute partial derivatives of the inverse dynamics
+   *
+   *    tau_t = ID(q_{t-1}, q_t, q_{t+1})
+   *
+   * and store them in the given InverseDynamicsPartials struct.
+   *
+   * @param state optimizer state containing q (and various things we can
+   * compute from q)
+   * @param id_partials struct for holding dtau/dq
+   */
+  void CalcInverseDynamicsPartials(
+      const TrajectoryOptimizerState<T>& state,
+      InverseDynamicsPartials<T>* id_partials) const;
 
   /**
    * Compute partial derivatives of the inverse dynamics

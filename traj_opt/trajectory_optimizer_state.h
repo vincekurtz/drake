@@ -28,7 +28,8 @@ using multibody::MultibodyPlant;
 template <typename T>
 struct TrajectoryOptimizerCache {
   TrajectoryOptimizerCache(const int num_steps, const int nv, const int nq)
-      : derivatives_data(num_steps, nv, nq),
+      : velocity_partials(num_steps, nv, nq),
+        inverse_dynamics_partials(num_steps, nv, nq),
         gradient((num_steps + 1) * nq),
         hessian(num_steps + 1, nq) {
     trajectory_data.v.assign(num_steps + 1, VectorX<T>(nv));
@@ -53,19 +54,13 @@ struct TrajectoryOptimizerCache {
     bool up_to_date{false};
   } trajectory_data;
 
-  // Data used to construct the gradient ∇L and Hessian ∇²L approximation
-  struct DerivativesData {
-    DerivativesData(const int num_steps, const int nv, const int nq)
-        : v_partials(num_steps, nv, nq), id_partials(num_steps, nv, nq) {}
+  // Storage for dv(t)/dq(t) and dv(t)/dq(t-1)
+  VelocityPartials<T> velocity_partials;
+  bool velocity_partials_up_to_date{false};
 
-    // Storage for dv(t)/dq(t) and dv(t)/dq(t-1)
-    VelocityPartials<T> v_partials;
-
-    // Storage for dtau(t)/dq(t-1), dtau(t)/dq(t), and dtau(t)/dq(t+1)
-    InverseDynamicsPartials<T> id_partials;
-
-    bool up_to_date{false};
-  } derivatives_data;
+  // Storage for dtau(t)/dq(t-1), dtau(t)/dq(t), and dtau(t)/dq(t+1)
+  InverseDynamicsPartials<T> inverse_dynamics_partials;
+  bool inverse_dynamics_partials_up_to_date{false};
 
   // The total cost L(q)
   T cost;
@@ -237,7 +232,8 @@ class TrajectoryOptimizerState {
   // Set all the cache invalidation flags to false
   void invalidate_cache() {
     cache_.trajectory_data.up_to_date = false;
-    cache_.derivatives_data.up_to_date = false;
+    cache_.velocity_partials_up_to_date = false;
+    cache_.inverse_dynamics_partials_up_to_date = false;
     cache_.cost_up_to_date = false;
     cache_.gradient_up_to_date = false;
     cache_.hessian_up_to_date = false;
