@@ -723,7 +723,7 @@ void TrajectoryOptimizer<T>::SaveLinePlotDataFirstVariable(
     TrajectoryOptimizerState<T>* scratch_state) const {
   std::ofstream data_file;
   data_file.open("lineplot_data.csv");
-  data_file << "q, L, g, H\n"; // header
+  data_file << "q, L, g, H\n";  // header
 
   // Establish sample points
   const double q_min = params_.lineplot_q_min;
@@ -744,7 +744,7 @@ void TrajectoryOptimizer<T>::SaveLinePlotDataFirstVariable(
     // Compute cost, gradient, and Hessian for the first decision variable
     const T& L = EvalCost(*scratch_state);
     const T& g = EvalGradient(*scratch_state)[nq];
-    const T& H = EvalHessian(*scratch_state).C()[1](0,0);
+    const T& H = EvalHessian(*scratch_state).C()[1](0, 0);
 
     // Write to the file
     data_file << fmt::format("{}, {}, {}, {}\n", qi, L, g, H);
@@ -772,11 +772,11 @@ void TrajectoryOptimizer<T>::SaveIterationData(
   const T& q = state.q()[1](0);  // assuming 1-DoF and 1 timestep
   const T& cost = EvalCost(state);
 
-  data_file << fmt::format("{}, {}, {}, {}, {}, {}\n", iter, q, cost, Delta, rho, dq);
+  data_file << fmt::format("{}, {}, {}, {}, {}, {}\n", iter, q, cost, Delta,
+                           rho, dq);
 
   data_file.close();
 }
-
 
 template <typename T>
 void TrajectoryOptimizer<T>::SaveContourPlotDataFirstTwoVariables(
@@ -784,7 +784,8 @@ void TrajectoryOptimizer<T>::SaveContourPlotDataFirstTwoVariables(
   using std::sqrt;
   std::ofstream data_file;
   data_file.open("contour_data.csv");
-  data_file << "q1, q2, L, g1, g2, H11, H12, H21, H22, g_norm, H_norm\n"; // header
+  data_file
+      << "q1, q2, L, g1, g2, H11, H12, H21, H22, g_norm, H_norm\n";  // header
 
   // Establish sample points
   const double q1_min = params_.contour_q1_min;
@@ -831,7 +832,8 @@ template <typename T>
 void TrajectoryOptimizer<T>::SetupQuadraticDataFile() const {
   std::ofstream data_file;
   data_file.open("quadratic_data.csv");
-  data_file << "iter, q1, q2, dq1, dq2, Delta, cost , g1, g2, H11, H12, H21, H22, g_norm, H_norm\n";
+  data_file << "iter, q1, q2, dq1, dq2, Delta, cost , g1, g2, H11, H12, H21, "
+               "H22, g_norm, H_norm\n";
   data_file.close();
 }
 
@@ -858,8 +860,9 @@ void TrajectoryOptimizer<T>::SaveQuadraticDataFirstTwoVariables(
   const T H22 = H(nq + 1, nq + 1);
 
   data_file << fmt::format(
-      "{}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}\n", iter, q1, q2, dq1,
-      dq2, Delta, EvalCost(state), g1, g2, H11, H12, H21, H22, g.norm(), H.block(2,2,2,2).norm());
+      "{}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}\n", iter, q1,
+      q2, dq1, dq2, Delta, EvalCost(state), g1, g2, H11, H12, H21, H22,
+      g.norm(), H.block(2, 2, 2, 2).norm());
   data_file.close();
 }
 
@@ -1399,10 +1402,10 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
   std::chrono::duration<double> solve_time;
 
   // Trust region parameters
-  const double Delta_max = 1.0;   // Maximum trust region size
-  const double Delta0 = 1e0;      // Initial trust region size
-  const double eta = 0.0;         // Trust ratio threshold - we accept steps if
-                                  // the trust ratio is above this threshold
+  const double Delta_max = 1.0;  // Maximum trust region size
+  const double Delta0 = 1e0;     // Initial trust region size
+  const double eta = 0.0;        // Trust ratio threshold - we accept steps if
+                                 // the trust ratio is above this threshold
 
   // Variables that we'll update throughout the main loop
   int k = 0;                  // iteration counter
