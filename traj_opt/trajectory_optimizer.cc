@@ -352,6 +352,7 @@ template <typename T>
 const std::vector<geometry::SignedDistancePair<T>>&
 TrajectoryOptimizer<T>::EvalSignedDistancePairs(
     const TrajectoryOptimizerState<T>& state, int t) const {
+  DRAKE_DEMAND(0 <= t && t < num_steps());
   if (!state.cache().sdf_data.up_to_date) {
     CalcSdfData(state, &state.mutable_cache().sdf_data);
   }

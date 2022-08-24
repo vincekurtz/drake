@@ -169,6 +169,10 @@ class TrajectoryOptimizer {
   const VectorX<T>& EvalGradient(
       const TrajectoryOptimizerState<T>& state) const;
 
+  /* Evaluates the signed distance pairs for the t-th step stored in `state`. */
+  const std::vector<geometry::SignedDistancePair<T>>& EvalSignedDistancePairs(
+      const TrajectoryOptimizerState<T>& state, int t) const;
+
  private:
   // Friend class to facilitate testing.
   friend class TrajectoryOptimizerTester;
@@ -362,11 +366,7 @@ class TrajectoryOptimizer {
   /* Computes signed distance data for all time configurations in `state`. */
   void CalcSdfData(
       const TrajectoryOptimizerState<T>& state,
-      typename TrajectoryOptimizerCache<T>::SdfData* sdf_data) const;
-
-  /* Evaluates the signed distance pairs for the t-th step stored in `state`. */  
-  const std::vector<geometry::SignedDistancePair<T>>& EvalSignedDistancePairs(
-      const TrajectoryOptimizerState<T>& state, int t) const;
+      typename TrajectoryOptimizerCache<T>::SdfData* sdf_data) const;  
 
   /* Helper to compute the contact Jacobian for the configuration stored in
   `context`. Signed distance pairs `sdf_pairs` must be consistent with
