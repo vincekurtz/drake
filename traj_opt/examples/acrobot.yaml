@@ -34,7 +34,7 @@ max_iters : 500             # maximum Gauss-Newton iterations
 method : "trust_region"     # solver method, {linesearch, trust_region}
 linesearch : "armijo"       # linesearch strategy, {armino, backtracking}
 proximal_operator : false   # whether to add a proximal operator cost term
-rho_proximal : 1e-5         # the proximal cost multiplier
+rho_proximal : 1e-8         # the proximal cost multiplier
 
 # Playback/visualization parameters
 play_optimal_trajectory : true
@@ -44,8 +44,3 @@ play_initial_guess : false
 linesearch_plot_every_iteration : false
 print_debug_data : false
 save_solver_stats_csv : true
-
-# Contact model parameters (not relevant to acrobot)
-F : 0.5       # force at delta meters of penetration
-delta : 0.01  # penetration distance with F newtons of normal force
-n : 2         # polynomial smoothing factor

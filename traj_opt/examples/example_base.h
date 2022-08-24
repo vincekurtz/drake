@@ -44,8 +44,9 @@ class TrajOptExample {
    */
   void SolveTrajectoryOptimization(const std::string options_file) const {
     // Load parameters from file
+    TrajOptExampleParams default_options;
     TrajOptExampleParams options = yaml::LoadYamlFile<TrajOptExampleParams>(
-        FindResourceOrThrow(options_file));
+        FindResourceOrThrow(options_file), {}, default_options);
 
     // Create a system model
     // N.B. we need a whole diagram, including scene_graph, to handle contact
@@ -118,6 +119,18 @@ class TrajOptExample {
     solver_params.dissipation_exponent = options.dissipation_exponent;
     solver_params.friction_coefficient = options.friction_coefficient;
     solver_params.stiction_velocity = options.stiction_velocity;
+
+    // Set parameters for making contour plot of the first two variables
+    solver_params.save_contour_data = options.save_contour_data;
+    solver_params.contour_q1_min = options.contour_q1_min;
+    solver_params.contour_q1_max = options.contour_q1_max;
+    solver_params.contour_q2_min = options.contour_q2_min;
+    solver_params.contour_q2_max = options.contour_q2_max;
+
+    // Parameters for making line plots of the first variable
+    solver_params.save_lineplot_data = options.save_lineplot_data;
+    solver_params.lineplot_q_min = options.lineplot_q_min;
+    solver_params.lineplot_q_max = options.lineplot_q_max;
 
     // Establish an initial guess
     const VectorXd qT_guess = Eigen::Map<VectorXd>(options.q_guess.data(), nq);

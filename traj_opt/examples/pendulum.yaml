@@ -44,8 +44,3 @@ play_initial_guess : false
 linesearch_plot_every_iteration : false
 print_debug_data : false
 save_solver_stats_csv : true
-
-# Contact model parameters (not relevant to pendulum)
-F : 0.5       # force at delta meters of penetration
-delta : 0.01  # penetration distance with F newtons of normal force
-n : 2         # polynomial smoothing factor

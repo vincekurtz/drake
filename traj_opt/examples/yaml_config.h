@@ -49,6 +49,14 @@ struct TrajOptExampleParams {
     a->Visit(DRAKE_NVP(dissipation_exponent));
     a->Visit(DRAKE_NVP(stiction_velocity));
     a->Visit(DRAKE_NVP(friction_coefficient));
+    a->Visit(DRAKE_NVP(save_contour_data));
+    a->Visit(DRAKE_NVP(contour_q1_min));
+    a->Visit(DRAKE_NVP(contour_q1_max));
+    a->Visit(DRAKE_NVP(contour_q2_min));
+    a->Visit(DRAKE_NVP(contour_q2_max));
+    a->Visit(DRAKE_NVP(save_lineplot_data));
+    a->Visit(DRAKE_NVP(lineplot_q_min));
+    a->Visit(DRAKE_NVP(lineplot_q_max));
   }
   std::vector<double> q_init;
   std::vector<double> v_init;
@@ -65,20 +73,28 @@ struct TrajOptExampleParams {
   int max_iters;
   std::string linesearch;
   std::string method;
-  bool proximal_operator;
-  double rho_proximal;
-  bool play_optimal_trajectory;
-  bool play_initial_guess;
-  bool linesearch_plot_every_iteration;
-  bool print_debug_data;
-  bool save_solver_stats_csv;
-  double F;
-  double delta;
-  double stiffness_exponent;
-  double dissipation_velocity;
-  double dissipation_exponent;
-  double stiction_velocity;
-  double friction_coefficient;
+  bool proximal_operator = false;
+  double rho_proximal = 1e-8;
+  bool play_optimal_trajectory = true;
+  bool play_initial_guess = true;
+  bool linesearch_plot_every_iteration = false;
+  bool print_debug_data = false;
+  bool save_solver_stats_csv = true;
+  double F = 1.0;
+  double delta = 0.01;
+  double stiffness_exponent = 2;
+  double dissipation_velocity = 0.1;
+  double dissipation_exponent = 1.0;
+  double stiction_velocity = 0.05;
+  double friction_coefficient = 0.0;
+  bool save_contour_data = false;
+  double contour_q1_min = 0;
+  double contour_q1_max = 1;
+  double contour_q2_min = 0;
+  double contour_q2_max = 1;
+  bool save_lineplot_data = false;
+  double lineplot_q_min = 0;
+  double lineplot_q_max = 1;
 };
 
 }  // namespace examples

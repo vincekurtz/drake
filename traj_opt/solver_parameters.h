@@ -11,10 +11,7 @@ enum LinesearchMethod {
   kBacktracking
 };
 
-enum SolverMethod {
-  kLinesearch,
-  kTrustRegion
-};
+enum SolverMethod { kLinesearch, kTrustRegion };
 
 struct SolverParameters {
   // Which overall optimization strategy to use - linesearch or trust region
@@ -38,7 +35,9 @@ struct SolverParameters {
   bool print_debug_data = false;
 
   // Flag for whether to record linesearch data to a file at each iteration (for
-  // later plotting)
+  // later plotting). This saves a file called "linesearch_data_[k].csv" for
+  // each iteration, where k is the iteration number. This file can then be
+  // found somewhere in drake/bazel-out/.
   bool linesearch_plot_every_iteration = false;
 
   // Flag for whether to add a proximal operator term,
@@ -62,6 +61,18 @@ struct SolverParameters {
   double dissipation_velocity{0.1};  // Hunt-Crossley velocity, in m/s.
   double stiction_velocity{1.0e-2};  // Regularization of stiction, in m/s.
   double friction_coefficient{1.0};  // Coefficient of friction.
+
+  // Flags for making a contour plot with the first two decision variables.
+  bool save_contour_data = false;
+  double contour_q1_min = 0.0;
+  double contour_q1_max = 1.0;
+  double contour_q2_min = 0.0;
+  double contour_q2_max = 1.0;
+
+  // Flags for making line plots with the first decision variable
+  bool save_lineplot_data = false;
+  double lineplot_q_min = 0.0;
+  double lineplot_q_max = 1.0;
 };
 
 }  // namespace traj_opt
