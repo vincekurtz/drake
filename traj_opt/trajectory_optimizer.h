@@ -359,6 +359,34 @@ class TrajectoryOptimizer {
    */
   void CalcContactForceContribution(MultibodyForces<T>* forces) const;
 
+  /* Computes signed distance data for all time configurations in `state`. */
+  void CalcSdfData(
+      const TrajectoryOptimizerState<T>& state,
+      typename TrajectoryOptimizerCache<T>::SdfData* sdf_data) const;
+
+  /* Evaluates the signed distance pairs for the t-th step stored in `state`. */  
+  const std::vector<geometry::SignedDistancePair<T>>& EvalSignedDistancePairs(
+      const TrajectoryOptimizerState<T>& state, int t) const;
+
+  /* Helper to compute the contact Jacobian for the configuration stored in
+  `context`. Signed distance pairs `sdf_pairs` must be consistent with
+  `context`. */  
+  void CalcContactJacobian(
+    const Context<T>& context,
+    const std::vector<geometry::SignedDistancePair<T>>& sdf_pairs,
+    MatrixX<T>* J) const;
+
+  /* Computes the Jacobian data for all time step configurations stored in
+   * `state`.*/
+  void CalcContactJacobianData(
+      const TrajectoryOptimizerState<T>& state,
+      typename TrajectoryOptimizerCache<T>::ContactJacobianData*
+          contact_jacobian_data) const;
+
+  /* Eval version of CalcContactJacobianData(). */
+  const typename TrajectoryOptimizerCache<T>::ContactJacobianData&
+  EvalContactJacobianData(const TrajectoryOptimizerState<T>& state) const;
+
   /**
    * Compute partial derivatives of the inverse dynamics
    *
