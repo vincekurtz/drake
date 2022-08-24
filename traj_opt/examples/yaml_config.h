@@ -57,6 +57,7 @@ struct TrajOptExampleParams {
     a->Visit(DRAKE_NVP(save_lineplot_data));
     a->Visit(DRAKE_NVP(lineplot_q_min));
     a->Visit(DRAKE_NVP(lineplot_q_max));
+    a->Visit(DRAKE_NVP(gradient_strategy));
   }
   std::vector<double> q_init;
   std::vector<double> v_init;
@@ -95,6 +96,7 @@ struct TrajOptExampleParams {
   bool save_lineplot_data = false;
   double lineplot_q_min = 0;
   double lineplot_q_max = 1;
+  std::string gradient_strategy = "finite_differences";
 };
 
 }  // namespace examples

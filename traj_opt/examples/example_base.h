@@ -132,6 +132,17 @@ class TrajOptExample {
     solver_params.lineplot_q_min = options.lineplot_q_min;
     solver_params.lineplot_q_max = options.lineplot_q_max;
 
+    // Set the type of gradient approximation to use
+    if (options.gradient_strategy == "finite_differences") {
+      solver_params.gradient_strategy = GradientStrategy::kFiniteDifferences;
+    } else if (options.gradient_strategy == "analytical") {
+      solver_params.gradient_strategy =
+          GradientStrategy::kAnalyticalApproximation;
+    } else {
+      throw std::runtime_error(fmt::format("Unknown gradient strategy '{}'",
+                                           options.gradient_strategy));
+    }
+
     // Establish an initial guess
     const VectorXd qT_guess = Eigen::Map<VectorXd>(options.q_guess.data(), nq);
     std::vector<VectorXd> q_guess;
