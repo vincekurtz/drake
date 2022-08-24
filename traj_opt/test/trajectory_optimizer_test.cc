@@ -20,9 +20,6 @@
 #include "drake/traj_opt/trajectory_optimizer_workspace.h"
 #include "drake/traj_opt/velocity_partials.h"
 
-#include <iostream>
-#define PRINT_VAR(a) std::cout << #a": " << a << std::endl;
-
 namespace drake {
 namespace traj_opt {
 
@@ -103,6 +100,7 @@ using Eigen::MatrixXd;
 using Eigen::Vector2d;
 using Eigen::Vector3d;
 using Eigen::VectorXd;
+using math::RotationMatrixd;
 using math::RigidTransformd;
 using multibody::DiscreteContactSolver;
 using multibody::MultibodyPlant;
@@ -112,67 +110,6 @@ using multibody::RigidBody;
 using multibody::Parser;
 using systems::DiagramBuilder;
 using test::LimitMalloc;
-
-GTEST_TEST(TrajectoryOptimzierTest, ContactJacobians) {
-  const double dt = 0.01;
-
-  // Model of a ball on a half-sapce.
-  DiagramBuilder<double> builder;
-  MultibodyPlantConfig config;
-  config.time_step = dt;
-  auto [plant, scene_graph] = multibody::AddMultibodyPlant(config, &builder);
-
-  // Inertial properties are irrelevant for this test, since all contact
-  // quantities are configuration dependent only.
-  const double radius = 0.5;
-  const RigidBody<double>& sphere = plant.AddRigidBody(
-      "sphere", multibody::SpatialInertia<double>::MakeUnitary());
-  plant.AddJoint<PlanarJoint>(
-      "planar", plant.world_body(),
-      RigidTransformd(math::RollPitchYawd(M_PI_2, 0.0, 0.0), Vector3d::Zero()),
-      sphere, {}, Vector3d::Zero());
-  plant.RegisterCollisionGeometry(sphere, RigidTransformd::Identity(),
-                                  geometry::Sphere(radius), "sphere_contact",
-                                  multibody::CoulombFriction<double>());
-  plant.RegisterCollisionGeometry(
-      plant.world_body(), RigidTransformd::Identity(), geometry::HalfSpace(),
-      "ground_contact", multibody::CoulombFriction<double>());
-
-  plant.Finalize();
-  auto diagram = builder.Build();
-  ASSERT_EQ(plant.num_positions(), 3);
-  ASSERT_EQ(plant.num_velocities(), 3);
-
-  // Define a super simple optimization problem. We are only interested in
-  // configurations.
-  const int num_steps = 5;
-
-  ProblemDefinition opt_prob;
-  opt_prob.num_steps = num_steps;
-  opt_prob.q_init = Vector3d::Zero();
-  opt_prob.v_init = Vector3d::Zero();
-
-  TrajectoryOptimizer<double> optimizer(diagram.get(), &plant, opt_prob);
-  TrajectoryOptimizerState<double> state = optimizer.CreateState();
-
-  // State for which the z position of the sphere decreases linearly with time.
-  std::vector<VectorXd> q;
-  for (int t = 0; t <= num_steps; ++t) {
-    q.push_back(Vector3d(0.0, radius - (0.1 * t) / num_steps, 0.0));
-  }
-  state.set_q(q);
-
-  for (int t = 0; t < num_steps; ++t) {
-    const std::vector<geometry::SignedDistancePair<double>>& sdf_pairs =
-        optimizer.EvalSignedDistancePairs(state, t);
-    const double phi_expected = q[t].y() - radius;
-    EXPECT_EQ(sdf_pairs.size(), 1u);
-    PRINT_VAR(sdf_pairs[0].distance);
-    PRINT_VAR(phi_expected);
-    EXPECT_NEAR(sdf_pairs[0].distance, phi_expected,
-                std::numeric_limits<double>::epsilon());
-  }
-}
 
 /**
  * Test our computation of the dogleg point for trust-region optimization
@@ -1242,6 +1179,97 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcVelocities) {
   const double kTolerance = std::numeric_limits<double>::epsilon() / dt;
   for (int t = 0; t <= num_steps; ++t) {
     EXPECT_TRUE(CompareMatrices(v[t], opt_prob.v_init, kTolerance,
+                                MatrixCompareType::relative));
+  }
+}
+
+// Unit tests the computation of contact Jacobians performed by the optimizer.
+// This very simple case consists of a 2D (3 DOFs) sphere in contact with the
+// ground. We verify the optimizer computes the correct Jacobian at all time
+// steps.
+GTEST_TEST(TrajectoryOptimzierTest, ContactJacobians) {
+  const double dt = 0.01;
+
+  // Model of a ball on a half-sapce.
+  DiagramBuilder<double> builder;
+  MultibodyPlantConfig config;
+  config.time_step = dt;
+  auto [plant, scene_graph] = multibody::AddMultibodyPlant(config, &builder);
+
+  // Inertial properties are irrelevant for this test, since all contact
+  // quantities are configuration dependent only.
+  const double radius = 0.5;
+  const RigidBody<double>& sphere = plant.AddRigidBody(
+      "sphere", multibody::SpatialInertia<double>::MakeUnitary());
+  plant.AddJoint<PlanarJoint>(
+      "planar", plant.world_body(),
+      RigidTransformd(math::RollPitchYawd(M_PI_2, 0.0, 0.0), Vector3d::Zero()),
+      sphere, {}, Vector3d::Zero());
+  plant.RegisterCollisionGeometry(sphere, RigidTransformd::Identity(),
+                                  geometry::Sphere(radius), "sphere_contact",
+                                  multibody::CoulombFriction<double>());
+  plant.RegisterCollisionGeometry(
+      plant.world_body(), RigidTransformd::Identity(), geometry::HalfSpace(),
+      "ground_contact", multibody::CoulombFriction<double>());
+
+  plant.Finalize();
+  auto diagram = builder.Build();
+  ASSERT_EQ(plant.num_positions(), 3);
+  ASSERT_EQ(plant.num_velocities(), 3);
+
+  // Define a super simple optimization problem. We are only interested in
+  // configurations.
+  const int num_steps = 5;
+
+  ProblemDefinition opt_prob;
+  opt_prob.num_steps = num_steps;
+  opt_prob.q_init = Vector3d::Zero();
+  opt_prob.v_init = Vector3d::Zero();
+
+  TrajectoryOptimizer<double> optimizer(diagram.get(), &plant, opt_prob);
+  TrajectoryOptimizerState<double> state = optimizer.CreateState();
+
+  // State for which the z position of the sphere decreases linearly with time.
+  std::vector<VectorXd> q;
+  for (int t = 0; t <= num_steps; ++t) {
+    q.push_back(Vector3d(0.0, radius - (0.1 * t) / num_steps, 0.0));
+  }
+  state.set_q(q);
+
+  // Verify the expected value for signed distance pairs.
+  for (int t = 0; t < num_steps; ++t) {
+    const std::vector<geometry::SignedDistancePair<double>>& sdf_pairs =
+        optimizer.EvalSignedDistancePairs(state, t);
+    const double phi_expected = q[t].y() - radius;
+    EXPECT_EQ(sdf_pairs.size(), 1u);
+    EXPECT_NEAR(sdf_pairs[0].distance, phi_expected,
+                std::numeric_limits<double>::epsilon());
+  }
+
+  const TrajectoryOptimizerCache<double>::ContactJacobianData& jacobian_data =
+      optimizer.EvalContactJacobianData(state);
+  for (int t = 0; t < num_steps; ++t) {
+    const MatrixXd& J_AcBc_C = jacobian_data.J[t];
+    EXPECT_EQ(J_AcBc_C.rows(), 3);
+    EXPECT_EQ(J_AcBc_C.cols(), 3);
+    ASSERT_EQ(jacobian_data.R_WC[t].size(), 1u);
+    const RotationMatrixd& R_WC = jacobian_data.R_WC[t][0];
+    const auto& body_pair = jacobian_data.body_pairs[t][0];
+    const double sign =
+        body_pair.second == multibody::BodyIndex(1) ? 1.0 : -1.0;
+
+    // We call the sphere body B. To recover the contact Jacobian for the
+    // relative velocity v_AcBc_W, with A the world body, we must take into
+    // account the order in which pairs are reported. We do this by including
+    // the `sign` factor.
+    const MatrixXd J_AcBc_W = sign * R_WC.matrix() * J_AcBc_C;
+
+    const double phi_expected = q[t].y() - radius;
+    MatrixXd J_expected(3, 3);
+    J_expected << 1, 0, phi_expected / 2.0 + radius, 0, 0, 0, 0, 1, 0;
+
+    EXPECT_TRUE(CompareMatrices(J_AcBc_W, J_expected,
+                                std::numeric_limits<double>::epsilon(),
                                 MatrixCompareType::relative));
   }
 }

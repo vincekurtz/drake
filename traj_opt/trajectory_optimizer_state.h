@@ -16,6 +16,7 @@ namespace drake {
 namespace traj_opt {
 
 using internal::PentaDiagonalMatrix;
+using multibody::BodyIndex;
 using multibody::MultibodyPlant;
 using systems::Context;
 using systems::Diagram;
@@ -109,6 +110,12 @@ struct TrajectoryOptimizerCache {
   } sdf_data;
 
   struct ContactJacobianData {
+    // body_pairs[t] stores body pairs for all contacts at time t.
+    std::vector<std::vector<std::pair<BodyIndex, BodyIndex>>> body_pairs;
+
+    // R_WC[t] is a std::vector storing R_WC for all contact pairs at time t.
+    std::vector<std::vector<math::RotationMatrix<T>>> R_WC;
+
     // Contact Jacobian, std::vector of size num_steps.
     // Each Jacobian matrix has 3*num_contacts rows and num_velocities columns.
     // J[t] stores the contact Jacobian for the t-th step.

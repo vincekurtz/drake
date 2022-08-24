@@ -363,7 +363,8 @@ template <typename T>
 void TrajectoryOptimizer<T>::CalcContactJacobian(
     const Context<T>& context,
     const std::vector<geometry::SignedDistancePair<T>>& sdf_pairs,
-    MatrixX<T>* J) const {
+    MatrixX<T>* J, std::vector<math::RotationMatrix<T>>* R_WC,
+    std::vector<std::pair<BodyIndex, BodyIndex>>* body_pairs) const {
   const geometry::QueryObject<T>& query_object =
       plant()
           .get_geometry_query_input_port()
@@ -378,6 +379,8 @@ void TrajectoryOptimizer<T>::CalcContactJacobian(
   Matrix3X<T> Jv_WBc_W(3, nv);
   const int nc = sdf_pairs.size();
   J->resize(3 * nc, nv);
+  R_WC->resize(nc);
+  body_pairs->resize(nc);
 
   int ic = 0;
   const Frame<T>& frame_W = plant().world_frame();
@@ -395,6 +398,8 @@ void TrajectoryOptimizer<T>::CalcContactJacobian(
     const BodyIndex bodyB_index =
         plant().geometry_id_to_body_index().at(geometryB_id);
     const Body<T>& bodyB = plant().get_body(bodyB_index);
+
+    body_pairs->at(ic) = std::make_pair(bodyA_index, bodyB_index);
 
     // Body poses in world.
     const math::RigidTransform<T>& X_WA =
@@ -435,15 +440,14 @@ void TrajectoryOptimizer<T>::CalcContactJacobian(
     // Define a contact frame C at the contact point such that the z-axis Cz
     // equals nhat_W. The tangent vectors are arbitrary, with the only
     // requirement being that they form a valid right handed basis with nhat_W.
-    math::RotationMatrix<T> R_WC =
-        math::RotationMatrix<T>::MakeFromOneVector(nhat_W, 2);
+    R_WC->at(ic) = math::RotationMatrix<T>::MakeFromOneVector(nhat_W, 2);
 
     // Contact Jacobian J_AcBc_C, expressed in the contact frame C.
     // That is, vc = J * v stores the contact velocities expressed in the
     // contact frame C. Similarly for contact forces, they are expressed in this
     // same frame C.
     J->middleRows(3 * ic, 3) =
-        R_WC.matrix().transpose() * (Jv_WBc_W - Jv_WAc_W);
+        R_WC->at(ic).matrix().transpose() * (Jv_WBc_W - Jv_WAc_W);
 
     ++ic;
   }
@@ -458,12 +462,16 @@ void TrajectoryOptimizer<T>::CalcContactJacobianData(
   // We resize to include all pairs, even for positive distances for which the
   // contact forces will be zero.
   contact_jacobian_data->J.resize(num_steps());
+  contact_jacobian_data->R_WC.resize(num_steps());
+  contact_jacobian_data->body_pairs.resize(num_steps());
 
   for (int t = 0; t < num_steps(); ++t) {
     const Context<T>& context = EvalPlantContext(state, t);
     const std::vector<geometry::SignedDistancePair<T>>& sdf_pairs =
         EvalSignedDistancePairs(state, t);
-    CalcContactJacobian(context, sdf_pairs, &contact_jacobian_data->J[t]);
+    CalcContactJacobian(context, sdf_pairs, &contact_jacobian_data->J[t],
+                        &contact_jacobian_data->R_WC[t],
+                        &contact_jacobian_data->body_pairs[t]);
   }
 }
 
