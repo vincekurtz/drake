@@ -35,7 +35,7 @@ struct TrajectoryOptimizerCache {
     trajectory_data.v.assign(num_steps + 1, VectorX<T>(nv));
     trajectory_data.a.assign(num_steps, VectorX<T>(nv));
     trajectory_data.tau.assign(num_steps, VectorX<T>(nv));
-    mass_matrix.assign(num_steps, MatrixX<T>(nv,nv));
+    mass_matrix.assign(num_steps, MatrixX<T>(nv, nv));
   }
 
   // Data used to compute the cost L(q)

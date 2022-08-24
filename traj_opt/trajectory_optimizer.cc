@@ -322,7 +322,7 @@ void TrajectoryOptimizer<T>::CalcMassMatrix(
     std::vector<MatrixX<T>>* mass_matrix) const {
   const std::vector<VectorX<T>>& q = state.q();
   for (int t = 0; t < num_steps(); ++t) {
-    plant().SetPositions(context_, q[t+1]);
+    plant().SetPositions(context_, q[t + 1]);
     plant().CalcMassMatrix(*context_, &mass_matrix->at(t));
   }
 }

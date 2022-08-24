@@ -149,10 +149,10 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcMassMatrix) {
   const std::vector<MatrixXd> mass_matrix = optimizer.EvalMassMatrix(state);
 
   // Compare with the ground truth
-  MatrixXd M_gt(7,7);
+  MatrixXd M_gt(7, 7);
   const double kTolerance = std::numeric_limits<double>::epsilon();
-  for (int t=0; t < num_steps; ++t) {
-    plant.SetPositions(context.get(), q[t+1]);
+  for (int t = 0; t < num_steps; ++t) {
+    plant.SetPositions(context.get(), q[t + 1]);
     plant.CalcMassMatrix(*context, &M_gt);
 
     EXPECT_TRUE(CompareMatrices(mass_matrix[t], M_gt, kTolerance,
