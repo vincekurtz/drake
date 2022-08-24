@@ -9,8 +9,8 @@
 
 #include "drake/geometry/scene_graph_inspector.h"
 #include "drake/multibody/math/spatial_algebra.h"
-#include "drake/traj_opt/penta_diagonal_solver.h"
 #include "drake/systems/framework/diagram.h"
+#include "drake/traj_opt/penta_diagonal_solver.h"
 
 namespace drake {
 namespace traj_opt {
@@ -47,10 +47,10 @@ TrajectoryOptimizer<T>::TrajectoryOptimizer(const MultibodyPlant<T>* plant,
 }
 
 template <typename T>
-TrajectoryOptimizer<T>::TrajectoryOptimizer(
-    const Diagram<T>* diagram, const MultibodyPlant<T>* plant,
-    const ProblemDefinition& prob,
-    const SolverParameters& params)
+TrajectoryOptimizer<T>::TrajectoryOptimizer(const Diagram<T>* diagram,
+                                            const MultibodyPlant<T>* plant,
+                                            const ProblemDefinition& prob,
+                                            const SolverParameters& params)
     : diagram_{diagram}, plant_(plant), prob_(prob), params_(params) {
   // Workaround for when a plant context is not provided.
   // Valid context should be obtained with EvalPlantContext() instead.
@@ -344,10 +344,9 @@ template <typename T>
 void TrajectoryOptimizer<T>::CalcMassMatrix(
     const TrajectoryOptimizerState<T>& state,
     std::vector<MatrixX<T>>* mass_matrix) const {
-  const std::vector<VectorX<T>>& q = state.q();
   for (int t = 0; t < num_steps(); ++t) {
-    plant().SetPositions(context_, q[t + 1]);
-    plant().CalcMassMatrix(*context_, &mass_matrix->at(t));
+    const Context<T>& context = EvalPlantContext(state, t+1);
+    plant().CalcMassMatrix(context, &mass_matrix->at(t));
   }
 }
 

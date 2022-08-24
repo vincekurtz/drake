@@ -9,6 +9,8 @@
 #include "drake/common/test_utilities/limit_malloc.h"
 #include "drake/multibody/parsing/parser.h"
 #include "drake/multibody/plant/multibody_plant.h"
+#include "drake/multibody/plant/multibody_plant_config_functions.h"
+#include "drake/systems/framework/diagram_builder.h"
 #include "drake/traj_opt/inverse_dynamics_partials.h"
 #include "drake/traj_opt/penta_diagonal_matrix.h"
 #include "drake/traj_opt/penta_diagonal_solver.h"
@@ -95,7 +97,9 @@ using Eigen::Vector2d;
 using Eigen::VectorXd;
 using multibody::DiscreteContactSolver;
 using multibody::MultibodyPlant;
+using multibody::MultibodyPlantConfig;
 using multibody::Parser;
+using systems::DiagramBuilder;
 using test::LimitMalloc;
 
 /**
@@ -107,13 +111,16 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumDtauDqAnalytical) {
   const double dt = 1e-2;
 
   // Set up a system model
-  MultibodyPlant<double> plant(dt);
+  DiagramBuilder<double> builder;
+  MultibodyPlantConfig config;
+  config.time_step = dt;
+  auto [plant, scene_graph] = multibody::AddMultibodyPlant(config, &builder);
   const std::string urdf_file =
       FindResourceOrThrow("drake/examples/pendulum/Pendulum.urdf");
   Parser(&plant).AddAllModelsFromFile(urdf_file);
   plant.mutable_gravity_field().set_gravity_vector(VectorXd::Zero(3));
   plant.Finalize();
-  auto context = plant.CreateDefaultContext();
+  auto diagram = builder.Build();
 
   // Create a trajectory optimizer
   ProblemDefinition opt_prob;
@@ -122,7 +129,7 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumDtauDqAnalytical) {
   opt_prob.num_steps = num_steps;
   SolverParameters solver_params;
   solver_params.gradient_strategy = GradientStrategy::kAnalyticalApproximation;
-  TrajectoryOptimizer<double> optimizer(&plant, context.get(), opt_prob,
+  TrajectoryOptimizer<double> optimizer(diagram.get(), &plant, opt_prob,
                                         solver_params);
   TrajectoryOptimizerState<double> state = optimizer.CreateState();
 
@@ -192,7 +199,10 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcMassMatrix) {
   const double dt = 1e-2;
 
   // Create a robot model
-  MultibodyPlant<double> plant(dt);
+  DiagramBuilder<double> builder;
+  MultibodyPlantConfig config;
+  config.time_step = dt;
+  auto [plant, scene_graph] = multibody::AddMultibodyPlant(config, &builder);
   const std::string urdf_file = FindResourceOrThrow(
       "drake/manipulation/models/iiwa_description/urdf/"
       "iiwa14_no_collision.urdf");
@@ -200,7 +210,7 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcMassMatrix) {
   plant.set_discrete_contact_solver(DiscreteContactSolver::kSap);
   plant.WeldFrames(plant.world_frame(), plant.GetFrameByName("base"));
   plant.Finalize();
-  auto context = plant.CreateDefaultContext();
+  auto diagram = builder.Build();
 
   // Set up an optimization problem
   ProblemDefinition opt_prob;
@@ -211,14 +221,14 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcMassMatrix) {
   opt_prob.v_init.setConstant(0.2);
 
   // Create an optimizer
-  TrajectoryOptimizer<double> optimizer(&plant, context.get(), opt_prob);
+  TrajectoryOptimizer<double> optimizer(diagram.get(), &plant, opt_prob);
   TrajectoryOptimizerState<double> state = optimizer.CreateState();
 
   // Make some fake data
   std::vector<VectorXd> q(num_steps + 1);
   q[0] = opt_prob.q_init;
   for (int t = 1; t <= num_steps; ++t) {
-    q[t] = q[t - 1] + 2.3 * dt * MatrixXd::Identity(7, 7);
+    q[t] = q[t - 1] + 2.3 * dt * VectorXd::Ones(7);
   }
   state.set_q(q);
 
@@ -227,6 +237,7 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcMassMatrix) {
 
   // Compare with the ground truth
   MatrixXd M_gt(7, 7);
+  auto context = plant.CreateDefaultContext();
   const double kTolerance = std::numeric_limits<double>::epsilon();
   for (int t = 0; t < num_steps; ++t) {
     plant.SetPositions(context.get(), q[t + 1]);
@@ -747,7 +758,7 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcGradientKuka) {
   std::vector<VectorXd> q(num_steps + 1);
   q[0] = opt_prob.q_init;
   for (int t = 1; t <= num_steps; ++t) {
-    q[t] = q[t - 1] + 0.1 * dt * MatrixXd::Identity(7, 7);
+    q[t] = q[t - 1] + 0.1 * dt * VectorXd::Ones(7);
   }
   state.set_q(q);
 

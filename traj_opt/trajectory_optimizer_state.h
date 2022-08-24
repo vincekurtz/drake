@@ -1,15 +1,17 @@
 #pragma once
 
+#include <memory>
+#include <utility>
 #include <vector>
 
-#include "drake/common/eigen_types.h"
 #include "drake/common/drake_copyable.h"
+#include "drake/common/eigen_types.h"
 #include "drake/multibody/plant/multibody_plant.h"
+#include "drake/systems/framework/diagram.h"
 #include "drake/traj_opt/inverse_dynamics_partials.h"
 #include "drake/traj_opt/penta_diagonal_matrix.h"
 #include "drake/traj_opt/trajectory_optimizer_workspace.h"
 #include "drake/traj_opt/velocity_partials.h"
-#include "drake/systems/framework/diagram.h"
 
 namespace drake {
 namespace traj_opt {
@@ -301,6 +303,10 @@ class TrajectoryOptimizerState {
     cache_.gradient_up_to_date = false;
     cache_.hessian_up_to_date = false;
     cache_.mass_matrix_up_to_date = false;
+
+    if (cache_.context_cache) {
+      cache_.context_cache->up_to_date = false;
+    }
   }
 };
 
