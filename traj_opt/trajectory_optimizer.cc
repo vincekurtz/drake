@@ -344,23 +344,11 @@ const std::vector<VectorX<T>>& TrajectoryOptimizer<T>::EvalContactImpulses(
 template <typename T>
 void TrajectoryOptimizer<T>::CalcContactImpulses(
     const TrajectoryOptimizerState<T>& state,
-    std::vector<VectorX<T>>* gamma) const { 
-
-  // Compliant contact parameters. stiffness_exponent = 3/2 corresponds to Hertz
-  // model for spherical contact. stiffness_exponent = 1.0 corresponds to a
-  // linear spring force with stiffness F/delta.
+    std::vector<VectorX<T>>* gamma) const {
+  // Contact parameters
   const double F = params_.F;
   const double delta = params_.delta;
   const double stiffness_exponent = params_.stiffness_exponent;
-
-  // (Normal) Dissipation. dissipation_exponent = 1.0 corresponds to the Hunt &
-  // Crossley model of dissipation.
-  //const double dissipation_exponent = params_.dissipation_exponent;
-  //const double dissipation_velocity = params_.dissipation_velocity;
-
-  // Friction parameters.
-  //const double vs = params_.stiction_velocity;     // Regularization.
-  //const double mu = params_.friction_coefficient;  // Coefficient of friction.
 
   for (int t = 0; t <= num_steps(); ++t) {
     // Get contact pairs
@@ -376,27 +364,12 @@ void TrajectoryOptimizer<T>::CalcContactImpulses(
     for (int i = 0; i < nc; ++i) {
       const T phi = sdf_pairs[i].distance;
       if (phi < 0) {
-        // Normal (compliant) component.
-        // const T sign_vn = vn > 0 ? 1.0 : -1.0;
-        // const T dissipation_factor = max(
-        //    0.0, 1.0 - pow(abs(vn / dissipation_velocity),
-        //    dissipation_exponent) *
-        //                   sign_vn);
-        const T dissipation_factor = 1.0;
-        const T compliant_fn =
-            F * pow(-phi / delta, stiffness_exponent);
-        const T fn = compliant_fn * dissipation_factor;
+        // Normal component stiffness
+        const T fn = F * pow(-phi / delta, stiffness_exponent);
 
-        // Tangential frictional component.
-        // N.B. This model is algebraically equivalent to:
-        //  ft = -mu*fn*sigmoid(||vt||/vs)*vt/||vt||.
-        // with the algebraic sigmoid function defined as sigmoid(x) =
-        // x/sqrt(1+x^2). The algebraic simplification is performed to avoid
-        // division by zero when vt = 0 (or lost of precision when close to
-        // zero).
-        //const Vector3<T> that_regularized =
-        //    -vt / sqrt(vs * vs + vt.squaredNorm());
-        //const Vector3<T> ft_BC_W = that_regularized * mu * fn;
+        // TODO(vincekurtz) add damping
+
+        // TODO(vincekurtz) add friction
 
         gamma_t[3 * i] = 0;
         gamma_t[3 * i + 1] = 0;
@@ -404,9 +377,7 @@ void TrajectoryOptimizer<T>::CalcContactImpulses(
 
       } else {
         // Contact impulse is zero if we're not in contact
-        gamma_t[3 * i] = 0;
-        gamma_t[3 * i + 1] = 0;
-        gamma_t[3 * i + 2] = 0;
+        gamma_t.segment(3 * i, 3).setZero();
       }
     }
   }
@@ -618,7 +589,7 @@ void TrajectoryOptimizer<T>::CalcContactImpulsePartialsSignedDistance(
       dgamma_dphi_t[3 * i + 1] = 0;  // ∂γₜ₂/∂ϕᵢ
 
       if (phi < 0) {  // ∂γₙ/∂ϕᵢ
-        dgamma_dphi_t[3 * i + 2] = -F / delta * ne * pow(-phi/delta, ne - 1);
+        dgamma_dphi_t[3 * i + 2] = -F / delta * ne * pow(-phi / delta, ne - 1);
       } else {
         dgamma_dphi_t[3 * i + 2] = 0;
       }

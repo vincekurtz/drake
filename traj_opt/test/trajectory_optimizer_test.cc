@@ -145,7 +145,7 @@ GTEST_TEST(TrajectoryOptimizerTest, AnalyticalDerivatives2DoFSpinner) {
   opt_prob.num_steps = num_steps;
   opt_prob.q_init = Vector2d(1.6, 0.0);
   opt_prob.v_init = Vector2d(0.0, 0.0);
-  opt_prob.q_nom = Vector2d(0.0,-5.5);
+  opt_prob.q_nom = Vector2d(0.0, -5.5);
   opt_prob.v_nom = Vector2d(0.0, 0.0);
   opt_prob.Qq = Vector2d(0.0, 0.1).asDiagonal();
   opt_prob.Qv = Vector2d(1.0, 0.1).asDiagonal();
@@ -169,11 +169,11 @@ GTEST_TEST(TrajectoryOptimizerTest, AnalyticalDerivatives2DoFSpinner) {
       GradientStrategy::kAnalyticalApproximation;
 
   TrajectoryOptimizer<double> opt_fd(diagram.get(), &plant, opt_prob,
-                                        solver_params_finite_diff);
+                                     solver_params_finite_diff);
   TrajectoryOptimizerState<double> state_fd = opt_fd.CreateState();
-  
+
   TrajectoryOptimizer<double> opt_an(diagram.get(), &plant, opt_prob,
-                                        solver_params_analytical);
+                                     solver_params_analytical);
   TrajectoryOptimizerState<double> state_an = opt_an.CreateState();
 
   // Create some fake data
@@ -197,24 +197,28 @@ GTEST_TEST(TrajectoryOptimizerTest, AnalyticalDerivatives2DoFSpinner) {
   std::cout << std::endl;
 
   // Inverse dynamics partials
-  const InverseDynamicsPartials<double>& id_partials_fd = opt_fd.EvalInverseDynamicsPartials(state_fd);
-  const InverseDynamicsPartials<double>& id_partials_an = opt_an.EvalInverseDynamicsPartials(state_an);
+  const InverseDynamicsPartials<double>& id_partials_fd =
+      opt_fd.EvalInverseDynamicsPartials(state_fd);
+  const InverseDynamicsPartials<double>& id_partials_an =
+      opt_an.EvalInverseDynamicsPartials(state_an);
 
   std::cout << id_partials_fd.dtau_dqp[0] << std::endl;
   std::cout << std::endl;
   std::cout << id_partials_an.dtau_dqp[0] << std::endl;
   std::cout << std::endl;
-
 }
 
 /**
- * Test our computation of contact jacobians by computing inverse dynamics two ways:
- * 
- * 1) tau = ID(q, v, a, gamma)   [ as currently implemented in TrajectoryOptimizer]
- * 2) tau = ID(q, v, a) + J'*gamma
- * 
+ * Test our computation of contact jacobians by computing inverse dynamics two
+ * ways:
+ *
+ * 1) tau = ID(q, v, a, gamma)   [ as currently implemented in
+ * TrajectoryOptimizer] 2) tau = ID(q, v, a) + J'*gamma
+ *
+ * for a simple sphere near a halfspace.
+ *
  */
-GTEST_TEST(TrajectoryOptimizerTest, ContactJacobianInverseDynamics) {
+GTEST_TEST(TrajectoryOptimizerTest, ContactJacobianInverseDynamicsSphere) {
   // Create a simple system - ball on a plane
   DiagramBuilder<double> builder;
   MultibodyPlantConfig config;
@@ -230,9 +234,11 @@ GTEST_TEST(TrajectoryOptimizerTest, ContactJacobianInverseDynamics) {
   plant.RegisterCollisionGeometry(
       plant.world_body(), RigidTransformd::Identity(), geometry::HalfSpace(),
       "ground_contact", multibody::CoulombFriction<double>());
-  plant.RegisterCollisionGeometry(sphere, RigidTransformd(math::RollPitchYawd(0.3,-0.7,0.1), Vector3d(0,0,0)),
-                                  geometry::Sphere(radius), "sphere_contact",
-                                  multibody::CoulombFriction<double>());
+  plant.RegisterCollisionGeometry(
+      sphere,
+      RigidTransformd(math::RollPitchYawd(0.3, -0.7, 0.1), Vector3d(0, 0, 0)),
+      geometry::Sphere(radius), "sphere_contact",
+      multibody::CoulombFriction<double>());
   plant.Finalize();
   auto diagram = builder.Build();
   ASSERT_EQ(plant.num_positions(), 3);
@@ -245,22 +251,23 @@ GTEST_TEST(TrajectoryOptimizerTest, ContactJacobianInverseDynamics) {
   opt_prob.q_init = Vector3d::Zero();
   opt_prob.v_init = Vector3d::Zero();
 
-  SolverParameters solver_params; 
-  solver_params.dissipation_velocity = 1e8;  // no dissipation
-  solver_params.friction_coefficient = 0.0;  // no friction
-  TrajectoryOptimizer<double> optimizer(diagram.get(), &plant, opt_prob, solver_params);
+  SolverParameters solver_params;
+  solver_params.dissipation_velocity = 1e16;  // no dissipation
+  solver_params.friction_coefficient = 0.0;   // no friction
+  TrajectoryOptimizer<double> optimizer(diagram.get(), &plant, opt_prob,
+                                        solver_params);
   TrajectoryOptimizerState<double> state = optimizer.CreateState();
 
   // Create some fake data
   std::vector<VectorXd> q;
   for (int t = 0; t <= num_steps; ++t) {
-    q.push_back(Vector3d(0.0, radius - (0.1 * t) / num_steps, 0.2*t));
+    q.push_back(Vector3d(0.0, radius - (0.1 * t) / num_steps, 0.2 * t));
   }
   state.set_q(q);
 
   // Compute inverse dynamics as tau = ID(q, v, a, gamma)
   const std::vector<VectorXd>& tau_expected = optimizer.EvalTau(state);
-  
+
   // Compute inverse dynamics as tau = ID(q, v, a) + J'*gamma
   const std::vector<VectorXd>& v = optimizer.EvalV(state);
   const std::vector<VectorXd>& a = optimizer.EvalA(state);
@@ -272,24 +279,95 @@ GTEST_TEST(TrajectoryOptimizerTest, ContactJacobianInverseDynamics) {
   auto f_ext = state.workspace.f_ext;
   std::vector<VectorXd> tau;
   VectorXd tau_no_contact;
-  for (int t=0; t < num_steps; ++t) {
-    plant.SetPositions(context.get(), q[t+1]);
-    plant.SetVelocities(context.get(), v[t+1]);
+  for (int t = 0; t < num_steps; ++t) {
+    plant.SetPositions(context.get(), q[t + 1]);
+    plant.SetVelocities(context.get(), v[t + 1]);
     plant.CalcForceElementsContribution(*context, &f_ext);
     tau_no_contact = plant.CalcInverseDynamics(*context, a[t], f_ext);
 
     tau.push_back(tau_no_contact -
                   jacobian_data.J[t + 1].transpose() * gamma[t + 1]);
-
-    std::cout << "gamma: " << gamma[t].transpose() << std::endl;
-    std::cout << std::endl;
-    std::cout << tau_expected[t].transpose() << std::endl;
-    std::cout << tau[t].transpose() << std::endl;
-    std::cout << std::endl;
   }
 
-  (void) jacobian_data;
+  // Check that the two ways of computing inverse dynamics match
+  const double kTolerance = 10 * std::numeric_limits<double>::epsilon();
+  for (int t = 0; t < num_steps; ++t) {
+    EXPECT_TRUE(CompareMatrices(tau_expected[t], tau[t], kTolerance,
+                                MatrixCompareType::relative));
+  }
+}
 
+/**
+ * Test our computation of contact jacobians by computing inverse dynamics two
+ * ways:
+ *
+ * 1) tau = ID(q, v, a, gamma)   [ as currently implemented in
+ * TrajectoryOptimizer] 2) tau = ID(q, v, a) + J'*gamma
+ *
+ * for a 2-DoF spinner.
+ *
+ */
+GTEST_TEST(TrajectoryOptimizerTest, ContactJacobianInverseDynamicsSpinner) {
+  // Create a simple system - 2-DoF spinner
+  DiagramBuilder<double> builder;
+  MultibodyPlantConfig config;
+  config.time_step = 0.05;
+  auto [plant, scene_graph] = multibody::AddMultibodyPlant(config, &builder);
+  Parser(&plant).AddAllModelsFromFile(
+      FindResourceOrThrow("drake/traj_opt/examples/2dof_spinner.urdf"));
+  plant.Finalize();
+  auto diagram = builder.Build();
+
+  // Define a super simple optimization problem.
+  const int num_steps = 1;
+  ProblemDefinition opt_prob;
+  opt_prob.num_steps = num_steps;
+  opt_prob.q_init = Vector2d(1.2, 0.0);
+  opt_prob.v_init = Vector2d(0.0, 0.0);
+
+  SolverParameters solver_params;
+  solver_params.dissipation_velocity = 1e16;  // no dissipation
+  solver_params.friction_coefficient = 0.0;   // no friction
+  TrajectoryOptimizer<double> optimizer(diagram.get(), &plant, opt_prob,
+                                        solver_params);
+  TrajectoryOptimizerState<double> state = optimizer.CreateState();
+
+  // Create some fake data
+  std::vector<VectorXd> q;
+  q.push_back(opt_prob.q_init);
+  q.push_back(Vector2d(1.3, 0.0));
+  state.set_q(q);
+
+  // Compute inverse dynamics as tau = ID(q, v, a, gamma)
+  const std::vector<VectorXd>& tau_expected = optimizer.EvalTau(state);
+
+  // Compute inverse dynamics as tau = ID(q, v, a) + J'*gamma
+  const std::vector<VectorXd>& v = optimizer.EvalV(state);
+  const std::vector<VectorXd>& a = optimizer.EvalA(state);
+  const std::vector<VectorXd>& gamma = optimizer.EvalContactImpulses(state);
+  const TrajectoryOptimizerCache<double>::ContactJacobianData& jacobian_data =
+      optimizer.EvalContactJacobianData(state);
+
+  auto context = plant.CreateDefaultContext();
+  auto f_ext = state.workspace.f_ext;
+  std::vector<VectorXd> tau;
+  VectorXd tau_no_contact;
+  for (int t = 0; t < num_steps; ++t) {
+    plant.SetPositions(context.get(), q[t + 1]);
+    plant.SetVelocities(context.get(), v[t + 1]);
+    plant.CalcForceElementsContribution(*context, &f_ext);
+    tau_no_contact = plant.CalcInverseDynamics(*context, a[t], f_ext);
+
+    tau.push_back(tau_no_contact -
+                  jacobian_data.J[t + 1].transpose() * gamma[t + 1]);
+  }
+
+  // Check that the two ways of computing inverse dynamics match
+  const double kTolerance = std::numeric_limits<double>::epsilon();
+  for (int t = 0; t < num_steps; ++t) {
+    EXPECT_TRUE(CompareMatrices(tau_expected[t], tau[t], kTolerance,
+                                MatrixCompareType::relative));
+  }
 }
 
 /**
@@ -1701,9 +1779,11 @@ GTEST_TEST(TrajectoryOptimizerTest, ContactJacobians) {
   plant.RegisterCollisionGeometry(
       plant.world_body(), RigidTransformd::Identity(), geometry::HalfSpace(),
       "ground_contact", multibody::CoulombFriction<double>());
-  plant.RegisterCollisionGeometry(sphere, RigidTransformd(math::RollPitchYawd(0.3,-0.7,0.1), Vector3d(0,0,0)),
-                                  geometry::Sphere(radius), "sphere_contact",
-                                  multibody::CoulombFriction<double>());
+  plant.RegisterCollisionGeometry(
+      sphere,
+      RigidTransformd(math::RollPitchYawd(0.3, -0.7, 0.1), Vector3d(0, 0, 0)),
+      geometry::Sphere(radius), "sphere_contact",
+      multibody::CoulombFriction<double>());
 
   plant.Finalize();
   auto diagram = builder.Build();
@@ -1725,7 +1805,7 @@ GTEST_TEST(TrajectoryOptimizerTest, ContactJacobians) {
   // State for which the z position of the sphere decreases linearly with time.
   std::vector<VectorXd> q;
   for (int t = 0; t <= num_steps; ++t) {
-    q.push_back(Vector3d(0.0, radius - (0.1 * t) / num_steps, 0.2*t));
+    q.push_back(Vector3d(0.0, radius - (0.1 * t) / num_steps, 0.2 * t));
   }
   state.set_q(q);
 
