@@ -56,13 +56,20 @@ class TrajectoryOptimizer {
   int num_steps() const { return prob_.num_steps; }
 
   /**
+   * Convienience function to get the number of unactuated DOF in the system.
+   *
+   * @return int the number of unactuated DOF.
+   */
+  int num_unactuated_dof() const {
+    return static_cast<int>(prob_.unactuated_dof.size());
+  }
+
+  /**
    * Convienience function to get the number of equality constraints.
    *
    * @return int the number of equality constraints.
    */
-  int num_eq_constraints() const {
-    return prob_.num_steps * int(prob_.unactuated_dof.size());
-  }
+  int num_eq_constraints() const { return num_steps() * num_unactuated_dof(); }
 
   /**
    * Convienience function to get a const reference to the multibody plant that
@@ -220,8 +227,7 @@ class TrajectoryOptimizer {
    * @param tau sequence of generalized forces (consistent with q and v)
    * @return vector of double, forces acting on unactuated DOF
    */
-  std::vector<T> CalcConstraintViolations(
-      const std::vector<VectorX<T>>& tau) const;
+  VectorX<T> CalcConstraintViolations(const std::vector<VectorX<T>>& tau) const;
 
   /**
    * Compute a sequence of generalized velocities v from a sequence of
@@ -448,12 +454,11 @@ class TrajectoryOptimizer {
   SolverParameters* params_;
 
   // Augmented Lagrangian parameters
-  std::vector<Eigen::VectorXd> lambda;
-  std::vector<double> mu;
-  double lambda0 = 0.0;
-  double mu0 = 0.0;
+  mutable std::vector<Eigen::VectorXd> lambda;
+  mutable std::vector<double> mu;
   mutable Eigen::VectorXd lambda_iter;
   mutable double mu_iter;
+  double lambda0 = 0.0, mu0 = 1e1, mu_expand_coef = 1e1, constraint_tol = 1e-4;
 };
 
 }  // namespace traj_opt
