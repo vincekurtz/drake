@@ -4,6 +4,7 @@
 #include <optional>
 #include <string>
 #include <tuple>
+#include <utility>
 #include <vector>
 
 #include "drake/common/eigen_types.h"
@@ -171,6 +172,14 @@ class TrajectoryOptimizer {
 
   const std::vector<MatrixX<T>>& EvalMassMatrix(
       const TrajectoryOptimizerState<T>& state) const;
+
+  /* Evaluates the signed distance pairs for the t-th step stored in `state`. */
+  const std::vector<geometry::SignedDistancePair<T>>& EvalSignedDistancePairs(
+      const TrajectoryOptimizerState<T>& state, int t) const;
+
+  /* Evaluates data storing contact Jacobians at all time steps in `state`. */
+  const typename TrajectoryOptimizerCache<T>::ContactJacobianData&
+  EvalContactJacobianData(const TrajectoryOptimizerState<T>& state) const;
 
  private:
   // Friend class to facilitate testing.
@@ -353,6 +362,27 @@ class TrajectoryOptimizer {
    *      context_
    */
   void CalcContactForceContribution(MultibodyForces<T>* forces) const;
+
+  /* Computes signed distance data for all time configurations in `state`. */
+  void CalcSdfData(
+      const TrajectoryOptimizerState<T>& state,
+      typename TrajectoryOptimizerCache<T>::SdfData* sdf_data) const;
+
+  /* Helper to compute the contact Jacobian for the configuration stored in
+  `context`. Signed distance pairs `sdf_pairs` must be consistent with
+  `context`. */
+  void CalcContactJacobian(
+      const Context<T>& context,
+      const std::vector<geometry::SignedDistancePair<T>>& sdf_pairs,
+      MatrixX<T>* J, std::vector<math::RotationMatrix<T>>* R_WC,
+      std::vector<std::pair<BodyIndex, BodyIndex>>* body_pairs) const;
+
+  /* Computes the Jacobian data for all time step configurations stored in
+   * `state`.*/
+  void CalcContactJacobianData(
+      const TrajectoryOptimizerState<T>& state,
+      typename TrajectoryOptimizerCache<T>::ContactJacobianData*
+          contact_jacobian_data) const;
 
   /**
    * Compute the mass matrix M(q_{t+1}) at each timestep from t=0 to
