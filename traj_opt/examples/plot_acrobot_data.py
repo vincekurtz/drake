@@ -28,7 +28,7 @@ gravity = 9.81
 Qq = 0.0
 Qv = 1e-1
 R = 1e-1
-unactuated_penalty = 1e-1
+unactuated_penalty = 0
 Qfq = 1e2
 Qfv = 1e0
 
