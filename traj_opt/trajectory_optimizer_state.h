@@ -49,6 +49,10 @@ struct TrajectoryOptimizerCache {
     // TODO(amcastro-tri): We could allocate contact_jacobian_data here if we
     // knew the number of contacts. For now, we'll defer the allocation to a
     // later stage when the number of contacts is available.
+
+    // TODO(vincekurtz): similarly, we could properly allocate ∂γ/∂ϕ if we knew
+    // the number of contacts
+    dgamma_dphi.resize(num_steps);
   }
 
   TrajectoryOptimizerCache(const int num_steps, const Diagram<T>& diagram,
@@ -150,6 +154,11 @@ struct TrajectoryOptimizerCache {
   // The mass matrix M(q_{t+1}) at each timestep t = [1 .. num_steps]
   std::vector<MatrixX<T>> mass_matrix;
   bool mass_matrix_up_to_date{false};
+
+  // Partial derivatives of contact impulses w.r.t. signed distance (∂γ/∂ϕ) for
+  // each contact pair at each timestep
+  std::vector<VectorX<T>> dgamma_dphi;
+  bool dgamma_dphi_up_to_date{false};
 };
 
 template <typename T>
@@ -334,6 +343,7 @@ class TrajectoryOptimizerState {
     }
     cache_.contact_jacobian_data.up_to_date = false;
     cache_.sdf_data.up_to_date = false;
+    cache_.dgamma_dphi_up_to_date = false;
   }
 };
 

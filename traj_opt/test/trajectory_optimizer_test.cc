@@ -110,6 +110,93 @@ using systems::DiagramBuilder;
 using test::LimitMalloc;
 
 /**
+ * Test our computation of ∂γ/∂ϕ on a simple system with one contact, no
+ * friction, and no damping.
+ */
+GTEST_TEST(TrajectoryOptimizerTest, ContactImpulsePartials) {
+  const double dt = 0.01;
+
+  // Model of a ball on a half-sapce.
+  DiagramBuilder<double> builder;
+  MultibodyPlantConfig config;
+  config.time_step = dt;
+  auto [plant, scene_graph] = multibody::AddMultibodyPlant(config, &builder);
+  const double radius = 0.5;
+  const RigidBody<double>& sphere = plant.AddRigidBody(
+      "sphere", multibody::SpatialInertia<double>::MakeUnitary());
+  plant.AddJoint<PlanarJoint>(
+      "planar", plant.world_body(),
+      RigidTransformd(math::RollPitchYawd(M_PI_2, 0.0, 0.0), Vector3d::Zero()),
+      sphere, {}, Vector3d::Zero());
+  plant.RegisterCollisionGeometry(sphere, RigidTransformd::Identity(),
+                                  geometry::Sphere(radius), "sphere_contact",
+                                  multibody::CoulombFriction<double>());
+  plant.RegisterCollisionGeometry(
+      plant.world_body(), RigidTransformd::Identity(), geometry::HalfSpace(),
+      "ground_contact", multibody::CoulombFriction<double>());
+  plant.Finalize();
+  auto diagram = builder.Build();
+
+  // Define a super simple optimization problem. We are only interested in
+  // configurations.
+  const int num_steps = 5;
+  ProblemDefinition opt_prob;
+  opt_prob.num_steps = num_steps;
+  opt_prob.q_init = Vector3d::Zero();
+  opt_prob.v_init = Vector3d::Zero();
+
+  // Set contact parameters
+  const double F = 1.0;
+  const double delta = 0.01;
+  const double n = 2;
+
+  SolverParameters solver_params;
+  solver_params.F = F;
+  solver_params.delta = delta;
+  solver_params.stiffness_exponent = n;
+  solver_params.dissipation_exponent = 1;
+  solver_params.dissipation_velocity = 1e8;  // no dissipation
+  solver_params.friction_coefficient = 0.0;  // no friction
+  TrajectoryOptimizer<double> optimizer(diagram.get(), &plant, opt_prob,
+                                        solver_params);
+  TrajectoryOptimizerState<double> state = optimizer.CreateState();
+
+  // State for which the z position of the sphere decreases linearly with time.
+  std::vector<VectorXd> q;
+  for (int t = 0; t <= num_steps; ++t) {
+    q.push_back(Vector3d(0.0, radius - (0.1 * t) / num_steps, 0.0));
+  }
+  state.set_q(q);
+
+  // Compute ∂γ/∂ϕ for all timesteps
+  const std::vector<VectorXd>& dgamma_dphi =
+      optimizer.EvalContactImpulsePartialsSignedDistance(state);
+
+  VectorXd dgamma_dphi_expected =
+      VectorXd::Zero(3);  // this system has one contact pair
+  const double kTolerance = std::numeric_limits<double>::epsilon();
+  for (int t = 0; t < num_steps; ++t) {
+    // Verify the expected value for signed distance pairs.
+    const std::vector<geometry::SignedDistancePair<double>>& sdf_pairs =
+        optimizer.EvalSignedDistancePairs(state, t);
+    const double phi_expected = q[t].y() - radius;
+    EXPECT_NEAR(sdf_pairs[0].distance, phi_expected,
+                std::numeric_limits<double>::epsilon());
+
+    // Compute ∂γ/∂ϕ for this timestep analytically to verify
+    if (phi_expected < 0) {
+      dgamma_dphi_expected[2] =
+          F / pow(delta, n) * n * pow(phi_expected, n - 1);
+    } else {
+      dgamma_dphi_expected[2] = 0;
+    }
+
+    EXPECT_TRUE(CompareMatrices(dgamma_dphi[t], dgamma_dphi_expected,
+                                kTolerance, MatrixCompareType::relative));
+  }
+}
+
+/**
  * Test our analytical approximation of the gradients of inverse dynamics
  * on a simple linear system - the pendulum without gravity.
  */
@@ -1324,7 +1411,7 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcVelocities) {
 // This very simple case consists of a 2D (3 DOFs) sphere in contact with the
 // ground. We verify the optimizer computes the correct Jacobian at all time
 // steps.
-GTEST_TEST(TrajectoryOptimzierTest, ContactJacobians) {
+GTEST_TEST(TrajectoryOptimizerTest, ContactJacobians) {
   const double dt = 0.01;
 
   // Model of a ball on a half-sapce.

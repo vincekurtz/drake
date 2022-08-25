@@ -507,6 +507,56 @@ TrajectoryOptimizer<T>::EvalContactJacobianData(
 }
 
 template <typename T>
+void TrajectoryOptimizer<T>::CalcContactImpulsePartialsSignedDistance(
+    const TrajectoryOptimizerState<T>& state,
+    std::vector<VectorX<T>>* dgamma_dphi) const {
+  using std::pow;
+
+  // Contact parameters
+  const double F = params_.F;
+  const double delta = params_.delta;
+  const double ne = params_.stiffness_exponent;
+
+  for (int t = 0; t < num_steps(); ++t) {
+    // Get contact pairs at each timestep
+    const std::vector<geometry::SignedDistancePair<T>>& sdf_pairs =
+        EvalSignedDistancePairs(state, t);
+    const int nc = sdf_pairs.size();
+    VectorX<T>& dgamma_dphi_t = dgamma_dphi->at(t);
+
+    // TODO(vincekurtz): this resizing could be avoided if we knew the number of
+    // contact pairs ahead of time.
+    dgamma_dphi_t.resize(3 * nc);
+
+    for (int i = 0; i < nc; ++i) {
+      const T phi = sdf_pairs[i].distance;
+
+      // TODO(vincekurtz) include friction component
+      dgamma_dphi_t[3 * i] = 0;      // ∂γₜ₁/∂ϕᵢ
+      dgamma_dphi_t[3 * i + 1] = 0;  // ∂γₜ₂/∂ϕᵢ
+
+      if (phi < 0) {  // ∂γₙ/∂ϕᵢ
+        dgamma_dphi_t[3 * i + 2] = F / pow(delta, ne) * ne * pow(phi, ne - 1);
+      } else {
+        dgamma_dphi_t[3 * i + 2] = 0;
+      }
+    }
+  }
+}
+
+template <typename T>
+const std::vector<VectorX<T>>&
+TrajectoryOptimizer<T>::EvalContactImpulsePartialsSignedDistance(
+    const TrajectoryOptimizerState<T>& state) const {
+  if (!state.cache().dgamma_dphi_up_to_date) {
+    CalcContactImpulsePartialsSignedDistance(
+        state, &state.mutable_cache().dgamma_dphi);
+    state.mutable_cache().dgamma_dphi_up_to_date = true;
+  }
+  return state.cache().dgamma_dphi;
+}
+
+template <typename T>
 void TrajectoryOptimizer<T>::CalcInverseDynamicsPartials(
     const TrajectoryOptimizerState<T>& state,
     InverseDynamicsPartials<T>* id_partials) const {

@@ -181,6 +181,9 @@ class TrajectoryOptimizer {
   const typename TrajectoryOptimizerCache<T>::ContactJacobianData&
   EvalContactJacobianData(const TrajectoryOptimizerState<T>& state) const;
 
+  const std::vector<VectorX<T>>& EvalContactImpulsePartialsSignedDistance(
+      const TrajectoryOptimizerState<T>& state) const;
+
  private:
   // Friend class to facilitate testing.
   friend class TrajectoryOptimizerTester;
@@ -383,6 +386,30 @@ class TrajectoryOptimizer {
       const TrajectoryOptimizerState<T>& state,
       typename TrajectoryOptimizerCache<T>::ContactJacobianData*
           contact_jacobian_data) const;
+
+  /**
+   * Compute the derivatives of contact impulses γ w.r.t. signed distance ϕ for
+   * each timestep.
+   *
+   * For each timestep, ∂γ/∂ϕ is a vector with 3*num_contacts entries,
+   *
+   *         [   ...   ]
+   * ∂γ/∂ϕ = [ ∂γᵢ/∂ϕᵢ ]
+   *         [   ...   ],
+   *
+   *           [ ∂γₜ₁/∂ϕᵢ ]
+   * ∂γᵢ/∂ϕᵢ = [ ∂γₜ₂/∂ϕᵢ ]
+   *           [ ∂γₙ/∂ϕᵢ  ],
+   *
+   * where γₜ is the tangential component of the contact impulse and γₙ is the
+   * normal component.
+   *
+   * @param state optimizer state containing q at each timestep
+   * @param dgamma_dphi ∂γ/∂ϕ at each timestep
+   */
+  void CalcContactImpulsePartialsSignedDistance(
+      const TrajectoryOptimizerState<T>& state,
+      std::vector<VectorX<T>>* dgamma_dphi) const;
 
   /**
    * Compute the mass matrix M(q_{t+1}) at each timestep from t=0 to
