@@ -62,6 +62,20 @@ class TrajectoryOptimizerTester {
       InverseDynamicsPartials<double>* id_partials) {
     optimizer.CalcInverseDynamicsPartials(state, id_partials);
   }
+  
+  static void CalcInverseDynamicsPartialsFiniteDiff(
+      const TrajectoryOptimizer<double>& optimizer,
+      const TrajectoryOptimizerState<double>& state,
+      InverseDynamicsPartials<double>* id_partials) {
+    optimizer.CalcInverseDynamicsPartialsFiniteDiff(state, id_partials);
+  }
+  
+  static void CalcInverseDynamicsPartialsAnalyticalApproximation(
+      const TrajectoryOptimizer<double>& optimizer,
+      const TrajectoryOptimizerState<double>& state,
+      InverseDynamicsPartials<double>* id_partials) {
+    optimizer.CalcInverseDynamicsPartialsAnalyticalApproximation(state, id_partials);
+  }
 
   static void CalcGradientFiniteDiff(
       const TrajectoryOptimizer<double>& optimizer,
@@ -108,6 +122,92 @@ using multibody::PlanarJoint;
 using multibody::RigidBody;
 using systems::DiagramBuilder;
 using test::LimitMalloc;
+
+/**
+ * Test our computation of the derivatives of inverse dynamics on a simple
+ * system with contact.
+ */
+GTEST_TEST(TrajectoryOptimizerTest, AnalyticalDtauDqWithContact) {
+  const double dt = 0.01;
+
+  // Model of a ball on a half-sapce. Gravity is turned off so that the focus is
+  // on the contribution of contact to inverse dynamics partials.
+  DiagramBuilder<double> builder;
+  MultibodyPlantConfig config;
+  config.time_step = dt;
+  auto [plant, scene_graph] = multibody::AddMultibodyPlant(config, &builder);
+  const double radius = 0.5;
+  const RigidBody<double>& sphere = plant.AddRigidBody(
+      "sphere", multibody::SpatialInertia<double>::MakeUnitary());
+  plant.AddJoint<PlanarJoint>(
+      "planar", plant.world_body(),
+      RigidTransformd(math::RollPitchYawd(M_PI_2, 0.0, 0.0), Vector3d::Zero()),
+      sphere, {}, Vector3d::Zero());
+  plant.RegisterCollisionGeometry(sphere, RigidTransformd::Identity(),
+                                  geometry::Sphere(radius), "sphere_contact",
+                                  multibody::CoulombFriction<double>());
+  plant.RegisterCollisionGeometry(
+      plant.world_body(), RigidTransformd::Identity(), geometry::HalfSpace(),
+      "ground_contact", multibody::CoulombFriction<double>());
+  plant.mutable_gravity_field().set_gravity_vector(VectorXd::Zero(3));
+  plant.Finalize();
+  auto diagram = builder.Build();
+
+  // Define a super simple optimization problem. We are only interested in
+  // configurations.
+  const int num_steps = 5;
+  ProblemDefinition opt_prob;
+  opt_prob.num_steps = num_steps;
+  opt_prob.q_init = Vector3d::Zero();
+  opt_prob.v_init = Vector3d::Zero();
+
+  // Set contact parameters
+  const double F = 1.0;
+  const double delta = 0.01;
+  const double n = 2;
+
+  SolverParameters solver_params;
+  solver_params.F = F;
+  solver_params.delta = delta;
+  solver_params.stiffness_exponent = n;
+  solver_params.dissipation_exponent = 1;
+  solver_params.dissipation_velocity = 1e8;  // no dissipation
+  solver_params.friction_coefficient = 0.0;  // no friction
+  TrajectoryOptimizer<double> optimizer(diagram.get(), &plant, opt_prob,
+                                        solver_params);
+  TrajectoryOptimizerState<double> state = optimizer.CreateState();
+
+  // State for which the z position of the sphere decreases linearly with time.
+  std::vector<VectorXd> q;
+  for (int t = 0; t <= num_steps; ++t) {
+    q.push_back(Vector3d(0.0, radius - (0.1 * t) / num_steps, 0.0));
+  }
+  state.set_q(q);
+
+  // Compute dτ/dq with finite differences
+  InverseDynamicsPartials<double> id_partials_finite_diff(num_steps, 3, 3);
+  TrajectoryOptimizerTester::CalcInverseDynamicsPartialsFiniteDiff(
+      optimizer, state, &id_partials_finite_diff);
+
+  // Compute dτ/dq with our analytical approximation.
+  InverseDynamicsPartials<double> id_partials_analytical(num_steps, 3, 3);
+  TrajectoryOptimizerTester::CalcInverseDynamicsPartialsAnalyticalApproximation(
+      optimizer, state, &id_partials_analytical);
+
+  // Compare to make sure they match
+  const double kTolerance = sqrt(std::numeric_limits<double>::epsilon()) / dt;
+  for (int t=0; t<num_steps; ++t) {
+    EXPECT_TRUE(CompareMatrices(id_partials_finite_diff.dtau_dqm[t],
+                                id_partials_analytical.dtau_dqm[t],
+                                kTolerance, MatrixCompareType::relative));
+    EXPECT_TRUE(CompareMatrices(id_partials_finite_diff.dtau_dqt[t],
+                                id_partials_analytical.dtau_dqt[t],
+                                kTolerance, MatrixCompareType::relative));
+    EXPECT_TRUE(CompareMatrices(id_partials_finite_diff.dtau_dqp[t],
+                                id_partials_analytical.dtau_dqp[t],
+                                kTolerance, MatrixCompareType::relative));
+  }
+}
 
 /**
  * Test our computation of ∂γ/∂ϕ on a simple system with one contact, no
@@ -175,7 +275,7 @@ GTEST_TEST(TrajectoryOptimizerTest, ContactImpulsePartials) {
   VectorXd dgamma_dphi_expected =
       VectorXd::Zero(3);  // this system has one contact pair
   const double kTolerance = std::numeric_limits<double>::epsilon();
-  for (int t = 0; t < num_steps; ++t) {
+  for (int t = 0; t <= num_steps; ++t) {
     // Verify the expected value for signed distance pairs.
     const std::vector<geometry::SignedDistancePair<double>>& sdf_pairs =
         optimizer.EvalSignedDistancePairs(state, t);

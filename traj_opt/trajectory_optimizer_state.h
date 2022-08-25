@@ -52,7 +52,7 @@ struct TrajectoryOptimizerCache {
 
     // TODO(vincekurtz): similarly, we could properly allocate ∂γ/∂ϕ if we knew
     // the number of contacts
-    dgamma_dphi.resize(num_steps);
+    dgamma_dphi.resize(num_steps + 1);
   }
 
   TrajectoryOptimizerCache(const int num_steps, const Diagram<T>& diagram,

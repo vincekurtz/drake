@@ -355,8 +355,8 @@ template <typename T>
 void TrajectoryOptimizer<T>::CalcSdfData(
     const TrajectoryOptimizerState<T>& state,
     typename TrajectoryOptimizerCache<T>::SdfData* sdf_data) const {
-  sdf_data->sdf_pairs.resize(num_steps());
-  for (int t = 0; t < num_steps(); ++t) {
+  sdf_data->sdf_pairs.resize(num_steps()+1);
+  for (int t = 0; t <= num_steps(); ++t) {
     const Context<T>& context = EvalPlantContext(state, t);
     const geometry::QueryObject<T>& query_object =
         plant()
@@ -372,7 +372,7 @@ template <typename T>
 const std::vector<geometry::SignedDistancePair<T>>&
 TrajectoryOptimizer<T>::EvalSignedDistancePairs(
     const TrajectoryOptimizerState<T>& state, int t) const {
-  DRAKE_DEMAND(0 <= t && t < num_steps());
+  DRAKE_DEMAND(0 <= t && t <= num_steps());
   if (!state.cache().sdf_data.up_to_date) {
     CalcSdfData(state, &state.mutable_cache().sdf_data);
   }
@@ -481,11 +481,11 @@ void TrajectoryOptimizer<T>::CalcContactJacobianData(
   // Resize contact data accordingly.
   // We resize to include all pairs, even for positive distances for which the
   // contact forces will be zero.
-  contact_jacobian_data->J.resize(num_steps());
-  contact_jacobian_data->R_WC.resize(num_steps());
-  contact_jacobian_data->body_pairs.resize(num_steps());
+  contact_jacobian_data->J.resize(num_steps()+1);
+  contact_jacobian_data->R_WC.resize(num_steps()+1);
+  contact_jacobian_data->body_pairs.resize(num_steps()+1);
 
-  for (int t = 0; t < num_steps(); ++t) {
+  for (int t = 0; t <= num_steps(); ++t) {
     const Context<T>& context = EvalPlantContext(state, t);
     const std::vector<geometry::SignedDistancePair<T>>& sdf_pairs =
         EvalSignedDistancePairs(state, t);
@@ -517,7 +517,7 @@ void TrajectoryOptimizer<T>::CalcContactImpulsePartialsSignedDistance(
   const double delta = params_.delta;
   const double ne = params_.stiffness_exponent;
 
-  for (int t = 0; t < num_steps(); ++t) {
+  for (int t = 0; t <= num_steps(); ++t) {
     // Get contact pairs at each timestep
     const std::vector<geometry::SignedDistancePair<T>>& sdf_pairs =
         EvalSignedDistancePairs(state, t);
@@ -583,6 +583,10 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsAnalyticalApproximation(
   const VelocityPartials<T>& velocity_partials = EvalVelocityPartials(state);
   const std::vector<MatrixX<T>>& dv_dqm = velocity_partials.dvt_dqm;
   const std::vector<MatrixX<T>>& dv_dqt = velocity_partials.dvt_dqt;
+  const typename TrajectoryOptimizerCache<T>::ContactJacobianData& jacobian_data =
+      EvalContactJacobianData(state);
+  const std::vector<VectorX<T>>& dgamma_dphi =
+      EvalContactImpulsePartialsSignedDistance(state);
 
   // Compute some other handy terms
   const T da_dvt = -1 / time_step();
@@ -612,8 +616,12 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsAnalyticalApproximation(
   // Set d tau(t) / d q(t+1)
   std::vector<MatrixX<T>>& dtau_dqp = id_partials->dtau_dqp;
   for (int t = 0; t < num_steps(); ++t) {
+    const MatrixX<T>& J = jacobian_data.J[t+1];
+    const VectorX<T>& dgdp = dgamma_dphi[t+1];
+
     dtau_dqp[t] = mass_matrix[t] * da_dvp * dv_dqt[t + 1] +
-                  joint_damping_.asDiagonal() * dv_dqt[t + 1];
+                  joint_damping_.asDiagonal() * dv_dqt[t + 1] - 
+                  J.transpose() * dgdp.asDiagonal() * J;
   }
 }
 
