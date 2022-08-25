@@ -25,8 +25,8 @@ struct SolverParameters {
   bool verbose = true;
 
   // Augmented Lagrangian parameters
-  bool augmented_lagrangian = true;
-  int max_major_iterations = 2;
+  bool augmented_lagrangian = true, update_init_guess = false;
+  int max_major_iterations = 5;
 };
 
 }  // namespace traj_opt
