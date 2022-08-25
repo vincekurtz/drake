@@ -181,9 +181,11 @@ class TrajectoryOptimizer {
   const typename TrajectoryOptimizerCache<T>::ContactJacobianData&
   EvalContactJacobianData(const TrajectoryOptimizerState<T>& state) const;
 
+  const std::vector<VectorX<T>>& EvalContactImpulses(
+      const TrajectoryOptimizerState<T>& state) const;
   const std::vector<VectorX<T>>& EvalContactImpulsePartialsSignedDistance(
       const TrajectoryOptimizerState<T>& state) const;
-
+      
  private:
   // Friend class to facilitate testing.
   friend class TrajectoryOptimizerTester;
@@ -386,6 +388,30 @@ class TrajectoryOptimizer {
       const TrajectoryOptimizerState<T>& state,
       typename TrajectoryOptimizerCache<T>::ContactJacobianData*
           contact_jacobian_data) const;
+
+  /**
+   * Compute the contact impulses γ = [γ₁, γ₂, ..., γᵢ, ...] 
+   * each timestep, where γᵢ ∈ ℝ³ is the impulse from the i^th contact pair. 
+   * 
+   * Contact impulses are given by 
+   * 
+   * γᵢ = [ γₜ ]
+   *      [ γₙ ],
+   * 
+   * where the normal component is given by
+   * 
+   *   γₙ = F*(-ϕ / δ)ⁿ (1 − (|vₙ|/v_d)ᵈ sign(vₙ))₊
+   * 
+   * and the tangential component is given by
+   *   
+   *   γₜ = −μ*fₙ * sigmoid(||vₜ||/vₛ) * vₜ/||vₜ||, 
+   * 
+   * @param state optimizer state containing q at each timestep
+   * @param gamma contact impulses γ at each timestep
+   */
+  void CalcContactImpulses(
+      const TrajectoryOptimizerState<T>& state,
+      std::vector<VectorX<T>>* gamma) const;
 
   /**
    * Compute the derivatives of contact impulses γ w.r.t. signed distance ϕ for

@@ -50,8 +50,12 @@ struct TrajectoryOptimizerCache {
     // knew the number of contacts. For now, we'll defer the allocation to a
     // later stage when the number of contacts is available.
 
-    // TODO(vincekurtz): similarly, we could properly allocate ∂γ/∂ϕ if we knew
-    // the number of contacts
+    // TODO(vincekurtz): similarly, we could properly allocate these if we knew
+    // the number of contacts.
+    //
+    // N.B. we don't actually use gamma[0] and dgamma_dphi[0], but we store them
+    // anyway so that we can write, e.g., γ(qₜ₊₁, vₜ₊₁) = gamma[t+1]
+    gamma.resize(num_steps + 1);
     dgamma_dphi.resize(num_steps + 1);
   }
 
@@ -154,6 +158,10 @@ struct TrajectoryOptimizerCache {
   // The mass matrix M(q_{t+1}) at each timestep t = [1 .. num_steps]
   std::vector<MatrixX<T>> mass_matrix;
   bool mass_matrix_up_to_date{false};
+
+  // Contact impulses γ at each timestep
+  std::vector<VectorX<T>> gamma;
+  bool gamma_up_to_date{false};
 
   // Partial derivatives of contact impulses w.r.t. signed distance (∂γ/∂ϕ) for
   // each contact pair at each timestep
@@ -343,6 +351,7 @@ class TrajectoryOptimizerState {
     }
     cache_.contact_jacobian_data.up_to_date = false;
     cache_.sdf_data.up_to_date = false;
+    cache_.gamma_up_to_date = false;
     cache_.dgamma_dphi_up_to_date = false;
   }
 };

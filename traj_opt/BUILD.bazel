@@ -171,6 +171,7 @@ drake_cc_googletest(
         "//examples/pendulum:prod_models",
         "//manipulation/models/iiwa_description:models",
         "//multibody/benchmarks/acrobot:models",
+        "//traj_opt/examples:2dof_spinner.urdf",
     ],
     deps = [
         ":inverse_dynamics_partials",
