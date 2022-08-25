@@ -355,7 +355,7 @@ template <typename T>
 void TrajectoryOptimizer<T>::CalcSdfData(
     const TrajectoryOptimizerState<T>& state,
     typename TrajectoryOptimizerCache<T>::SdfData* sdf_data) const {
-  sdf_data->sdf_pairs.resize(num_steps()+1);
+  sdf_data->sdf_pairs.resize(num_steps() + 1);
   for (int t = 0; t <= num_steps(); ++t) {
     const Context<T>& context = EvalPlantContext(state, t);
     const geometry::QueryObject<T>& query_object =
@@ -481,9 +481,9 @@ void TrajectoryOptimizer<T>::CalcContactJacobianData(
   // Resize contact data accordingly.
   // We resize to include all pairs, even for positive distances for which the
   // contact forces will be zero.
-  contact_jacobian_data->J.resize(num_steps()+1);
-  contact_jacobian_data->R_WC.resize(num_steps()+1);
-  contact_jacobian_data->body_pairs.resize(num_steps()+1);
+  contact_jacobian_data->J.resize(num_steps() + 1);
+  contact_jacobian_data->R_WC.resize(num_steps() + 1);
+  contact_jacobian_data->body_pairs.resize(num_steps() + 1);
 
   for (int t = 0; t <= num_steps(); ++t) {
     const Context<T>& context = EvalPlantContext(state, t);
@@ -583,8 +583,8 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsAnalyticalApproximation(
   const VelocityPartials<T>& velocity_partials = EvalVelocityPartials(state);
   const std::vector<MatrixX<T>>& dv_dqm = velocity_partials.dvt_dqm;
   const std::vector<MatrixX<T>>& dv_dqt = velocity_partials.dvt_dqt;
-  const typename TrajectoryOptimizerCache<T>::ContactJacobianData& jacobian_data =
-      EvalContactJacobianData(state);
+  const typename TrajectoryOptimizerCache<T>::ContactJacobianData&
+      jacobian_data = EvalContactJacobianData(state);
   const std::vector<VectorX<T>>& dgamma_dphi =
       EvalContactImpulsePartialsSignedDistance(state);
 
@@ -616,11 +616,11 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsAnalyticalApproximation(
   // Set d tau(t) / d q(t+1)
   std::vector<MatrixX<T>>& dtau_dqp = id_partials->dtau_dqp;
   for (int t = 0; t < num_steps(); ++t) {
-    const MatrixX<T>& J = jacobian_data.J[t+1];
-    const VectorX<T>& dgdp = dgamma_dphi[t+1];
+    const MatrixX<T>& J = jacobian_data.J[t + 1];
+    const VectorX<T>& dgdp = dgamma_dphi[t + 1];
 
     dtau_dqp[t] = mass_matrix[t] * da_dvp * dv_dqt[t + 1] +
-                  joint_damping_.asDiagonal() * dv_dqt[t + 1] - 
+                  joint_damping_.asDiagonal() * dv_dqt[t + 1] -
                   J.transpose() * dgdp.asDiagonal() * J;
   }
 }

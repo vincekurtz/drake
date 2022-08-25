@@ -62,19 +62,20 @@ class TrajectoryOptimizerTester {
       InverseDynamicsPartials<double>* id_partials) {
     optimizer.CalcInverseDynamicsPartials(state, id_partials);
   }
-  
+
   static void CalcInverseDynamicsPartialsFiniteDiff(
       const TrajectoryOptimizer<double>& optimizer,
       const TrajectoryOptimizerState<double>& state,
       InverseDynamicsPartials<double>* id_partials) {
     optimizer.CalcInverseDynamicsPartialsFiniteDiff(state, id_partials);
   }
-  
+
   static void CalcInverseDynamicsPartialsAnalyticalApproximation(
       const TrajectoryOptimizer<double>& optimizer,
       const TrajectoryOptimizerState<double>& state,
       InverseDynamicsPartials<double>* id_partials) {
-    optimizer.CalcInverseDynamicsPartialsAnalyticalApproximation(state, id_partials);
+    optimizer.CalcInverseDynamicsPartialsAnalyticalApproximation(state,
+                                                                 id_partials);
   }
 
   static void CalcGradientFiniteDiff(
@@ -196,16 +197,16 @@ GTEST_TEST(TrajectoryOptimizerTest, AnalyticalDtauDqWithContact) {
 
   // Compare to make sure they match
   const double kTolerance = sqrt(std::numeric_limits<double>::epsilon()) / dt;
-  for (int t=0; t<num_steps; ++t) {
+  for (int t = 0; t < num_steps; ++t) {
     EXPECT_TRUE(CompareMatrices(id_partials_finite_diff.dtau_dqm[t],
-                                id_partials_analytical.dtau_dqm[t],
-                                kTolerance, MatrixCompareType::relative));
+                                id_partials_analytical.dtau_dqm[t], kTolerance,
+                                MatrixCompareType::relative));
     EXPECT_TRUE(CompareMatrices(id_partials_finite_diff.dtau_dqt[t],
-                                id_partials_analytical.dtau_dqt[t],
-                                kTolerance, MatrixCompareType::relative));
+                                id_partials_analytical.dtau_dqt[t], kTolerance,
+                                MatrixCompareType::relative));
     EXPECT_TRUE(CompareMatrices(id_partials_finite_diff.dtau_dqp[t],
-                                id_partials_analytical.dtau_dqp[t],
-                                kTolerance, MatrixCompareType::relative));
+                                id_partials_analytical.dtau_dqp[t], kTolerance,
+                                MatrixCompareType::relative));
   }
 }
 
