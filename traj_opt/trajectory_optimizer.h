@@ -38,7 +38,7 @@ class TrajectoryOptimizer {
    */
   TrajectoryOptimizer(const MultibodyPlant<T>* plant,
                       const ProblemDefinition& prob,
-                      SolverParameters* params = SolverParameters{});
+                      const SolverParameters& params = SolverParameters{});
 
   /**
    * Convienience function to get the timestep of this optimization problem.
@@ -451,7 +451,7 @@ class TrajectoryOptimizer {
   VectorX<T> joint_damping_;
 
   // Various parameters
-  SolverParameters* params_;
+  SolverParameters params_;
 
   // Augmented Lagrangian parameters
   mutable std::vector<Eigen::VectorXd> lambda;

@@ -145,7 +145,7 @@ void solve_trajectory_optimization(double time_step, int num_steps) {
   opt_prob.unactuated_dof = {0};
 
   // Solve the optimzation problem
-  TrajectoryOptimizer<double> optimizer(&plant, opt_prob, &solver_params);
+  TrajectoryOptimizer<double> optimizer(&plant, opt_prob, solver_params);
   TrajectoryOptimizerSolution<double> solution;
   TrajectoryOptimizerStats<double> stats;
 

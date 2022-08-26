@@ -21,7 +21,7 @@ using systems::System;
 template <typename T>
 TrajectoryOptimizer<T>::TrajectoryOptimizer(const MultibodyPlant<T>* plant,
                                             const ProblemDefinition& prob,
-                                            SolverParameters* params)
+                                            const SolverParameters& params)
     : plant_(plant), prob_(prob), params_(params) {
   // Create a context for dynamics computations
   context_ = plant_->CreateDefaultContext();
@@ -37,9 +37,9 @@ TrajectoryOptimizer<T>::TrajectoryOptimizer(const MultibodyPlant<T>* plant,
   }
 
   // Initialize the augmented Lagrangian parameters
-  lambda.resize(params_->max_major_iterations);
-  mu.resize(params_->max_major_iterations, mu0);
-  for (int i = 0; i < params_->max_major_iterations; ++i) {
+  lambda.resize(params_.max_major_iterations);
+  mu.resize(params_.max_major_iterations, mu0);
+  for (int i = 0; i < params_.max_major_iterations; ++i) {
     lambda[i] = lambda0 * Eigen::VectorXd::Ones(num_eq_constraints());
   }
 }
@@ -92,7 +92,7 @@ T TrajectoryOptimizer<T>::CalcCost(
     cost += T(v_err.transpose() * prob_.Qv * v_err);
     cost += T(tau[t].transpose() * prob_.R * tau[t]);
     // Augmented Lagrangian component
-    if (params_->augmented_lagrangian) {
+    if (params_.augmented_lagrangian) {
       for (int dof_id : prob_.unactuated_dof) {
         augmented_cost += -lambda_iter[t * num_unactuated_dof() + dof_id] *
                               T(tau[t][dof_id]) +
@@ -423,7 +423,7 @@ void TrajectoryOptimizer<T>::CalcGradient(
     }
 
     // Contribution from the unactuation constraints
-    if (params_->augmented_lagrangian) {
+    if (params_.augmented_lagrangian) {
       for (auto dof_id : prob_.unactuated_dof) {
         taum_term += (-lambda_iter[(t - 1) * num_unactuated_dof() + dof_id] +
                       mu_iter * tau[t - 1][dof_id]) *
@@ -453,7 +453,7 @@ void TrajectoryOptimizer<T>::CalcGradient(
             dvt_dqt[num_steps()];
 
   // Contribution from the unactuation constraints
-  if (params_->augmented_lagrangian) {
+  if (params_.augmented_lagrangian) {
     for (auto dof_id : prob_.unactuated_dof) {
       taum_term +=
           (-lambda_iter[(num_steps() - 1) * num_unactuated_dof() + dof_id] +
@@ -531,7 +531,7 @@ void TrajectoryOptimizer<T>::CalcHessian(
     }
 
     // Contribution from the unactuation constraints
-    if (params_->augmented_lagrangian) {
+    if (params_.augmented_lagrangian) {
       for (auto dof_id : prob_.unactuated_dof) {
         // dg_t/dq_t
         dgt_dqt += mu_hessian * dtau_dqp[t - 1].transpose().col(dof_id) *
@@ -559,7 +559,7 @@ void TrajectoryOptimizer<T>::CalcHessian(
       dgt_dqpp = dtau_dqp[t + 1].transpose() * R * dtau_dqm[t + 1];
 
       // Contribution from the unactuation constraints
-      if (params_->augmented_lagrangian) {
+      if (params_.augmented_lagrangian) {
         for (auto dof_id : prob_.unactuated_dof) {
           // dg_t/dq_{t+2}
           dgt_dqpp += mu_hessian * dtau_dqp[t + 1].transpose().col(dof_id) *
@@ -577,7 +577,7 @@ void TrajectoryOptimizer<T>::CalcHessian(
       dtau_dqp[num_steps() - 1].transpose() * R * dtau_dqp[num_steps() - 1];
 
   // Contribution from the unactuation constraints
-  if (params_->augmented_lagrangian) {
+  if (params_.augmented_lagrangian) {
     for (auto dof_id : prob_.unactuated_dof) {
       dgT_dqT += mu_hessian *
                  dtau_dqp[num_steps() - 1].transpose().col(dof_id) *
@@ -723,9 +723,9 @@ std::tuple<double, int> TrajectoryOptimizer<T>::Linesearch(
     TrajectoryOptimizerState<T>* scratch_state) const {
   // The state's cache must be up to date, since we'll use the gradient and cost
   // information stored there.
-  if (params_->linesearch_method == LinesearchMethod::kArmijo) {
+  if (params_.linesearch_method == LinesearchMethod::kArmijo) {
     return ArmijoLinesearch(state, dq, scratch_state);
-  } else if (params_->linesearch_method == LinesearchMethod::kBacktracking) {
+  } else if (params_.linesearch_method == LinesearchMethod::kBacktracking) {
     return BacktrackingLinesearch(state, dq, scratch_state);
   } else {
     throw std::runtime_error("Unknown linesearch method");
@@ -842,7 +842,7 @@ std::tuple<double, int> TrajectoryOptimizer<T>::ArmijoLinesearch(
 
     ++i;
   } while ((L_new > L + c * alpha * L_prime) &&
-           (i < params_->max_linesearch_iterations));
+           (i < params_.max_linesearch_iterations));
 
   return {alpha, i};
 }
@@ -865,7 +865,7 @@ SolverFlag TrajectoryOptimizer<double>::SolveGaussNewton(
   DRAKE_DEMAND(static_cast<int>(q_guess.size()) == num_steps() + 1);
 
   // stats must be empty at the beginning
-  if (!params_->augmented_lagrangian) DRAKE_DEMAND(stats->is_empty());
+  if (!params_.augmented_lagrangian) DRAKE_DEMAND(stats->is_empty());
 
   // Allocate a state variable
   TrajectoryOptimizerState<double> state = CreateState();
@@ -878,7 +878,7 @@ SolverFlag TrajectoryOptimizer<double>::SolveGaussNewton(
   double cost;
   VectorXd dq((num_steps() + 1) * plant().num_positions());
 
-  if (params_->verbose) {
+  if (params_.verbose) {
     // Define printout data
     std::cout << "-------------------------------------------------------------"
                  "---------"
@@ -922,12 +922,12 @@ SolverFlag TrajectoryOptimizer<double>::SolveGaussNewton(
     // L(q+alpha*dq) (at the very least), and we don't want to change state.q
     auto [alpha, ls_iters] = Linesearch(state, dq, &scratch_state);
 
-    if (ls_iters >= params_->max_linesearch_iterations) {
+    if (ls_iters >= params_.max_linesearch_iterations) {
       // Early termination if linesearch is taking too long
-      if (params_->verbose) {
+      if (params_.verbose) {
         std::cout << "LINESEARCH FAILED" << std::endl;
         std::cout << "Reached maximum linesearch iterations ("
-                  << params_->max_linesearch_iterations << ")." << std::endl;
+                  << params_.max_linesearch_iterations << ")." << std::endl;
       }
 
       // Save the linesearch residual to a csv file so we can plot in python
@@ -948,7 +948,7 @@ SolverFlag TrajectoryOptimizer<double>::SolveGaussNewton(
     iter_time = std::chrono::high_resolution_clock::now() - iter_start_time;
 
     // Nice little printout of our problem data
-    if (params_->verbose) {
+    if (params_.verbose) {
       printf("| %6d ", k);
       printf("| %8.3f ", cost);
       printf("| %7.4f ", alpha);
@@ -961,10 +961,10 @@ SolverFlag TrajectoryOptimizer<double>::SolveGaussNewton(
     stats->push_data(iter_time.count(), cost, ls_iters, alpha, g.norm());
 
     ++k;
-  } while (k < params_->max_iterations);
+  } while (k < params_.max_iterations);
 
   // End the problem data printout
-  if (params_->verbose) {
+  if (params_.verbose) {
     std::cout << "-------------------------------------------------------------"
                  "---------"
               << std::endl;
@@ -997,10 +997,10 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
     TrajectoryOptimizerStats<double>* stats) const {
   SolverFlag status = SolverFlag::kSuccess;
   auto q_init = q_guess;
-  for (int i = 0; i < params_->max_major_iterations; i++) {
-    if (params_->augmented_lagrangian) {
+  for (int i = 0; i < params_.max_major_iterations; i++) {
+    if (params_.augmented_lagrangian) {
       // Report the major iteration
-      if (params_->verbose) {
+      if (params_.verbose) {
         std::cout << "\nMajor iteration: " << i << '\n';
         std::cout
             << "-------------------------------------------------------------"
@@ -1016,25 +1016,25 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
 
     // Terminate if augmented Lagrangian is disabled
     // TODO(aykut): Consider terminating if the solver failed
-    if (!params_->augmented_lagrangian) return status;
+    if (!params_.augmented_lagrangian) return status;
 
     // Evaluate the constraint violations
     auto violations = CalcConstraintViolations(solution->tau);
 
     // Report constraint violations
-    if (params_->verbose)
+    if (params_.verbose)
       std::cout << "\nConstraint violations:\n"
                 << violations << "\nMax. violation: " << violations.maxCoeff()
                 << "\n\n";
 
     // Update the augmented Lagrangian parameters
-    if (i < params_->max_major_iterations - 1) {
+    if (i < params_.max_major_iterations - 1) {
       // Update the Lagrange multipliers
       lambda[i + 1] = lambda[i] - mu[i] * violations;
-      if (params_->verbose) {
+      if (params_.verbose) {
         for (int j = 0; j < num_eq_constraints(); j++) {
-          std::cout << "lambda " << j << ": " << lambda[i](j)
-                    << "\t-->  " << lambda[i + 1](j) << '\n';
+          std::cout << "lambda " << j << ": " << lambda[i](j) << "\t-->  "
+                    << lambda[i + 1](j) << '\n';
         }
       }
 
@@ -1053,10 +1053,10 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
       std::cout << "\nmu: " << mu[i] << "\t-->  " << mu[i + 1] << '\n';
 
       // Update the initial guess
-      if (params_->update_init_guess) q_init = solution->q;
+      if (params_.update_init_guess) q_init = solution->q;
     }
 
-    if (params_->verbose) {
+    if (params_.verbose) {
       std::cout << "\nPress Enter to continue...\n";
       std::cin.get();
     }
