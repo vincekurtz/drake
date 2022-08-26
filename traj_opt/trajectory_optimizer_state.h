@@ -2,15 +2,16 @@
 
 #include <vector>
 
-#include "drake/common/eigen_types.h"
 #include "drake/common/drake_copyable.h"
+#include "drake/common/eigen_types.h"
 #include "drake/geometry/query_results/signed_distance_pair.h"
 #include "drake/multibody/plant/multibody_plant.h"
+#include "drake/systems/framework/diagram.h"
 #include "drake/traj_opt/inverse_dynamics_partials.h"
 #include "drake/traj_opt/penta_diagonal_matrix.h"
+#include "drake/traj_opt/solver_parameters.h"
 #include "drake/traj_opt/trajectory_optimizer_workspace.h"
 #include "drake/traj_opt/velocity_partials.h"
-#include "drake/systems/framework/diagram.h"
 
 namespace drake {
 namespace traj_opt {
@@ -185,10 +186,14 @@ class TrajectoryOptimizerState {
    * Constructor which allocates things of the proper sizes.
    *
    * @param num_steps number of timesteps in the optimization problem
+   * @param params solver parameters
+   * @param num_eq_constraints number of equality constraints due to unactuation
    * @param nv number of multibody velocities
    * @param nq number of multipody positions
    */
-  TrajectoryOptimizerState(const int num_steps, const MultibodyPlant<T>& plant)
+  TrajectoryOptimizerState(const int num_steps, const SolverParameters& params,
+                           const int num_eq_constraints,
+                           const MultibodyPlant<T>& plant)
       : workspace(num_steps, plant),
         num_steps_(num_steps),
         nq_(plant.num_positions()),
@@ -197,10 +202,19 @@ class TrajectoryOptimizerState {
     q_.assign(num_steps + 1, VectorX<T>(nq));
     proximal_operator_data_.q_last.assign(num_steps + 1, VectorX<T>(nq));
     proximal_operator_data_.H_diag.assign(num_steps + 1, VectorX<T>::Zero(nq));
+
+    // Initialize the augmented Lagrangian parameters
+    lambda_.resize(params.max_major_iterations);
+    mu_.resize(params.max_major_iterations, params.mu0);
+    for (int i = 0; i < params.max_major_iterations; ++i) {
+      lambda_[i] = params.lambda0 * Eigen::VectorXd::Ones(num_eq_constraints);
+    }
   }
 
   // TrajectoryOptimizer state for a `plant` model within `diagram`.
-  TrajectoryOptimizerState(const int num_steps, const Diagram<T>& diagram,
+  TrajectoryOptimizerState(const int num_steps, const SolverParameters& params,
+                           const int num_eq_constraints,
+                           const Diagram<T>& diagram,
                            const MultibodyPlant<T>& plant)
       : workspace(num_steps, plant),
         num_steps_(num_steps),
@@ -210,6 +224,13 @@ class TrajectoryOptimizerState {
     q_.assign(num_steps + 1, VectorX<T>(nq));
     proximal_operator_data_.q_last.assign(num_steps + 1, VectorX<T>(nq));
     proximal_operator_data_.H_diag.assign(num_steps + 1, VectorX<T>::Zero(nq));
+
+    // Initialize the augmented Lagrangian parameters
+    lambda_.resize(params.max_major_iterations);
+    mu_.resize(params.max_major_iterations, params.mu0);
+    for (int i = 0; i < params.max_major_iterations; ++i) {
+      lambda_[i] = params.lambda0 * Eigen::VectorXd::Ones(num_eq_constraints);
+    }
   }
 
   /**
@@ -297,6 +318,22 @@ class TrajectoryOptimizerState {
     invalidate_cache();
   }
 
+  // Set all the cache invalidation flags to false
+  void invalidate_cache() {
+    cache_.trajectory_data.up_to_date = false;
+    cache_.derivatives_data.up_to_date = false;
+    cache_.cost_up_to_date = false;
+    cache_.gradient_up_to_date = false;
+    cache_.hessian_up_to_date = false;
+    cache_.contact_jacobian_data.up_to_date = false;
+  }
+
+  // Augmented Lagrangian parameters
+  std::vector<Eigen::VectorXd> lambda_;
+  std::vector<double> mu_;
+  Eigen::VectorXd lambda_iter_;
+  double mu_iter_;
+
  private:
   // Number of timesteps in the optimization problem
   const int num_steps_;
@@ -317,16 +354,6 @@ class TrajectoryOptimizerState {
   // Storage for all other quantities that are computed from q, and are useful
   // for our calculations
   mutable TrajectoryOptimizerCache<T> cache_;
-
-  // Set all the cache invalidation flags to false
-  void invalidate_cache() {
-    cache_.trajectory_data.up_to_date = false;
-    cache_.derivatives_data.up_to_date = false;
-    cache_.cost_up_to_date = false;
-    cache_.gradient_up_to_date = false;
-    cache_.hessian_up_to_date = false;
-    cache_.contact_jacobian_data.up_to_date = false;
-  }
 };
 
 }  // namespace traj_opt

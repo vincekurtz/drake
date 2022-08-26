@@ -107,6 +107,18 @@ class TrajOptExample {
     solver_params.proximal_operator = options.proximal_operator;
     solver_params.rho_proximal = options.rho_proximal;
 
+    // Lagrangian solver parameters
+    solver_params.augmented_lagrangian = options.augmented_lagrangian;
+    if (opt_prob.unactuated_dof.empty()) {
+      solver_params.augmented_lagrangian = false;
+    }
+    solver_params.update_init_guess = options.update_init_guess;
+    solver_params.max_major_iterations = options.max_major_iterations;
+    solver_params.lambda0 = options.lambda0;
+    solver_params.mu0 = options.mu0;
+    solver_params.mu_expand_coef = options.mu_expand_coef;
+    solver_params.constraint_tol = options.constraint_tol;
+
     // Set contact parameters
     // TODO(vincekurtz): figure out a better place to set these
     solver_params.F = options.F;

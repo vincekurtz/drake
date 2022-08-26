@@ -68,13 +68,6 @@ TrajectoryOptimizer<T>::TrajectoryOptimizer(const Diagram<T>* diagram,
     const int nv = joint.num_velocities();
     joint_damping_.segment(velocity_start, nv) = joint.damping_vector();
   }
-
-  // Initialize the augmented Lagrangian parameters
-  lambda.resize(params_.max_major_iterations);
-  mu.resize(params_.max_major_iterations, mu0);
-  for (int i = 0; i < params_.max_major_iterations; ++i) {
-    lambda[i] = lambda0 * Eigen::VectorXd::Ones(num_eq_constraints());
-  }
 }
 
 template <typename T>
@@ -104,7 +97,8 @@ T TrajectoryOptimizer<T>::CalcCost(
     const TrajectoryOptimizerState<T>& state) const {
   const std::vector<VectorX<T>>& v = EvalV(state);
   const std::vector<VectorX<T>>& tau = EvalTau(state);
-  T cost = CalcCost(state.q(), v, tau, &state.workspace);
+  T cost = CalcCost(state.q(), v, tau, state.lambda_iter_, state.mu_iter_,
+                    &state.workspace);
 
   // Add a proximal operator term to the cost, if requested
   if (params_.proximal_operator) {
@@ -125,7 +119,7 @@ T TrajectoryOptimizer<T>::CalcCost(
 template <typename T>
 T TrajectoryOptimizer<T>::CalcCost(
     const std::vector<VectorX<T>>& q, const std::vector<VectorX<T>>& v,
-    const std::vector<VectorX<T>>& tau,
+    const std::vector<VectorX<T>>& tau, const VectorXd& lambda, const double mu,
     TrajectoryOptimizerWorkspace<T>* workspace) const {
   T cost = 0;
   T augmented_cost = 0;
@@ -142,9 +136,9 @@ T TrajectoryOptimizer<T>::CalcCost(
     // Augmented Lagrangian component
     if (params_.augmented_lagrangian) {
       for (int dof_id : prob_.unactuated_dof) {
-        augmented_cost += -lambda_iter[t * num_unactuated_dof() + dof_id] *
-                              T(tau[t][dof_id]) +
-                          mu_iter / 2 * (T(tau[t][dof_id] * tau[t][dof_id]));
+        augmented_cost +=
+            -lambda[t * num_unactuated_dof() + dof_id] * T(tau[t][dof_id]) +
+            mu / 2 * (T(tau[t][dof_id] * tau[t][dof_id]));
       }
     }
   }
@@ -772,16 +766,18 @@ void TrajectoryOptimizer<T>::CalcGradient(
     // Contribution from the unactuation constraints
     if (params_.augmented_lagrangian) {
       for (auto dof_id : prob_.unactuated_dof) {
-        taum_term += (-lambda_iter[(t - 1) * num_unactuated_dof() + dof_id] +
-                      mu_iter * tau[t - 1][dof_id]) *
-                     (dt * dtau_dqp[t - 1].row(dof_id));
-        taut_term += (-lambda_iter[t * num_unactuated_dof() + dof_id] +
-                      mu_iter * tau[t][dof_id]) *
+        taum_term +=
+            (-state.lambda_iter_[(t - 1) * num_unactuated_dof() + dof_id] +
+             state.mu_iter_ * tau[t - 1][dof_id]) *
+            (dt * dtau_dqp[t - 1].row(dof_id));
+        taut_term += (-state.lambda_iter_[t * num_unactuated_dof() + dof_id] +
+                      state.mu_iter_ * tau[t][dof_id]) *
                      (dt * dtau_dqt[t].row(dof_id));
         if (t < num_steps() - 1) {
-          taup_term += (-lambda_iter[(t + 1) * num_unactuated_dof() + dof_id] +
-                        mu_iter * tau[t + 1][dof_id]) *
-                       (dt * dtau_dqm[t + 1].row(dof_id));
+          taup_term +=
+              (-state.lambda_iter_[(t + 1) * num_unactuated_dof() + dof_id] +
+               state.mu_iter_ * tau[t + 1][dof_id]) *
+              (dt * dtau_dqm[t + 1].row(dof_id));
         }
       }
     }
@@ -803,8 +799,9 @@ void TrajectoryOptimizer<T>::CalcGradient(
   if (params_.augmented_lagrangian) {
     for (auto dof_id : prob_.unactuated_dof) {
       taum_term +=
-          (-lambda_iter[(num_steps() - 1) * num_unactuated_dof() + dof_id] +
-           mu_iter * tau[num_steps() - 1][dof_id]) *
+          (-state.lambda_iter_[(num_steps() - 1) * num_unactuated_dof() +
+                               dof_id] +
+           state.mu_iter_ * tau[num_steps() - 1][dof_id]) *
           (dt * dtau_dqp[num_steps() - 1].row(dof_id));
     }
   }
@@ -847,7 +844,7 @@ void TrajectoryOptimizer<T>::CalcHessian(
   const MatrixX<T> R = 2 * prob_.R * dt;
   const MatrixX<T> Qf_q = 2 * prob_.Qf_q;
   const MatrixX<T> Qf_v = 2 * prob_.Qf_v;
-  const double mu_hessian = mu_iter * dt;
+  const double mu_hessian = state.mu_iter_ * dt;
 
   const VelocityPartials<T>& v_partials = EvalVelocityPartials(state);
   const InverseDynamicsPartials<T>& id_partials =
@@ -1517,14 +1514,15 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
 
 template <typename T>
 SolverFlag TrajectoryOptimizer<T>::SolveGaussNewton(
-    const std::vector<VectorX<T>>&, TrajectoryOptimizerSolution<T>*,
-    TrajectoryOptimizerStats<T>*) const {
+    TrajectoryOptimizerState<T>&, const std::vector<VectorX<T>>&,
+    TrajectoryOptimizerSolution<T>*, TrajectoryOptimizerStats<T>*) const {
   throw std::runtime_error(
       "TrajectoryOptimizer::SolveGaussNewton only supports T=double.");
 }
 
 template <>
 SolverFlag TrajectoryOptimizer<double>::SolveGaussNewton(
+    TrajectoryOptimizerState<double>& state,
     const std::vector<VectorXd>& q_guess,
     TrajectoryOptimizerSolution<double>* solution,
     TrajectoryOptimizerStats<double>* stats) const {
@@ -1536,9 +1534,9 @@ SolverFlag TrajectoryOptimizer<double>::SolveGaussNewton(
   if (!params_.augmented_lagrangian) DRAKE_DEMAND(stats->is_empty());
 
   if (params_.method == SolverMethod::kLinesearch) {
-    return SolveWithLinesearch(q_guess, solution, stats);
+    return SolveWithLinesearch(state, q_guess, solution, stats);
   } else if (params_.method == SolverMethod::kTrustRegion) {
-    return SolveWithTrustRegion(q_guess, solution, stats);
+    return SolveWithTrustRegion(state, q_guess, solution, stats);
   } else {
     throw std::runtime_error("Unsupported solver strategy!");
   }
@@ -1546,19 +1544,19 @@ SolverFlag TrajectoryOptimizer<double>::SolveGaussNewton(
 
 template <typename T>
 SolverFlag TrajectoryOptimizer<T>::SolveWithLinesearch(
-    const std::vector<VectorX<T>>&, TrajectoryOptimizerSolution<T>*,
-    TrajectoryOptimizerStats<T>*) const {
+    TrajectoryOptimizerState<T>&, const std::vector<VectorX<T>>&,
+    TrajectoryOptimizerSolution<T>*, TrajectoryOptimizerStats<T>*) const {
   throw std::runtime_error(
       "TrajectoryOptimizer::SolveWithLinesearch only supports T=double.");
 }
 
 template <>
 SolverFlag TrajectoryOptimizer<double>::SolveWithLinesearch(
+    TrajectoryOptimizerState<double>& state,
     const std::vector<VectorXd>& q_guess,
     TrajectoryOptimizerSolution<double>* solution,
     TrajectoryOptimizerStats<double>* stats) const {
-  // Allocate a state variable
-  TrajectoryOptimizerState<double> state = CreateState();
+  // Set q to initial guess
   state.set_q(q_guess);
 
   // Allocate a separate state variable for linesearch
@@ -1721,20 +1719,20 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithLinesearch(
 
 template <typename T>
 SolverFlag TrajectoryOptimizer<T>::SolveWithTrustRegion(
-    const std::vector<VectorX<T>>&, TrajectoryOptimizerSolution<T>*,
-    TrajectoryOptimizerStats<T>*) const {
+    TrajectoryOptimizerState<T>&, const std::vector<VectorX<T>>&,
+    TrajectoryOptimizerSolution<T>*, TrajectoryOptimizerStats<T>*) const {
   throw std::runtime_error(
       "TrajectoryOptimizer::SolveWithTrustRegion only supports T=double.");
 }
 
 template <>
 SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
+    TrajectoryOptimizerState<double>& state,
     const std::vector<VectorXd>& q_guess,
     TrajectoryOptimizerSolution<double>* solution,
     TrajectoryOptimizerStats<double>* stats) const {
   using std::min;
-  // Allocate a state variable to store q and everything that is computed from q
-  TrajectoryOptimizerState<double> state = CreateState();
+  // Set q to initial guess
   state.set_q(q_guess);
 
   // Allocate a separate state variable for computations like L(q + dq)
@@ -1896,8 +1894,13 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
     const std::vector<VectorXd>& q_guess,
     TrajectoryOptimizerSolution<double>* solution,
     TrajectoryOptimizerStats<double>* stats) const {
+  // Initialize the status and the seed
   SolverFlag status = SolverFlag::kSuccess;
   auto q_init = q_guess;
+  // Allocate a state variable to keep track of optimization
+  TrajectoryOptimizerState<double> state = CreateState();
+
+  // Outer loop
   for (int i = 0; i < params_.max_major_iterations; ++i) {
     if (params_.augmented_lagrangian) {
       // Report the major iteration
@@ -1909,11 +1912,14 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
             << std::endl;
       }
       // Assign augmented Lagrangian parameters
-      lambda_iter = lambda[i];
-      mu_iter = mu[i];
+      state.lambda_iter_ = state.lambda_[i];
+      state.mu_iter_ = state.mu_[i];
     }
+
+    // Invalidate the state cache
+    state.invalidate_cache();
     // Solve the sub-problem
-    status = SolveGaussNewton(q_init, solution, stats);
+    status = SolveGaussNewton(state, q_init, solution, stats);
 
     // Terminate if augmented Lagrangian is disabled
     // TODO(aykut): Consider terminating if the solver failed
@@ -1932,27 +1938,28 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
     // Update the augmented Lagrangian parameters
     if (i < params_.max_major_iterations - 1) {
       // Update the Lagrange multipliers
-      lambda[i + 1] = lambda[i] - mu[i] * violations;
+      state.lambda_[i + 1] = state.lambda_[i] - state.mu_[i] * violations;
       if (params_.verbose) {
         for (int j = 0; j < num_eq_constraints(); ++j) {
-          std::cout << "lambda " << j << ": " << lambda[i](j) << "\t-->  "
-                    << lambda[i + 1](j) << '\n';
+          std::cout << "lambda " << j << ": " << state.lambda_[i](j)
+                    << "\t-->  " << state.lambda_[i + 1](j) << '\n';
         }
       }
 
       // Check for constraint satisfaction w.r.t. a tolerance
-      if (violations.lpNorm<Eigen::Infinity>() < constraint_tol) {
+      if (violations.lpNorm<Eigen::Infinity>() < params_.constraint_tol) {
         std::cout << "\nStopping b/c the max. constraint violation "
                   << violations.maxCoeff()
                   << " is smaller than the constraint satisfaction tolerance "
-                  << constraint_tol << "\n\n";
+                  << params_.constraint_tol << "\n\n";
         return status;
       }
       // TODO(aykut): Consider updating the constraint tolerance
 
       // Update the penalty parameter
-      mu[i + 1] = mu_expand_coef * mu[i];
-      std::cout << "\nmu: " << mu[i] << "\t-->  " << mu[i + 1] << '\n';
+      state.mu_[i + 1] = params_.mu_expand_coef * state.mu_[i];
+      std::cout << "\nmu: " << state.mu_[i] << "\t-->  " << state.mu_[i + 1]
+                << '\n';
 
       // Update the initial guess
       if (params_.update_init_guess) q_init = solution->q;

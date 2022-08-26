@@ -56,8 +56,8 @@ struct SolverParameters {
   // model - figure out the right place and put these parameters there
   double F = 1.0;       // force (in Newtons) at delta meters of penetration
   double delta = 0.01;  // penetration distance at which we apply F newtons
-  double stiffness_exponent{2};  // Exponent in the compliant force law.
-  double dissipation_exponent{1};  // Exponent in the dissipation force law.
+  double stiffness_exponent{2};      // Exponent in the compliant force law.
+  double dissipation_exponent{1};    // Exponent in the dissipation force law.
   double dissipation_velocity{0.1};  // Hunt-Crossley velocity, in m/s.
   double stiction_velocity{1.0e-2};  // Regularization of stiction, in m/s.
   double friction_coefficient{1.0};  // Coefficient of friction.
@@ -75,8 +75,13 @@ struct SolverParameters {
   double lineplot_q_max = 1.0;
 
   // Augmented Lagrangian parameters
-  bool augmented_lagrangian = false, update_init_guess = true;
-  int max_major_iterations = 5;
+  bool augmented_lagrangian;
+  bool update_init_guess;
+  int max_major_iterations;
+  double lambda0;
+  double mu0;
+  double mu_expand_coef;
+  double constraint_tol;
 };
 
 }  // namespace traj_opt

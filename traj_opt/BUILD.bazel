@@ -132,6 +132,7 @@ drake_cc_library(
     deps = [
         ":inverse_dynamics_partials",
         ":penta_diagonal_matrix",
+        ":solver_parameters",
         ":trajectory_optimizer_workspace",
         ":velocity_partials",
         "//common:default_scalars",

@@ -118,9 +118,11 @@ class TrajectoryOptimizer {
    */
   TrajectoryOptimizerState<T> CreateState() const {
     if (diagram_ != nullptr) {
-      return TrajectoryOptimizerState<T>(num_steps(), *diagram_, plant());
+      return TrajectoryOptimizerState<T>(
+          num_steps(), params_, num_eq_constraints(), *diagram_, plant());
     }
-    return TrajectoryOptimizerState<T>(num_steps(), plant());
+    return TrajectoryOptimizerState<T>(num_steps(), params_,
+                                       num_eq_constraints(), plant());
   }
 
   /**
@@ -149,6 +151,7 @@ class TrajectoryOptimizer {
    * Solve the unconstrained optimization from the given initial guess, which
    * may or may not be dynamically feasible.
    *
+   * @param state optimizer state, including q, v, tau, gradients, etc.
    * @param q_guess a sequence of generalized positions corresponding to the
    * initial guess
    * @param solution a container for the optimal solution, including velocities
@@ -157,7 +160,8 @@ class TrajectoryOptimizer {
    * data regarding the solve process.
    * @return SolverFlag
    */
-  SolverFlag SolveGaussNewton(const std::vector<VectorX<T>>& q_guess,
+  SolverFlag SolveGaussNewton(TrajectoryOptimizerState<T>& state,
+                              const std::vector<VectorX<T>>& q_guess,
                               TrajectoryOptimizerSolution<T>* solution,
                               TrajectoryOptimizerStats<T>* stats) const;
 
@@ -216,6 +220,7 @@ class TrajectoryOptimizer {
    * Solve the optimization problem from the given initial guess using a
    * linesearch strategy.
    *
+   * @param state optimizer state, including q, v, tau, gradients, etc.
    * @param q_guess a sequence of generalized positions corresponding to the
    * initial guess
    * @param solution a container for the optimal solution, including velocities
@@ -224,7 +229,8 @@ class TrajectoryOptimizer {
    * data regarding the solve process.
    * @return SolverFlag
    */
-  SolverFlag SolveWithLinesearch(const std::vector<VectorX<T>>& q_guess,
+  SolverFlag SolveWithLinesearch(TrajectoryOptimizerState<T>& state,
+                                 const std::vector<VectorX<T>>& q_guess,
                                  TrajectoryOptimizerSolution<T>* solution,
                                  TrajectoryOptimizerStats<T>* stats) const;
 
@@ -232,6 +238,7 @@ class TrajectoryOptimizer {
    * Solve the optimization problem from the given initial guess using a trust
    * region strategy.
    *
+   * @param state optimizer state, including q, v, tau, gradients, etc.
    * @param q_guess a sequence of generalized positions corresponding to the
    * initial guess
    * @param solution a container for the optimal solution, including velocities
@@ -240,7 +247,8 @@ class TrajectoryOptimizer {
    * data regarding the solve process.
    * @return SolverFlag
    */
-  SolverFlag SolveWithTrustRegion(const std::vector<VectorX<T>>& q_guess,
+  SolverFlag SolveWithTrustRegion(TrajectoryOptimizerState<T>& state,
+                                  const std::vector<VectorX<T>>& q_guess,
                                   TrajectoryOptimizerSolution<T>* solution,
                                   TrajectoryOptimizerStats<T>* stats) const;
 
@@ -299,8 +307,8 @@ class TrajectoryOptimizer {
    * @return double, total cost
    */
   T CalcCost(const std::vector<VectorX<T>>& q, const std::vector<VectorX<T>>& v,
-             const std::vector<VectorX<T>>& tau,
-             TrajectoryOptimizerWorkspace<T>* workspace) const;
+             const std::vector<VectorX<T>>& tau, const VectorXd& lambda,
+             const double mu, TrajectoryOptimizerWorkspace<T>* workspace) const;
 
   /**
    * Compute the vector of forces acting upon unactuated DOF
@@ -409,7 +417,7 @@ class TrajectoryOptimizer {
   /* Computes signed distance data for all time configurations in `state`. */
   void CalcSdfData(
       const TrajectoryOptimizerState<T>& state,
-      typename TrajectoryOptimizerCache<T>::SdfData* sdf_data) const;  
+      typename TrajectoryOptimizerCache<T>::SdfData* sdf_data) const;
 
   /* Helper to compute the contact Jacobian for the configuration stored in
   `context`. Signed distance pairs `sdf_pairs` must be consistent with
@@ -425,7 +433,7 @@ class TrajectoryOptimizer {
   void CalcContactJacobianData(
       const TrajectoryOptimizerState<T>& state,
       typename TrajectoryOptimizerCache<T>::ContactJacobianData*
-          contact_jacobian_data) const;  
+          contact_jacobian_data) const;
 
   /**
    * Compute partial derivatives of the inverse dynamics
@@ -700,24 +708,19 @@ class TrajectoryOptimizer {
 
   // Various parameters
   const SolverParameters params_;
-
-  // Augmented Lagrangian parameters
-  mutable std::vector<Eigen::VectorXd> lambda;
-  mutable std::vector<double> mu;
-  mutable Eigen::VectorXd lambda_iter;
-  mutable double mu_iter;
-  double lambda0 = 0.0, mu0 = 1e1, mu_expand_coef = 1e1, constraint_tol = 1e-4;
 };
 
 // Declare template specializations
 template <>
 SolverFlag TrajectoryOptimizer<double>::SolveWithLinesearch(
-    const std::vector<VectorXd>&, TrajectoryOptimizerSolution<double>*,
+    TrajectoryOptimizerState<double>&, const std::vector<VectorXd>&,
+    TrajectoryOptimizerSolution<double>*,
     TrajectoryOptimizerStats<double>*) const;
 
 template <>
 SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
-    const std::vector<VectorXd>&, TrajectoryOptimizerSolution<double>*,
+    TrajectoryOptimizerState<double>&, const std::vector<VectorXd>&,
+    TrajectoryOptimizerSolution<double>*,
     TrajectoryOptimizerStats<double>*) const;
 
 }  // namespace traj_opt

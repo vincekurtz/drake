@@ -97,6 +97,13 @@ struct TrajOptExampleParams {
   bool save_lineplot_data = false;
   double lineplot_q_min = 0;
   double lineplot_q_max = 1;
+  bool augmented_lagrangian = true;
+  bool update_init_guess = true;
+  int max_major_iterations = 5;
+  double lambda0 = 0;
+  double mu0 = 1e1;
+  double mu_expand_coef = 1e1;
+  double constraint_tol = 1e-4;
 };
 
 }  // namespace examples
