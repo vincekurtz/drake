@@ -699,7 +699,7 @@ class TrajectoryOptimizer {
   VectorX<T> joint_damping_;
 
   // Various parameters
-  SolverParameters params_;
+  const SolverParameters params_;
 
   // Augmented Lagrangian parameters
   mutable std::vector<Eigen::VectorXd> lambda;

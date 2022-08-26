@@ -9,8 +9,8 @@
 
 #include "drake/geometry/scene_graph_inspector.h"
 #include "drake/multibody/math/spatial_algebra.h"
-#include "drake/traj_opt/penta_diagonal_solver.h"
 #include "drake/systems/framework/diagram.h"
+#include "drake/traj_opt/penta_diagonal_solver.h"
 
 namespace drake {
 namespace traj_opt {
@@ -48,10 +48,10 @@ TrajectoryOptimizer<T>::TrajectoryOptimizer(const MultibodyPlant<T>* plant,
 }
 
 template <typename T>
-TrajectoryOptimizer<T>::TrajectoryOptimizer(
-    const Diagram<T>* diagram, const MultibodyPlant<T>* plant,
-    const ProblemDefinition& prob,
-    const SolverParameters& params)
+TrajectoryOptimizer<T>::TrajectoryOptimizer(const Diagram<T>* diagram,
+                                            const MultibodyPlant<T>* plant,
+                                            const ProblemDefinition& prob,
+                                            const SolverParameters& params)
     : diagram_{diagram}, plant_(plant), prob_(prob), params_(params) {
   // Workaround for when a plant context is not provided.
   // Valid context should be obtained with EvalPlantContext() instead.
@@ -129,7 +129,7 @@ T TrajectoryOptimizer<T>::CalcCost(
     TrajectoryOptimizerWorkspace<T>* workspace) const {
   T cost = 0;
   T augmented_cost = 0;
-  VectorX<T>& q_err = workspace->q_size_tmp;
+  VectorX<T>& q_err = workspace->q_size_tmp1;
   VectorX<T>& v_err = workspace->v_size_tmp1;
 
   // Running cost
@@ -253,8 +253,9 @@ void TrajectoryOptimizer<T>::CalcContactForceContribution(
   const double dissipation_velocity = params_.dissipation_velocity;
 
   // Friction parameters.
-  const double vs = params_.stiction_velocity;     // Regularization.
-  const double mu = params_.friction_coefficient;  // Coefficient of friction.
+  const double vs = params_.stiction_velocity;  // Regularization.
+  const double mu_friction =
+      params_.friction_coefficient;  // Coefficient of friction.
 
   // Get signed distance pairs
   const geometry::QueryObject<T>& query_object =
@@ -337,13 +338,13 @@ void TrajectoryOptimizer<T>::CalcContactForceContribution(
 
       // Tangential frictional component.
       // N.B. This model is algebraically equivalent to:
-      //  ft = -mu*fn*sigmoid(||vt||/vs)*vt/||vt||.
+      //  ft = -mu_friction*fn*sigmoid(||vt||/vs)*vt/||vt||.
       // with the algebraic sigmoid function defined as sigmoid(x) =
       // x/sqrt(1+x^2). The algebraic simplification is performed to avoid
       // division by zero when vt = 0 (or lost of precision when close to zero).
       const Vector3<T> that_regularized =
           -vt / sqrt(vs * vs + vt.squaredNorm());
-      const Vector3<T> ft_BC_W = that_regularized * mu * fn;
+      const Vector3<T> ft_BC_W = that_regularized * mu_friction * fn;
 
       // Total contact force on B at C, expressed in W.
       const Vector3<T> f_BC_W = nhat * fn + ft_BC_W;
@@ -878,12 +879,14 @@ void TrajectoryOptimizer<T>::CalcHessian(
       dgt_dqt += dvt_dqm[t + 1].transpose() * Qf_v * dvt_dqm[t + 1];
     }
 
-    // dg_t/dq_{t+1}
+    // dg_t/dq_{t+1} and dg_t/dq_{t+2}
     MatrixX<T>& dgt_dqp = B[t + 1];
+    MatrixX<T>& dgt_dqpp = A[t + 2];
     dgt_dqp = dtau_dqp[t].transpose() * R * dtau_dqt[t];
     if (t < num_steps() - 1) {
       dgt_dqp += dtau_dqt[t + 1].transpose() * R * dtau_dqm[t + 1];
       dgt_dqp += dvt_dqt[t + 1].transpose() * Qv * dvt_dqm[t + 1];
+      dgt_dqpp = dtau_dqp[t + 1].transpose() * R * dtau_dqm[t + 1];
     } else {
       dgt_dqp += dvt_dqt[t + 1].transpose() * Qf_v * dvt_dqm[t + 1];
     }
@@ -907,18 +910,6 @@ void TrajectoryOptimizer<T>::CalcHessian(
           // dg_t/dq_{t+1}
           dgt_dqp += mu_hessian * dtau_dqt[t + 1].transpose().col(dof_id) *
                      dtau_dqm[t + 1].row(dof_id);
-        }
-      }
-    }
-
-    // dg_t/dq_{t+2}
-    if (t < num_steps() - 1) {
-      MatrixX<T>& dgt_dqpp = A[t + 2];
-      dgt_dqpp = dtau_dqp[t + 1].transpose() * R * dtau_dqm[t + 1];
-
-      // Contribution from the unactuation constraints
-      if (params_.augmented_lagrangian) {
-        for (auto dof_id : prob_.unactuated_dof) {
           // dg_t/dq_{t+2}
           dgt_dqpp += mu_hessian * dtau_dqp[t + 1].transpose().col(dof_id) *
                       dtau_dqm[t + 1].row(dof_id);
@@ -933,19 +924,20 @@ void TrajectoryOptimizer<T>::CalcHessian(
   dgT_dqT += dvt_dqt[num_steps()].transpose() * Qf_v * dvt_dqt[num_steps()];
   dgT_dqT +=
       dtau_dqp[num_steps() - 1].transpose() * R * dtau_dqp[num_steps() - 1];
-
-  // Add proximal operator terms to the Hessian, if requested
-  if (params_.proximal_operator) {
-    for (int t = 0; t <= num_steps(); ++t) {
-      C[t] += params_.rho_proximal *
-              state.proximal_operator_data().H_diag[t].asDiagonal();
-
   // Contribution from the unactuation constraints
   if (params_.augmented_lagrangian) {
     for (auto dof_id : prob_.unactuated_dof) {
       dgT_dqT += mu_hessian *
                  dtau_dqp[num_steps() - 1].transpose().col(dof_id) *
                  dtau_dqp[num_steps() - 1].row(dof_id);
+    }
+  }
+
+  // Add proximal operator terms to the Hessian, if requested
+  if (params_.proximal_operator) {
+    for (int t = 0; t <= num_steps(); ++t) {
+      C[t] += params_.rho_proximal *
+              state.proximal_operator_data().H_diag[t].asDiagonal();
     }
   }
 
@@ -1524,9 +1516,6 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
 }
 
 template <typename T>
-SolverFlag TrajectoryOptimizer<T>::Solve(const std::vector<VectorX<T>>&,
-                                         TrajectoryOptimizerSolution<T>*,
-                                         TrajectoryOptimizerStats<T>*) const {
 SolverFlag TrajectoryOptimizer<T>::SolveGaussNewton(
     const std::vector<VectorX<T>>&, TrajectoryOptimizerSolution<T>*,
     TrajectoryOptimizerStats<T>*) const {
@@ -1650,14 +1639,6 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithLinesearch(
 
       // Save the linesearch residual to a csv file so we can plot in python
       SaveLinesearchResidual(state, dq, &scratch_state);
-
-      // We'll still record iteration data for playback later
-      iter_time = std::chrono::high_resolution_clock::now() - iter_start_time;
-      solve_time = std::chrono::high_resolution_clock::now() - start_time;
-      stats->solve_time.push_back(solve_time.count());
-      stats->push_data(iter_time.count(), cost, ls_iters, alpha, g.norm());
-
-      return SolverFlag::kLinesearchMaxIters;
     }
 
     // Compute the trust ratio (actual cost reduction / model cost reduction)
@@ -1884,7 +1865,7 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
   }
 
   solve_time = std::chrono::high_resolution_clock::now() - start_time;
-  stats->solve_time = solve_time.count();
+  stats->solve_time.push_back(solve_time.count());
 
   // Record the solution
   solution->q = state.q();
@@ -1917,7 +1898,7 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
     TrajectoryOptimizerStats<double>* stats) const {
   SolverFlag status = SolverFlag::kSuccess;
   auto q_init = q_guess;
-  for (int i = 0; i < params_.max_major_iterations; i++) {
+  for (int i = 0; i < params_.max_major_iterations; ++i) {
     if (params_.augmented_lagrangian) {
       // Report the major iteration
       if (params_.verbose) {
@@ -1953,7 +1934,7 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
       // Update the Lagrange multipliers
       lambda[i + 1] = lambda[i] - mu[i] * violations;
       if (params_.verbose) {
-        for (int j = 0; j < num_eq_constraints(); j++) {
+        for (int j = 0; j < num_eq_constraints(); ++j) {
           std::cout << "lambda " << j << ": " << lambda[i](j) << "\t-->  "
                     << lambda[i + 1](j) << '\n';
         }

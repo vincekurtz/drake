@@ -150,7 +150,10 @@ class TrajOptExample {
     if (status != SolverFlag::kSuccess) {
       std::cout << "Solver failed!" << std::endl;
     } else {
-      std::cout << "Solved in " << stats.solve_time << " seconds." << std::endl;
+      for (int i = 0; i < static_cast<int>(stats.solve_time.size()); ++i) {
+        std::cout << "Major iteration " << i << " was solved in "
+                  << stats.solve_time[i] << " seconds." << std::endl;
+      }
     }
 
     // Report maximum torques on all DoFs
