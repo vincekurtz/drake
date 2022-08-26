@@ -25,7 +25,7 @@ struct SolverParameters {
   bool verbose = true;
 
   // Augmented Lagrangian parameters
-  bool augmented_lagrangian = true, update_init_guess = false;
+  bool augmented_lagrangian = true, update_init_guess = true;
   int max_major_iterations = 5;
 };
 
