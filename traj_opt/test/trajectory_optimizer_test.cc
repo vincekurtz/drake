@@ -103,6 +103,12 @@ class TrajectoryOptimizerTester {
                               const double Delta, VectorXd* dq) {
     return optimizer.CalcDoglegPoint(state, Delta, dq);
   }
+
+  static void CalcContactForceContribution(
+      const TrajectoryOptimizer<double>& optimizer,
+      multibody::MultibodyForces<double>* forces) {
+    optimizer.CalcContactForceContribution(forces);
+  }
 };
 
 namespace internal {
@@ -222,9 +228,22 @@ GTEST_TEST(TrajectoryOptimizerTest, ContactJacobianConstant) {
   const MatrixXd dtauc_dq_approx = jacobian_data.J[1].transpose() * dgamma_dq;
   const MatrixXd dtauc_dq_ad = math::ExtractGradient(tauc_ad);
 
+  // Alternative way to compute τ_c.
+  multibody::MultibodyForces<double> forces(plant);
+  TrajectoryOptimizerTester::CalcContactForceContribution(optimizer, &forces);
+  const VectorXd vdot = VectorXd::Zero(plant.num_velocities());
+  auto context = plant.CreateDefaultContext();
+  plant.SetPositions(context.get(), q[1]);
+  const VectorXd tauc_alt = -plant.CalcInverseDynamics(*context, vdot, forces);
+
   std::cout << "τ_c [double]   : " << tauc.transpose() << std::endl;
   std::cout << "τ_c [autodiff] : " << tauc_ad.transpose() << std::endl;
+  std::cout << "τ_c [alt]      : " << tauc_alt.transpose() << std::endl;
   std::cout << std::endl;
+
+  // The two ways to compute τ_c should match.
+  EXPECT_TRUE(CompareMatrices(tauc, tauc_alt, kTolerance,
+                              MatrixCompareType::relative));
 
   std::cout << "∂τ_c/∂q [approx]:\n" << dtauc_dq_approx << std::endl;
   std::cout << "∂τ_c/∂q [autodiff]:\n" << dtauc_dq_ad << std::endl;
