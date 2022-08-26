@@ -125,6 +125,97 @@ using systems::DiagramBuilder;
 using test::LimitMalloc;
 
 /**
+ * Test our assumption of a constant contact jacobian by comparing derivatives
+ * of contact torques
+ *
+ *    τ_c = J(q)'γ(q)
+ *
+ * computed with autodiff,
+ *
+ *    ∂τ_c/∂q = ∂J'/∂q γ + J' ∂γ/∂q,
+ *
+ * and our approximation,
+ *
+ *    ∂τ_c/∂q ≈ J' ∂γ/∂q.
+ */
+GTEST_TEST(TrajectoryOptimizerTest, ContactJacobianConstant) {
+  // Model that we'll use is the spinner with one timestep, which has a
+  // non-trivial contact jacobian and sphere-sphere contact. 
+  DiagramBuilder<double> builder;
+  MultibodyPlantConfig config;
+  config.time_step = 1.0;
+  auto [plant, scene_graph] = multibody::AddMultibodyPlant(config, &builder);
+  Parser(&plant).AddAllModelsFromFile(
+      FindResourceOrThrow("drake/traj_opt/examples/spinner_sphere.urdf"));
+  plant.Finalize();
+  auto diagram = builder.Build();
+
+  // Don't need a detailed optimization problem, since we're just testing dynamics
+  const int num_steps = 1;
+  ProblemDefinition opt_prob;
+  opt_prob.num_steps = num_steps;
+  opt_prob.q_init = Vector3d(0.2, 1.5, 0.0);
+  opt_prob.v_init = Vector3d(0.0, 0.0, 0.0);
+  SolverParameters solver_params;
+  solver_params.F = 1.0;
+  solver_params.delta = 0.01;
+  solver_params.stiffness_exponent = 2.0;
+  solver_params.dissipation_velocity = 1e16;  // no dissipation
+  solver_params.friction_coefficient = 0.0;   // no friction
+
+  // Create two optimizers: a normal one and an autodiff one 
+  TrajectoryOptimizer<double> optimizer(diagram.get(), &plant, opt_prob,
+                                     solver_params);
+  TrajectoryOptimizerState<double> state = optimizer.CreateState();
+
+  auto diagram_ad = systems::System<double>::ToAutoDiffXd(*diagram);
+  const auto& plant_ad = dynamic_cast<const MultibodyPlant<AutoDiffXd>&>(
+      diagram_ad->GetSubsystemByName(plant.get_name()));
+
+  TrajectoryOptimizer<AutoDiffXd> optimizer_ad(diagram_ad.get(), &plant_ad,
+                                            opt_prob, solver_params);
+  TrajectoryOptimizerState<AutoDiffXd> state_ad = optimizer_ad.CreateState();
+
+  // Create some fake data
+  std::vector<VectorXd> q;
+  q.push_back(opt_prob.q_init);
+  q.push_back(Vector3d(0.4, 1.5, 0.0));
+  state.set_q(q);
+
+  std::vector<VectorX<AutoDiffXd>> q_ad;
+  q_ad.push_back(q[0]);
+  q_ad.push_back(math::InitializeAutoDiff(q[1]));
+  state_ad.set_q(q_ad);
+
+  // Compute ∂γ/∂q analytically and with autodiff
+  const std::vector<VectorXd>& gamma = optimizer.EvalContactImpulses(state);
+  const TrajectoryOptimizerCache<double>::ContactJacobianData& jacobian_data =
+      optimizer.EvalContactJacobianData(state);
+  const std::vector<VectorXd>& dgamma_dphi =
+      optimizer.EvalContactImpulsePartialsSignedDistance(state);
+  const std::vector<VectorX<AutoDiffXd>>& gamma_ad =
+      optimizer_ad.EvalContactImpulses(state_ad);
+
+  const MatrixXd dgamma_dq = dgamma_dphi[1].asDiagonal() * jacobian_data.J[1];
+  const MatrixXd dgamma_dq_ad = math::ExtractGradient(gamma_ad[1]);
+  
+  std::cout << "γ [double]   : " << gamma[1].transpose() << std::endl;
+  std::cout << "γ [autodiff] : " << math::ExtractValue(gamma_ad[1]).transpose() << std::endl;
+  std::cout << std::endl;
+
+  std::cout << "∂γ/∂q [double]: \n" << dgamma_dq << std::endl;
+  std::cout << "∂γ/∂q [autodiff]: \n" << dgamma_dq_ad << std::endl;
+
+  const double kTolerance = 10 * std::numeric_limits<double>::epsilon();
+  EXPECT_TRUE(CompareMatrices(gamma[1], math::ExtractValue(gamma_ad[1]),
+                              kTolerance, MatrixCompareType::relative));
+  EXPECT_TRUE(CompareMatrices(dgamma_dq, dgamma_dq_ad, kTolerance,
+                              MatrixCompareType::relative));
+
+  // Compute ∂τ_c/∂q analytically and with autodiff
+}
+
+/**
  * Test our analytical computation of inverse dynamics derivatives with the 2DoF
  * spinner example.
  */
