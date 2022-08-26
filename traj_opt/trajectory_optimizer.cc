@@ -1024,7 +1024,8 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
     // Report constraint violations
     if (params_.verbose)
       std::cout << "\nConstraint violations:\n"
-                << violations << "\nMax. violation: " << violations.maxCoeff()
+                << violations
+                << "\nMax. violation: " << violations.lpNorm<Eigen::Infinity>()
                 << "\n\n";
 
     // Update the augmented Lagrangian parameters
@@ -1039,7 +1040,7 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
       }
 
       // Check for constraint satisfaction w.r.t. a tolerance
-      if (violations.maxCoeff() < constraint_tol) {
+      if (violations.lpNorm<Eigen::Infinity>() < constraint_tol) {
         std::cout << "\nStopping b/c the max. constraint violation "
                   << violations.maxCoeff()
                   << " is smaller than the constraint satisfaction tolerance "
