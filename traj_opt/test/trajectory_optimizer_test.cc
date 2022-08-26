@@ -203,8 +203,9 @@ GTEST_TEST(TrajectoryOptimizerTest, ContactJacobianConstant) {
   std::cout << "γ [autodiff] : " << math::ExtractValue(gamma_ad[1]).transpose() << std::endl;
   std::cout << std::endl;
 
-  std::cout << "∂γ/∂q [double]: \n" << dgamma_dq << std::endl;
-  std::cout << "∂γ/∂q [autodiff]: \n" << dgamma_dq_ad << std::endl;
+  std::cout << "∂γ/∂q [double]:\n" << dgamma_dq << std::endl;
+  std::cout << "∂γ/∂q [autodiff]:\n" << dgamma_dq_ad << std::endl;
+  std::cout << std::endl;
 
   const double kTolerance = 10 * std::numeric_limits<double>::epsilon();
   EXPECT_TRUE(CompareMatrices(gamma[1], math::ExtractValue(gamma_ad[1]),
@@ -213,6 +214,28 @@ GTEST_TEST(TrajectoryOptimizerTest, ContactJacobianConstant) {
                               MatrixCompareType::relative));
 
   // Compute ∂τ_c/∂q analytically and with autodiff
+  const VectorXd tauc = jacobian_data.J[1].transpose() * gamma[1];
+  const TrajectoryOptimizerCache<AutoDiffXd>::ContactJacobianData& jacobian_data_ad =
+      optimizer_ad.EvalContactJacobianData(state_ad);
+  const VectorX<AutoDiffXd> tauc_ad = jacobian_data_ad.J[1].transpose() * gamma_ad[1];
+  
+  const MatrixXd dtauc_dq_approx = jacobian_data.J[1].transpose() * dgamma_dq;
+  const MatrixXd dtauc_dq_ad = math::ExtractGradient(tauc_ad);
+
+  std::cout << "τ_c [double]   : " << tauc.transpose() << std::endl;
+  std::cout << "τ_c [autodiff] : " << tauc_ad.transpose() << std::endl;
+  std::cout << std::endl;
+
+  std::cout << "∂τ_c/∂q [approx]:\n" << dtauc_dq_approx << std::endl;
+  std::cout << "∂τ_c/∂q [autodiff]:\n" << dtauc_dq_ad << std::endl;
+  std::cout << std::endl;
+
+  std::cout << "∂J/∂q*γ:\n" << dtauc_dq_ad - dtauc_dq_approx << std::endl;
+  std::cout << std::endl;
+  
+  EXPECT_TRUE(CompareMatrices(tauc, tauc_ad, kTolerance,
+                              MatrixCompareType::relative));
+
 }
 
 /**
