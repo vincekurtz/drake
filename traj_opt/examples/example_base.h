@@ -73,6 +73,7 @@ class TrajOptExample {
     opt_prob.R = Eigen::Map<VectorXd>(options.R.data(), nv).asDiagonal();
     opt_prob.q_nom = Eigen::Map<VectorXd>(options.q_nom.data(), nq);
     opt_prob.v_nom = Eigen::Map<VectorXd>(options.v_nom.data(), nv);
+    opt_prob.unactuated_dof = options.unactuated_dof;
 
     // Set our solver parameters
     // TODO(vincekurtz): consider separate functions mapping options to opt_prob

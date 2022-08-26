@@ -30,6 +30,7 @@ struct TrajOptExampleParams {
     a->Visit(DRAKE_NVP(R));
     a->Visit(DRAKE_NVP(Qfq));
     a->Visit(DRAKE_NVP(Qfv));
+    a->Visit(DRAKE_NVP(unactuated_dof));
     a->Visit(DRAKE_NVP(time_step));
     a->Visit(DRAKE_NVP(num_steps));
     a->Visit(DRAKE_NVP(max_iters));
@@ -68,6 +69,7 @@ struct TrajOptExampleParams {
   std::vector<double> R;
   std::vector<double> Qfq;
   std::vector<double> Qfv;
+  std::vector<int> unactuated_dof;
   double time_step;
   int num_steps;
   int max_iters;
