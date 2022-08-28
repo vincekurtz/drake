@@ -194,7 +194,7 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsSingleTimeStep(
     // TODO(vincekurtz): perform this check earlier, and maybe print some
     // warnings to stdout if we're not connected (we do want to be able to run
     // problems w/o contact sometimes)
-    CalcContactForceContribution(&workspace->f_ext);
+    CalcContactForceContribution(*context_, &workspace->f_ext);
   }
 
   // Inverse dynamics computes tau = M*a - k(q,v) - f_ext
@@ -203,6 +203,7 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsSingleTimeStep(
 
 template <typename T>
 void TrajectoryOptimizer<T>::CalcContactForceContribution(
+    const Context<T>& context,
     MultibodyForces<T>* forces) const {
   using std::abs;
   using std::max;
@@ -229,7 +230,7 @@ void TrajectoryOptimizer<T>::CalcContactForceContribution(
   const geometry::QueryObject<T>& query_object =
       plant()
           .get_geometry_query_input_port()
-          .template Eval<geometry::QueryObject<T>>(*context_);
+          .template Eval<geometry::QueryObject<T>>(context);
   const std::vector<SignedDistancePair<T>>& signed_distance_pairs =
       query_object.ComputeSignedDistancePairwiseClosestPoints();
   const drake::geometry::SceneGraphInspector<T>& inspector =
@@ -254,9 +255,9 @@ void TrajectoryOptimizer<T>::CalcContactForceContribution(
 
       // Body poses in world.
       const math::RigidTransform<T>& X_WA =
-          plant().EvalBodyPoseInWorld(*context_, bodyA);
+          plant().EvalBodyPoseInWorld(context, bodyA);
       const math::RigidTransform<T>& X_WB =
-          plant().EvalBodyPoseInWorld(*context_, bodyB);
+          plant().EvalBodyPoseInWorld(context, bodyB);
 
       // Geometry poses in body frames.
       const math::RigidTransform<T> X_AGa =
@@ -282,9 +283,9 @@ void TrajectoryOptimizer<T>::CalcContactForceContribution(
 
       // Velocities.
       const SpatialVelocity<T>& V_WA =
-          plant().EvalBodySpatialVelocityInWorld(*context_, bodyA);
+          plant().EvalBodySpatialVelocityInWorld(context, bodyA);
       const SpatialVelocity<T>& V_WB =
-          plant().EvalBodySpatialVelocityInWorld(*context_, bodyB);
+          plant().EvalBodySpatialVelocityInWorld(context, bodyB);
       const SpatialVelocity<T> V_WAc = V_WA.Shift(p_AC_W);
       const SpatialVelocity<T> V_WBc = V_WB.Shift(p_BC_W);
 

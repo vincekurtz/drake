@@ -106,8 +106,16 @@ class TrajectoryOptimizerTester {
 
   static void CalcContactForceContribution(
       const TrajectoryOptimizer<double>& optimizer,
+      const Context<double>& context,
       multibody::MultibodyForces<double>* forces) {
-    optimizer.CalcContactForceContribution(forces);
+    optimizer.CalcContactForceContribution(context, forces);
+  }
+  
+  static void CalcContactForceContribution(
+      const TrajectoryOptimizer<AutoDiffXd>& optimizer,
+      const Context<AutoDiffXd>& context,
+      multibody::MultibodyForces<AutoDiffXd>* forces) {
+    optimizer.CalcContactForceContribution(context, forces);
   }
 };
 
@@ -129,6 +137,117 @@ using multibody::PlanarJoint;
 using multibody::RigidBody;
 using systems::DiagramBuilder;
 using test::LimitMalloc;
+
+/**
+ * Test computation of gradients through contact as
+ *
+ *    ∂τ/∂q = ∂/∂q ID(q,v(q),a(q),γ) - J'∂γ/∂q
+ *
+ * where the first term treats γ as constant and is computed with autodiff (or
+ * finite-diff) and the second term is computed analytically.
+ */
+GTEST_TEST(TrajectoryOptimizerTest, ContactGradientMethods) {
+  // Set up an example system with sphere-sphere contact (spinner)
+  DiagramBuilder<double> builder;
+  MultibodyPlantConfig config;
+  config.time_step = 1.0;
+  auto [plant, scene_graph] = multibody::AddMultibodyPlant(config, &builder);
+  Parser(&plant).AddAllModelsFromFile(
+      FindResourceOrThrow("drake/traj_opt/examples/spinner_sphere.urdf"));
+  plant.Finalize();
+  auto diagram = builder.Build();
+
+  const int num_steps = 1;
+  ProblemDefinition opt_prob;
+  opt_prob.num_steps = num_steps;
+  opt_prob.q_init = Vector3d(0.2, 1.5, 0.0);
+  opt_prob.v_init = Vector3d(0.0, 0.0, 0.0);
+  SolverParameters solver_params;
+  solver_params.F = 1.0;
+  solver_params.delta = 0.01;
+  solver_params.stiffness_exponent = 2.0;
+  solver_params.dissipation_velocity = 1e16;  // no dissipation
+  solver_params.friction_coefficient = 0.0;   // no friction
+
+  // Create two optimizers: one normal and one autodiff
+  TrajectoryOptimizer<double> optimizer(diagram.get(), &plant, opt_prob,
+                                     solver_params);
+  TrajectoryOptimizerState<double> state = optimizer.CreateState();
+  auto diagram_ad = systems::System<double>::ToAutoDiffXd(*diagram);
+  const auto& plant_ad = dynamic_cast<const MultibodyPlant<AutoDiffXd>&>(
+      diagram_ad->GetSubsystemByName(plant.get_name()));
+  auto diagram_context_ad = diagram_ad->CreateDefaultContext();
+  Context<AutoDiffXd>* context_ad =
+      &diagram_ad->GetMutableSubsystemContext(plant_ad, diagram_context_ad.get());
+
+  TrajectoryOptimizer<AutoDiffXd> optimizer_ad(diagram_ad.get(), &plant_ad,
+                                            opt_prob, solver_params);
+  TrajectoryOptimizerState<AutoDiffXd> state_ad = optimizer_ad.CreateState();
+
+  // Set state values. 
+  std::vector<VectorXd> q;
+  q.push_back(opt_prob.q_init);
+  q.push_back(Vector3d(0.4, 1.5, 0.0));
+  state.set_q(q);
+
+  std::vector<VectorX<AutoDiffXd>> q_ad;
+  q_ad.push_back(q[0]);
+  q_ad.push_back(math::InitializeAutoDiff(q[1]));
+  state_ad.set_q(q_ad);
+  
+  // Sanity check that both optimizers agree on τ = ID(q,v(q),a(q),γ(q))
+  const std::vector<VectorXd> tau = optimizer.EvalTau(state);
+  const std::vector<VectorX<AutoDiffXd>> tau_ad = optimizer_ad.EvalTau(state_ad);
+  
+  const double kEpsilon = std::numeric_limits<double>::epsilon();
+  EXPECT_TRUE(CompareMatrices(tau[0], math::ExtractValue(tau_ad[0]),
+                              kEpsilon, MatrixCompareType::relative));
+
+  // Compute the exact gradients ∂τ/∂q = ∂/∂q ID(q,v(q),a(q),γ(q)) with autodiff
+  const MatrixXd dtau_dq_ad = math::ExtractGradient(tau_ad[0]);
+
+  // Compute ∂τ/∂q = ∂/∂q ID(q,v(q),a(q),γ(q)) with finite differences
+  const InverseDynamicsPartials<double>& id_partials = optimizer.EvalInverseDynamicsPartials(state);
+  const MatrixXd dtau_dq_fd = id_partials.dtau_dqp[0];
+
+  //std::cout << "finite difference relative error: " << (dtau_dq_fd - dtau_dq_ad).norm() / dtau_dq_ad.norm() << std::endl;
+  
+  // Compute the first term ∂/∂q ID(q,v(q),a(q),γ) with autodiff
+  const std::vector<VectorX<AutoDiffXd>>& v_ad = optimizer_ad.EvalV(state_ad);
+  const std::vector<VectorX<AutoDiffXd>>& a_ad = optimizer_ad.EvalA(state_ad);
+  plant_ad.SetPositions(context_ad, q_ad[1]);
+  plant_ad.SetVelocities(context_ad, v_ad[1]);
+  multibody::MultibodyForces<AutoDiffXd> forces_ad(plant_ad);
+  plant_ad.CalcForceElementsContribution(*context_ad, &forces_ad);
+
+  // Compute γ with autodiff type, but considering q to be fixed
+  const std::vector<VectorXd>& v = optimizer.EvalV(state);
+  plant_ad.SetPositions(context_ad,
+                        static_cast<VectorX<AutoDiffXd>>(q[1]));
+  plant_ad.SetVelocities(context_ad,
+                         static_cast<VectorX<AutoDiffXd>>(v[1]));
+  TrajectoryOptimizerTester::CalcContactForceContribution(optimizer_ad, *context_ad,
+                                                          &forces_ad);
+
+  plant_ad.SetPositions(context_ad, q_ad[1]);
+  plant_ad.SetVelocities(context_ad, v_ad[1]);
+  const VectorX<AutoDiffXd> ID_ad = plant_ad.CalcInverseDynamics(*context_ad, a_ad[0], forces_ad);
+
+  // Sanity check that ID(q,v(q),a(q),γ) is correct
+  EXPECT_TRUE(CompareMatrices(tau[0], math::ExtractValue(ID_ad),
+                              kEpsilon, MatrixCompareType::relative));
+
+  std::cout << dtau_dq_ad << std::endl;
+  std::cout << std::endl;
+  std::cout << math::ExtractGradient(ID_ad) << std::endl;
+  std::cout << std::endl;
+  std::cout << math::ExtractGradient(ID_ad) - dtau_dq_ad << std::endl;
+  
+  // Compute the first term ∂/∂q ID(q,v(q),a(q),γ) with finite differences
+
+  // Compute the second term J'∂γ/∂q analytically
+
+}
 
 /**
  * Test our assumption of a constant contact jacobian by comparing derivatives
@@ -155,6 +274,9 @@ GTEST_TEST(TrajectoryOptimizerTest, ContactJacobianConstant) {
       FindResourceOrThrow("drake/traj_opt/examples/spinner_sphere.urdf"));
   plant.Finalize();
   auto diagram = builder.Build();
+  auto diagram_context= diagram->CreateDefaultContext();
+  Context<double>* context =
+      &diagram->GetMutableSubsystemContext(plant, diagram_context.get());
 
   // Don't need a detailed optimization problem, since we're just testing dynamics
   const int num_steps = 1;
@@ -230,10 +352,9 @@ GTEST_TEST(TrajectoryOptimizerTest, ContactJacobianConstant) {
 
   // Alternative way to compute τ_c.
   multibody::MultibodyForces<double> forces(plant);
-  TrajectoryOptimizerTester::CalcContactForceContribution(optimizer, &forces);
+  plant.SetPositions(context, q[1]);
+  TrajectoryOptimizerTester::CalcContactForceContribution(optimizer, *context, &forces);
   const VectorXd vdot = VectorXd::Zero(plant.num_velocities());
-  auto context = plant.CreateDefaultContext();
-  plant.SetPositions(context.get(), q[1]);
   const VectorXd tauc_alt = -plant.CalcInverseDynamics(*context, vdot, forces);
 
   std::cout << "τ_c [double]   : " << tauc.transpose() << std::endl;

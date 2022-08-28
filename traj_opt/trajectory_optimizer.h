@@ -362,11 +362,12 @@ class TrajectoryOptimizer {
    * Calculate the force contribution from contacts for each body, and add them
    * into the given MultibodyForces object.
    *
+   * @param context context, consistent with the plant, which stores q and v
    * @param forces total forces applied to the plant, which we will add into.
-   * @pre generalized positions (q) and velocities (v) have been properly set in
-   *      context_
+   * @pre context must be connected to a scene graph for geometry queries
    */
-  void CalcContactForceContribution(MultibodyForces<T>* forces) const;
+  void CalcContactForceContribution(const Context<T>& context,
+                                    MultibodyForces<T>* forces) const;
 
   /* Computes signed distance data for all time configurations in `state`. */
   void CalcSdfData(
