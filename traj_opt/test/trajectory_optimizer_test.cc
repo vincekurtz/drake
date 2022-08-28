@@ -237,15 +237,28 @@ GTEST_TEST(TrajectoryOptimizerTest, ContactGradientMethods) {
   EXPECT_TRUE(CompareMatrices(tau[0], math::ExtractValue(ID_ad),
                               kEpsilon, MatrixCompareType::relative));
 
+  const MatrixXd dID_dq_ad = math::ExtractGradient(ID_ad);
+
+  std::cout << "∂τ/∂q = ∂/∂q ID(q,v(q),a(q),γ(q)) :" << std::endl;
   std::cout << dtau_dq_ad << std::endl;
   std::cout << std::endl;
-  std::cout << math::ExtractGradient(ID_ad) << std::endl;
+  std::cout << "∂/∂q ID(q,v(q),a(q),y) :" << std::endl;
+  std::cout << dID_dq_ad << std::endl;
   std::cout << std::endl;
-  std::cout << math::ExtractGradient(ID_ad) - dtau_dq_ad << std::endl;
   
-  // Compute the first term ∂/∂q ID(q,v(q),a(q),γ) with finite differences
+  // Compute J'∂γ/∂q analytically
+  const TrajectoryOptimizerCache<double>::ContactJacobianData& jacobian_data =
+      optimizer.EvalContactJacobianData(state);
+  const std::vector<VectorXd>& dgamma_dphi =
+      optimizer.EvalContactImpulsePartialsSignedDistance(state);
 
-  // Compute the second term J'∂γ/∂q analytically
+  const MatrixXd J_dgdq = jacobian_data.J[1].transpose() * dgamma_dphi[1].asDiagonal() * jacobian_data.J[1];
+
+  std::cout << "J'∂y/∂q :"  << std::endl;
+  std::cout << J_dgdq << std::endl;
+  std::cout << std::endl;
+
+
 
 }
 
