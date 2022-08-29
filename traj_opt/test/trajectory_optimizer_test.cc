@@ -243,18 +243,32 @@ GTEST_TEST(TrajectoryOptimizerTest, ContactGradientMethods) {
   // Check that we get a similar result with ∂γ/∂q computed analytically
   const std::vector<VectorXd>& dgamma_dphi =
       optimizer.EvalContactImpulsePartialsSignedDistance(state);
+  const MatrixXd J_dgdq_analytical =
+      jacobian_data.J[1].transpose() * dgamma_dphi[1].asDiagonal() * jacobian_data.J[1];
 
-  std::cout << dgamma_dphi[0]*jacobian_data.J[0] << std::endl;
-  std::cout << dgamma_dphi[0]*jacobian_data.J[1] << std::endl;
-  std::cout << dgamma_dphi[1]*jacobian_data.J[0] << std::endl;
-  std::cout << dgamma_dphi[1]*jacobian_data.J[1] << std::endl;
-  std::cout << math::ExtractGradient(gamma_ad[1]) << std::endl;
+  EXPECT_TRUE(CompareMatrices(J_dgdq, J_dgdq_analytical,
+                              10*kEpsilon, MatrixCompareType::relative));
+  EXPECT_TRUE(CompareMatrices(dJg_dq, dJ_dq_g + J_dgdq_analytical,
+                              10*kEpsilon, MatrixCompareType::relative));
 
+  // Compute ID(q,v(q),a(q)) - J(q)'γ with autodiff, where γ is constant
+  const std::vector<VectorX<AutoDiffXd>>& v_ad = optimizer_ad.EvalV(state_ad);
+  const std::vector<VectorX<AutoDiffXd>>& a_ad = optimizer_ad.EvalA(state_ad);
+  plant_ad.SetPositions(context_ad, q_ad[1]);
+  plant_ad.SetVelocities(context_ad, v_ad[1]);
+  multibody::MultibodyForces<AutoDiffXd> forces_ad(plant_ad);
+  plant_ad.CalcForceElementsContribution(*context_ad, &forces_ad);
+  const VectorX<AutoDiffXd> tau_gamma_fixed =
+      plant_ad.CalcInverseDynamics(*context_ad, a_ad[0], forces_ad) - Jg_J_autodiff;
 
+  EXPECT_TRUE(CompareMatrices(tau[0], math::ExtractValue(tau_gamma_fixed),
+                              10*kEpsilon, MatrixCompareType::relative));
 
+  // Verify that ∂τ/∂q = ∂/∂q[ ID(q,v(q),a(q)) - J(q)'γ ] - J'∂γ/∂q
+  const MatrixXd dtau_dq_decomposed = math::ExtractGradient(tau_gamma_fixed) - J_dgdq_analytical;
+  EXPECT_TRUE(CompareMatrices(dtau_dq_ad, dtau_dq_decomposed,
+                              100*kEpsilon, MatrixCompareType::relative));
 
-
-  (void) context_ad;
 }
 
 /**
@@ -795,7 +809,7 @@ GTEST_TEST(TrajectoryOptimizerTest, ContactImpulsePartials) {
     // Compute ∂γ/∂ϕ for this timestep analytically to verify
     if (phi_expected < 0) {
       dgamma_dphi_expected[2] =
-          F / pow(delta, n) * n * pow(phi_expected, n - 1);
+          - F / delta * n * pow(-phi_expected / delta, n - 1);
     } else {
       dgamma_dphi_expected[2] = 0;
     }
