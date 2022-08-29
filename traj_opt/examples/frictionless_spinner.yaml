@@ -37,7 +37,7 @@ proximal_operator : false   # whether to add a proximal operator cost term
 rho_proximal : 1e-5         # the proximal cost multiplier
 
 # Type of gradients to use ("finite_differences" or "analytical")
-gradient_strategy : "analytical"
+gradient_strategy : "finite_differences"
 
 # Playback/visualization parameters
 play_optimal_trajectory : true

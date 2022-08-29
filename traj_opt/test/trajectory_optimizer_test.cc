@@ -173,13 +173,13 @@ GTEST_TEST(TrajectoryOptimizerTest, ContactGradientMethods) {
   TrajectoryOptimizer<double> optimizer(diagram.get(), &plant, opt_prob,
                                      solver_params);
   TrajectoryOptimizerState<double> state = optimizer.CreateState();
+
   auto diagram_ad = systems::System<double>::ToAutoDiffXd(*diagram);
   const auto& plant_ad = dynamic_cast<const MultibodyPlant<AutoDiffXd>&>(
       diagram_ad->GetSubsystemByName(plant.get_name()));
   auto diagram_context_ad = diagram_ad->CreateDefaultContext();
   Context<AutoDiffXd>* context_ad =
       &diagram_ad->GetMutableSubsystemContext(plant_ad, diagram_context_ad.get());
-
   TrajectoryOptimizer<AutoDiffXd> optimizer_ad(diagram_ad.get(), &plant_ad,
                                             opt_prob, solver_params);
   TrajectoryOptimizerState<AutoDiffXd> state_ad = optimizer_ad.CreateState();
@@ -268,6 +268,73 @@ GTEST_TEST(TrajectoryOptimizerTest, ContactGradientMethods) {
   const MatrixXd dtau_dq_decomposed = math::ExtractGradient(tau_gamma_fixed) - J_dgdq_analytical;
   EXPECT_TRUE(CompareMatrices(dtau_dq_ad, dtau_dq_decomposed,
                               100*kEpsilon, MatrixCompareType::relative));
+
+  // Compute ID(q, v(q), a(q), γ) with autodiff, where γ is constant
+  //multibody::MultibodyForces<AutoDiffXd> forces_gamma_fixed(plant_ad);
+  //plant_ad.SetPositions(context_ad, q_ad[1]);
+  //plant_ad.SetVelocities(context_ad, v_ad[1]);
+  //plant_ad.CalcForceElementsContribution(*context_ad, &forces_gamma_fixed);
+  //forces_gamma_fixed.mutable_generalized_forces() += Jg_J_autodiff;
+
+  //const std::vector<VectorXd>& v = optimizer.EvalV(state);
+  //plant_ad.SetPositions(context_ad, static_cast<VectorX<AutoDiffXd>>(q[1]));
+  //plant_ad.SetVelocities(context_ad, static_cast<VectorX<AutoDiffXd>>(v[1]));
+  //TrajectoryOptimizerTester::CalcContactForceContribution(optimizer_ad, *context_ad, &forces_gamma_fixed);
+
+  //plant_ad.SetPositions(context_ad, q_ad[1]);
+  //plant_ad.SetVelocities(context_ad, v_ad[1]);
+  //const VectorX<AutoDiffXd> tau_gamma_fixed_alt =
+  //    plant_ad.CalcInverseDynamics(*context_ad, a_ad[0], forces_gamma_fixed);
+  //const MatrixXd dtau_dq_decomposed_alt = math::ExtractGradient(tau_gamma_fixed_alt) - J_dgdq_analytical;
+
+  //std::cout << "ID(q,v(q),a(q)) - J(q)'γ:" << std::endl;
+  //std::cout << math::ExtractValue(tau_gamma_fixed) << std::endl;
+  //std::cout << std::endl;
+  //std::cout << "ID(q,v(q),a(q),γ):" << std::endl;
+  //std::cout << math::ExtractValue(tau_gamma_fixed_alt) << std::endl;
+  //std::cout << std::endl;
+  //std::cout << "∂/∂q[ ID(q,v(q),a(q)) - J(q)'γ ]:" << std::endl;
+  //std::cout << math::ExtractGradient(tau_gamma_fixed) << std::endl;
+  //std::cout << std::endl;
+  //std::cout << "∂/∂q[ ID(q,v(q),a(q),γ) ]:" << std::endl;
+  //std::cout << math::ExtractGradient(tau_gamma_fixed_alt) << std::endl;
+  //std::cout << std::endl;
+
+  //EXPECT_TRUE(CompareMatrices(math::ExtractValue(tau_gamma_fixed),
+  //                            math::ExtractValue(tau_gamma_fixed_alt),
+  //                            10 * kEpsilon, MatrixCompareType::relative));
+  //EXPECT_TRUE(CompareMatrices(math::ExtractGradient(tau_gamma_fixed),
+  //                            math::ExtractGradient(tau_gamma_fixed_alt),
+  //                            10 * kEpsilon, MatrixCompareType::relative));
+  //EXPECT_TRUE(CompareMatrices(dtau_dq_ad,
+  //                            dtau_dq_decomposed_alt,
+  //                            100 * kEpsilon, MatrixCompareType::relative));
+
+  // Compare τ_c = -J(q)'γ and τ_c = ID(q, 0, 0, γ), where γ is treated as constant
+  const VectorX<AutoDiffXd> tau_c = -Jg_J_autodiff;
+  
+  multibody::MultibodyForces<AutoDiffXd> forces_gamma_fixed(plant_ad);
+  plant_ad.SetPositions(context_ad, static_cast<VectorX<AutoDiffXd>>(q[1]));
+  plant_ad.SetVelocities(context_ad, VectorX<AutoDiffXd>::Zero(3));
+  TrajectoryOptimizerTester::CalcContactForceContribution(optimizer_ad, *context_ad, &forces_gamma_fixed);
+  plant_ad.SetPositions(context_ad, q_ad[1]);
+  const VectorX<AutoDiffXd> tau_c_id = plant_ad.CalcInverseDynamics(*context_ad, VectorX<AutoDiffXd>::Zero(3), forces_gamma_fixed);
+
+  std::cout << "-J(q)'γ       : ";
+  std::cout << math::ExtractValue(tau_c).transpose() << std::endl;
+  std::cout << std::endl;
+  std::cout << "ID(q, 0, 0 γ) : ";
+  std::cout << math::ExtractValue(tau_c_id).transpose() << std::endl;
+  std::cout << std::endl;
+  std::cout << std::endl;
+  std::cout << "∂/∂q[-J(q)'γ]       : " << std::endl;
+  std::cout << math::ExtractGradient(tau_c) << std::endl;
+  std::cout << std::endl;
+  std::cout << "∂/∂q[ID(q, 0, 0 γ)] : " << std::endl;
+  std::cout << math::ExtractGradient(tau_c_id) << std::endl;
+  std::cout << std::endl;
+
+  // Compute ∂/∂q[ ID(q,v(q),a(q),γ) ] with finite differences
 
 }
 
