@@ -107,7 +107,7 @@ class TrajOptExample {
     solver_params.proximal_operator = options.proximal_operator;
     solver_params.rho_proximal = options.rho_proximal;
 
-    // Lagrangian solver parameters
+    // Augmented Lagrangian solver parameters
     solver_params.augmented_lagrangian = options.augmented_lagrangian;
     if (opt_prob.unactuated_dof.empty()) {
       solver_params.augmented_lagrangian = false;
@@ -163,10 +163,15 @@ class TrajOptExample {
     if (status != SolverFlag::kSuccess) {
       std::cout << "Solver failed!" << std::endl;
     } else {
+      double total_time = 0.0;
       for (int i = 0; i < static_cast<int>(stats.solve_time.size()); ++i) {
-        std::cout << "Major iteration " << i << " was solved in "
-                  << stats.solve_time[i] << " seconds." << std::endl;
+        if (options.augmented_lagrangian) {
+          std::cout << "Major iteration " << i << " was solved in "
+                    << stats.solve_time[i] << " seconds.\n";
+        }
+        total_time += stats.solve_time[i];
       }
+      std::cout << "Solved in " << total_time << " seconds.\n";
     }
 
     // Report maximum torques on all DoFs
