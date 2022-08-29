@@ -58,6 +58,13 @@ struct TrajOptExampleParams {
     a->Visit(DRAKE_NVP(save_lineplot_data));
     a->Visit(DRAKE_NVP(lineplot_q_min));
     a->Visit(DRAKE_NVP(lineplot_q_max));
+    a->Visit(DRAKE_NVP(augmented_lagrangian));
+    a->Visit(DRAKE_NVP(update_init_guess));
+    a->Visit(DRAKE_NVP(max_major_iterations));
+    a->Visit(DRAKE_NVP(lambda0));
+    a->Visit(DRAKE_NVP(mu0));
+    a->Visit(DRAKE_NVP(mu_expand_coef));
+    a->Visit(DRAKE_NVP(constraint_tol));
   }
   std::vector<double> q_init;
   std::vector<double> v_init;
@@ -97,7 +104,7 @@ struct TrajOptExampleParams {
   bool save_lineplot_data = false;
   double lineplot_q_min = 0;
   double lineplot_q_max = 1;
-  bool augmented_lagrangian = true;
+  bool augmented_lagrangian = false;
   bool update_init_guess = true;
   int max_major_iterations = 5;
   double lambda0 = 0;

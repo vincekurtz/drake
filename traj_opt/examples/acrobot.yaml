@@ -33,11 +33,19 @@ time_step : 0.05  # Discretization timestep (seconds)
 num_steps : 40    # number of timesteps
 
 # Solver parameters
-max_iters : 500             # maximum Gauss-Newton iterations
-method : "trust_region"     # solver method, {linesearch, trust_region}
-linesearch : "armijo"       # linesearch strategy, {armino, backtracking}
-proximal_operator : false   # whether to add a proximal operator cost term
-rho_proximal : 1e-8         # the proximal cost multiplier
+max_iters : 30                # maximum Gauss-Newton iterations
+method : "trust_region"       # solver method, {linesearch, trust_region}
+linesearch : "armijo"         # linesearch strategy, {armino, backtracking}
+proximal_operator : false     # whether to add a proximal operator cost term
+rho_proximal : 1e-8           # the proximal cost multiplier
+# Augmented Lagrangian parameters
+augmented_lagrangian : true   # enable/disable the augmented Lagrangian (AL) solver
+update_init_guess : true      # use the Gauss-Newton solution as the initial guess
+max_major_iterations : 10     # the maximum number of AL iterations
+lambda0 : 0.0                 # the initial Lagrange multiplier value
+mu0 : 1e1                     # the initial penalty parameter value
+mu_expand_coef : 1e1          # the expansion multiplier for the penalty parameter
+constraint_tol : 1e-4         # constraint satisfaction tolerance on the infinity norm
 
 # Playback/visualization parameters
 play_optimal_trajectory : true
