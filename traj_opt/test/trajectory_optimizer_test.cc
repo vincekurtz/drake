@@ -211,55 +211,50 @@ GTEST_TEST(TrajectoryOptimizerTest, ContactGradientMethods) {
   const MatrixXd dtau_dq_fd = id_partials.dtau_dqp[0];
 
   //std::cout << "finite difference relative error: " << (dtau_dq_fd - dtau_dq_ad).norm() / dtau_dq_ad.norm() << std::endl;
-  
-  // Compute the first term ∂/∂q ID(q,v(q),a(q),γ) with autodiff
-  const std::vector<VectorX<AutoDiffXd>>& v_ad = optimizer_ad.EvalV(state_ad);
-  const std::vector<VectorX<AutoDiffXd>>& a_ad = optimizer_ad.EvalA(state_ad);
-  plant_ad.SetPositions(context_ad, q_ad[1]);
-  plant_ad.SetVelocities(context_ad, v_ad[1]);
-  multibody::MultibodyForces<AutoDiffXd> forces_ad(plant_ad);
-  plant_ad.CalcForceElementsContribution(*context_ad, &forces_ad);
 
-  // Compute γ with autodiff type, but considering q to be fixed
-  const std::vector<VectorXd>& v = optimizer.EvalV(state);
-  plant_ad.SetPositions(context_ad,
-                        static_cast<VectorX<AutoDiffXd>>(q[1]));
-  plant_ad.SetVelocities(context_ad,
-                         static_cast<VectorX<AutoDiffXd>>(v[1]));
-  TrajectoryOptimizerTester::CalcContactForceContribution(optimizer_ad, *context_ad,
-                                                          &forces_ad);
-
-  plant_ad.SetPositions(context_ad, q_ad[1]);
-  plant_ad.SetVelocities(context_ad, v_ad[1]);
-  const VectorX<AutoDiffXd> ID_ad = plant_ad.CalcInverseDynamics(*context_ad, a_ad[0], forces_ad);
-
-  // Sanity check that ID(q,v(q),a(q),γ) is correct
-  EXPECT_TRUE(CompareMatrices(tau[0], math::ExtractValue(ID_ad),
-                              kEpsilon, MatrixCompareType::relative));
-
-  const MatrixXd dID_dq_ad = math::ExtractGradient(ID_ad);
-
-  std::cout << "∂τ/∂q = ∂/∂q ID(q,v(q),a(q),γ(q)) :" << std::endl;
-  std::cout << dtau_dq_ad << std::endl;
-  std::cout << std::endl;
-  std::cout << "∂/∂q ID(q,v(q),a(q),y) :" << std::endl;
-  std::cout << dID_dq_ad << std::endl;
-  std::cout << std::endl;
-  
-  // Compute J'∂γ/∂q analytically
+  // Check that ∂/∂q[ J(q)'*γ(q) ] = J' * ∂γ/∂q + ∂J'/∂q * γ
   const TrajectoryOptimizerCache<double>::ContactJacobianData& jacobian_data =
       optimizer.EvalContactJacobianData(state);
+  const TrajectoryOptimizerCache<AutoDiffXd>::ContactJacobianData&
+      jacobian_data_ad = optimizer_ad.EvalContactJacobianData(state_ad);
+  const std::vector<VectorXd>& gamma = optimizer.EvalContactImpulses(state);
+  const std::vector<VectorX<AutoDiffXd>>& gamma_ad =
+      optimizer_ad.EvalContactImpulses(state_ad);
+
+  const VectorX<AutoDiffXd> Jg_all_autodiff = jacobian_data_ad.J[1].transpose()*gamma_ad[1];
+  const VectorX<AutoDiffXd> Jg_J_autodiff = jacobian_data_ad.J[1].transpose()*gamma[1];
+  const VectorX<AutoDiffXd> Jg_g_autodiff = jacobian_data.J[1].transpose()*gamma_ad[1];
+  const VectorX<double> Jg = jacobian_data.J[1].transpose()*gamma[1];
+
+  EXPECT_TRUE(CompareMatrices(Jg, math::ExtractValue(Jg_all_autodiff),
+                              kEpsilon, MatrixCompareType::relative));
+  EXPECT_TRUE(CompareMatrices(Jg, math::ExtractValue(Jg_J_autodiff),
+                              kEpsilon, MatrixCompareType::relative));
+  EXPECT_TRUE(CompareMatrices(Jg, math::ExtractValue(Jg_g_autodiff),
+                              kEpsilon, MatrixCompareType::relative));
+
+  const MatrixXd dJg_dq = math::ExtractGradient(Jg_all_autodiff);  // ∂/∂q[J'*γ]
+  const MatrixXd dJ_dq_g = math::ExtractGradient(Jg_J_autodiff);   // ∂/∂q[J]'*γ
+  const MatrixXd J_dgdq = math::ExtractGradient(Jg_g_autodiff);    // J'*∂/∂q[γ]
+  
+  EXPECT_TRUE(CompareMatrices(dJg_dq, dJ_dq_g + J_dgdq,
+                              10*kEpsilon, MatrixCompareType::relative));
+
+  // Check that we get a similar result with ∂γ/∂q computed analytically
   const std::vector<VectorXd>& dgamma_dphi =
       optimizer.EvalContactImpulsePartialsSignedDistance(state);
 
-  const MatrixXd J_dgdq = jacobian_data.J[1].transpose() * dgamma_dphi[1].asDiagonal() * jacobian_data.J[1];
+  std::cout << dgamma_dphi[0]*jacobian_data.J[0] << std::endl;
+  std::cout << dgamma_dphi[0]*jacobian_data.J[1] << std::endl;
+  std::cout << dgamma_dphi[1]*jacobian_data.J[0] << std::endl;
+  std::cout << dgamma_dphi[1]*jacobian_data.J[1] << std::endl;
+  std::cout << math::ExtractGradient(gamma_ad[1]) << std::endl;
 
-  std::cout << "J'∂y/∂q :"  << std::endl;
-  std::cout << J_dgdq << std::endl;
-  std::cout << std::endl;
 
 
 
+
+  (void) context_ad;
 }
 
 /**
