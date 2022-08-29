@@ -1402,6 +1402,7 @@ T TrajectoryOptimizer<T>::CalcTrustRatio(
   scratch_state->AddToQ(dq);
   const T L_old = EvalCost(state);           // L(q)
   const T L_new = EvalCost(*scratch_state);  // L(q + dq)
+
   const T actual_reduction = L_old - L_new;
 
   const double eps = std::numeric_limits<T>::epsilon();
@@ -1514,8 +1515,9 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
 
 template <typename T>
 SolverFlag TrajectoryOptimizer<T>::SolveGaussNewton(
-    TrajectoryOptimizerState<T>&, const std::vector<VectorX<T>>&,
-    TrajectoryOptimizerSolution<T>*, TrajectoryOptimizerStats<T>*) const {
+    TrajectoryOptimizerState<T>&, TrajectoryOptimizerState<T>&,
+    const std::vector<VectorX<T>>&, TrajectoryOptimizerSolution<T>*,
+    TrajectoryOptimizerStats<T>*) const {
   throw std::runtime_error(
       "TrajectoryOptimizer::SolveGaussNewton only supports T=double.");
 }
@@ -1523,6 +1525,7 @@ SolverFlag TrajectoryOptimizer<T>::SolveGaussNewton(
 template <>
 SolverFlag TrajectoryOptimizer<double>::SolveGaussNewton(
     TrajectoryOptimizerState<double>& state,
+    TrajectoryOptimizerState<double>& scratch_state,
     const std::vector<VectorXd>& q_guess,
     TrajectoryOptimizerSolution<double>* solution,
     TrajectoryOptimizerStats<double>* stats) const {
@@ -1534,9 +1537,9 @@ SolverFlag TrajectoryOptimizer<double>::SolveGaussNewton(
   if (!params_.augmented_lagrangian) DRAKE_DEMAND(stats->is_empty());
 
   if (params_.method == SolverMethod::kLinesearch) {
-    return SolveWithLinesearch(state, q_guess, solution, stats);
+    return SolveWithLinesearch(state, scratch_state, q_guess, solution, stats);
   } else if (params_.method == SolverMethod::kTrustRegion) {
-    return SolveWithTrustRegion(state, q_guess, solution, stats);
+    return SolveWithTrustRegion(state, scratch_state, q_guess, solution, stats);
   } else {
     throw std::runtime_error("Unsupported solver strategy!");
   }
@@ -1544,8 +1547,9 @@ SolverFlag TrajectoryOptimizer<double>::SolveGaussNewton(
 
 template <typename T>
 SolverFlag TrajectoryOptimizer<T>::SolveWithLinesearch(
-    TrajectoryOptimizerState<T>&, const std::vector<VectorX<T>>&,
-    TrajectoryOptimizerSolution<T>*, TrajectoryOptimizerStats<T>*) const {
+    TrajectoryOptimizerState<T>&, TrajectoryOptimizerState<T>&,
+    const std::vector<VectorX<T>>&, TrajectoryOptimizerSolution<T>*,
+    TrajectoryOptimizerStats<T>*) const {
   throw std::runtime_error(
       "TrajectoryOptimizer::SolveWithLinesearch only supports T=double.");
 }
@@ -1553,14 +1557,12 @@ SolverFlag TrajectoryOptimizer<T>::SolveWithLinesearch(
 template <>
 SolverFlag TrajectoryOptimizer<double>::SolveWithLinesearch(
     TrajectoryOptimizerState<double>& state,
+    TrajectoryOptimizerState<double>& scratch_state,
     const std::vector<VectorXd>& q_guess,
     TrajectoryOptimizerSolution<double>* solution,
     TrajectoryOptimizerStats<double>* stats) const {
   // Set q to initial guess
   state.set_q(q_guess);
-
-  // Allocate a separate state variable for linesearch
-  TrajectoryOptimizerState<double> scratch_state = CreateState();
 
   // Allocate cost and search direction
   double cost;
@@ -1719,8 +1721,9 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithLinesearch(
 
 template <typename T>
 SolverFlag TrajectoryOptimizer<T>::SolveWithTrustRegion(
-    TrajectoryOptimizerState<T>&, const std::vector<VectorX<T>>&,
-    TrajectoryOptimizerSolution<T>*, TrajectoryOptimizerStats<T>*) const {
+    TrajectoryOptimizerState<T>&, TrajectoryOptimizerState<T>&,
+    const std::vector<VectorX<T>>&, TrajectoryOptimizerSolution<T>*,
+    TrajectoryOptimizerStats<T>*) const {
   throw std::runtime_error(
       "TrajectoryOptimizer::SolveWithTrustRegion only supports T=double.");
 }
@@ -1728,15 +1731,13 @@ SolverFlag TrajectoryOptimizer<T>::SolveWithTrustRegion(
 template <>
 SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
     TrajectoryOptimizerState<double>& state,
+    TrajectoryOptimizerState<double>& scratch_state,
     const std::vector<VectorXd>& q_guess,
     TrajectoryOptimizerSolution<double>* solution,
     TrajectoryOptimizerStats<double>* stats) const {
   using std::min;
   // Set q to initial guess
   state.set_q(q_guess);
-
-  // Allocate a separate state variable for computations like L(q + dq)
-  TrajectoryOptimizerState<double> scratch_state = CreateState();
 
   // Allocate the update vector q_{k+1} = q_k + dq
   VectorXd dq(plant().num_positions() * (num_steps() + 1));
@@ -1899,13 +1900,15 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
   auto q_init = q_guess;
   // Allocate a state variable to keep track of optimization
   TrajectoryOptimizerState<double> state = CreateState();
+  // Allocate a separate state variable for linesearch/trust-region computations
+  TrajectoryOptimizerState<double> scratch_state = CreateState();
 
   // Outer loop
   for (int i = 0; i < params_.max_major_iterations; ++i) {
     if (params_.augmented_lagrangian) {
       // Report the major iteration
       if (params_.verbose) {
-        std::cout << "\nMajor iteration: " << i << '\n';
+        std::cout << "\nMajor iteration: " << i << std::endl;
         std::cout
             << "-------------------------------------------------------------"
                "---------"
@@ -1914,12 +1917,16 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
       // Assign augmented Lagrangian parameters
       state.lambda_iter_ = state.lambda_[i];
       state.mu_iter_ = state.mu_[i];
+      scratch_state.lambda_iter_ = state.lambda_iter_;
+      scratch_state.mu_iter_ = state.mu_iter_;
     }
 
     // Invalidate the state cache
     state.invalidate_cache();
+    scratch_state.invalidate_cache();
+
     // Solve the sub-problem
-    status = SolveGaussNewton(state, q_init, solution, stats);
+    status = SolveGaussNewton(state, scratch_state, q_init, solution, stats);
 
     // Terminate if augmented Lagrangian is disabled
     // TODO(aykut): Consider terminating if the solver failed
@@ -1942,14 +1949,14 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
       if (params_.verbose) {
         for (int j = 0; j < num_eq_constraints(); ++j) {
           std::cout << "lambda " << j << ": " << state.lambda_[i](j)
-                    << "\t-->  " << state.lambda_[i + 1](j) << '\n';
+                    << "\t-->  " << state.lambda_[i + 1](j) << std::endl;
         }
       }
 
       // Check for constraint satisfaction w.r.t. a tolerance
       if (violations.lpNorm<Eigen::Infinity>() < params_.constraint_tol) {
         std::cout << "\nStopping b/c the max. constraint violation "
-                  << violations.maxCoeff()
+                  << violations.lpNorm<Eigen::Infinity>()
                   << " is smaller than the constraint satisfaction tolerance "
                   << params_.constraint_tol << "\n\n";
         return status;
@@ -1958,16 +1965,12 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
 
       // Update the penalty parameter
       state.mu_[i + 1] = params_.mu_expand_coef * state.mu_[i];
-      std::cout << "\nmu: " << state.mu_[i] << "\t-->  " << state.mu_[i + 1]
-                << '\n';
+      if (params_.verbose)
+        std::cout << "\nmu: " << state.mu_[i] << "\t-->  " << state.mu_[i + 1]
+                  << std::endl;
 
       // Update the initial guess
       if (params_.update_init_guess) q_init = solution->q;
-    }
-
-    if (params_.verbose) {
-      std::cout << "\nPress Enter to continue...\n";
-      std::cin.get();
     }
   }
 

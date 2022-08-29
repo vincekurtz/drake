@@ -152,6 +152,8 @@ class TrajectoryOptimizer {
    * may or may not be dynamically feasible.
    *
    * @param state optimizer state, including q, v, tau, gradients, etc.
+   * @param scratch_state a separate state variable for linesearch/trust-region
+   * computations
    * @param q_guess a sequence of generalized positions corresponding to the
    * initial guess
    * @param solution a container for the optimal solution, including velocities
@@ -161,6 +163,7 @@ class TrajectoryOptimizer {
    * @return SolverFlag
    */
   SolverFlag SolveGaussNewton(TrajectoryOptimizerState<T>& state,
+                              TrajectoryOptimizerState<T>& scratch_state,
                               const std::vector<VectorX<T>>& q_guess,
                               TrajectoryOptimizerSolution<T>* solution,
                               TrajectoryOptimizerStats<T>* stats) const;
@@ -221,6 +224,7 @@ class TrajectoryOptimizer {
    * linesearch strategy.
    *
    * @param state optimizer state, including q, v, tau, gradients, etc.
+   * @param scratch_state a separate state variable for the linesearch
    * @param q_guess a sequence of generalized positions corresponding to the
    * initial guess
    * @param solution a container for the optimal solution, including velocities
@@ -230,6 +234,7 @@ class TrajectoryOptimizer {
    * @return SolverFlag
    */
   SolverFlag SolveWithLinesearch(TrajectoryOptimizerState<T>& state,
+                                 TrajectoryOptimizerState<T>& scratch_state,
                                  const std::vector<VectorX<T>>& q_guess,
                                  TrajectoryOptimizerSolution<T>* solution,
                                  TrajectoryOptimizerStats<T>* stats) const;
@@ -239,6 +244,7 @@ class TrajectoryOptimizer {
    * region strategy.
    *
    * @param state optimizer state, including q, v, tau, gradients, etc.
+   * @param scratch_state scratch state variable used for the trust region
    * @param q_guess a sequence of generalized positions corresponding to the
    * initial guess
    * @param solution a container for the optimal solution, including velocities
@@ -248,6 +254,7 @@ class TrajectoryOptimizer {
    * @return SolverFlag
    */
   SolverFlag SolveWithTrustRegion(TrajectoryOptimizerState<T>& state,
+                                  TrajectoryOptimizerState<T>& scratch_state,
                                   const std::vector<VectorX<T>>& q_guess,
                                   TrajectoryOptimizerSolution<T>* solution,
                                   TrajectoryOptimizerStats<T>* stats) const;
@@ -713,14 +720,14 @@ class TrajectoryOptimizer {
 // Declare template specializations
 template <>
 SolverFlag TrajectoryOptimizer<double>::SolveWithLinesearch(
-    TrajectoryOptimizerState<double>&, const std::vector<VectorXd>&,
-    TrajectoryOptimizerSolution<double>*,
+    TrajectoryOptimizerState<double>&, TrajectoryOptimizerState<double>&,
+    const std::vector<VectorXd>&, TrajectoryOptimizerSolution<double>*,
     TrajectoryOptimizerStats<double>*) const;
 
 template <>
 SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
-    TrajectoryOptimizerState<double>&, const std::vector<VectorXd>&,
-    TrajectoryOptimizerSolution<double>*,
+    TrajectoryOptimizerState<double>&, TrajectoryOptimizerState<double>&,
+    const std::vector<VectorXd>&, TrajectoryOptimizerSolution<double>*,
     TrajectoryOptimizerStats<double>*) const;
 
 }  // namespace traj_opt
