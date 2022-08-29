@@ -9,6 +9,7 @@
 
 #include "drake/common/eigen_types.h"
 #include "drake/multibody/plant/multibody_plant.h"
+#include "drake/traj_opt/contact_force_data.h"
 #include "drake/traj_opt/inverse_dynamics_partials.h"
 #include "drake/traj_opt/penta_diagonal_matrix.h"
 #include "drake/traj_opt/problem_definition.h"
@@ -369,6 +370,38 @@ class TrajectoryOptimizer {
   void CalcContactForceContribution(const Context<T>& context,
                                     MultibodyForces<T>* forces) const;
 
+  /**
+   * Compute contact forces (fn, ft) and contact pairs for the system in a
+   * configuration defined by the given context.
+   *
+   * @param context context, consistent with the plant, defines the plant state
+   * @param contact_data vector containing contact forces and geometry
+   * information for each contact pair.
+   */
+  void CalcContactForceData(
+      const Context<T>& context,
+      std::vector<ContactForceData<T>>* contact_data) const;
+
+  /**
+   * Add the given contact forces into the given multibody forces, based on the
+   * state as defined in the given context.
+   *
+   * N.B. The context used here to define the mapping between contact forces and
+   * generalized forces may be different from the one used to compute contact
+   * forces. This is useful because it allows us to separate partial derivatives
+   * due to (very stiff) contact forces and derivatives due to changes in how
+   * those forces map to generalized forces.
+   *
+   * @param context context defining the system state
+   * @param contact_data includes forces (fn, ft) and signed distance pairs for
+   * each contact
+   * @param forces the MultibodyForces that we're adding to.
+   */
+  void AddContactForceContribution(
+      const Context<T>& context,
+      const std::vector<ContactForceData<T>>& contact_data,
+      MultibodyForces<T>* forces) const;
+
   /* Computes signed distance data for all time configurations in `state`. */
   void CalcSdfData(
       const TrajectoryOptimizerState<T>& state,
@@ -414,8 +447,8 @@ class TrajectoryOptimizer {
                            std::vector<VectorX<T>>* gamma) const;
 
   /**
-   * Compute the derivatives of contact impulses γ w.r.t. signed distance ϕ for
-   * each timestep.
+   * Compute the derivatives of contact impulses γ w.r.t. signed distance ϕ
+   * for each timestep.
    *
    * For each timestep, ∂γ/∂ϕ is a vector with 3*num_contacts entries,
    *
@@ -509,8 +542,8 @@ class TrajectoryOptimizer {
    * Compute the gradient of the unconstrained cost L(q) using finite
    * differences.
    *
-   * Uses central differences, so with a perturbation on the order of eps^(1/3),
-   * we expect errors on the order of eps^(2/3).
+   * Uses central differences, so with a perturbation on the order of
+   * eps^(1/3), we expect errors on the order of eps^(2/3).
    *
    * For testing purposes only.
    *
@@ -617,9 +650,9 @@ class TrajectoryOptimizer {
    *    a x² + b x + c = 0
    *
    * for the positive root. This problem arises from finding the intersection
-   * between the trust region and the second leg of the dogleg path. Provided we
-   * have properly checked that the trust region does intersect this seconds
-   * leg, this quadratic equation has some special properties:
+   * between the trust region and the second leg of the dogleg path. Provided
+   * we have properly checked that the trust region does intersect this
+   * seconds leg, this quadratic equation has some special properties:
    *
    *     - a is strictly positive
    *     - there is exactly one positive root
@@ -645,8 +678,8 @@ class TrajectoryOptimizer {
       TrajectoryOptimizerState<T>* scratch_state) const;
 
   /**
-   * Save the cost, gradient, and Hessian accross a range of values of q(1)[0],
-   * where q(1)[0] is the first state variable at timestep t=1.
+   * Save the cost, gradient, and Hessian accross a range of values of
+   * q(1)[0], where q(1)[0] is the first state variable at timestep t=1.
    *
    * This data will be used later to make debugging plots of L, g, and H.
    *
@@ -656,8 +689,8 @@ class TrajectoryOptimizer {
       TrajectoryOptimizerState<T>* scratch_state) const;
 
   /**
-   * Clear the file `iteration_data.csv` and write a csv header so we can later
-   * record iteration data with SaveIterationData().
+   * Clear the file `iteration_data.csv` and write a csv header so we can
+   * later record iteration data with SaveIterationData().
    */
   void SetupIterationDataFile() const;
 
@@ -676,8 +709,8 @@ class TrajectoryOptimizer {
                          const TrajectoryOptimizerState<T>& state) const;
 
   /**
-   * Clear the file `quadratic_data.csv` and write a csv header so we can later
-   * record iteration data with SaveQuadraticDataFirstTwoVariables().
+   * Clear the file `quadratic_data.csv` and write a csv header so we can
+   * later record iteration data with SaveQuadraticDataFirstTwoVariables().
    */
   void SetupQuadraticDataFile() const;
 
@@ -692,30 +725,32 @@ class TrajectoryOptimizer {
    * @param iter_num iteration number that we're on
    * @param Delta trust region radius
    * @param dq variable step for this iteration.
-   * @param state optimizer state containing q, from which we can compute L, g,
-   * and H
+   * @param state optimizer state containing q, from which we can compute L,
+   * g, and H
    */
   void SaveQuadraticDataFirstTwoVariables(
       const int iter_num, const double Delta, const VectorX<T>& dq,
       const TrajectoryOptimizerState<T>& state) const;
 
-  // Diagram of containing the plant_ model and scene graph. Needed to allocate
-  // context resources.
+  // Diagram of containing the plant_ model and scene graph. Needed to
+  // allocate context resources.
   const Diagram<T>* diagram_{nullptr};
 
-  // A model of the system that we are trying to find an optimal trajectory for.
+  // A model of the system that we are trying to find an optimal trajectory
+  // for.
   const MultibodyPlant<T>* plant_{nullptr};
 
-  // A context corresponding to plant_, to enable dynamics computations. Must be
-  // connected to a larger Diagram with a SceneGraph for systems with contact.
+  // A context corresponding to plant_, to enable dynamics computations. Must
+  // be connected to a larger Diagram with a SceneGraph for systems with
+  // contact.
   Context<T>* context_{nullptr};
 
   // Temporary workaround for when context_ is not provided at construction.
   // TODO(amcastro-tri): Get rid of context_ and owned_context_.
   std::unique_ptr<Context<T>> owned_context_;
 
-  // Stores the problem definition, including cost, time horizon, initial state,
-  // target state, etc.
+  // Stores the problem definition, including cost, time horizon, initial
+  // state, target state, etc.
   const ProblemDefinition prob_;
 
   // Joint damping coefficients for the plant under consideration
@@ -723,7 +758,7 @@ class TrajectoryOptimizer {
 
   // Various parameters
   const SolverParameters params_;
-};
+  };
 
 // Declare template specializations
 template <>
