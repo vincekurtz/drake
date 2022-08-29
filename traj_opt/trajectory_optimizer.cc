@@ -333,7 +333,6 @@ void TrajectoryOptimizer<T>::AddContactForceContribution(
     const Context<T>& context,
     const std::vector<ContactForceData<T>>& contact_data,
     MultibodyForces<T>* forces) const {
-  
   // Do geometry queries based on this new context, which is not necessarily the
   // one used to compute contact_data
   const geometry::QueryObject<T>& query_object =
@@ -390,21 +389,20 @@ void TrajectoryOptimizer<T>::AddContactForceContribution(
     const Vector3<T> p_AC_W = p_WC - X_WA.translation();
     const Vector3<T> p_BC_W = p_WC - X_WB.translation();
 
-      // Total contact force on B at C, expressed in W.
-      const Vector3<T> f_BC_W = nhat * fn;// + ft_BC_W;
-      (void) ft;  // TODO(vincekurtz) add friction
+    // Total contact force on B at C, expressed in W.
+    const Vector3<T> f_BC_W = nhat * fn;  // + ft_BC_W;
+    (void)ft;                             // TODO(vincekurtz) add friction
 
-      // Spatial contact forces on bodies A and B.
-      const SpatialForce<T> F_BC_W(Vector3<T>::Zero(), f_BC_W);
-      const SpatialForce<T> F_BBo_W = F_BC_W.Shift(-p_BC_W);
+    // Spatial contact forces on bodies A and B.
+    const SpatialForce<T> F_BC_W(Vector3<T>::Zero(), f_BC_W);
+    const SpatialForce<T> F_BBo_W = F_BC_W.Shift(-p_BC_W);
 
-      const SpatialForce<T> F_AC_W(Vector3<T>::Zero(), -f_BC_W);
-      const SpatialForce<T> F_AAo_W = F_AC_W.Shift(-p_AC_W);
+    const SpatialForce<T> F_AC_W(Vector3<T>::Zero(), -f_BC_W);
+    const SpatialForce<T> F_AAo_W = F_AC_W.Shift(-p_AC_W);
 
-      // Add the forces into the given MultibodyForces
-      forces->mutable_body_forces()[bodyA.node_index()] += F_AAo_W;
-      forces->mutable_body_forces()[bodyB.node_index()] += F_BBo_W;
-
+    // Add the forces into the given MultibodyForces
+    forces->mutable_body_forces()[bodyA.node_index()] += F_AAo_W;
+    forces->mutable_body_forces()[bodyB.node_index()] += F_BBo_W;
   }
 }
 
@@ -920,6 +918,7 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsFiniteDiff(
 
   // Store small perturbations
   const double eps = sqrt(std::numeric_limits<double>::epsilon());
+  //const double eps = sqrt(std::numeric_limits<double>::epsilon()) * params_.delta / params_.F;
   T dq_i;
   T dv_i;
   T da_i;

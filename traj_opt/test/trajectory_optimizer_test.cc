@@ -12,6 +12,7 @@
 #include "drake/multibody/plant/multibody_plant_config_functions.h"
 #include "drake/multibody/tree/planar_joint.h"
 #include "drake/systems/framework/diagram_builder.h"
+#include "drake/traj_opt/contact_force_data.h"
 #include "drake/traj_opt/inverse_dynamics_partials.h"
 #include "drake/traj_opt/penta_diagonal_matrix.h"
 #include "drake/traj_opt/penta_diagonal_solver.h"
@@ -116,6 +117,28 @@ class TrajectoryOptimizerTester {
       const Context<AutoDiffXd>& context,
       multibody::MultibodyForces<AutoDiffXd>* forces) {
     optimizer.CalcContactForceContribution(context, forces);
+  }
+
+  static void CalcContactForceData(
+      const TrajectoryOptimizer<double>& optimizer,
+      const Context<double>& context,
+      std::vector<ContactForceData<double>>* contact_data) {
+    optimizer.CalcContactForceData(context, contact_data);
+  }
+  
+  static void CalcContactForceData(
+      const TrajectoryOptimizer<AutoDiffXd>& optimizer,
+      const Context<AutoDiffXd>& context,
+      std::vector<ContactForceData<AutoDiffXd>>* contact_data) {
+    optimizer.CalcContactForceData(context, contact_data);
+  }
+
+  static void AddContactForceContribution(
+      const TrajectoryOptimizer<AutoDiffXd>& optimizer,
+      const Context<AutoDiffXd>& context,
+      const std::vector<ContactForceData<AutoDiffXd>>& contact_data,
+      multibody::MultibodyForces<AutoDiffXd>* forces) {
+    optimizer.AddContactForceContribution(context, contact_data, forces);
   }
 };
 
@@ -270,72 +293,41 @@ GTEST_TEST(TrajectoryOptimizerTest, ContactGradientMethods) {
                               100*kEpsilon, MatrixCompareType::relative));
 
   // Compute ID(q, v(q), a(q), γ) with autodiff, where γ is constant
-  //multibody::MultibodyForces<AutoDiffXd> forces_gamma_fixed(plant_ad);
-  //plant_ad.SetPositions(context_ad, q_ad[1]);
-  //plant_ad.SetVelocities(context_ad, v_ad[1]);
-  //plant_ad.CalcForceElementsContribution(*context_ad, &forces_gamma_fixed);
+  multibody::MultibodyForces<AutoDiffXd> forces_gamma_fixed(plant_ad);
+  plant_ad.SetPositions(context_ad, q_ad[1]);
+  plant_ad.SetVelocities(context_ad, v_ad[1]);
+  plant_ad.CalcForceElementsContribution(*context_ad, &forces_gamma_fixed);
+
   //forces_gamma_fixed.mutable_generalized_forces() += Jg_J_autodiff;
 
-  //const std::vector<VectorXd>& v = optimizer.EvalV(state);
-  //plant_ad.SetPositions(context_ad, static_cast<VectorX<AutoDiffXd>>(q[1]));
-  //plant_ad.SetVelocities(context_ad, static_cast<VectorX<AutoDiffXd>>(v[1]));
-  //TrajectoryOptimizerTester::CalcContactForceContribution(optimizer_ad, *context_ad, &forces_gamma_fixed);
-
-  //plant_ad.SetPositions(context_ad, q_ad[1]);
-  //plant_ad.SetVelocities(context_ad, v_ad[1]);
-  //const VectorX<AutoDiffXd> tau_gamma_fixed_alt =
-  //    plant_ad.CalcInverseDynamics(*context_ad, a_ad[0], forces_gamma_fixed);
-  //const MatrixXd dtau_dq_decomposed_alt = math::ExtractGradient(tau_gamma_fixed_alt) - J_dgdq_analytical;
-
-  //std::cout << "ID(q,v(q),a(q)) - J(q)'γ:" << std::endl;
-  //std::cout << math::ExtractValue(tau_gamma_fixed) << std::endl;
-  //std::cout << std::endl;
-  //std::cout << "ID(q,v(q),a(q),γ):" << std::endl;
-  //std::cout << math::ExtractValue(tau_gamma_fixed_alt) << std::endl;
-  //std::cout << std::endl;
-  //std::cout << "∂/∂q[ ID(q,v(q),a(q)) - J(q)'γ ]:" << std::endl;
-  //std::cout << math::ExtractGradient(tau_gamma_fixed) << std::endl;
-  //std::cout << std::endl;
-  //std::cout << "∂/∂q[ ID(q,v(q),a(q),γ) ]:" << std::endl;
-  //std::cout << math::ExtractGradient(tau_gamma_fixed_alt) << std::endl;
-  //std::cout << std::endl;
-
-  //EXPECT_TRUE(CompareMatrices(math::ExtractValue(tau_gamma_fixed),
-  //                            math::ExtractValue(tau_gamma_fixed_alt),
-  //                            10 * kEpsilon, MatrixCompareType::relative));
-  //EXPECT_TRUE(CompareMatrices(math::ExtractGradient(tau_gamma_fixed),
-  //                            math::ExtractGradient(tau_gamma_fixed_alt),
-  //                            10 * kEpsilon, MatrixCompareType::relative));
-  //EXPECT_TRUE(CompareMatrices(dtau_dq_ad,
-  //                            dtau_dq_decomposed_alt,
-  //                            100 * kEpsilon, MatrixCompareType::relative));
-
-  // Compare τ_c = -J(q)'γ and τ_c = ID(q, 0, 0, γ), where γ is treated as constant
-  const VectorX<AutoDiffXd> tau_c = -Jg_J_autodiff;
-  
-  multibody::MultibodyForces<AutoDiffXd> forces_gamma_fixed(plant_ad);
+  const std::vector<VectorXd>& v = optimizer.EvalV(state);
   plant_ad.SetPositions(context_ad, static_cast<VectorX<AutoDiffXd>>(q[1]));
-  plant_ad.SetVelocities(context_ad, VectorX<AutoDiffXd>::Zero(3));
-  TrajectoryOptimizerTester::CalcContactForceContribution(optimizer_ad, *context_ad, &forces_gamma_fixed);
+  plant_ad.SetVelocities(context_ad, static_cast<VectorX<AutoDiffXd>>(v[1]));
+  std::vector<ContactForceData<AutoDiffXd>> contact_data;
+  TrajectoryOptimizerTester::CalcContactForceData(optimizer_ad, *context_ad,
+                                                  &contact_data);
   plant_ad.SetPositions(context_ad, q_ad[1]);
-  const VectorX<AutoDiffXd> tau_c_id = plant_ad.CalcInverseDynamics(*context_ad, VectorX<AutoDiffXd>::Zero(3), forces_gamma_fixed);
+  plant_ad.SetVelocities(context_ad, v_ad[1]);
+  TrajectoryOptimizerTester::AddContactForceContribution(
+      optimizer_ad, *context_ad, contact_data, &forces_gamma_fixed);
 
-  std::cout << "-J(q)'γ       : ";
-  std::cout << math::ExtractValue(tau_c).transpose() << std::endl;
-  std::cout << std::endl;
-  std::cout << "ID(q, 0, 0 γ) : ";
-  std::cout << math::ExtractValue(tau_c_id).transpose() << std::endl;
-  std::cout << std::endl;
-  std::cout << std::endl;
-  std::cout << "∂/∂q[-J(q)'γ]       : " << std::endl;
-  std::cout << math::ExtractGradient(tau_c) << std::endl;
-  std::cout << std::endl;
-  std::cout << "∂/∂q[ID(q, 0, 0 γ)] : " << std::endl;
-  std::cout << math::ExtractGradient(tau_c_id) << std::endl;
-  std::cout << std::endl;
+  const VectorX<AutoDiffXd> tau_gamma_fixed_alt =
+      plant_ad.CalcInverseDynamics(*context_ad, a_ad[0], forces_gamma_fixed);
+  const MatrixXd dtau_dq_decomposed_alt =
+      math::ExtractGradient(tau_gamma_fixed_alt) - J_dgdq_analytical;
 
-  // Compute ∂/∂q[ ID(q,v(q),a(q),γ) ] with finite differences
-
+  std::cout << "ID(q,v(q),a(q)) - J(q)'γ:" << std::endl;
+  std::cout << math::ExtractValue(tau_gamma_fixed) << std::endl;
+  std::cout << std::endl;
+  std::cout << "ID(q,v(q),a(q),γ):" << std::endl;
+  std::cout << math::ExtractValue(tau_gamma_fixed_alt) << std::endl;
+  std::cout << std::endl;
+  std::cout << "∂/∂q[ ID(q,v(q),a(q)) - J(q)'γ ]:" << std::endl;
+  std::cout << math::ExtractGradient(tau_gamma_fixed) << std::endl;
+  std::cout << std::endl;
+  std::cout << "∂/∂q[ ID(q,v(q),a(q),γ) ]:" << std::endl;
+  std::cout << math::ExtractGradient(tau_gamma_fixed_alt) << std::endl;
+  std::cout << std::endl;
 }
 
 /**
