@@ -641,7 +641,7 @@ GTEST_TEST(TrajectoryOptimizerTest, ContactJacobianInverseDynamicsSphere) {
   opt_prob.v_init = Vector3d::Zero();
 
   SolverParameters solver_params;
-  solver_params.dissipation_velocity = 1e16;  // no dissipation
+  solver_params.dissipation_velocity = 0.1;
   solver_params.friction_coefficient = 0.0;   // no friction
   TrajectoryOptimizer<double> optimizer(diagram.get(), &plant, opt_prob,
                                         solver_params);
@@ -679,7 +679,7 @@ GTEST_TEST(TrajectoryOptimizerTest, ContactJacobianInverseDynamicsSphere) {
   }
 
   // Check that the two ways of computing inverse dynamics match
-  const double kTolerance = 10 * std::numeric_limits<double>::epsilon();
+  const double kTolerance = 100 * std::numeric_limits<double>::epsilon();
   for (int t = 0; t < num_steps; ++t) {
     EXPECT_TRUE(CompareMatrices(tau_expected[t], tau[t], kTolerance,
                                 MatrixCompareType::relative));
