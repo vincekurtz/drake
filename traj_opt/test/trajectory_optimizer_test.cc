@@ -156,6 +156,9 @@ GTEST_TEST(TrajectoryOptimizerTest, ContactGradientMethods) {
       FindResourceOrThrow("drake/traj_opt/examples/spinner_sphere.urdf"));
   plant.Finalize();
   auto diagram = builder.Build();
+  auto diagram_context = diagram->CreateDefaultContext();
+  Context<double>* context =
+      &diagram->GetMutableSubsystemContext(plant, diagram_context.get());
 
   const int num_steps = 1;
   ProblemDefinition opt_prob;
@@ -209,8 +212,6 @@ GTEST_TEST(TrajectoryOptimizerTest, ContactGradientMethods) {
   // Compute ∂τ/∂q = ∂/∂q ID(q,v(q),a(q),γ(q)) with finite differences
   const InverseDynamicsPartials<double>& id_partials = optimizer.EvalInverseDynamicsPartials(state);
   const MatrixXd dtau_dq_fd = id_partials.dtau_dqp[0];
-
-  //std::cout << "finite difference relative error: " << (dtau_dq_fd - dtau_dq_ad).norm() / dtau_dq_ad.norm() << std::endl;
 
   // Check that ∂/∂q[ J(q)'*γ(q) ] = J' * ∂γ/∂q + ∂J'/∂q * γ
   const TrajectoryOptimizerCache<double>::ContactJacobianData& jacobian_data =
@@ -270,8 +271,36 @@ GTEST_TEST(TrajectoryOptimizerTest, ContactGradientMethods) {
                               100*kEpsilon, MatrixCompareType::relative));
   
   // Compute ∂/∂q[ID(q,v(q),a(q)) - J(q)'γ] with finite differences, where γ is constant
-  const double eps = 1e-8;
-  (void) eps;
+  const double eps = sqrt(std::numeric_limits<double>::epsilon());
+  MatrixXd dtau_dq_gamma_fixed(3,3);
+
+  VectorXd tau_eps;
+  for (int i=0; i<3;++i) {
+    // Perturb the i^th element of q by epsilon
+    std::vector<VectorXd> q_eps(q);
+    q_eps[1][i] += eps;
+    state.set_q(q_eps);
+    const std::vector<VectorXd>& v_eps = optimizer.EvalV(state);
+    const std::vector<VectorXd>& a_eps = optimizer.EvalA(state);
+
+    // Compute ID(q,v(q),a(q)) - J(q)'γ with the new q and γ fixed
+    const MatrixXd J = optimizer.EvalContactJacobianData(state).J[1];
+    plant.SetPositions(context, q_eps[1]);
+    plant.SetVelocities(context, v_eps[1]);
+    multibody::MultibodyForces<double> forces(plant);
+    plant.CalcForceElementsContribution(*context, &forces);
+    tau_eps = plant.CalcInverseDynamics(*context, a_eps[0], forces) - J.transpose()*gamma[1];
+
+    // Set the i^th column of derivatives
+    dtau_dq_gamma_fixed.col(i) = (tau_eps - tau[0]) / eps;
+
+  }
+  const MatrixXd dtau_dq_analytical = dtau_dq_gamma_fixed - J_dgdq_analytical;
+  EXPECT_TRUE(CompareMatrices(dtau_dq_ad, dtau_dq_analytical,
+                              100*sqrt(kEpsilon), MatrixCompareType::relative));
+
+  std::cout << "finite difference error : " << (dtau_dq_fd - dtau_dq_ad).norm() / dtau_dq_ad.norm() << std::endl;
+  std::cout << "semi-analytical error   : " << (dtau_dq_analytical - dtau_dq_ad).norm() / dtau_dq_ad.norm() << std::endl;
 
 }
 
