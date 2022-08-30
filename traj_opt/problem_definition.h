@@ -55,8 +55,12 @@ struct ProblemDefinition {
   // Target generalized velocities
   VectorXd v_nom;
 
+  // The number of unactuated DOF
+  int num_unactuated_dof;
   // Indices of the unactuated DOF
   std::vector<int> unactuated_dof;
+  // Selection matrix for the unactuated DOF
+  MatrixXd unactuation_mat;
 };
 
 }  // namespace traj_opt

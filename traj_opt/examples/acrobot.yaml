@@ -16,9 +16,6 @@ v_nom : [0.0, 0.0]
 # linearly iterpolating between q_init and q_guess.
 q_guess : [0.1, -0.1]
 
-# Set the incides of the unactuated degrees of freedom
-unactuated_dof : [0]
-
 # Cost Weights. These define diagonal matrices, again with the ordering
 # [finger 1, finger 2, spinner]
 Qq : [0.0, 0.0]  # Running cost

@@ -73,7 +73,24 @@ class TrajOptExample {
     opt_prob.R = Eigen::Map<VectorXd>(options.R.data(), nv).asDiagonal();
     opt_prob.q_nom = Eigen::Map<VectorXd>(options.q_nom.data(), nq);
     opt_prob.v_nom = Eigen::Map<VectorXd>(options.v_nom.data(), nv);
-    opt_prob.unactuated_dof = options.unactuated_dof;
+
+    // Get the actuation matrix for the plant
+    MatrixXd B = plant.MakeActuationMatrix();
+    // Derive the indices of the unactuated DOF from the actuation matrix
+    for (int i = 0; i < nv; ++i) {
+      // Get the index if the actuation matrix does not select any actuators
+      if (B.row(i).sum() == 0) {
+        opt_prob.unactuated_dof.push_back(i);
+      }
+    }
+    // Get the number of unactuated DOF
+    opt_prob.num_unactuated_dof =
+        static_cast<int>(opt_prob.unactuated_dof.size());
+    // Create an (num_unactuated_dof x nv) unactuation matrix
+    opt_prob.unactuation_mat = MatrixXd::Zero(opt_prob.num_unactuated_dof, nv);
+    for (int i = 0; i < opt_prob.num_unactuated_dof; ++i) {
+      opt_prob.unactuation_mat(i, opt_prob.unactuated_dof[i]) = 1;
+    }
 
     // Set our solver parameters
     // TODO(vincekurtz): consider separate functions mapping options to opt_prob

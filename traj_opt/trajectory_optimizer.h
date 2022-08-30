@@ -89,9 +89,7 @@ class TrajectoryOptimizer {
    *
    * @return int the number of unactuated DOF.
    */
-  int num_unactuated_dof() const {
-    return static_cast<int>(prob_.unactuated_dof.size());
-  }
+  int num_unactuated_dof() const { return prob_.num_unactuated_dof; }
 
   /**
    * Convienience function to get the number of equality constraints.
