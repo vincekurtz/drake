@@ -102,7 +102,6 @@ struct TrajOptExampleParams {
   bool save_lineplot_data = false;
   double lineplot_q_min = 0;
   double lineplot_q_max = 1;
-
   bool augmented_lagrangian = false;
   bool update_init_guess = true;
   int max_major_iterations = 5;
