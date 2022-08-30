@@ -316,10 +316,12 @@ class TrajectoryOptimizer {
              const double mu, TrajectoryOptimizerWorkspace<T>* workspace) const;
 
   /**
-   * Compute the vector of forces acting upon unactuated DOF
+   * Compute the violations of equality constraints in the form of c(x) = 0
+   * (currently corresponds to the vector of forces acting upon unactuated
+   * DOF)
    *
    * @param tau sequence of generalized forces (consistent with q and v)
-   * @return vector of double, forces acting on unactuated DOF
+   * @return vector of double, equality constraint violations
    */
   VectorX<T> CalcConstraintViolations(const std::vector<VectorX<T>>& tau) const;
 
