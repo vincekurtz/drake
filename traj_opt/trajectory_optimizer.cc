@@ -511,9 +511,15 @@ void TrajectoryOptimizer<T>::CalcContactJacobian(
         p_BoC_B, frame_W, frame_W, &Jv_WBc_W);
 
     // Define a contact frame C at the contact point such that the z-axis Cz
-    // equals nhat_W. The tangent vectors are arbitrary, with the only
-    // requirement being that they form a valid right handed basis with nhat_W.
-    R_WC->at(ic) = math::RotationMatrix<T>::MakeFromOneVector(nhat_W, 2);
+    // equals nhat_W. The tangent vectors are defined to be consistent across
+    // different values of q.
+    // TODO(vincekurtz): no need to allocate t1_W and t2_W
+    const Vector3<T> r(0,0,1);  // reference vector defines Cx and Cy
+    const Vector3<T> t1_W = nhat_W.cross(r);
+    const Vector3<T> t2_W = nhat_W.cross(t1_W);
+    Matrix3<T> R;
+    R << t1_W, t2_W, nhat_W;
+    R_WC->at(ic) = math::RotationMatrix<T>(R);
 
     // Contact Jacobian J_AcBc_C, expressed in the contact frame C.
     // That is, vc = J * v stores the contact velocities expressed in the
