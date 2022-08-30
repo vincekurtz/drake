@@ -9,12 +9,10 @@
 
 #include "drake/geometry/scene_graph_inspector.h"
 #include "drake/multibody/math/spatial_algebra.h"
-#include "drake/traj_opt/penta_diagonal_solver.h"
 #include "drake/systems/framework/diagram.h"
-
-#include <iostream>
-#define PRINT_VAR(a) std::cout << #a": " << a << std::endl;
-#define PRINT_VARn(a) std::cout << #a":\n" << a << std::endl;
+#include "drake/traj_opt/penta_diagonal_solver.h"
+#define PRINT_VAR(a) std::cout << #a ": " << a << std::endl;
+#define PRINT_VARn(a) std::cout << #a ":\n" << a << std::endl;
 
 namespace drake {
 namespace traj_opt {
@@ -58,10 +56,10 @@ TrajectoryOptimizer<T>::TrajectoryOptimizer(const MultibodyPlant<T>* plant,
 }
 
 template <typename T>
-TrajectoryOptimizer<T>::TrajectoryOptimizer(
-    const Diagram<T>* diagram, const MultibodyPlant<T>* plant,
-    const ProblemDefinition& prob,
-    const SolverParameters& params)
+TrajectoryOptimizer<T>::TrajectoryOptimizer(const Diagram<T>* diagram,
+                                            const MultibodyPlant<T>* plant,
+                                            const ProblemDefinition& prob,
+                                            const SolverParameters& params)
     : diagram_{diagram}, plant_(plant), prob_(prob), params_(params) {
   // Workaround for when a plant context is not provided.
   // Valid context should be obtained with EvalPlantContext() instead.
@@ -197,8 +195,7 @@ void TrajectoryOptimizer<T>::CalcAccelerations(
 
 template <typename T>
 void TrajectoryOptimizer<T>::CalcInverseDynamics(
-    const TrajectoryOptimizerState<T>& state,
-    const std::vector<VectorX<T>>& a,
+    const TrajectoryOptimizerState<T>& state, const std::vector<VectorX<T>>& a,
     TrajectoryOptimizerWorkspace<T>* workspace,
     std::vector<VectorX<T>>* tau) const {
   // Generalized forces aren't defined for the last timestep
@@ -218,7 +215,7 @@ void TrajectoryOptimizer<T>::CalcInverseDynamics(
 template <typename T>
 void TrajectoryOptimizer<T>::CalcInverseDynamicsSingleTimeStep(
     const Context<T>& context, const VectorX<T>& a,
-    TrajectoryOptimizerWorkspace<T>* workspace, VectorX<T>* tau) const {  
+    TrajectoryOptimizerWorkspace<T>* workspace, VectorX<T>* tau) const {
   plant().CalcForceElementsContribution(context, &workspace->f_ext);
 
   // Add in contact force contribution to f_ext
@@ -236,8 +233,7 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsSingleTimeStep(
 
 template <typename T>
 void TrajectoryOptimizer<T>::CalcContactForceContribution(
-    const Context<T>& context,
-    MultibodyForces<T>* forces) const {
+    const Context<T>& context, MultibodyForces<T>* forces) const {
   using std::abs;
   using std::max;
   using std::pow;
@@ -535,7 +531,7 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartials(
     case GradientsMethod::kCentralDifferences: {
       CalcInverseDynamicsPartialsCentralDiff(state, id_partials);
       break;
-    }    
+    }
     case GradientsMethod::kAutoDiff: {
       if constexpr (std::is_same_v<T, double>) {
         CalcInverseDynamicsPartialsAutoDiff(state, id_partials);
@@ -690,7 +686,7 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsFiniteDiff(
 template <typename T>
 void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsCentralDiff(
     const TrajectoryOptimizerState<T>& state,
-    InverseDynamicsPartials<T>* id_partials) const {  
+    InverseDynamicsPartials<T>* id_partials) const {
   // Check that id_partials has been allocated correctly.
   DRAKE_DEMAND(id_partials->size() == num_steps());
 
@@ -698,7 +694,7 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsCentralDiff(
   std::vector<MatrixX<T>>& dtau_dqm = id_partials->dtau_dqm;
   std::vector<MatrixX<T>>& dtau_dqt = id_partials->dtau_dqt;
   std::vector<MatrixX<T>>& dtau_dqp = id_partials->dtau_dqp;
-  
+
   for (int t = 0; t <= num_steps(); ++t) {
     // N.B. A perturbation of qt propagates to tau[t-1], tau[t] and tau[t+1].
     // Therefore we compute one column of grad_tau at a time. That is, once the
@@ -710,7 +706,7 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsCentralDiff(
     MatrixX<T>* dtaut_dqt = t < num_steps() ? &dtau_dqt[t] : nullptr;
     MatrixX<T>* dtaum_dqt = t > 0 ? &dtau_dqp[t - 1] : nullptr;
     CalcInverseDynamicsPartialsWrtQtCentralDiff(t, state, dtaum_dqt, dtaut_dqt,
-                                                dtaup_dqt);    
+                                                dtaup_dqt);
   }
 }
 
@@ -720,7 +716,7 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsWrtQtCentralDiff(
     MatrixX<T>* dtaut_dqt, MatrixX<T>* dtaup_dqt) const {
   using std::abs;
   using std::max;
-      
+
   if (t < num_steps() - 1) DRAKE_DEMAND(dtaup_dqt != nullptr);
   if (t < num_steps()) DRAKE_DEMAND(dtaut_dqt != nullptr);
   if (t > 0) DRAKE_DEMAND(dtaum_dqt != nullptr);
@@ -755,13 +751,13 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsWrtQtCentralDiff(
   const std::vector<VectorX<T>>& q = state.q();
   const std::vector<VectorX<T>>& v = EvalV(state);
   const std::vector<VectorX<T>>& a = EvalA(state);
-  //const std::vector<VectorX<T>>& tau = EvalTau(state);
+  // const std::vector<VectorX<T>>& tau = EvalTau(state);
 
   // Set perturbed versions of variables
   q_em_t = q[t];
   q_ep_t = q[t];
   v_em_t = v[t];
-  v_ep_t = v[t];  
+  v_ep_t = v[t];
   if (t < num_steps()) {
     // v[num_steps + 1] is not defined
     v_em_tp = v[t + 1];
@@ -863,7 +859,7 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsWrtQtCentralDiff(
     }
 
     // Unperturb q_t[i], v_t[i], and a_t[i]
-    q_em_t(i) = q[t](i);    
+    q_em_t(i) = q[t](i);
     q_ep_t(i) = q[t](i);
     v_em_t(i) = v[t](i);
     v_ep_t(i) = v[t](i);
@@ -898,7 +894,7 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsAutoDiff(
   // Get references to the partials that we'll be setting
   std::vector<MatrixX<double>>& dtau_dqm = id_partials->dtau_dqm;
   std::vector<MatrixX<double>>& dtau_dqt = id_partials->dtau_dqt;
-  std::vector<MatrixX<double>>& dtau_dqp = id_partials->dtau_dqp;  
+  std::vector<MatrixX<double>>& dtau_dqp = id_partials->dtau_dqp;
 
   // Heap allocations.
   std::vector<VectorX<AutoDiffXd>> q_ad(num_steps() + 1);
@@ -920,7 +916,7 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsAutoDiff(
     // q[t] will propagate directly to v[t], v[t+1], a[t-1], a[t] and a[t+1].
     q_ad[t] = math::InitializeAutoDiff(q[t]);
     state_ad_->set_q(q_ad);
-    
+
     // N.B. All dynamics terms are treated implicitly, i.e.,
     // tau[t] = M(q[t+1]) * a[t] - k(q[t+1],v[t+1]) - f_ext[t+1]
 
@@ -1207,7 +1203,7 @@ template <typename T>
 void TrajectoryOptimizer<T>::CalcCacheTrajectoryData(
     const TrajectoryOptimizerState<T>& state) const {
   TrajectoryOptimizerCache<T>& cache = state.mutable_cache();
-      
+
   // The generalized positions that everything is computed from
   const std::vector<VectorX<T>>& q = state.q();
 
@@ -1219,7 +1215,7 @@ void TrajectoryOptimizer<T>::CalcCacheTrajectoryData(
   std::vector<VectorX<T>>& a = cache.trajectory_data.a;
   CalcAccelerations(v, &a);
 
-  // Set cache invalidation flag  
+  // Set cache invalidation flag
   cache.trajectory_data.up_to_date = true;
 }
 
@@ -1299,7 +1295,7 @@ template <typename T>
 void TrajectoryOptimizer<T>::CalcCacheDerivativesData(
     const TrajectoryOptimizerState<T>& state) const {
   TrajectoryOptimizerCache<T>& cache = state.mutable_cache();
-  TrajectoryOptimizerWorkspace<T>& workspace = state.workspace;    
+  TrajectoryOptimizerWorkspace<T>& workspace = state.workspace;
 
   // Some aliases
   InverseDynamicsPartials<T>& id_partials = cache.derivatives_data.id_partials;

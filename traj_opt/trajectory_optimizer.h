@@ -186,7 +186,8 @@ class TrajectoryOptimizer {
   // Allow different specializations to access each other's private functions.
   // In particular we want to allow TrajectoryOptimizer<double> to have access
   // to TrajectoryOptimizer<AutoDiffXd>'s functions for computing gradients.
-  template <typename U> friend class TrajectoryOptimizer;
+  template <typename U>
+  friend class TrajectoryOptimizer;
 
   /**
    * Solve the optimization problem from the given initial guess using a
@@ -381,7 +382,7 @@ class TrajectoryOptimizer {
   /* Computes signed distance data for all time configurations in `state`. */
   void CalcSdfData(
       const TrajectoryOptimizerState<T>& state,
-      typename TrajectoryOptimizerCache<T>::SdfData* sdf_data) const;  
+      typename TrajectoryOptimizerCache<T>::SdfData* sdf_data) const;
 
   /* Helper to compute the contact Jacobian for the configuration stored in
   `context`. Signed distance pairs `sdf_pairs` must be consistent with
@@ -397,7 +398,7 @@ class TrajectoryOptimizer {
   void CalcContactJacobianData(
       const TrajectoryOptimizerState<T>& state,
       typename TrajectoryOptimizerCache<T>::ContactJacobianData*
-          contact_jacobian_data) const;  
+          contact_jacobian_data) const;
 
   /**
    * Compute partial derivatives of the inverse dynamics
@@ -452,11 +453,13 @@ class TrajectoryOptimizer {
       TrajectoryOptimizerWorkspace<T>* workspace,
       InverseDynamicsPartials<T>* id_partials) const;
 
+  // Computes derivatives of the inverse dynamics with respect to q stored in
+  // `state`.
   void CalcInverseDynamicsPartialsCentralDiff(
       const TrajectoryOptimizerState<T>& state,
       InverseDynamicsPartials<T>* id_partials) const;
 
-  // Compute derivatives of tau[t-1], tau[t] and tau[t+1] w.r.t. q[t].  
+  // Helper to compute derivatives of tau[t-1], tau[t] and tau[t+1] w.r.t. q[t].
   void CalcInverseDynamicsPartialsWrtQtCentralDiff(
       int t, const TrajectoryOptimizerState<T>& state, MatrixX<T>* dtaum_dqt,
       MatrixX<T>* dtaut_dqt, MatrixX<T>* dtaup_dqt) const;
