@@ -31,17 +31,6 @@ drake_cc_package_library(
 )
 
 drake_cc_library(
-    name = "contact_force_data",
-    srcs = ["contact_force_data.cc"],
-    hdrs = ["contact_force_data.h"],
-    deps = [
-        "//common:default_scalars",
-        "//common:essential",
-        "//geometry/query_results:signed_distance_pair",
-    ],
-)
-
-drake_cc_library(
     name = "penta_diagonal_matrix",
     srcs = ["penta_diagonal_matrix.cc"],
     hdrs = ["penta_diagonal_matrix.h"],
@@ -68,7 +57,6 @@ drake_cc_library(
         "trajectory_optimizer.h",
     ],
     deps = [
-        ":contact_force_data",
         ":inverse_dynamics_partials",
         ":penta_diagonal_matrix",
         ":penta_diagonal_solver",

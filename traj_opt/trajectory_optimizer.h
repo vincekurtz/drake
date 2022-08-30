@@ -9,7 +9,6 @@
 
 #include "drake/common/eigen_types.h"
 #include "drake/multibody/plant/multibody_plant.h"
-#include "drake/traj_opt/contact_force_data.h"
 #include "drake/traj_opt/inverse_dynamics_partials.h"
 #include "drake/traj_opt/penta_diagonal_matrix.h"
 #include "drake/traj_opt/problem_definition.h"
@@ -369,38 +368,6 @@ class TrajectoryOptimizer {
    */
   void CalcContactForceContribution(const Context<T>& context,
                                     MultibodyForces<T>* forces) const;
-
-  /**
-   * Compute contact forces (fn, ft) and contact pairs for the system in a
-   * configuration defined by the given context.
-   *
-   * @param context context, consistent with the plant, defines the plant state
-   * @param contact_data vector containing contact forces and geometry
-   * information for each contact pair.
-   */
-  void CalcContactForceData(
-      const Context<T>& context,
-      std::vector<ContactForceData<T>>* contact_data) const;
-
-  /**
-   * Add the given contact forces into the given multibody forces, based on the
-   * state as defined in the given context.
-   *
-   * N.B. The context used here to define the mapping between contact forces and
-   * generalized forces may be different from the one used to compute contact
-   * forces. This is useful because it allows us to separate partial derivatives
-   * due to (very stiff) contact forces and derivatives due to changes in how
-   * those forces map to generalized forces.
-   *
-   * @param context context defining the system state
-   * @param contact_data includes forces (fn, ft) and signed distance pairs for
-   * each contact
-   * @param forces the MultibodyForces that we're adding to.
-   */
-  void AddContactForceContribution(
-      const Context<T>& context,
-      const std::vector<ContactForceData<T>>& contact_data,
-      MultibodyForces<T>* forces) const;
 
   /* Computes signed distance data for all time configurations in `state`. */
   void CalcSdfData(
