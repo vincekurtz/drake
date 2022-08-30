@@ -139,6 +139,86 @@ using systems::DiagramBuilder;
 using test::LimitMalloc;
 
 /**
+ * Test our semi-analytical computation of gradient through contact:
+ *
+ *     ∂τ/∂q = ∂/∂q ID(q,v(q),a(q)) - ∂J'/∂q * γ - J'*∂γ/∂q,
+ *
+ * where the first two terms are computed with finite differences and the last
+ * term is computed analytically.
+ */
+GTEST_TEST(TrajectoryOptimizerTest, SemiAnalyticalContactGradients) {
+  // Set up an example system with sphere-sphere contact
+  DiagramBuilder<double> builder;
+  MultibodyPlantConfig config;
+  config.time_step = 1.0;
+  auto [plant, scene_graph] = multibody::AddMultibodyPlant(config, &builder);
+  Parser(&plant).AddAllModelsFromFile(
+      FindResourceOrThrow("drake/traj_opt/examples/spinner_sphere.urdf"));
+  plant.Finalize();
+  auto diagram = builder.Build();
+
+  const int num_steps = 1;
+  ProblemDefinition opt_prob;
+  opt_prob.num_steps = num_steps;
+  opt_prob.q_init = Vector3d(0.2, 1.5, 0.0);
+  opt_prob.v_init = Vector3d(0.0, 0.0, 0.0);
+  SolverParameters solver_params;
+  solver_params.F = 1.0;
+  solver_params.delta = 0.01;
+  solver_params.stiffness_exponent = 2.0;
+  solver_params.dissipation_velocity = 1e16;  // no dissipation
+  solver_params.friction_coefficient = 0.0;   // no friction
+
+  // Create three optimizers: one uses regular finite differences, one uses
+  // semi-analytical gradients, and one uses autodiff
+  solver_params.gradient_strategy = GradientStrategy::kFiniteDifferences;
+  TrajectoryOptimizer<double> optimizer_fd(diagram.get(), &plant, opt_prob,
+                                     solver_params);
+  TrajectoryOptimizerState<double> state_fd = optimizer_fd.CreateState();
+  solver_params.gradient_strategy = GradientStrategy::kSemiAnalytical;
+  TrajectoryOptimizer<double> optimizer_sa(diagram.get(), &plant, opt_prob,
+                                     solver_params);
+  TrajectoryOptimizerState<double> state_sa = optimizer_sa.CreateState();
+  // TODO(vincekurtz) add autodiff optimizer for ground truth
+
+  // Set state values. 
+  std::vector<VectorXd> q;
+  q.push_back(opt_prob.q_init);
+  q.push_back(Vector3d(0.4, 1.5, 0.0));
+  state_fd.set_q(q);
+  state_sa.set_q(q);
+
+  // Compute inverse dynamics partials
+  InverseDynamicsPartials<double> idp_fd(num_steps, 3, 3);
+  InverseDynamicsPartials<double> idp_sa(num_steps, 3, 3);
+  TrajectoryOptimizerTester::CalcInverseDynamicsPartials(optimizer_fd, state_fd, &idp_fd);
+  TrajectoryOptimizerTester::CalcInverseDynamicsPartials(optimizer_sa, state_sa, &idp_sa);
+
+  for (int t=0; t<num_steps; ++t) {
+    std::cout << "∂τₜ/∂qₜ₋₁ : " << std::endl;
+    std::cout << "finite diff:" << std::endl;
+    std::cout << idp_fd.dtau_dqm[t] << std::endl;
+    std::cout << "semi-analytical:" << std::endl;
+    std::cout << idp_sa.dtau_dqm[t] << std::endl;
+    std::cout << std::endl;
+    std::cout << "∂τₜ/∂qₜ   : " << std::endl;
+    std::cout << "finite diff:" << std::endl;
+    std::cout << idp_fd.dtau_dqt[t] << std::endl;
+    std::cout << "semi-analytical:" << std::endl;
+    std::cout << idp_sa.dtau_dqt[t] << std::endl;
+    std::cout << std::endl;
+    std::cout << "∂τₜ/∂qₜ₊₁ : " << std::endl;
+    std::cout << "finite diff:" << std::endl;
+    std::cout << idp_fd.dtau_dqp[t] << std::endl;
+    std::cout << "semi-analytical:" << std::endl;
+    std::cout << idp_sa.dtau_dqp[t] << std::endl;
+    std::cout << std::endl;
+  }
+  //std::cout << g_fd.transpose() << std::endl;
+  //std::cout << g_sa.transpose() << std::endl;
+}
+
+/**
  * Test computation of gradients through contact as
  *
  *    ∂τ/∂q = ∂/∂q ID(q,v(q),a(q),γ) - J'∂γ/∂q
@@ -521,8 +601,8 @@ GTEST_TEST(TrajectoryOptimizerTest, AnalyticalDerivatives2DoFSpinner) {
  * Test our computation of contact jacobians by computing inverse dynamics two
  * ways:
  *
- * 1) tau = ID(q, v, a, gamma)   [ as currently implemented in
- * TrajectoryOptimizer] 2) tau = ID(q, v, a) + J'*gamma
+ * 1) tau = ID(q, v, a, gamma)
+ * 2) tau = ID(q, v, a) + J'*gamma
  *
  * for a simple sphere near a halfspace.
  *

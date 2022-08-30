@@ -134,6 +134,9 @@ class TrajOptExample {
     } else if (options.gradient_strategy == "analytical") {
       solver_params.gradient_strategy =
           GradientStrategy::kAnalyticalApproximation;
+    } else if (options.gradient_strategy == "semi-analytical") {
+      solver_params.gradient_strategy =
+          GradientStrategy::kSemiAnalytical;
     } else {
       throw std::runtime_error(fmt::format("Unknown gradient strategy '{}'",
                                            options.gradient_strategy));

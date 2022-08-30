@@ -202,6 +202,16 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsSingleTimeStep(
 }
 
 template <typename T>
+void TrajectoryOptimizer<T>::CalcInverseDynamicsSingleTimeStepNoContact(
+    const VectorX<T>& q, const VectorX<T>& v, const VectorX<T>& a,
+    TrajectoryOptimizerWorkspace<T>* workspace, VectorX<T>* tau) const {
+  plant().SetPositions(context_, q);
+  plant().SetVelocities(context_, v);
+  plant().CalcForceElementsContribution(*context_, &workspace->f_ext);
+  *tau = plant().CalcInverseDynamics(*context_, a, workspace->f_ext);
+}
+
+template <typename T>
 void TrajectoryOptimizer<T>::CalcContactForceContribution(
     const Context<T>& context,
     MultibodyForces<T>* forces) const {
@@ -433,6 +443,26 @@ TrajectoryOptimizer<T>::EvalSignedDistancePairs(
 }
 
 template <typename T>
+void TrajectoryOptimizer<T>::CalcContactJacobian(const VectorX<T>& q,
+                                                 MatrixX<T>* J) const {
+  // Set positions
+  plant().SetPositions(context_, q);
+
+  // Compute signed distance pairs 
+  const geometry::QueryObject<T>& query_object =
+      plant()
+          .get_geometry_query_input_port()
+          .template Eval<geometry::QueryObject<T>>(*context_);
+  std::vector<geometry::SignedDistancePair<T>> sdf_pairs =
+      query_object.ComputeSignedDistancePairwiseClosestPoints();
+
+  // Compute the jacobian
+  std::vector<math::RotationMatrix<T>> R_WC;
+  std::vector<std::pair<BodyIndex, BodyIndex>> body_pairs;
+  CalcContactJacobian(*context_, sdf_pairs, J, &R_WC, &body_pairs);
+}
+
+template <typename T>
 void TrajectoryOptimizer<T>::CalcContactJacobian(
     const Context<T>& context,
     const std::vector<geometry::SignedDistancePair<T>>& sdf_pairs,
@@ -514,6 +544,7 @@ void TrajectoryOptimizer<T>::CalcContactJacobian(
     // equals nhat_W. The tangent vectors are defined to be consistent across
     // different values of q.
     // TODO(vincekurtz): no need to allocate t1_W and t2_W
+    // TODO(vincekurtz): handle the case where r is very close to nhat_W
     const Vector3<T> r(0,0,1);  // reference vector defines Cx and Cy
     const Vector3<T> t1_W = nhat_W.cross(r);
     const Vector3<T> t2_W = nhat_W.cross(t1_W);
@@ -626,6 +657,8 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartials(
   } else if (params_.gradient_strategy ==
              GradientStrategy::kAnalyticalApproximation) {
     CalcInverseDynamicsPartialsAnalyticalApproximation(state, id_partials);
+  } else if (params_.gradient_strategy == GradientStrategy::kSemiAnalytical) {
+    CalcInverseDynamicsPartialsSemiAnalytical(state, id_partials);
   } else {
     throw std::runtime_error("Unknown gradient strategy");
   }
@@ -686,6 +719,149 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsAnalyticalApproximation(
 }
 
 template <typename T>
+void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsSemiAnalytical(
+    const TrajectoryOptimizerState<T>& state,
+    InverseDynamicsPartials<T>* id_partials) const {
+  using std::abs;
+  using std::max;
+  DRAKE_DEMAND(id_partials->size() == num_steps());
+
+  // Get the trajectory data
+  const std::vector<VectorX<T>>& q = state.q();
+  const std::vector<VectorX<T>>& v = EvalV(state);
+  const std::vector<VectorX<T>>& a = EvalA(state);
+  const std::vector<VectorX<T>>& tau = EvalTau(state);
+  const typename TrajectoryOptimizerCache<T>::ContactJacobianData&
+      jacobian_data = EvalContactJacobianData(state);
+  const std::vector<VectorX<T>>& gamma = EvalContactImpulses(state);
+  const std::vector<VectorX<T>>& dgamma_dphi =
+      EvalContactImpulsePartialsSignedDistance(state);
+
+  // Get references to the partials that we'll be setting
+  std::vector<MatrixX<T>>& dtau_dqm = id_partials->dtau_dqm;
+  std::vector<MatrixX<T>>& dtau_dqt = id_partials->dtau_dqt;
+  std::vector<MatrixX<T>>& dtau_dqp = id_partials->dtau_dqp;
+
+  // Get references to perturbed versions of q, v, tau, and a, at (t-1, t, t).
+  // These are all of the quantities that change when we perturb q_t.
+  TrajectoryOptimizerWorkspace<T>& workspace = state.workspace;
+  VectorX<T>& q_eps_t = workspace.q_size_tmp1;
+  VectorX<T>& v_eps_t = workspace.v_size_tmp1;
+  VectorX<T>& v_eps_tp = workspace.v_size_tmp2;
+  VectorX<T>& a_eps_tm = workspace.a_size_tmp1;
+  VectorX<T>& a_eps_t = workspace.a_size_tmp2;
+  VectorX<T>& a_eps_tp = workspace.a_size_tmp3;
+  VectorX<T>& tau_eps_tm = workspace.tau_size_tmp1;
+  VectorX<T>& tau_eps_t = workspace.tau_size_tmp2;
+  VectorX<T>& tau_eps_tp = workspace.tau_size_tmp3;
+
+  // Store small perturbations
+  const double eps = sqrt(std::numeric_limits<double>::epsilon());
+  T dq_i;
+  T dv_i;
+  T da_i;
+  for (int t = 0; t <= num_steps(); ++t) {
+    // N.B. A perturbation of qt propagates to tau[t-1], tau[t] and tau[t+1].
+    // Therefore we compute one column of grad_tau at a time. That is, once the
+    // loop on position indices i is over, we effectively computed the t-th
+    // column of grad_tau.
+
+    // Set perturbed versions of variables
+    q_eps_t = q[t];
+    v_eps_t = v[t];
+    if (t < num_steps()) {
+      // v[num_steps + 1] is not defined
+      v_eps_tp = v[t + 1];
+      // a[num_steps] is not defined
+      a_eps_t = a[t];
+    }
+    if (t < num_steps() - 1) {
+      // a[num_steps + 1] is not defined
+      a_eps_tp = a[t + 1];
+    }
+    if (t > 0) {
+      // a[-1] is undefined
+      a_eps_tm = a[t - 1];
+    }
+
+    for (int i = 0; i < plant().num_positions(); ++i) {
+      // Determine perturbation sizes to avoid losing precision to floating
+      // point error
+      dq_i = eps * max(1.0, abs(q_eps_t(i)));
+
+      // Make dqt_i exactly representable to minimize floating point error
+      const T temp = q_eps_t(i) + dq_i;
+      dq_i = temp - q_eps_t(i);
+
+      dv_i = dq_i / time_step();
+      da_i = dv_i / time_step();
+
+      // Perturb q_t[i], v_t[i], and a_t[i]
+      // TODO(vincekurtz): add N(q)+ factor to consider quaternion DoFs.
+      q_eps_t(i) += dq_i;
+
+      if (t == 0) {
+        // v[0] is constant
+        a_eps_t(i) -= 1.0 * da_i;
+      } else {
+        v_eps_t(i) += dv_i;
+        a_eps_tm(i) += da_i;
+        a_eps_t(i) -= 2.0 * da_i;
+      }
+      v_eps_tp(i) -= dv_i;
+      a_eps_tp(i) += da_i;
+
+      // Compute perturbed tau(q) and calculate the nonzero entries of dtau/dq
+      // via finite differencing
+      if (t > 0) {
+        // tau[t-1] = ID(q[t], v[t], a[t-1]) - J(q[t])' γ[t]
+        MatrixX<T> J;
+        CalcContactJacobian(q_eps_t, &J);
+        CalcInverseDynamicsSingleTimeStepNoContact(q_eps_t, v_eps_t, a_eps_tm,
+                                          &workspace, &tau_eps_tm);
+        tau_eps_tm -= J.transpose() * gamma[t];
+        dtau_dqp[t - 1].col(i) = (tau_eps_tm - tau[t - 1]) / dq_i;
+      }
+      if (t < num_steps()) {
+        // tau[t] = ID(q[t+1], v[t+1], a[t]) - J(q[t+1])' γ[t+1]
+        // Note that changing q[t] only changes contact forces for tau[t] via the dependence of γ on v[t+1]
+        CalcInverseDynamicsSingleTimeStep(q[t + 1], v_eps_tp, a_eps_t,
+                                          &workspace, &tau_eps_t);
+        dtau_dqt[t].col(i) = (tau_eps_t - tau[t]) / dq_i;
+      }
+      if (t < num_steps() - 1) {
+        // tau[t+1] = ID(q[t+2], v[t+2], a[t+1]) - J(q[t+2])' γ(q[t+2], v[t+2])
+        // Note that changing q[t] does not change contact forces for tau[t+1]
+        CalcInverseDynamicsSingleTimeStep(q[t + 2], v[t + 2], a_eps_tp,
+                                          &workspace, &tau_eps_tp);
+        dtau_dqm[t + 1].col(i) = (tau_eps_tp - tau[t + 1]) / dq_i;
+      }
+
+      // Unperturb q_t[i], v_t[i], and a_t[i]
+      q_eps_t(i) = q[t](i);
+      v_eps_t(i) = v[t](i);
+      if (t < num_steps()) {
+        v_eps_tp(i) = v[t + 1](i);
+        a_eps_t(i) = a[t](i);
+      }
+      if (t < num_steps() - 1) {
+        a_eps_tp(i) = a[t + 1](i);
+      }
+      if (t > 0) {
+        a_eps_tm(i) = a[t - 1](i);
+      }
+    }
+    // Add the term J'∂γ/∂q to the gradients
+    // TODO(vincekurtz): separate function to compute dgamma_dq
+    // TODO(vincekurtz): add N+ term for unactuated DoFs.
+    if (t > 0) {
+      MatrixX<T> dgamma_dq = dgamma_dphi[t].asDiagonal() * jacobian_data.J[t];
+      dtau_dqp[t-1] -= jacobian_data.J[t].transpose() * dgamma_dq;
+    }
+  }
+}
+
+template <typename T>
 void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsFiniteDiff(
     const TrajectoryOptimizerState<T>& state,
     InverseDynamicsPartials<T>* id_partials) const {
@@ -719,7 +895,6 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsFiniteDiff(
 
   // Store small perturbations
   const double eps = sqrt(std::numeric_limits<double>::epsilon());
-  //const double eps = sqrt(std::numeric_limits<double>::epsilon()) * params_.delta / params_.F;
   T dq_i;
   T dv_i;
   T da_i;

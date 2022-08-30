@@ -346,7 +346,7 @@ class TrajectoryOptimizer {
    *
    *  tau = ID(a, v, q, f_ext)
    *
-   * at a single timestep.
+   * at a single timestep, where f_ext includes contact forces.
    *
    * @param q generalized position
    * @param v generalized velocity
@@ -355,6 +355,23 @@ class TrajectoryOptimizer {
    * @param tau generalized forces
    */
   void CalcInverseDynamicsSingleTimeStep(
+      const VectorX<T>& q, const VectorX<T>& v, const VectorX<T>& a,
+      TrajectoryOptimizerWorkspace<T>* workspace, VectorX<T>* tau) const;
+  
+  /**
+   * Helper function for computing the inverse dynamics
+   *
+   *  tau = ID(a, v, q)
+   *
+   * at a single timestep, where contact forces are not included. 
+   *
+   * @param q generalized position
+   * @param v generalized velocity
+   * @param a generalized acceleration
+   * @param workspace scratch space for intermediate computations
+   * @param tau generalized forces
+   */
+  void CalcInverseDynamicsSingleTimeStepNoContact(
       const VectorX<T>& q, const VectorX<T>& v, const VectorX<T>& a,
       TrajectoryOptimizerWorkspace<T>* workspace, VectorX<T>* tau) const;
 
@@ -373,6 +390,11 @@ class TrajectoryOptimizer {
   void CalcSdfData(
       const TrajectoryOptimizerState<T>& state,
       typename TrajectoryOptimizerCache<T>::SdfData* sdf_data) const;
+
+  /**
+   * Simple helper to compute the contact jacobian for the given configuration.
+   */
+  void CalcContactJacobian(const VectorX<T>& q, MatrixX<T>* J) const;
 
   /* Helper to compute the contact Jacobian for the configuration stored in
   `context`. Signed distance pairs `sdf_pairs` must be consistent with
@@ -502,6 +524,31 @@ class TrajectoryOptimizer {
    * @param id_partials struct for holding dtau/dq
    */
   void CalcInverseDynamicsPartialsAnalyticalApproximation(
+      const TrajectoryOptimizerState<T>& state,
+      InverseDynamicsPartials<T>* id_partials) const;
+
+  /**
+   * Compute partial derivatives of the inverse dynamics
+   *
+   *    tau_t = ID(q_{t-1}, q_t, q_{t+1})
+   *
+   * using a semi-analytical method, where we compute
+   *
+   *   ∂/∂q ID(q,v(q),a(q)) - ∂J'/∂q * γ
+   * 
+   * using finite differences,
+   * 
+   *   J'*∂γ/∂q
+   * 
+   * analytically, and put these together as
+   *  
+   *   ∂τ/∂q = ∂/∂q ID(q,v(q),a(q)) - ∂J'/∂q * γ - J'*∂γ/∂q.
+   * 
+   * @param state optimizer state containing q (and various things we can
+   * compute from q)
+   * @param id_partials struct for holding dtau/dq
+   */
+  void CalcInverseDynamicsPartialsSemiAnalytical(
       const TrajectoryOptimizerState<T>& state,
       InverseDynamicsPartials<T>* id_partials) const;
 

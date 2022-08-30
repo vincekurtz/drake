@@ -18,7 +18,11 @@ enum GradientStrategy {
   kFiniteDifferences,
 
   // Compute dtau/dq using an analytical approximation
-  kAnalyticalApproximation
+  kAnalyticalApproximation,
+
+  // Compute dtau/dq using an analytical expression for the contact force
+  // contribution (∂γ/∂q) and finite differences for everything else.
+  kSemiAnalytical
 };
 
 struct SolverParameters {

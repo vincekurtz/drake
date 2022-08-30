@@ -36,8 +36,8 @@ linesearch : "armijo"       # linesearch strategy, {armino, backtracking}
 proximal_operator : false   # whether to add a proximal operator cost term
 rho_proximal : 0.0          # the proximal cost multiplier
 
-# Type of gradients to use ("finite_differences" or "analytical")
-gradient_strategy : "finite_differences"
+# Type of gradients to use ("finite_differences" or "analytical" or "semi-analytical")
+gradient_strategy : "semi-analytical"
 
 # Playback/visualization parameters
 play_optimal_trajectory : true
@@ -50,10 +50,10 @@ save_solver_stats_csv : true
 
 # Contact model parameters
 F : 1.0         # force at delta meters of penetration
-delta : 0.01  # penetration distance with F newtons of normal force
+delta : 0.001  # penetration distance with F newtons of normal force
 stiffness_exponent : 2      # Compliant law exponent.
 dissipation_exponent : 1.0  # Hunt & Crossley-like model. Law exponent.
-dissipation_velocity : 1e8  # Hunt & Crossley-like model parameter, in m/s.
+dissipation_velocity : 1e16 # Hunt & Crossley-like model parameter, in m/s.
 
 # Friction
 friction_coefficient : 0.0  # Coefficient of friction.

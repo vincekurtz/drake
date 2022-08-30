@@ -119,7 +119,7 @@ struct TrajectoryOptimizerCache {
   bool velocity_partials_up_to_date{false};
 
   struct SdfData {
-    // sdf_pairs[t], with t=0 to num_steps-1, stores the contact pairs for the
+    // sdf_pairs[t], with t=0 to num_steps, stores the contact pairs for the
     // t-th step.
     std::vector<std::vector<geometry::SignedDistancePair<T>>> sdf_pairs;
     bool up_to_date{false};
