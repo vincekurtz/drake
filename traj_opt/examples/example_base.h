@@ -92,6 +92,8 @@ class TrajOptExample {
       solver_params.gradients_method = GradientsMethod::kForwardDifferences;
     } else if (options.gradients_method == "central_differences") {
       solver_params.gradients_method = GradientsMethod::kCentralDifferences;
+    } else if (options.gradients_method == "central_differences4") {
+      solver_params.gradients_method = GradientsMethod::kCentralDifferences4;
     } else if (options.gradients_method == "autodiff") {
       solver_params.gradients_method = GradientsMethod::kAutoDiff;
     } else {

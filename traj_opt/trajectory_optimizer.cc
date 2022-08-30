@@ -532,6 +532,10 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartials(
       CalcInverseDynamicsPartialsCentralDiff(state, id_partials);
       break;
     }
+    case GradientsMethod::kCentralDifferences4: {
+      CalcInverseDynamicsPartialsCentralDiff(state, id_partials);
+      break;
+    }
     case GradientsMethod::kAutoDiff: {
       if constexpr (std::is_same_v<T, double>) {
         CalcInverseDynamicsPartialsAutoDiff(state, id_partials);
@@ -725,27 +729,45 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsWrtQtCentralDiff(
 
   // Get references to perturbed versions of q, v, tau, and a, at (t-1, t, t).
   // These are all of the quantities that change when we perturb q_t.
-  VectorX<T>& q_em_t = workspace.q_size_tmp1;
-  VectorX<T>& q_ep_t = workspace.q_size_tmp2;
+  VectorX<T>& q_emm_t = workspace.q_size_tmp1;
+  VectorX<T>& q_em_t = workspace.q_size_tmp2;
+  VectorX<T>& q_ep_t = workspace.q_size_tmp3;
+  VectorX<T>& q_epp_t = workspace.q_size_tmp4;
 
-  VectorX<T>& v_em_t = workspace.v_size_tmp1;
-  VectorX<T>& v_ep_t = workspace.v_size_tmp2;
-  VectorX<T>& v_em_tp = workspace.v_size_tmp3;
-  VectorX<T>& v_ep_tp = workspace.v_size_tmp4;
+  VectorX<T>& v_emm_t = workspace.v_size_tmp1;
+  VectorX<T>& v_em_t = workspace.v_size_tmp2;
+  VectorX<T>& v_ep_t = workspace.v_size_tmp3;
+  VectorX<T>& v_epp_t = workspace.v_size_tmp4;
+  VectorX<T>& v_emm_tp = workspace.v_size_tmp5;
+  VectorX<T>& v_em_tp = workspace.v_size_tmp6;
+  VectorX<T>& v_ep_tp = workspace.v_size_tmp7;
+  VectorX<T>& v_epp_tp = workspace.v_size_tmp8;
 
-  VectorX<T>& a_em_tm = workspace.a_size_tmp1;
-  VectorX<T>& a_ep_tm = workspace.a_size_tmp2;
-  VectorX<T>& a_em_t = workspace.a_size_tmp3;
-  VectorX<T>& a_ep_t = workspace.a_size_tmp4;
-  VectorX<T>& a_em_tp = workspace.a_size_tmp5;
-  VectorX<T>& a_ep_tp = workspace.a_size_tmp6;
+  VectorX<T>& a_emm_tm = workspace.a_size_tmp1;
+  VectorX<T>& a_em_tm = workspace.a_size_tmp2;
+  VectorX<T>& a_ep_tm = workspace.a_size_tmp3;
+  VectorX<T>& a_epp_tm = workspace.a_size_tmp4;
+  VectorX<T>& a_emm_t = workspace.a_size_tmp5;
+  VectorX<T>& a_em_t = workspace.a_size_tmp6;
+  VectorX<T>& a_ep_t = workspace.a_size_tmp7;
+  VectorX<T>& a_epp_t = workspace.a_size_tmp8;
+  VectorX<T>& a_emm_tp = workspace.a_size_tmp9;
+  VectorX<T>& a_em_tp = workspace.a_size_tmp10;
+  VectorX<T>& a_ep_tp = workspace.a_size_tmp11;
+  VectorX<T>& a_epp_tp = workspace.a_size_tmp12;
 
-  VectorX<T>& tau_em_tm = workspace.tau_size_tmp1;
-  VectorX<T>& tau_ep_tm = workspace.tau_size_tmp2;
-  VectorX<T>& tau_em_t = workspace.tau_size_tmp3;
-  VectorX<T>& tau_ep_t = workspace.tau_size_tmp4;
-  VectorX<T>& tau_em_tp = workspace.tau_size_tmp5;
-  VectorX<T>& tau_ep_tp = workspace.tau_size_tmp6;
+  VectorX<T>& tau_emm_tm = workspace.tau_size_tmp1;
+  VectorX<T>& tau_em_tm = workspace.tau_size_tmp2;
+  VectorX<T>& tau_ep_tm = workspace.tau_size_tmp3;
+  VectorX<T>& tau_epp_tm = workspace.tau_size_tmp4;
+  VectorX<T>& tau_emm_t = workspace.tau_size_tmp5;
+  VectorX<T>& tau_em_t = workspace.tau_size_tmp6;
+  VectorX<T>& tau_ep_t = workspace.tau_size_tmp7;
+  VectorX<T>& tau_epp_t = workspace.tau_size_tmp8;
+  VectorX<T>& tau_emm_tp = workspace.tau_size_tmp9;
+  VectorX<T>& tau_em_tp = workspace.tau_size_tmp10;
+  VectorX<T>& tau_ep_tp = workspace.tau_size_tmp11;
+  VectorX<T>& tau_epp_tp = workspace.tau_size_tmp12;
 
   // Get the trajectory data
   const std::vector<VectorX<T>>& q = state.q();
@@ -754,27 +776,39 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsWrtQtCentralDiff(
   // const std::vector<VectorX<T>>& tau = EvalTau(state);
 
   // Set perturbed versions of variables
+  q_emm_t = q[t];
   q_em_t = q[t];
   q_ep_t = q[t];
+  q_epp_t = q[t];
+  v_emm_t = v[t];
   v_em_t = v[t];
   v_ep_t = v[t];
+  v_epp_t = v[t];
   if (t < num_steps()) {
     // v[num_steps + 1] is not defined
-    v_em_tp = v[t + 1];
-    v_ep_tp = v[t + 1];
+    v_emm_tp = v[t + 1];
+    v_em_tp = v_emm_tp;
+    v_ep_tp = v_emm_tp;
+    v_epp_tp = v_emm_tp;
     // a[num_steps] is not defined
-    a_em_t = a[t];
-    a_ep_t = a[t];
+    a_emm_t = a[t];
+    a_em_t = a_emm_t;
+    a_ep_t = a_emm_t;
+    a_epp_t = a_emm_t;
   }
   if (t < num_steps() - 1) {
     // a[num_steps + 1] is not defined
-    a_em_tp = a[t + 1];
-    a_ep_tp = a[t + 1];
+    a_emm_tp = a[t + 1];
+    a_em_tp = a_emm_tp;
+    a_ep_tp = a_emm_tp;
+    a_epp_tp = a_emm_tp;
   }
   if (t > 0) {
     // a[-1] is undefined
-    a_em_tm = a[t - 1];
-    a_ep_tm = a[t - 1];
+    a_emm_tm = a[t - 1];
+    a_em_tm = a_emm_tm;
+    a_ep_tm = a_emm_tm;
+    a_epp_tm = a_emm_tm;
   }
 
   // Compute small perturbations
@@ -794,29 +828,43 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsWrtQtCentralDiff(
 
     // Perturb q_t[i], v_t[i], and a_t[i]
     // TODO(vincekurtz): add N(q)+ factor to consider quaternion DoFs.
+    q_emm_t(i) -= 2.0 * dq;
     q_em_t(i) -= dq;
     q_ep_t(i) += dq;
+    q_epp_t(i) += 2.0 * dq;
 
     if (t == 0) {
       // v[0] is constant.
       // TODO: Can we make these NAN? in principle only go into dtau0_dq0, which
       // should not show up in either gradient or Hessian.
+      a_emm_t(i) += 2.0 * da;
       a_em_t(i) += 1.0 * da;
       a_ep_t(i) -= 1.0 * da;
+      a_epp_t(i) -= 2.0 * da;
     } else {
+      v_emm_t(i) -= 2.0 * dv;
       v_em_t(i) -= dv;
       v_ep_t(i) += dv;
+      v_epp_t(i) += 2.0 * dv;
 
+      a_emm_tm(i) -= 2.0 * da;
       a_em_tm(i) -= da;
       a_ep_tm(i) += da;
+      a_epp_tm(i) += 2.0 * da;
 
+      a_emm_t(i) += 4.0 * da;
       a_em_t(i) += 2.0 * da;
       a_ep_t(i) -= 2.0 * da;
+      a_epp_t(i) -= 4.0 * da;
     }
+    v_emm_tp(i) += 2.0 * dv;
     v_em_tp(i) += dv;
     v_ep_tp(i) -= dv;
+    v_epp_tp(i) -= 2.0 * dv;
+    a_emm_tp(i) -= 2.0 * da;
     a_em_tp(i) -= da;
     a_ep_tp(i) += da;
+    a_epp_tp(i) += 2.0 * da;
 
     // Compute perturbed tau(q) and calculate the nonzero entries of dtau/dq
     // via finite differencing
@@ -830,7 +878,20 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsWrtQtCentralDiff(
       plant().SetVelocities(context_, v_ep_t);
       CalcInverseDynamicsSingleTimeStep(*context_, a_ep_tm, &workspace,
                                         &tau_ep_tm);
-      dtaum_dqt->col(i) = 0.5 * (tau_ep_tm - tau_em_tm) / dq;
+      if (params_.gradients_method == GradientsMethod::kCentralDifferences4) {
+        plant().SetPositions(context_, q_emm_t);
+        plant().SetVelocities(context_, v_emm_t);
+        CalcInverseDynamicsSingleTimeStep(*context_, a_emm_tm, &workspace,
+                                          &tau_emm_tm);
+        plant().SetPositions(context_, q_epp_t);
+        plant().SetVelocities(context_, v_epp_t);
+        CalcInverseDynamicsSingleTimeStep(*context_, a_epp_tm, &workspace,
+                                          &tau_epp_tm);
+        dtaum_dqt->col(i) = 2.0 / 3.0 * (tau_ep_tm - tau_em_tm) / dq -
+                            1.0 / 12.0 * (tau_epp_tm - tau_emm_tm) / dq;
+      } else {
+        dtaum_dqt->col(i) = 0.5 * (tau_ep_tm - tau_em_tm) / dq;
+      }
     }
     if (t < num_steps()) {
       // tau[t] = ID(q[t+1], v[t+1], a[t])
@@ -843,7 +904,21 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsWrtQtCentralDiff(
       plant().SetVelocities(context_, v_em_tp);
       CalcInverseDynamicsSingleTimeStep(*context_, a_em_t, &workspace,
                                         &tau_em_t);
-      dtaut_dqt->col(i) = 0.5 * (tau_ep_t - tau_em_t) / dq;
+      if (params_.gradients_method == GradientsMethod::kCentralDifferences4) {
+        plant().SetPositions(context_, q[t + 1]);
+        plant().SetVelocities(context_, v_epp_tp);
+        CalcInverseDynamicsSingleTimeStep(*context_, a_epp_t, &workspace,
+                                          &tau_epp_t);
+
+        plant().SetPositions(context_, q[t + 1]);
+        plant().SetVelocities(context_, v_emm_tp);
+        CalcInverseDynamicsSingleTimeStep(*context_, a_emm_t, &workspace,
+                                          &tau_emm_t);
+        dtaut_dqt->col(i) = 2.0 / 3.0 * (tau_ep_t - tau_em_t) / dq -
+                            1.0 / 12.0 * (tau_epp_t - tau_emm_t) / dq;
+      } else {
+        dtaut_dqt->col(i) = 0.5 * (tau_ep_t - tau_em_t) / dq;
+      }
     }
     if (t < num_steps() - 1) {
       // tau[t+1] = ID(q[t+2], v[t+2], a[t+1])
@@ -855,27 +930,53 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsWrtQtCentralDiff(
       plant().SetVelocities(context_, v[t + 2]);
       CalcInverseDynamicsSingleTimeStep(*context_, a_ep_tp, &workspace,
                                         &tau_ep_tp);
-      dtaup_dqt->col(i) = 0.5 * (tau_ep_tp - tau_em_tp) / dq;
+      if (params_.gradients_method == GradientsMethod::kCentralDifferences4) {
+        plant().SetPositions(context_, q[t + 2]);
+        plant().SetVelocities(context_, v[t + 2]);
+        CalcInverseDynamicsSingleTimeStep(*context_, a_emm_tp, &workspace,
+                                          &tau_emm_tp);
+        plant().SetPositions(context_, q[t + 2]);
+        plant().SetVelocities(context_, v[t + 2]);
+        CalcInverseDynamicsSingleTimeStep(*context_, a_epp_tp, &workspace,
+                                          &tau_epp_tp);
+        dtaup_dqt->col(i) = 2.0 / 3.0 * (tau_ep_tp - tau_em_tp) / dq -
+                            1.0 / 12.0 * (tau_epp_tp - tau_emm_tp) / dq;
+      } else {
+        dtaup_dqt->col(i) = 0.5 * (tau_ep_tp - tau_em_tp) / dq;
+      }
     }
 
     // Unperturb q_t[i], v_t[i], and a_t[i]
-    q_em_t(i) = q[t](i);
-    q_ep_t(i) = q[t](i);
-    v_em_t(i) = v[t](i);
-    v_ep_t(i) = v[t](i);
+    q_emm_t(i) = q[t](i);
+    q_em_t(i) = q_emm_t(i);
+    q_ep_t(i) = q_emm_t(i);
+    q_epp_t(i) = q_emm_t(i);
+
+    v_emm_t(i) = v[t](i);
+    v_em_t(i) = v_emm_t(i);
+    v_ep_t(i) = v_emm_t(i);
+    v_epp_t(i) = v_emm_t(i);
     if (t < num_steps()) {
-      v_em_tp(i) = v[t + 1](i);
-      v_ep_tp(i) = v_em_tp(i);
-      a_em_t(i) = a[t](i);
-      a_ep_t(i) = a_em_t(i);
+      v_emm_tp(i) = v[t + 1](i);
+      v_em_tp(i) = v_emm_tp(i);
+      v_ep_tp(i) = v_emm_tp(i);
+      v_epp_tp(i) = v_emm_tp(i);
+      a_emm_t(i) = a[t](i);
+      a_em_t(i) = a_emm_t(i);
+      a_ep_t(i) = a_emm_t(i);
+      a_epp_t(i) = a_emm_t(i);
     }
     if (t < num_steps() - 1) {
-      a_em_tp(i) = a[t + 1](i);
-      a_ep_tp(i) = a_em_tp(i);
+      a_emm_tp(i) = a[t + 1](i);
+      a_em_tp(i) = a_emm_tp(i);
+      a_ep_tp(i) = a_emm_tp(i);
+      a_epp_tp(i) = a_emm_tp(i);
     }
     if (t > 0) {
-      a_em_tm(i) = a[t - 1](i);
-      a_ep_tm(i) = a_em_tm(i);
+      a_emm_tm(i) = a[t - 1](i);
+      a_em_tm(i) = a_emm_tm(i);
+      a_ep_tm(i) = a_emm_tm(i);
+      a_epp_tm(i) = a_emm_tm(i);
     }
   }
 }

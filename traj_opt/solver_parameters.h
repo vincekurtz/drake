@@ -18,6 +18,8 @@ enum GradientsMethod {
   kForwardDifferences,
   // Second order central differences.
   kCentralDifferences,
+  // Fourth order central differences.
+  kCentralDifferences4,
   // Automatic differentiation.
   kAutoDiff,
   // The optimizer will not be used for the computation of gradients. If
