@@ -30,14 +30,22 @@ struct TrajectoryOptimizerWorkspace {
 
     v_size_tmp1.resize(nv);
     v_size_tmp2.resize(nv);
+    v_size_tmp3.resize(nv);
+    v_size_tmp4.resize(nv);
 
     tau_size_tmp1.resize(nv);
     tau_size_tmp2.resize(nv);
     tau_size_tmp3.resize(nv);
+    tau_size_tmp4.resize(nv);
+    tau_size_tmp5.resize(nv);
+    tau_size_tmp6.resize(nv);
 
-    a_size_tmp1.resize(nq);
-    a_size_tmp2.resize(nq);
-    a_size_tmp3.resize(nq);
+    a_size_tmp1.resize(nv);
+    a_size_tmp2.resize(nv);
+    a_size_tmp3.resize(nv);
+    a_size_tmp4.resize(nv);
+    a_size_tmp5.resize(nv);
+    a_size_tmp6.resize(nv);
 
     q_times_num_steps_size_tmp.resize(nq * (num_steps + 1));
 
@@ -58,14 +66,22 @@ struct TrajectoryOptimizerWorkspace {
   // convienience.
   VectorX<T> v_size_tmp1;
   VectorX<T> v_size_tmp2;
+  VectorX<T> v_size_tmp3;
+  VectorX<T> v_size_tmp4;
 
   VectorX<T> tau_size_tmp1;
   VectorX<T> tau_size_tmp2;
   VectorX<T> tau_size_tmp3;
+  VectorX<T> tau_size_tmp4;
+  VectorX<T> tau_size_tmp5;
+  VectorX<T> tau_size_tmp6;
 
   VectorX<T> a_size_tmp1;
   VectorX<T> a_size_tmp2;
   VectorX<T> a_size_tmp3;
+  VectorX<T> a_size_tmp4;
+  VectorX<T> a_size_tmp5;
+  VectorX<T> a_size_tmp6;
 
   // Storage of sequence of q
   std::vector<VectorX<T>> q_sequence_tmp1;

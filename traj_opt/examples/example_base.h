@@ -90,11 +90,13 @@ class TrajOptExample {
 
     if (options.gradients_method == "forward_differences") {
       solver_params.gradients_method = GradientsMethod::kForwardDifferences;
+    } else if (options.gradients_method == "central_differences") {
+      solver_params.gradients_method = GradientsMethod::kCentralDifferences;
     } else if (options.gradients_method == "autodiff") {
       solver_params.gradients_method = GradientsMethod::kAutoDiff;
     } else {
-      throw std::runtime_error(
-          fmt::format("Unknown gradient method '{}'", options.gradients_method));
+      throw std::runtime_error(fmt::format("Unknown gradient method '{}'",
+                                           options.gradients_method));
     }
 
     if (options.method == "linesearch") {

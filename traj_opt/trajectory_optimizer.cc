@@ -532,6 +532,10 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartials(
       CalcInverseDynamicsPartialsFiniteDiff(state, workspace, id_partials);
       break;
     }
+    case GradientsMethod::kCentralDifferences: {
+      CalcInverseDynamicsPartialsCentralDiff(state, id_partials);
+      break;
+    }    
     case GradientsMethod::kAutoDiff: {
       if constexpr (std::is_same_v<T, double>) {
         CalcInverseDynamicsPartialsAutoDiff(state, id_partials);
@@ -679,6 +683,203 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsFiniteDiff(
       if (t > 0) {
         a_eps_tm(i) = a[t - 1](i);
       }
+    }
+  }
+}
+
+template <typename T>
+void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsCentralDiff(
+    const TrajectoryOptimizerState<T>& state,
+    InverseDynamicsPartials<T>* id_partials) const {  
+  // Check that id_partials has been allocated correctly.
+  DRAKE_DEMAND(id_partials->size() == num_steps());
+
+  // Get references to the partials that we'll be setting
+  std::vector<MatrixX<T>>& dtau_dqm = id_partials->dtau_dqm;
+  std::vector<MatrixX<T>>& dtau_dqt = id_partials->dtau_dqt;
+  std::vector<MatrixX<T>>& dtau_dqp = id_partials->dtau_dqp;
+  
+  for (int t = 0; t <= num_steps(); ++t) {
+    // N.B. A perturbation of qt propagates to tau[t-1], tau[t] and tau[t+1].
+    // Therefore we compute one column of grad_tau at a time. That is, once the
+    // loop on position indices i is over, we effectively computed the t-th
+    // column of grad_tau.
+
+    // Compute derivatives of tau[t-1], tau[t] and tau[t+1] w.r.t. q[t].
+    MatrixX<T>* dtaup_dqt = t < num_steps() - 1 ? &dtau_dqm[t + 1] : nullptr;
+    MatrixX<T>* dtaut_dqt = t < num_steps() ? &dtau_dqt[t] : nullptr;
+    MatrixX<T>* dtaum_dqt = t > 0 ? &dtau_dqp[t - 1] : nullptr;
+    CalcInverseDynamicsPartialsWrtQtCentralDiff(t, state, dtaum_dqt, dtaut_dqt,
+                                                dtaup_dqt);    
+  }
+}
+
+template <typename T>
+void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsWrtQtCentralDiff(
+    int t, const TrajectoryOptimizerState<T>& state, MatrixX<T>* dtaum_dqt,
+    MatrixX<T>* dtaut_dqt, MatrixX<T>* dtaup_dqt) const {
+  using std::abs;
+  using std::max;
+      
+  if (t < num_steps() - 1) DRAKE_DEMAND(dtaup_dqt != nullptr);
+  if (t < num_steps()) DRAKE_DEMAND(dtaut_dqt != nullptr);
+  if (t > 0) DRAKE_DEMAND(dtaum_dqt != nullptr);
+
+  TrajectoryOptimizerWorkspace<T>& workspace = state.workspace;
+
+  // Get references to perturbed versions of q, v, tau, and a, at (t-1, t, t).
+  // These are all of the quantities that change when we perturb q_t.
+  VectorX<T>& q_em_t = workspace.q_size_tmp1;
+  VectorX<T>& q_ep_t = workspace.q_size_tmp2;
+
+  VectorX<T>& v_em_t = workspace.v_size_tmp1;
+  VectorX<T>& v_ep_t = workspace.v_size_tmp2;
+  VectorX<T>& v_em_tp = workspace.v_size_tmp3;
+  VectorX<T>& v_ep_tp = workspace.v_size_tmp4;
+
+  VectorX<T>& a_em_tm = workspace.a_size_tmp1;
+  VectorX<T>& a_ep_tm = workspace.a_size_tmp2;
+  VectorX<T>& a_em_t = workspace.a_size_tmp3;
+  VectorX<T>& a_ep_t = workspace.a_size_tmp4;
+  VectorX<T>& a_em_tp = workspace.a_size_tmp5;
+  VectorX<T>& a_ep_tp = workspace.a_size_tmp6;
+
+  VectorX<T>& tau_em_tm = workspace.tau_size_tmp1;
+  VectorX<T>& tau_ep_tm = workspace.tau_size_tmp2;
+  VectorX<T>& tau_em_t = workspace.tau_size_tmp3;
+  VectorX<T>& tau_ep_t = workspace.tau_size_tmp4;
+  VectorX<T>& tau_em_tp = workspace.tau_size_tmp5;
+  VectorX<T>& tau_ep_tp = workspace.tau_size_tmp6;
+
+  // Get the trajectory data
+  const std::vector<VectorX<T>>& q = state.q();
+  const std::vector<VectorX<T>>& v = EvalV(state);
+  const std::vector<VectorX<T>>& a = EvalA(state);
+  //const std::vector<VectorX<T>>& tau = EvalTau(state);
+
+  // Set perturbed versions of variables
+  q_em_t = q[t];
+  q_ep_t = q[t];
+  v_em_t = v[t];
+  v_ep_t = v[t];  
+  if (t < num_steps()) {
+    // v[num_steps + 1] is not defined
+    v_em_tp = v[t + 1];
+    v_ep_tp = v[t + 1];
+    // a[num_steps] is not defined
+    a_em_t = a[t];
+    a_ep_t = a[t];
+  }
+  if (t < num_steps() - 1) {
+    // a[num_steps + 1] is not defined
+    a_em_tp = a[t + 1];
+    a_ep_tp = a[t + 1];
+  }
+  if (t > 0) {
+    // a[-1] is undefined
+    a_em_tm = a[t - 1];
+    a_ep_tm = a[t - 1];
+  }
+
+  // Compute small perturbations
+  const double eps = sqrt(std::numeric_limits<double>::epsilon());
+
+  for (int i = 0; i < plant().num_positions(); ++i) {
+    // Determine perturbation sizes to avoid losing precision to floating
+    // point error
+    T dq = eps * max(1.0, abs(q_ep_t(i)));  // N.B. q_em_t(i) == q_ep_t(i)
+
+    // Make dq exactly representable to minimize floating point error
+    T temp = q_ep_t(i) + dq;
+    dq = temp - q_ep_t(i);
+
+    const T dv = dq / time_step();
+    const T da = dv / time_step();
+
+    // Perturb q_t[i], v_t[i], and a_t[i]
+    // TODO(vincekurtz): add N(q)+ factor to consider quaternion DoFs.
+    q_em_t(i) -= dq;
+    q_ep_t(i) += dq;
+
+    if (t == 0) {
+      // v[0] is constant.
+      // TODO: Can we make these NAN? in principle only go into dtau0_dq0, which
+      // should not show up in either gradient or Hessian.
+      a_em_t(i) += 1.0 * da;
+      a_ep_t(i) -= 1.0 * da;
+    } else {
+      v_em_t(i) -= dv;
+      v_ep_t(i) += dv;
+
+      a_em_tm(i) -= da;
+      a_ep_tm(i) += da;
+
+      a_em_t(i) += 2.0 * da;
+      a_ep_t(i) -= 2.0 * da;
+    }
+    v_em_tp(i) += dv;
+    v_ep_tp(i) -= dv;
+    a_em_tp(i) -= da;
+    a_ep_tp(i) += da;
+
+    // Compute perturbed tau(q) and calculate the nonzero entries of dtau/dq
+    // via finite differencing
+    if (t > 0) {
+      // tau[t-1] = ID(q[t], v[t], a[t-1])
+      plant().SetPositions(context_, q_em_t);
+      plant().SetVelocities(context_, v_em_t);
+      CalcInverseDynamicsSingleTimeStep(*context_, a_em_tm, &workspace,
+                                        &tau_em_tm);
+      plant().SetPositions(context_, q_ep_t);
+      plant().SetVelocities(context_, v_ep_t);
+      CalcInverseDynamicsSingleTimeStep(*context_, a_ep_tm, &workspace,
+                                        &tau_ep_tm);
+      dtaum_dqt->col(i) = 0.5 * (tau_ep_tm - tau_em_tm) / dq;
+    }
+    if (t < num_steps()) {
+      // tau[t] = ID(q[t+1], v[t+1], a[t])
+      plant().SetPositions(context_, q[t + 1]);
+      plant().SetVelocities(context_, v_ep_tp);
+      CalcInverseDynamicsSingleTimeStep(*context_, a_ep_t, &workspace,
+                                        &tau_ep_t);
+
+      plant().SetPositions(context_, q[t + 1]);
+      plant().SetVelocities(context_, v_em_tp);
+      CalcInverseDynamicsSingleTimeStep(*context_, a_em_t, &workspace,
+                                        &tau_em_t);
+      dtaut_dqt->col(i) = 0.5 * (tau_ep_t - tau_em_t) / dq;
+    }
+    if (t < num_steps() - 1) {
+      // tau[t+1] = ID(q[t+2], v[t+2], a[t+1])
+      plant().SetPositions(context_, q[t + 2]);
+      plant().SetVelocities(context_, v[t + 2]);
+      CalcInverseDynamicsSingleTimeStep(*context_, a_em_tp, &workspace,
+                                        &tau_em_tp);
+      plant().SetPositions(context_, q[t + 2]);
+      plant().SetVelocities(context_, v[t + 2]);
+      CalcInverseDynamicsSingleTimeStep(*context_, a_ep_tp, &workspace,
+                                        &tau_ep_tp);
+      dtaup_dqt->col(i) = 0.5 * (tau_ep_tp - tau_em_tp) / dq;
+    }
+
+    // Unperturb q_t[i], v_t[i], and a_t[i]
+    q_em_t(i) = q[t](i);    
+    q_ep_t(i) = q[t](i);
+    v_em_t(i) = v[t](i);
+    v_ep_t(i) = v[t](i);
+    if (t < num_steps()) {
+      v_em_tp(i) = v[t + 1](i);
+      v_ep_tp(i) = v_em_tp(i);
+      a_em_t(i) = a[t](i);
+      a_ep_t(i) = a_em_t(i);
+    }
+    if (t < num_steps() - 1) {
+      a_em_tp(i) = a[t + 1](i);
+      a_ep_tp(i) = a_em_tp(i);
+    }
+    if (t > 0) {
+      a_em_tm(i) = a[t - 1](i);
+      a_ep_tm(i) = a_em_tm(i);
     }
   }
 }

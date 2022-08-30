@@ -452,6 +452,15 @@ class TrajectoryOptimizer {
       TrajectoryOptimizerWorkspace<T>* workspace,
       InverseDynamicsPartials<T>* id_partials) const;
 
+  void CalcInverseDynamicsPartialsCentralDiff(
+      const TrajectoryOptimizerState<T>& state,
+      InverseDynamicsPartials<T>* id_partials) const;
+
+  // Compute derivatives of tau[t-1], tau[t] and tau[t+1] w.r.t. q[t].  
+  void CalcInverseDynamicsPartialsWrtQtCentralDiff(
+      int t, const TrajectoryOptimizerState<T>& state, MatrixX<T>* dtaum_dqt,
+      MatrixX<T>* dtaut_dqt, MatrixX<T>* dtaup_dqt) const;
+
   void CalcInverseDynamicsPartialsAutoDiff(
       const TrajectoryOptimizerState<double>& state,
       InverseDynamicsPartials<double>* id_partials) const;
