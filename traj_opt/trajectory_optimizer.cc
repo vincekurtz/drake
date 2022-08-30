@@ -1010,6 +1010,16 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsAutoDiff(
     q_ad[t] = q[t];
   }
 
+  // DEBUG
+  state_ad_->set_q(q_ad);
+  const std::vector<VectorX<AutoDiffXd>>& v = optimizer_ad_->EvalV(*state_ad_);
+  const std::vector<VectorX<AutoDiffXd>>& a = optimizer_ad_->EvalA(*state_ad_);
+  const std::vector<VectorX<AutoDiffXd>>& tau = optimizer_ad_->EvalTau(*state_ad_);
+
+  std::cout << "v0 : " << v[0].transpose() << std::endl;
+  std::cout << "a0 : " << a[0].transpose() << std::endl;
+  std::cout << "tau0: " << tau[0].transpose() << std::endl;
+
   // At each t we will compute derivatives of tau[t-1], tau[t] and tau[t+1 with
   // respect to q[t].
   for (int t = 0; t <= num_steps(); ++t) {

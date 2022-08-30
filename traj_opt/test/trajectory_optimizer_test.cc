@@ -160,6 +160,26 @@ GTEST_TEST(TrajectoryOptimizerTest, ContactGradientMethods) {
   state_cd.set_q(q);
   state_ad.set_q(q);
 
+  // Sanity check that forward dynamics match for all of the methods
+  const std::vector<VectorXd> tau_fd = optimizer_fd.EvalTau(state_fd);
+  const std::vector<VectorXd> tau_cd = optimizer_cd.EvalTau(state_cd);
+  const std::vector<VectorXd> tau_ad = optimizer_ad.EvalTau(state_ad);
+
+  const double kEpsilon = std::numeric_limits<double>::epsilon();
+  EXPECT_TRUE(CompareMatrices(tau_fd[0], tau_cd[0],
+                              kEpsilon, MatrixCompareType::relative));
+  EXPECT_TRUE(CompareMatrices(tau_fd[0], tau_ad[0],
+                              kEpsilon, MatrixCompareType::relative));
+
+  std::cout << std::endl;
+  std::cout << tau_fd[0].transpose() << std::endl;
+  std::cout << tau_cd[0].transpose() << std::endl;
+  std::cout << tau_ad[0].transpose() << std::endl;
+  std::cout << std::endl;
+
+  std::cout << "v0_fd : " << optimizer_fd.EvalV(state_fd)[0].transpose() << std::endl;
+  std::cout << "a0_fd : " << optimizer_fd.EvalA(state_fd)[0].transpose() << std::endl;
+
   // Compute inverse dynamics partials
   InverseDynamicsPartials<double> idp_fd(num_steps, 3, 3);
   TrajectoryOptimizerTester::CalcInverseDynamicsPartials(
