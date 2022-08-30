@@ -86,11 +86,6 @@ class TrajOptExample {
     // Get the number of unactuated DOF
     opt_prob.num_unactuated_dof =
         static_cast<int>(opt_prob.unactuated_dof.size());
-    // Create an (num_unactuated_dof x nv) unactuation matrix
-    opt_prob.unactuation_mat = MatrixXd::Zero(opt_prob.num_unactuated_dof, nv);
-    for (int i = 0; i < opt_prob.num_unactuated_dof; ++i) {
-      opt_prob.unactuation_mat(i, opt_prob.unactuated_dof[i]) = 1;
-    }
 
     // Set our solver parameters
     // TODO(vincekurtz): consider separate functions mapping options to opt_prob
@@ -180,15 +175,14 @@ class TrajOptExample {
     if (status != SolverFlag::kSuccess) {
       std::cout << "Solver failed!" << std::endl;
     } else {
-      double total_time = 0.0;
-      for (int i = 0; i < static_cast<int>(stats.solve_time.size()); ++i) {
+      for (int i = 0; i < static_cast<int>(stats.major_iteration_times.size());
+           ++i) {
         if (options.augmented_lagrangian) {
           std::cout << "Major iteration " << i << " was solved in "
-                    << stats.solve_time[i] << " seconds.\n";
+                    << stats.major_iteration_times[i] << " seconds.\n";
         }
-        total_time += stats.solve_time[i];
       }
-      std::cout << "Solved in " << total_time << " seconds.\n";
+      std::cout << "Solved in " << stats.solve_time << " seconds.\n";
     }
 
     // Report maximum torques on all DoFs

@@ -38,12 +38,15 @@ struct TrajectoryOptimizerSolution {
 template <typename T>
 struct TrajectoryOptimizerStats {
   // Total solve time
-  std::vector<double> solve_time;
+  double solve_time;
 
-  // Time for each iteration
+  // Augmented Lagrangian (major) iteration times
+  std::vector<double> major_iteration_times;
+
+  // Time for each Gauss-Newton (minor) iteration
   std::vector<double> iteration_times;
 
-  // Cost at each iteration
+  // Cost at each Gauss-Newton (minor) iteration
   std::vector<T> iteration_costs;
 
   // Number of linesearch iterations, or number of times the trust-region was

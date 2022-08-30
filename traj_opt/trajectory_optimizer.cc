@@ -1705,7 +1705,8 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithLinesearch(
 
   // Record the total solve time
   solve_time = std::chrono::high_resolution_clock::now() - start_time;
-  stats->solve_time.push_back(solve_time.count());
+  stats->solve_time += solve_time.count();
+  stats->major_iteration_times.push_back(solve_time.count());
 
   // Record the solution
   solution->q = state.q();
@@ -1864,7 +1865,8 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
   }
 
   solve_time = std::chrono::high_resolution_clock::now() - start_time;
-  stats->solve_time.push_back(solve_time.count());
+  stats->solve_time += solve_time.count();
+  stats->major_iteration_times.push_back(solve_time.count());
 
   // Record the solution
   solution->q = state.q();
@@ -1942,6 +1944,15 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
                 << "\nMax. violation: " << violations.lpNorm<Eigen::Infinity>()
                 << "\n\n";
 
+    // Check for constraint satisfaction w.r.t. a tolerance
+    if (violations.lpNorm<Eigen::Infinity>() < params_.constraint_tol) {
+      std::cout << "\nStopping b/c the max. constraint violation "
+                << violations.lpNorm<Eigen::Infinity>()
+                << " is smaller than the constraint satisfaction tolerance "
+                << params_.constraint_tol << "\n\n";
+      return status;
+    }
+
     // Update the augmented Lagrangian parameters
     if (i < params_.max_major_iterations - 1) {
       // Update the Lagrange multipliers
@@ -1952,16 +1963,6 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
                     << "\t-->  " << state.lambda_[i + 1](j) << std::endl;
         }
       }
-
-      // Check for constraint satisfaction w.r.t. a tolerance
-      if (violations.lpNorm<Eigen::Infinity>() < params_.constraint_tol) {
-        std::cout << "\nStopping b/c the max. constraint violation "
-                  << violations.lpNorm<Eigen::Infinity>()
-                  << " is smaller than the constraint satisfaction tolerance "
-                  << params_.constraint_tol << "\n\n";
-        return status;
-      }
-      // TODO(aykut): Consider updating the constraint tolerance
 
       // Update the penalty parameter
       state.mu_[i + 1] = params_.mu_expand_coef * state.mu_[i];
