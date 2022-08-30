@@ -187,7 +187,10 @@ class TrajectoryOptimizerState {
    *
    * @param num_steps number of timesteps in the optimization problem
    * @param params solver parameters
-   * @param num_eq_constraints number of equality constraints due to unactuation
+   * @param num_eq_constraints number of equality constraints to be handled by
+   * the augmented Lagrangian solver (currently, only the unactuation
+   * constraints are considered; hence, this corresponds to the number of
+   * force elements acting upon unactuated DOF over the time horizon)
    * @param nv number of multibody velocities
    * @param nq number of multipody positions
    */
