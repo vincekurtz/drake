@@ -12,6 +12,10 @@
 #include "drake/traj_opt/penta_diagonal_solver.h"
 #include "drake/systems/framework/diagram.h"
 
+#include <iostream>
+#define PRINT_VAR(a) std::cout << #a": " << a << std::endl;
+#define PRINT_VARn(a) std::cout << #a":\n" << a << std::endl;
+
 namespace drake {
 namespace traj_opt {
 
@@ -83,9 +87,9 @@ TrajectoryOptimizer<T>::TrajectoryOptimizer(
       DRAKE_DEMAND(plant_ad_ != nullptr);
       SolverParameters params_ad;
       // N.B. We'll only use optimizer_ad_ to compute inverse dynamics with
-      // AutoDiffXd, not gradients. We set this to something different from
-      // kAutoDiff so we don't get the exception below at construction.
-      params_ad.gradients_method = GradientsMethod::kForwardDifferences;
+      // AutoDiffXd, not gradients. We state this explicitly so that we don't
+      // get the exception below at construction.
+      params_ad.gradients_method = GradientsMethod::kNoGradients;
       optimizer_ad_ = std::make_unique<TrajectoryOptimizer<AutoDiffXd>>(
           diagram_ad_.get(), plant_ad_, prob, params_ad);
       // TODO: move state's destructor and possible other implementation to the
@@ -541,6 +545,11 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartials(
       }
       break;
     }
+    case GradientsMethod::kNoGradients: {
+      throw std::runtime_error(
+          "This optimizer was instantiated with GradientsMethod::kNoGradients "
+          "and therefore the computation of gradients is not enabled.");
+    }
   }
 }
 
@@ -702,6 +711,7 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsAutoDiff(
   // Initialize q_ad. First with no derivatives, as a constant.
   const std::vector<VectorX<double>>& q = state.q();
   for (int t = 0; t <= num_steps(); ++t) {
+    q_ad[t].resize(q[t].size());
     q_ad[t] = q[t];
   }
 
@@ -710,7 +720,7 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsAutoDiff(
   for (int t = 0; t <= num_steps(); ++t) {
     // Set derivatives with respect to q[t].
     // q[t] will propagate directly to v[t], v[t+1], a[t-1], a[t] and a[t+1].
-    q_ad[t] = math::InitializeAutoDiff(q[t], q[t].size());
+    q_ad[t] = math::InitializeAutoDiff(q[t]);
     state_ad_->set_q(q_ad);
     
     // N.B. All dynamics terms are treated implicitly, i.e.,

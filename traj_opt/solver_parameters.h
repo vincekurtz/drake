@@ -13,7 +13,15 @@ enum LinesearchMethod {
 
 enum SolverMethod { kLinesearch, kTrustRegion };
 
-enum GradientsMethod { kForwardDifferences, kAutoDiff };
+enum GradientsMethod {
+  // First order forward differences.  
+  kForwardDifferences,
+  // Automatic differentiation.
+  kAutoDiff, 
+  // The optimizer will not be used for the computation of gradients. If
+  // requested, an exception will be thrown.
+  kNoGradients 
+};
 
 struct SolverParameters {
   // Which overall optimization strategy to use - linesearch or trust region
