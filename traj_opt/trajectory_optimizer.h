@@ -49,6 +49,8 @@ class TrajectoryOptimizer {
    */
   // TODO(amcastro-tri): Get rid of this constructor. Favor the new construction
   // below so that we can cache the context at each time step in the state.
+  // In particular, context only gets used for
+  // CalcInverseDynamicsPartialsFiniteDiff().
   TrajectoryOptimizer(const MultibodyPlant<T>* plant, Context<T>* context,
                       const ProblemDefinition& prob,
                       const SolverParameters& params = SolverParameters{});
@@ -232,6 +234,10 @@ class TrajectoryOptimizer {
    */
   void CalcCacheTrajectoryData(const TrajectoryOptimizerState<T>& state) const;
 
+  void CalcInverseDynamicsCache(
+      const TrajectoryOptimizerState<T>& state,
+      typename TrajectoryOptimizerCache<T>::InverseDynamicsCache* cache) const;
+
   /**
    * Compute all of the "derivatives data" (dv/dq, dtau/dq) stored in the
    * state's cache to correspond to the state's generalized positions q.
@@ -339,8 +345,7 @@ class TrajectoryOptimizer {
    * @param workspace scratch space for intermediate computations
    * @param tau sequence of generalized forces
    */
-  void CalcInverseDynamics(const std::vector<VectorX<T>>& q,
-                           const std::vector<VectorX<T>>& v,
+  void CalcInverseDynamics(const TrajectoryOptimizerState<T>& state,
                            const std::vector<VectorX<T>>& a,
                            TrajectoryOptimizerWorkspace<T>* workspace,
                            std::vector<VectorX<T>>* tau) const;
@@ -654,9 +659,11 @@ class TrajectoryOptimizer {
 
   // A context corresponding to plant_, to enable dynamics computations. Must be
   // connected to a larger Diagram with a SceneGraph for systems with contact.
+  // Right now only used by CalcInverseDynamicsPartialsFiniteDiff().
   Context<T>* context_{nullptr};
 
   // Temporary workaround for when context_ is not provided at construction.
+  // Right now only used by CalcInverseDynamicsPartialsFiniteDiff().
   // TODO(amcastro-tri): Get rid of context_ and owned_context_.
   std::unique_ptr<Context<T>> owned_context_;
 

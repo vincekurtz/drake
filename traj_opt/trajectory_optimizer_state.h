@@ -41,7 +41,7 @@ struct TrajectoryOptimizerCache {
         hessian(num_steps + 1, nq) {
     trajectory_data.v.assign(num_steps + 1, VectorX<T>(nv));
     trajectory_data.a.assign(num_steps, VectorX<T>(nv));
-    trajectory_data.tau.assign(num_steps, VectorX<T>(nv));
+    inverse_dynamics_cache.tau.assign(num_steps, VectorX<T>(nv));
     // TODO(amcastro-tri): We could allocate contact_jacobian_data here if we
     // knew the number of contacts. For now, we'll defer the allocation to a
     // later stage when the number of contacts is available.
@@ -95,12 +95,16 @@ struct TrajectoryOptimizerCache {
     // [a(0), a(1), ..., a(num_steps-1)]
     std::vector<VectorX<T>> a;
 
+    bool up_to_date{false};
+  } trajectory_data;
+
+  struct InverseDynamicsCache {
     // Generalized forces at each timestep
     // [tau(0), tau(1), ..., tau(num_steps-1)]
     std::vector<VectorX<T>> tau;
 
     bool up_to_date{false};
-  } trajectory_data;
+  } inverse_dynamics_cache;
 
   struct SdfData {
     // sdf_pairs[t], with t=0 to num_steps-1, stores the contact pairs for the
@@ -328,6 +332,7 @@ class TrajectoryOptimizerState {
   // Set all the cache invalidation flags to false
   void invalidate_cache() {
     cache_.trajectory_data.up_to_date = false;
+    cache_.inverse_dynamics_cache.up_to_date = false;
     cache_.derivatives_data.up_to_date = false;
     cache_.cost_up_to_date = false;
     cache_.gradient_up_to_date = false;

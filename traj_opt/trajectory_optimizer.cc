@@ -197,24 +197,21 @@ void TrajectoryOptimizer<T>::CalcAccelerations(
 
 template <typename T>
 void TrajectoryOptimizer<T>::CalcInverseDynamics(
-    const std::vector<VectorX<T>>& q, const std::vector<VectorX<T>>& v,
+    const TrajectoryOptimizerState<T>& state,
     const std::vector<VectorX<T>>& a,
     TrajectoryOptimizerWorkspace<T>* workspace,
     std::vector<VectorX<T>>* tau) const {
   // Generalized forces aren't defined for the last timestep
   // TODO(vincekurtz): additional checks that q_t, v_t, tau_t are the right size
   // for the plant?
-  DRAKE_DEMAND(static_cast<int>(q.size()) == num_steps() + 1);
-  DRAKE_DEMAND(static_cast<int>(v.size()) == num_steps() + 1);
   DRAKE_DEMAND(static_cast<int>(a.size()) == num_steps());
   DRAKE_DEMAND(static_cast<int>(tau->size()) == num_steps());
 
   for (int t = 0; t < num_steps(); ++t) {
-    plant().SetPositions(context_, q[t + 1]);
-    plant().SetVelocities(context_, v[t + 1]);
+    const Context<T>& context_tp = EvalPlantContext(state, t + 1);
     // All dynamics terms are treated implicitly, i.e.,
     // tau[t] = M(q[t+1]) * a[t] - k(q[t+1],v[t+1]) - f_ext[t+1]
-    CalcInverseDynamicsSingleTimeStep(*context_, a[t], workspace, &tau->at(t));
+    CalcInverseDynamicsSingleTimeStep(context_tp, a[t], workspace, &tau->at(t));
   }
 }
 
@@ -1009,27 +1006,34 @@ template <typename T>
 void TrajectoryOptimizer<T>::CalcCacheTrajectoryData(
     const TrajectoryOptimizerState<T>& state) const {
   TrajectoryOptimizerCache<T>& cache = state.mutable_cache();
-  TrajectoryOptimizerWorkspace<T>& workspace = state.workspace;
-
-  // Some aliases for things that we'll set
-  std::vector<VectorX<T>>& v = cache.trajectory_data.v;
-  std::vector<VectorX<T>>& a = cache.trajectory_data.a;
-  std::vector<VectorX<T>>& tau = cache.trajectory_data.tau;
-
+      
   // The generalized positions that everything is computed from
   const std::vector<VectorX<T>>& q = state.q();
 
   // Compute corresponding generalized velocities
+  std::vector<VectorX<T>>& v = cache.trajectory_data.v;
   CalcVelocities(q, &v);
 
   // Compute corresponding generalized accelerations
+  std::vector<VectorX<T>>& a = cache.trajectory_data.a;
   CalcAccelerations(v, &a);
 
+  // Set cache invalidation flag  
+  cache.trajectory_data.up_to_date = true;
+}
+
+template <typename T>
+void TrajectoryOptimizer<T>::CalcInverseDynamicsCache(
+    const TrajectoryOptimizerState<T>& state,
+    typename TrajectoryOptimizerCache<T>::InverseDynamicsCache* cache) const {
+  TrajectoryOptimizerWorkspace<T>& workspace = state.workspace;
+
   // Compute corresponding generalized torques
-  CalcInverseDynamics(q, v, a, &workspace, &tau);
+  const std::vector<VectorX<T>>& a = EvalA(state);
+  CalcInverseDynamics(state, a, &workspace, &cache->tau);
 
   // Set cache invalidation flag
-  cache.trajectory_data.up_to_date = true;
+  cache->up_to_date = true;
 }
 
 template <typename T>
@@ -1055,6 +1059,12 @@ void TrajectoryOptimizer<T>::CalcContextCache(
 template <typename T>
 const Context<T>& TrajectoryOptimizer<T>::EvalPlantContext(
     const TrajectoryOptimizerState<T>& state, int t) const {
+  if (diagram_ == nullptr) {
+    throw std::runtime_error(
+        "No Diagram was provided at construction of the TrajectoryOptimizer. "
+        "Use the constructor that takes a Diagram to enable the caching of "
+        "contexts.");
+  }
   if (!state.cache().context_cache->up_to_date) {
     CalcContextCache(state, state.mutable_cache().context_cache.get());
   }
@@ -1078,8 +1088,10 @@ const std::vector<VectorX<T>>& TrajectoryOptimizer<T>::EvalA(
 template <typename T>
 const std::vector<VectorX<T>>& TrajectoryOptimizer<T>::EvalTau(
     const TrajectoryOptimizerState<T>& state) const {
-  if (!state.cache().trajectory_data.up_to_date) CalcCacheTrajectoryData(state);
-  return state.cache().trajectory_data.tau;
+  if (!state.cache().inverse_dynamics_cache.up_to_date)
+    CalcInverseDynamicsCache(state,
+                             &state.mutable_cache().inverse_dynamics_cache);
+  return state.cache().inverse_dynamics_cache.tau;
 }
 
 template <typename T>
