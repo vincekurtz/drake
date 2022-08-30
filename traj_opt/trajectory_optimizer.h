@@ -185,6 +185,10 @@ class TrajectoryOptimizer {
       const TrajectoryOptimizerState<T>& state) const;
   const std::vector<VectorX<T>>& EvalContactImpulsePartialsSignedDistance(
       const TrajectoryOptimizerState<T>& state) const;
+  const std::vector<MatrixX<T>>& EvalContactImpulsePartialsWrtQ(
+      const TrajectoryOptimizerState<T>& state) const;
+  const std::vector<MatrixX<T>>& EvalContactImpulsePartialsWrtV(
+      const TrajectoryOptimizerState<T>& state) const;
 
  private:
   // Friend class to facilitate testing.

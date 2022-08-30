@@ -548,7 +548,7 @@ GTEST_TEST(TrajectoryOptimizerTest, AnalyticalDerivatives2DoFSpinner) {
   solver_params_finite_diff.F = 1.0;
   solver_params_finite_diff.delta = 0.01;
   solver_params_finite_diff.stiffness_exponent = 2.0;
-  solver_params_finite_diff.dissipation_velocity = 1e8;  // no dissipation
+  solver_params_finite_diff.dissipation_velocity = 1e16;  // no dissipation
   solver_params_finite_diff.friction_coefficient = 0.0;  // no friction
   solver_params_finite_diff.gradient_strategy =
       GradientStrategy::kFiniteDifferences;
@@ -843,6 +843,83 @@ GTEST_TEST(TrajectoryOptimizerTest, AnalyticalDtauDqWithContact) {
                                 id_partials_analytical.dtau_dqp[t], kTolerance,
                                 MatrixCompareType::relative));
   }
+}
+
+/**
+ * Test our computation of ∂γ/∂q via comparison with autodiff.
+ */
+GTEST_TEST(TrajectoryOptimizerTest, ContactImpulsePartialsAutodiff) {
+  // Set up an example system with sphere-sphere contact (spinner)
+  DiagramBuilder<double> builder;
+  MultibodyPlantConfig config;
+  config.time_step = 1.0;
+  auto [plant, scene_graph] = multibody::AddMultibodyPlant(config, &builder);
+  Parser(&plant).AddAllModelsFromFile(
+      FindResourceOrThrow("drake/traj_opt/examples/spinner_sphere.urdf"));
+  plant.Finalize();
+  auto diagram = builder.Build();
+
+  const int num_steps = 1;
+  ProblemDefinition opt_prob;
+  opt_prob.num_steps = num_steps;
+  opt_prob.q_init = Vector3d(0.2, 1.5, 0.0);
+  opt_prob.v_init = Vector3d(0.0, 0.0, 0.0);
+  SolverParameters solver_params;
+  solver_params.F = 1.0;
+  solver_params.delta = 0.01;
+  solver_params.stiffness_exponent = 2.0;
+  solver_params.dissipation_velocity = 0.1;  // no dissipation
+  solver_params.friction_coefficient = 0.0;   // no friction
+
+  // Create two optimizers: one normal and one autodiff
+  TrajectoryOptimizer<double> optimizer(diagram.get(), &plant, opt_prob,
+                                     solver_params);
+  TrajectoryOptimizerState<double> state = optimizer.CreateState();
+
+  auto diagram_ad = systems::System<double>::ToAutoDiffXd(*diagram);
+  const auto& plant_ad = dynamic_cast<const MultibodyPlant<AutoDiffXd>&>(
+      diagram_ad->GetSubsystemByName(plant.get_name()));
+  TrajectoryOptimizer<AutoDiffXd> optimizer_ad(diagram_ad.get(), &plant_ad,
+                                            opt_prob, solver_params);
+  TrajectoryOptimizerState<AutoDiffXd> state_ad = optimizer_ad.CreateState();
+
+  // Set state values. 
+  std::vector<VectorXd> q;
+  q.push_back(opt_prob.q_init);
+  q.push_back(Vector3d(0.4, 1.5, 0.0));
+  state.set_q(q);
+
+  std::vector<VectorX<AutoDiffXd>> q_ad;
+  q_ad.push_back(q[0]);
+  q_ad.push_back(math::InitializeAutoDiff(q[1]));
+  state_ad.set_q(q_ad);
+  
+  // Sanity check that both optimizers agree on τ = ID(q,v(q),a(q),γ(q))
+  const std::vector<VectorXd> tau = optimizer.EvalTau(state);
+  const std::vector<VectorX<AutoDiffXd>> tau_ad = optimizer_ad.EvalTau(state_ad);
+  
+  const double kEpsilon = std::numeric_limits<double>::epsilon();
+  EXPECT_TRUE(CompareMatrices(tau[0], math::ExtractValue(tau_ad[0]),
+                              kEpsilon, MatrixCompareType::relative));
+
+  // Compute ∂γ/∂q with autodiff
+  const std::vector<VectorX<AutoDiffXd>>& gamma_ad = optimizer_ad.EvalContactImpulses(state_ad);
+  const MatrixXd dgamma_dq_ad = math::ExtractGradient(gamma_ad[1]);
+  
+  // Compute ∂γ/∂q analytically
+  const std::vector<VectorXd>& dgamma_dphi =
+      optimizer.EvalContactImpulsePartialsSignedDistance(state);
+  const TrajectoryOptimizerCache<double>::ContactJacobianData& jacobian_data =
+      optimizer.EvalContactJacobianData(state);
+  const MatrixXd dgamma_dq = dgamma_dphi[1].asDiagonal() * jacobian_data.J[1];
+
+  std::cout << dgamma_dq_ad << std::endl;
+  std::cout << std::endl;
+  std::cout << dgamma_dq << std::endl;
+  
+  //EXPECT_TRUE(CompareMatrices(dgamma_dq, dgamma_dq_ad,
+  //                            10*kEpsilon, MatrixCompareType::relative));
+
 }
 
 /**
