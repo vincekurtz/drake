@@ -36,6 +36,10 @@ linesearch : "armijo"       # linesearch strategy, {armino, backtracking}
 proximal_operator : false   # whether to add a proximal operator cost term
 rho_proximal : 0.0          # the proximal cost multiplier
 
+# Method used to compute gradients of inverse dynamics, one of
+# {forward_differences, central_differences, central_differences4, autodiff}
+gradients_method: "autodiff"
+
 # Playback/visualization parameters
 play_optimal_trajectory : true
 play_initial_guess : true

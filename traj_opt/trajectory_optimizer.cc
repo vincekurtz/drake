@@ -811,7 +811,7 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsWrtQtCentralDiff(
   }
 
   // Compute small perturbations
-  const double eps = sqrt(std::numeric_limits<double>::epsilon());
+  const double eps = cbrt(std::numeric_limits<double>::epsilon());
 
   for (int i = 0; i < plant().num_positions(); ++i) {
     // Determine perturbation sizes to avoid losing precision to floating
@@ -1766,7 +1766,7 @@ T TrajectoryOptimizer<T>::CalcTrustRatio(
   const double eps = std::numeric_limits<T>::epsilon();
   if ((predicted_reduction < eps) && (actual_reduction < eps)) {
     // Predicted and actual reduction are essentially zero
-    return 1.0;
+    return 0.5;
   }
 
   return actual_reduction / predicted_reduction;
