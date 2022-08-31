@@ -83,7 +83,7 @@ TrajectoryOptimizer<T>::TrajectoryOptimizer(const Diagram<T>* diagram,
       plant_ad_ = dynamic_cast<const MultibodyPlant<AutoDiffXd>*>(
           &diagram_ad_->GetSubsystemByName(plant->get_name()));
       DRAKE_DEMAND(plant_ad_ != nullptr);
-      SolverParameters params_ad;
+      SolverParameters params_ad(params);
       // N.B. We'll only use optimizer_ad_ to compute inverse dynamics with
       // AutoDiffXd, not gradients. We state this explicitly so that we don't
       // get the exception below at construction.
@@ -1010,16 +1010,6 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsAutoDiff(
     q_ad[t] = q[t];
   }
 
-  // DEBUG
-  state_ad_->set_q(q_ad);
-  const std::vector<VectorX<AutoDiffXd>>& v = optimizer_ad_->EvalV(*state_ad_);
-  const std::vector<VectorX<AutoDiffXd>>& a = optimizer_ad_->EvalA(*state_ad_);
-  const std::vector<VectorX<AutoDiffXd>>& tau = optimizer_ad_->EvalTau(*state_ad_);
-
-  std::cout << "v0 : " << v[0].transpose() << std::endl;
-  std::cout << "a0 : " << a[0].transpose() << std::endl;
-  std::cout << "tau0: " << tau[0].transpose() << std::endl;
-
   // At each t we will compute derivatives of tau[t-1], tau[t] and tau[t+1 with
   // respect to q[t].
   for (int t = 0; t <= num_steps(); ++t) {
@@ -1663,6 +1653,7 @@ std::tuple<double, int> TrajectoryOptimizer<T>::BacktrackingLinesearch(
   DRAKE_DEMAND(L_prime <= 0);
 
   // Exit early with alpha = 1 when we are close to convergence
+  // TODO: revisit this threshold. Should it be a function of gradients_method?
   const double convergence_threshold =
       sqrt(std::numeric_limits<double>::epsilon());
   if (abs(L_prime) / abs(L) <= convergence_threshold) {

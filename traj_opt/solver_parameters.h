@@ -1,5 +1,7 @@
 #pragma once
 
+#include "drake/common/drake_copyable.h"
+
 namespace drake {
 namespace traj_opt {
 
@@ -28,6 +30,10 @@ enum GradientsMethod {
 };
 
 struct SolverParameters {
+  DRAKE_DEFAULT_COPY_AND_MOVE_AND_ASSIGN(SolverParameters);
+
+  SolverParameters() = default;
+
   // Which overall optimization strategy to use - linesearch or trust region
   // TODO(vincekurtz): better name for this?
   SolverMethod method = SolverMethod::kTrustRegion;

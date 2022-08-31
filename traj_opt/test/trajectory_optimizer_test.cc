@@ -130,35 +130,24 @@ GTEST_TEST(TrajectoryOptimizerTest, ContactGradientMethods) {
   opt_prob.q_init = Vector3d(0.2, 1.5, 0.0);
   opt_prob.v_init = Vector3d(0.0, 0.0, 0.0);
   SolverParameters solver_params;
-  solver_params.F = 1.0;
+  solver_params.F = 5.0;
   solver_params.delta = 0.01;
   solver_params.stiffness_exponent = 2.0;
   solver_params.dissipation_velocity = 1e16;  // no dissipation
   solver_params.friction_coefficient = 0.0;   // no friction
 
-  // Create optimizers for each potential gradient method
-  solver_params.gradients_method = GradientsMethod::kForwardDifferences;
-  TrajectoryOptimizer<double> optimizer_fd(diagram.get(), &plant, opt_prob,
-                                           solver_params);
-  TrajectoryOptimizerState<double> state_fd = optimizer_fd.CreateState();
+  // Create optimizers for each potential gradient method  
   
   solver_params.gradients_method = GradientsMethod::kCentralDifferences;
   TrajectoryOptimizer<double> optimizer_cd(diagram.get(), &plant, opt_prob,
                                            solver_params);
   TrajectoryOptimizerState<double> state_cd = optimizer_cd.CreateState();
-  
-  solver_params.gradients_method = GradientsMethod::kAutoDiff;
-  TrajectoryOptimizer<double> optimizer_ad(diagram.get(), &plant, opt_prob,
-                                           solver_params);
-  TrajectoryOptimizerState<double> state_ad = optimizer_ad.CreateState();
-
+    
   // Make some fake data
   std::vector<VectorXd> q;
   q.push_back(opt_prob.q_init);
-  q.push_back(Vector3d(0.4, 1.5, 0.0));
-  state_fd.set_q(q);
-  state_cd.set_q(q);
-  state_ad.set_q(q);
+  q.push_back(Vector3d(0.4, 1.5, 0.0));  
+  state_cd.set_q(q);  
 
   // Sanity check that forward dynamics match for all of the methods
   //const std::vector<VectorXd> tau_fd = optimizer_fd.EvalTau(state_fd);
@@ -171,26 +160,50 @@ GTEST_TEST(TrajectoryOptimizerTest, ContactGradientMethods) {
   //EXPECT_TRUE(CompareMatrices(tau_fd[0], tau_ad[0],
   //                            kEpsilon, MatrixCompareType::relative));
 
-  std::cout << "q0_fd : " << state_fd.q()[0].transpose() << std::endl;
-  std::cout << "v0_fd : " << optimizer_fd.EvalV(state_fd)[0].transpose() << std::endl;
-  std::cout << "a0_fd : " << optimizer_fd.EvalA(state_fd)[0].transpose() << std::endl;
-  std::cout << "tau0_fd : " << optimizer_fd.EvalTau(state_fd)[0].transpose() << std::endl;
-  std::cout << std::endl;
+  {
+    solver_params.gradients_method = GradientsMethod::kForwardDifferences;
+    TrajectoryOptimizer<double> optimizer_fd(diagram.get(), &plant, opt_prob,
+                                             solver_params);
+    TrajectoryOptimizerState<double> state_fd = optimizer_fd.CreateState();
+    state_fd.set_q(q);
+
+    std::cout << "q0_fd : " << state_fd.q()[0].transpose() << std::endl;
+    std::cout << "v0_fd : " << optimizer_fd.EvalV(state_fd)[0].transpose()
+              << std::endl;
+    std::cout << "a0_fd : " << optimizer_fd.EvalA(state_fd)[0].transpose()
+              << std::endl;
+    std::cout << "tau0_fd : " << optimizer_fd.EvalTau(state_fd)[0].transpose()
+              << std::endl;
+    std::cout << std::endl;
+  }
 
   // Get the autodiff version of the optimizer
-  TrajectoryOptimizer<AutoDiffXd>* ad_opt = optimizer_ad.get_autodiff_optimizer();
-  TrajectoryOptimizerState<AutoDiffXd>* ad_state = optimizer_ad.get_autodiff_state();
+  {
+    solver_params.gradients_method = GradientsMethod::kAutoDiff;
+    TrajectoryOptimizer<double> optimizer_ad(diagram.get(), &plant, opt_prob,
+                                             solver_params);
+    TrajectoryOptimizerState<double> state_ad = optimizer_ad.CreateState();
+    state_ad.set_q(q);
 
-  std::vector<VectorX<AutoDiffXd>> q_ad;
-  q_ad.push_back(static_cast<VectorX<AutoDiffXd>>(q[0]));
-  q_ad.push_back(static_cast<VectorX<AutoDiffXd>>(q[1]));
-  ad_state->set_q(q_ad);
+    TrajectoryOptimizer<AutoDiffXd>* ad_opt =
+        optimizer_ad.get_autodiff_optimizer();
+    TrajectoryOptimizerState<AutoDiffXd>* ad_state =
+        optimizer_ad.get_autodiff_state();
 
-  std::cout << "q0_ad : " << ad_state->q()[0].transpose() << std::endl;
-  std::cout << "v0_ad : " << ad_opt->EvalV(*ad_state)[0].transpose() << std::endl;
-  std::cout << "a0_ad : " << ad_opt->EvalA(*ad_state)[0].transpose() << std::endl;
-  std::cout << "tau0_ad : " << ad_opt->EvalTau(*ad_state)[0].transpose() << std::endl;
-  std::cout << std::endl;
+    std::vector<VectorX<AutoDiffXd>> q_ad(2, VectorX<AutoDiffXd>::Zero(3));
+    q_ad[0] = q[0];
+    q_ad[1] = q[1];
+    ad_state->set_q(q_ad);
+
+    std::cout << "q0_ad : " << ad_state->q()[0].transpose() << std::endl;
+    std::cout << "v0_ad : " << ad_opt->EvalV(*ad_state)[0].transpose()
+              << std::endl;
+    std::cout << "a0_ad : " << ad_opt->EvalA(*ad_state)[0].transpose()
+              << std::endl;
+    std::cout << "tau0_ad : " << ad_opt->EvalTau(*ad_state)[0].transpose()
+              << std::endl;
+    std::cout << std::endl;
+  }
 
   // Compute inverse dynamics partials
   //InverseDynamicsPartials<double> idp_fd(num_steps, 3, 3);
