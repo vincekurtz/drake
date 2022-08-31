@@ -59,9 +59,8 @@ class TrajectoryOptimizerTester {
   static void CalcInverseDynamicsPartials(
       const TrajectoryOptimizer<double>& optimizer,
       const TrajectoryOptimizerState<double>& state,
-      TrajectoryOptimizerWorkspace<double>* workspace,
       InverseDynamicsPartials<double>* id_partials) {
-    optimizer.CalcInverseDynamicsPartials(state, workspace, id_partials);
+    optimizer.CalcInverseDynamicsPartials(state, id_partials);
   }
 
   static void CalcGradientFiniteDiff(
@@ -167,15 +166,15 @@ GTEST_TEST(TrajectoryOptimizerTest, ContactGradientMethods) {
   // Compute inverse dynamics partials for each method
   InverseDynamicsPartials<double> idp_fd(num_steps, 3, 3);
   TrajectoryOptimizerTester::CalcInverseDynamicsPartials(
-      optimizer_fd, state_fd, &state_fd.workspace, &idp_fd);
+      optimizer_fd, state_fd, &idp_fd);
 
   InverseDynamicsPartials<double> idp_cd(num_steps, 3, 3);
   TrajectoryOptimizerTester::CalcInverseDynamicsPartials(
-      optimizer_cd, state_cd, &state_cd.workspace, &idp_cd);
+      optimizer_cd, state_cd, &idp_cd);
 
   InverseDynamicsPartials<double> idp_ad(num_steps, 3, 3);
   TrajectoryOptimizerTester::CalcInverseDynamicsPartials(
-      optimizer_ad, state_ad, &state_ad.workspace, &idp_ad);
+      optimizer_ad, state_ad, &idp_ad);
 
   // Verify that inverse dynamics partials match, at least roughly
   const double kTolerance = 10 * sqrt(kEpsilon);
@@ -995,7 +994,7 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumDtauDq) {
   TrajectoryOptimizerTester::CalcInverseDynamics(optimizer, state, a,
                                                  &workspace, &tau);
   TrajectoryOptimizerTester::CalcInverseDynamicsPartials(
-      optimizer, state, &workspace, &grad_data);
+      optimizer, state, &grad_data);
 
   // Compute ground truth partials from the pendulum model
   //

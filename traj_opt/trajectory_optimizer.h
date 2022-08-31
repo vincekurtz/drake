@@ -400,22 +400,6 @@ class TrajectoryOptimizer {
           contact_jacobian_data) const;
 
   /**
-   * Compute partial derivatives of the inverse dynamics
-   *
-   *    tau_t = ID(q_{t-1}, q_t, q_{t+1})
-   *
-   * and store them in the given InverseDynamicsPartials struct.
-   *
-   * @param state state variable containing q for each timestep
-   * @param workspace scratch space for intermediate computations
-   * @param id_partials struct for holding dtau/dq
-   */
-  void CalcInverseDynamicsPartials(
-      const TrajectoryOptimizerState<T>& state,
-      TrajectoryOptimizerWorkspace<T>* workspace,
-      InverseDynamicsPartials<T>* id_partials) const;
-
-  /**
    * Compute partial derivatives of the generalized velocities
    *
    *    v_t = N+(q_t) * (q_t - q_{t-1}) / dt
@@ -433,24 +417,32 @@ class TrajectoryOptimizer {
    *
    *    tau_t = ID(q_{t-1}, q_t, q_{t+1})
    *
-   * using finite differences.
+   * and store them in the given InverseDynamicsPartials struct.
    *
-   * For testing purposes only - this is very inefficient.
+   * @param state state variable containing q for each timestep
+   * @param id_partials struct for holding dtau/dq
+   */
+  void CalcInverseDynamicsPartials(
+      const TrajectoryOptimizerState<T>& state,
+      InverseDynamicsPartials<T>* id_partials) const;
+
+  /**
+   * Compute partial derivatives of the inverse dynamics
    *
-   * @param q sequence of generalized positions
-   * @param v sequence of generalized velocities (computed from q)
-   * @param a sequence of generalized accelerations (computed from q)
-   * @param tau sequence of generalized forces (computed from q)
-   * @param workspace scratch space for intermediate computations
+   *    tau_t = ID(q_{t-1}, q_t, q_{t+1})
+   *
+   * using forward finite differences.
+   *
+   * @param state state variable storing q, v, tau, etc.
    * @param id_partials struct for holding dtau/dq
    */
   void CalcInverseDynamicsPartialsFiniteDiff(
       const TrajectoryOptimizerState<T>& state,
-      TrajectoryOptimizerWorkspace<T>* workspace,
       InverseDynamicsPartials<T>* id_partials) const;
 
   // Computes derivatives of the inverse dynamics with respect to q stored in
-  // `state`.
+  // `state`. Uses second order or 4th order central differences, depending on
+  // the value of params_.gradients_method.
   void CalcInverseDynamicsPartialsCentralDiff(
       const TrajectoryOptimizerState<T>& state,
       InverseDynamicsPartials<T>* id_partials) const;

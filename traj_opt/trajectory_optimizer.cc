@@ -519,12 +519,10 @@ TrajectoryOptimizer<T>::EvalContactJacobianData(
 template <typename T>
 void TrajectoryOptimizer<T>::CalcInverseDynamicsPartials(
     const TrajectoryOptimizerState<T>& state,
-    TrajectoryOptimizerWorkspace<T>*
-        workspace,  // TODO(vincekurtz) use state.workspace
     InverseDynamicsPartials<T>* id_partials) const {
   switch (params_.gradients_method) {
     case GradientsMethod::kForwardDifferences: {
-      CalcInverseDynamicsPartialsFiniteDiff(state, workspace, id_partials);
+      CalcInverseDynamicsPartialsFiniteDiff(state, id_partials);
       break;
     }
     case GradientsMethod::kCentralDifferences: {
@@ -532,7 +530,8 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartials(
       break;
     }
     case GradientsMethod::kCentralDifferences4: {
-      // TODO(vincekurtz): document
+      // N.B. this function uses either 2nd or 4th order central differences,
+      // depending on the value of params_.gradients_method
       CalcInverseDynamicsPartialsCentralDiff(state, id_partials);
       break;
     }
@@ -557,7 +556,6 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartials(
 template <typename T>
 void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsFiniteDiff(
     const TrajectoryOptimizerState<T>& state,
-    TrajectoryOptimizerWorkspace<T>* workspace,
     InverseDynamicsPartials<T>* id_partials) const {
   using std::abs;
   using std::max;
@@ -577,15 +575,16 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsFiniteDiff(
 
   // Get references to perturbed versions of q, v, tau, and a, at (t-1, t, t).
   // These are all of the quantities that change when we perturb q_t.
-  VectorX<T>& q_eps_t = workspace->q_size_tmp1;
-  VectorX<T>& v_eps_t = workspace->v_size_tmp1;
-  VectorX<T>& v_eps_tp = workspace->v_size_tmp2;
-  VectorX<T>& a_eps_tm = workspace->a_size_tmp1;
-  VectorX<T>& a_eps_t = workspace->a_size_tmp2;
-  VectorX<T>& a_eps_tp = workspace->a_size_tmp3;
-  VectorX<T>& tau_eps_tm = workspace->tau_size_tmp1;
-  VectorX<T>& tau_eps_t = workspace->tau_size_tmp2;
-  VectorX<T>& tau_eps_tp = workspace->tau_size_tmp3;
+  TrajectoryOptimizerWorkspace<T>& workspace = state.workspace;
+  VectorX<T>& q_eps_t = workspace.q_size_tmp1;
+  VectorX<T>& v_eps_t = workspace.v_size_tmp1;
+  VectorX<T>& v_eps_tp = workspace.v_size_tmp2;
+  VectorX<T>& a_eps_tm = workspace.a_size_tmp1;
+  VectorX<T>& a_eps_t = workspace.a_size_tmp2;
+  VectorX<T>& a_eps_tp = workspace.a_size_tmp3;
+  VectorX<T>& tau_eps_tm = workspace.tau_size_tmp1;
+  VectorX<T>& tau_eps_t = workspace.tau_size_tmp2;
+  VectorX<T>& tau_eps_tp = workspace.tau_size_tmp3;
 
   // Store small perturbations
   const double eps = sqrt(std::numeric_limits<double>::epsilon());
@@ -649,7 +648,7 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsFiniteDiff(
         // tau[t-1] = ID(q[t], v[t], a[t-1])
         plant().SetPositions(context_, q_eps_t);
         plant().SetVelocities(context_, v_eps_t);
-        CalcInverseDynamicsSingleTimeStep(*context_, a_eps_tm, workspace,
+        CalcInverseDynamicsSingleTimeStep(*context_, a_eps_tm, &workspace,
                                           &tau_eps_tm);
         dtau_dqp[t - 1].col(i) = (tau_eps_tm - tau[t - 1]) / dq_i;
       }
@@ -657,7 +656,7 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsFiniteDiff(
         // tau[t] = ID(q[t+1], v[t+1], a[t])
         plant().SetPositions(context_, q[t + 1]);
         plant().SetVelocities(context_, v_eps_tp);
-        CalcInverseDynamicsSingleTimeStep(*context_, a_eps_t, workspace,
+        CalcInverseDynamicsSingleTimeStep(*context_, a_eps_t, &workspace,
                                           &tau_eps_t);
         dtau_dqt[t].col(i) = (tau_eps_t - tau[t]) / dq_i;
       }
@@ -665,7 +664,7 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsFiniteDiff(
         // tau[t+1] = ID(q[t+2], v[t+2], a[t+1])
         plant().SetPositions(context_, q[t + 2]);
         plant().SetVelocities(context_, v[t + 2]);
-        CalcInverseDynamicsSingleTimeStep(*context_, a_eps_tp, workspace,
+        CalcInverseDynamicsSingleTimeStep(*context_, a_eps_tp, &workspace,
                                           &tau_eps_tp);
         dtau_dqm[t + 1].col(i) = (tau_eps_tp - tau[t + 1]) / dq_i;
       }
@@ -1396,14 +1395,13 @@ template <typename T>
 void TrajectoryOptimizer<T>::CalcCacheDerivativesData(
     const TrajectoryOptimizerState<T>& state) const {
   TrajectoryOptimizerCache<T>& cache = state.mutable_cache();
-  TrajectoryOptimizerWorkspace<T>& workspace = state.workspace;
 
   // Some aliases
   InverseDynamicsPartials<T>& id_partials = cache.derivatives_data.id_partials;
   VelocityPartials<T>& v_partials = cache.derivatives_data.v_partials;
 
   // Compute partial derivatives of inverse dynamics d(tau)/d(q)
-  CalcInverseDynamicsPartials(state, &workspace, &id_partials);
+  CalcInverseDynamicsPartials(state, &id_partials);
 
   // Compute partial derivatives of velocities d(v)/d(q)
   const std::vector<VectorX<T>>& q = state.q();
