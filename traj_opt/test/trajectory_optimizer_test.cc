@@ -92,19 +92,19 @@ using Eigen::MatrixXd;
 using Eigen::Vector2d;
 using Eigen::Vector3d;
 using Eigen::VectorXd;
-using math::RotationMatrixd;
 using math::RigidTransformd;
+using math::RotationMatrixd;
 using multibody::DiscreteContactSolver;
 using multibody::MultibodyPlant;
 using multibody::MultibodyPlantConfig;
+using multibody::Parser;
 using multibody::PlanarJoint;
 using multibody::RigidBody;
-using multibody::Parser;
 using systems::DiagramBuilder;
 using test::LimitMalloc;
 
 /**
- * Test different methods of computing gradients through contact. 
+ * Test different methods of computing gradients through contact.
  */
 GTEST_TEST(TrajectoryOptimizerTest, ContactGradientMethods) {
   // Set up an example system with sphere-sphere contact
@@ -139,17 +139,17 @@ GTEST_TEST(TrajectoryOptimizerTest, ContactGradientMethods) {
   TrajectoryOptimizer<double> optimizer_cd(diagram.get(), &plant, opt_prob,
                                            solver_params);
   TrajectoryOptimizerState<double> state_cd = optimizer_cd.CreateState();
-    
+
   solver_params.gradients_method = GradientsMethod::kAutoDiff;
   TrajectoryOptimizer<double> optimizer_ad(diagram.get(), &plant, opt_prob,
-                                            solver_params);
+                                           solver_params);
   TrajectoryOptimizerState<double> state_ad = optimizer_ad.CreateState();
-  
+
   // Make some fake data
   std::vector<VectorXd> q;
   q.push_back(opt_prob.q_init);
-  q.push_back(Vector3d(0.4, 1.5, 0.0));  
-  state_cd.set_q(q);  
+  q.push_back(Vector3d(0.4, 1.5, 0.0));
+  state_cd.set_q(q);
   state_fd.set_q(q);
   state_ad.set_q(q);
 
@@ -159,44 +159,42 @@ GTEST_TEST(TrajectoryOptimizerTest, ContactGradientMethods) {
   const std::vector<VectorXd> tau_ad = optimizer_ad.EvalTau(state_ad);
 
   const double kEpsilon = std::numeric_limits<double>::epsilon();
-  EXPECT_TRUE(CompareMatrices(tau_fd[0], tau_cd[0],
-                              kEpsilon, MatrixCompareType::relative));
-  EXPECT_TRUE(CompareMatrices(tau_fd[0], tau_ad[0],
-                              kEpsilon, MatrixCompareType::relative));
-
+  EXPECT_TRUE(CompareMatrices(tau_fd[0], tau_cd[0], kEpsilon,
+                              MatrixCompareType::relative));
+  EXPECT_TRUE(CompareMatrices(tau_fd[0], tau_ad[0], kEpsilon,
+                              MatrixCompareType::relative));
 
   // Compute inverse dynamics partials for each method
   InverseDynamicsPartials<double> idp_fd(num_steps, 3, 3);
   TrajectoryOptimizerTester::CalcInverseDynamicsPartials(
       optimizer_fd, state_fd, &state_fd.workspace, &idp_fd);
-  
+
   InverseDynamicsPartials<double> idp_cd(num_steps, 3, 3);
   TrajectoryOptimizerTester::CalcInverseDynamicsPartials(
       optimizer_cd, state_cd, &state_cd.workspace, &idp_cd);
-  
+
   InverseDynamicsPartials<double> idp_ad(num_steps, 3, 3);
   TrajectoryOptimizerTester::CalcInverseDynamicsPartials(
       optimizer_ad, state_ad, &state_ad.workspace, &idp_ad);
 
   // Verify that inverse dynamics partials match, at least roughly
   const double kTolerance = 10 * sqrt(kEpsilon);
-  for (int t=0; t<num_steps; ++t) {
+  for (int t = 0; t < num_steps; ++t) {
     EXPECT_TRUE(CompareMatrices(idp_fd.dtau_dqm[t], idp_ad.dtau_dqm[0],
-                                10*kTolerance, MatrixCompareType::relative));
+                                10 * kTolerance, MatrixCompareType::relative));
     EXPECT_TRUE(CompareMatrices(idp_cd.dtau_dqm[t], idp_ad.dtau_dqm[0],
                                 kTolerance, MatrixCompareType::relative));
-    
+
     EXPECT_TRUE(CompareMatrices(idp_fd.dtau_dqt[t], idp_ad.dtau_dqt[0],
-                                10*kTolerance, MatrixCompareType::relative));
+                                10 * kTolerance, MatrixCompareType::relative));
     EXPECT_TRUE(CompareMatrices(idp_cd.dtau_dqt[t], idp_ad.dtau_dqt[0],
                                 kTolerance, MatrixCompareType::relative));
-    
+
     EXPECT_TRUE(CompareMatrices(idp_fd.dtau_dqp[t], idp_ad.dtau_dqp[0],
-                                10*kTolerance, MatrixCompareType::relative));
+                                10 * kTolerance, MatrixCompareType::relative));
     EXPECT_TRUE(CompareMatrices(idp_cd.dtau_dqp[t], idp_ad.dtau_dqp[0],
                                 kTolerance, MatrixCompareType::relative));
   }
-
 }
 
 /**
@@ -450,7 +448,7 @@ GTEST_TEST(TrajectoryOptimizerTest, HessianAcrobot) {
   const auto& plant_ad = dynamic_cast<const MultibodyPlant<AutoDiffXd>&>(
       diagram_ad->GetSubsystemByName(plant.get_name()));
   TrajectoryOptimizer<AutoDiffXd> optimizer_ad(diagram_ad.get(), &plant_ad,
-                                            opt_prob);
+                                               opt_prob);
   TrajectoryOptimizerState<AutoDiffXd> state_ad = optimizer_ad.CreateState();
 
   std::vector<VectorX<AutoDiffXd>> q_ad(num_steps + 1, VectorX<AutoDiffXd>(2));
@@ -556,7 +554,7 @@ GTEST_TEST(TrajectoryOptimizerTest, HessianPendulum) {
   opt_prob.R = 0.05 * MatrixXd::Identity(1, 1);
   opt_prob.q_nom = Vector1d(0.1);
   opt_prob.v_nom = Vector1d(-0.1);
-  
+
   // Create a pendulum model
   DiagramBuilder<double> builder;
   MultibodyPlantConfig config;
@@ -594,7 +592,7 @@ GTEST_TEST(TrajectoryOptimizerTest, HessianPendulum) {
   const auto& plant_ad = dynamic_cast<const MultibodyPlant<AutoDiffXd>&>(
       diagram_ad->GetSubsystemByName(plant.get_name()));
   TrajectoryOptimizer<AutoDiffXd> optimizer_ad(diagram_ad.get(), &plant_ad,
-                                            opt_prob);
+                                               opt_prob);
   TrajectoryOptimizerState<AutoDiffXd> state_ad = optimizer_ad.CreateState();
 
   std::vector<VectorX<AutoDiffXd>> q_ad(num_steps + 1);
@@ -666,7 +664,7 @@ GTEST_TEST(TrajectoryOptimizerTest, AutodiffGradient) {
   const auto& plant_ad = dynamic_cast<const MultibodyPlant<AutoDiffXd>&>(
       diagram_ad->GetSubsystemByName(plant.get_name()));
   TrajectoryOptimizer<AutoDiffXd> optimizer_ad(diagram_ad.get(), &plant_ad,
-                                            opt_prob);
+                                               opt_prob);
   TrajectoryOptimizerState<AutoDiffXd> state_ad = optimizer_ad.CreateState();
   TrajectoryOptimizerWorkspace<AutoDiffXd> workspace_ad(num_steps, plant_ad);
 
@@ -755,7 +753,7 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcGradientKuka) {
 GTEST_TEST(TrajectoryOptimizerTest, CalcGradientPendulumNoGravity) {
   const int num_steps = 10;
   const double dt = 5e-2;
-  
+
   // Set up a system model: pendulum w/o gravity yields a linear system
   DiagramBuilder<double> builder;
   MultibodyPlantConfig config;
@@ -806,7 +804,7 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcGradientPendulumNoGravity) {
   const auto& plant_ad = dynamic_cast<const MultibodyPlant<AutoDiffXd>&>(
       diagram_ad->GetSubsystemByName(plant.get_name()));
   TrajectoryOptimizer<AutoDiffXd> optimizer_ad(diagram_ad.get(), &plant_ad,
-                                            opt_prob);
+                                               opt_prob);
   TrajectoryOptimizerState<AutoDiffXd> state_ad = optimizer_ad.CreateState();
   TrajectoryOptimizerWorkspace<AutoDiffXd> workspace_ad(num_steps, plant_ad);
 
@@ -994,8 +992,8 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumDtauDq) {
   std::vector<VectorXd> tau(num_steps);
   TrajectoryOptimizerTester::CalcVelocities(optimizer, q, &v);
   TrajectoryOptimizerTester::CalcAccelerations(optimizer, v, &a);
-  TrajectoryOptimizerTester::CalcInverseDynamics(optimizer, state, a, &workspace,
-                                                 &tau);
+  TrajectoryOptimizerTester::CalcInverseDynamics(optimizer, state, a,
+                                                 &workspace, &tau);
   TrajectoryOptimizerTester::CalcInverseDynamicsPartials(
       optimizer, state, &workspace, &grad_data);
 
@@ -1214,7 +1212,7 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumCalcInverseDynamics) {
   for (int t = 0; t <= num_steps; ++t) {
     q.push_back(Vector1d(-0.2 + dt * 0.1 * t * t));
   }
-  
+
   // Create a trajectory optimizer object
   ProblemDefinition opt_prob;
   opt_prob.num_steps = num_steps;
@@ -1252,7 +1250,8 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumCalcInverseDynamics) {
     // It appears, via trial and error, that CalcInverseDynamics makes exactly
     // 15 allocations for this example.
     // LimitMalloc guard({.max_num_allocations = 15});
-    // TODO(vincekurtz): track down whatever extra allocations we got from refactoring
+    // TODO(vincekurtz): track down whatever extra allocations we got from
+    // refactoring
     TrajectoryOptimizerTester::CalcAccelerations(optimizer, v, &a);
     TrajectoryOptimizerTester::CalcInverseDynamics(optimizer, state, a,
                                                    &workspace, &tau);

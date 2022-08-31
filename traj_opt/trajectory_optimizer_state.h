@@ -1,16 +1,18 @@
 #pragma once
 
+#include <memory>
+#include <utility>
 #include <vector>
 
-#include "drake/common/eigen_types.h"
 #include "drake/common/drake_copyable.h"
+#include "drake/common/eigen_types.h"
 #include "drake/geometry/query_results/signed_distance_pair.h"
 #include "drake/multibody/plant/multibody_plant.h"
+#include "drake/systems/framework/diagram.h"
 #include "drake/traj_opt/inverse_dynamics_partials.h"
 #include "drake/traj_opt/penta_diagonal_matrix.h"
 #include "drake/traj_opt/trajectory_optimizer_workspace.h"
 #include "drake/traj_opt/velocity_partials.h"
-#include "drake/systems/framework/diagram.h"
 
 namespace drake {
 namespace traj_opt {
@@ -190,7 +192,8 @@ class TrajectoryOptimizerState {
 
   // We do allow to move it.
   TrajectoryOptimizerState(TrajectoryOptimizerState<T>&&) = default;
-  TrajectoryOptimizerState<T>& operator=(TrajectoryOptimizerState<T>&&) = default;
+  TrajectoryOptimizerState<T>& operator=(TrajectoryOptimizerState<T>&&) =
+      default;
 
   /**
    * Constructor which allocates things of the proper sizes.

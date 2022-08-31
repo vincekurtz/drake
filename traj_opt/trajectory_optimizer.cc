@@ -90,8 +90,8 @@ TrajectoryOptimizer<T>::TrajectoryOptimizer(const Diagram<T>* diagram,
       params_ad.gradients_method = GradientsMethod::kNoGradients;
       optimizer_ad_ = std::make_unique<TrajectoryOptimizer<AutoDiffXd>>(
           diagram_ad_.get(), plant_ad_, prob, params_ad);
-      // TODO: move state's destructor and possible other implementation to the
-      // source?
+      // TODO(vincekurtz): move state's destructor and possible other
+      // implementation to the source?
       state_ad_ = std::unique_ptr<TrajectoryOptimizerState<AutoDiffXd>>(
           new TrajectoryOptimizerState<AutoDiffXd>(num_steps(), *diagram_ad_,
                                                    *plant_ad_));
@@ -519,7 +519,8 @@ TrajectoryOptimizer<T>::EvalContactJacobianData(
 template <typename T>
 void TrajectoryOptimizer<T>::CalcInverseDynamicsPartials(
     const TrajectoryOptimizerState<T>& state,
-    TrajectoryOptimizerWorkspace<T>* workspace,  // TODO(vincekurtz) use state.workspace
+    TrajectoryOptimizerWorkspace<T>*
+        workspace,  // TODO(vincekurtz) use state.workspace
     InverseDynamicsPartials<T>* id_partials) const {
   switch (params_.gradients_method) {
     case GradientsMethod::kForwardDifferences: {
@@ -834,8 +835,8 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsWrtQtCentralDiff(
 
     if (t == 0) {
       // v[0] is constant.
-      // TODO: Can we make these NAN? in principle only go into dtau0_dq0, which
-      // should not show up in either gradient or Hessian.
+      // TODO(vincekurtz): Can we make these NAN? in principle only go into
+      // dtau0_dq0, which should not show up in either gradient or Hessian.
       a_emm_t(i) += 2.0 * da;
       a_em_t(i) += 1.0 * da;
       a_ep_t(i) -= 1.0 * da;
@@ -1652,7 +1653,8 @@ std::tuple<double, int> TrajectoryOptimizer<T>::BacktrackingLinesearch(
   DRAKE_DEMAND(L_prime <= 0);
 
   // Exit early with alpha = 1 when we are close to convergence
-  // TODO: revisit this threshold. Should it be a function of gradients_method?
+  // TODO(vincekurz): revisit this threshold. Should it be a function of
+  // gradients_method?
   const double convergence_threshold =
       sqrt(std::numeric_limits<double>::epsilon());
   if (abs(L_prime) / abs(L) <= convergence_threshold) {
