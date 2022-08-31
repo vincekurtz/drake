@@ -75,13 +75,13 @@ struct SolverParameters {
   double lineplot_q_max = 1.0;
 
   // Augmented Lagrangian parameters
-  bool augmented_lagrangian;
-  bool update_init_guess;
-  int max_major_iterations;
-  double lambda0;
-  double mu0;
-  double mu_expand_coef;
-  double constraint_tol;
+  bool augmented_lagrangian = false;
+  bool update_init_guess = true;
+  int max_major_iterations = 5;
+  double lambda0 = 0;
+  double mu0 = 1e1;
+  double mu_expand_coef = 1e1;
+  double constraint_tol = 1e-4;
 };
 
 }  // namespace traj_opt
