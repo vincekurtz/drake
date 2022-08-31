@@ -1515,7 +1515,7 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
 
 template <typename T>
 SolverFlag TrajectoryOptimizer<T>::SolveGaussNewton(
-    TrajectoryOptimizerState<T>&, TrajectoryOptimizerState<T>&,
+    TrajectoryOptimizerState<T>*, TrajectoryOptimizerState<T>*,
     const std::vector<VectorX<T>>&, TrajectoryOptimizerSolution<T>*,
     TrajectoryOptimizerStats<T>*) const {
   throw std::runtime_error(
@@ -1524,8 +1524,8 @@ SolverFlag TrajectoryOptimizer<T>::SolveGaussNewton(
 
 template <>
 SolverFlag TrajectoryOptimizer<double>::SolveGaussNewton(
-    TrajectoryOptimizerState<double>& state,
-    TrajectoryOptimizerState<double>& scratch_state,
+    TrajectoryOptimizerState<double>* state,
+    TrajectoryOptimizerState<double>* scratch_state,
     const std::vector<VectorXd>& q_guess,
     TrajectoryOptimizerSolution<double>* solution,
     TrajectoryOptimizerStats<double>* stats) const {
@@ -1547,7 +1547,7 @@ SolverFlag TrajectoryOptimizer<double>::SolveGaussNewton(
 
 template <typename T>
 SolverFlag TrajectoryOptimizer<T>::SolveWithLinesearch(
-    TrajectoryOptimizerState<T>&, TrajectoryOptimizerState<T>&,
+    TrajectoryOptimizerState<T>*, TrajectoryOptimizerState<T>*,
     const std::vector<VectorX<T>>&, TrajectoryOptimizerSolution<T>*,
     TrajectoryOptimizerStats<T>*) const {
   throw std::runtime_error(
@@ -1556,13 +1556,13 @@ SolverFlag TrajectoryOptimizer<T>::SolveWithLinesearch(
 
 template <>
 SolverFlag TrajectoryOptimizer<double>::SolveWithLinesearch(
-    TrajectoryOptimizerState<double>& state,
-    TrajectoryOptimizerState<double>& scratch_state,
+    TrajectoryOptimizerState<double>* state,
+    TrajectoryOptimizerState<double>* scratch_state,
     const std::vector<VectorXd>& q_guess,
     TrajectoryOptimizerSolution<double>* solution,
     TrajectoryOptimizerStats<double>* stats) const {
   // Set q to initial guess
-  state.set_q(q_guess);
+  state->set_q(q_guess);
 
   // Allocate cost and search direction
   double cost;
@@ -1573,8 +1573,8 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithLinesearch(
   // first computation of the Hessian, which is for scaling purposes only, will
   // not include the proximal operator term.
   if (params_.proximal_operator) {
-    state.set_proximal_operator_data(q_guess, EvalHessian(state));
-    scratch_state.set_proximal_operator_data(q_guess, EvalHessian(state));
+    state->set_proximal_operator_data(q_guess, EvalHessian(*state));
+    scratch_state->set_proximal_operator_data(q_guess, EvalHessian(*state));
   }
 
   if (params_.verbose) {
@@ -1603,11 +1603,11 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithLinesearch(
     iter_start_time = std::chrono::high_resolution_clock::now();
 
     // Compute the total cost
-    cost = EvalCost(state);
+    cost = EvalCost(*state);
 
     // Compute gradient and Hessian
-    const VectorXd& g = EvalGradient(state);
-    const PentaDiagonalMatrix<double>& H = EvalHessian(state);
+    const VectorXd& g = EvalGradient(*state);
+    const PentaDiagonalMatrix<double>& H = EvalHessian(*state);
 
     // Solve for search direction H*dq = -g
     dq = -g;
@@ -1620,11 +1620,11 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithLinesearch(
     // Solve the linsearch
     // N.B. we use a separate state variable since we will need to compute
     // L(q+alpha*dq) (at the very least), and we don't want to change state.q
-    auto [alpha, ls_iters] = Linesearch(state, dq, &scratch_state);
+    auto [alpha, ls_iters] = Linesearch(*state, dq, scratch_state);
 
     // Record linesearch data, if requested
     if (params_.linesearch_plot_every_iteration) {
-      SaveLinesearchResidual(state, dq, &scratch_state,
+      SaveLinesearchResidual(*state, dq, scratch_state,
                              fmt::format("linesearch_data_{}.csv", k));
     }
 
@@ -1638,19 +1638,19 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithLinesearch(
       }
 
       // Save the linesearch residual to a csv file so we can plot in python
-      SaveLinesearchResidual(state, dq, &scratch_state);
+      SaveLinesearchResidual(*state, dq, scratch_state);
     }
 
     // Compute the trust ratio (actual cost reduction / model cost reduction)
-    double trust_ratio = CalcTrustRatio(state, alpha * dq, &scratch_state);
+    double trust_ratio = CalcTrustRatio(*state, alpha * dq, scratch_state);
 
     // Update the decision variables
-    state.AddToQ(alpha * dq);
+    state->AddToQ(alpha * dq);
 
     // Update the stored decision variables for the proximal operator cost
     if (params_.proximal_operator) {
-      state.set_proximal_operator_data(state.q(), H);
-      scratch_state.set_proximal_operator_data(state.q(), H);
+      state->set_proximal_operator_data(state->q(), H);
+      scratch_state->set_proximal_operator_data(state->q(), H);
     }
 
     iter_time = std::chrono::high_resolution_clock::now() - iter_start_time;
@@ -1709,9 +1709,9 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithLinesearch(
   stats->major_iteration_times.push_back(solve_time.count());
 
   // Record the solution
-  solution->q = state.q();
-  solution->v = EvalV(state);
-  solution->tau = EvalTau(state);
+  solution->q = state->q();
+  solution->v = EvalV(*state);
+  solution->tau = EvalTau(*state);
 
   if (linesearch_failed) {
     return SolverFlag::kLinesearchMaxIters;
@@ -1722,7 +1722,7 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithLinesearch(
 
 template <typename T>
 SolverFlag TrajectoryOptimizer<T>::SolveWithTrustRegion(
-    TrajectoryOptimizerState<T>&, TrajectoryOptimizerState<T>&,
+    TrajectoryOptimizerState<T>*, TrajectoryOptimizerState<T>*,
     const std::vector<VectorX<T>>&, TrajectoryOptimizerSolution<T>*,
     TrajectoryOptimizerStats<T>*) const {
   throw std::runtime_error(
@@ -1731,14 +1731,14 @@ SolverFlag TrajectoryOptimizer<T>::SolveWithTrustRegion(
 
 template <>
 SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
-    TrajectoryOptimizerState<double>& state,
-    TrajectoryOptimizerState<double>& scratch_state,
+    TrajectoryOptimizerState<double>* state,
+    TrajectoryOptimizerState<double>* scratch_state,
     const std::vector<VectorXd>& q_guess,
     TrajectoryOptimizerSolution<double>* solution,
     TrajectoryOptimizerStats<double>* stats) const {
   using std::min;
   // Set q to initial guess
-  state.set_q(q_guess);
+  state->set_q(q_guess);
 
   // Allocate the update vector q_{k+1} = q_k + dq
   VectorXd dq(plant().num_positions() * (num_steps() + 1));
@@ -1779,29 +1779,30 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
 
   while (k < params_.max_iterations) {
     // Obtain the candiate update dq
-    tr_constraint_active = CalcDoglegPoint(state, Delta, &dq);
+    tr_constraint_active = CalcDoglegPoint(*state, Delta, &dq);
 
     // Compute the trust region ratio
-    rho = CalcTrustRatio(state, dq, &scratch_state);
+    rho = CalcTrustRatio(*state, dq, scratch_state);
 
     // Save data related to our quadratic approximation (for the first two
     // variables)
     if (params_.save_contour_data) {
-      SaveQuadraticDataFirstTwoVariables(k, Delta, dq, state);
+      SaveQuadraticDataFirstTwoVariables(k, Delta, dq, *state);
     }
     if (params_.save_lineplot_data) {
-      SaveIterationData(k, Delta, rho, dq(1), state);
+      SaveIterationData(k, Delta, rho, dq(1), *state);
     }
 
     // If the ratio is large enough, accept the change
     if (rho > eta) {
       // Update the coefficients for the proximal operator cost
       if (params_.proximal_operator) {
-        state.set_proximal_operator_data(state.q(), EvalHessian(state));
-        scratch_state.set_proximal_operator_data(state.q(), EvalHessian(state));
+        state->set_proximal_operator_data(state->q(), EvalHessian(*state));
+        scratch_state->set_proximal_operator_data(state->q(),
+                                                  EvalHessian(*state));
       }
 
-      state.AddToQ(dq);  // q += dq
+      state->AddToQ(dq);  // q += dq
     }
     // Else (rho <= eta), the trust region ratio is too small to accept dq, so
     // we'll need to so keep reducing the trust region. Note that the trust
@@ -1828,22 +1829,22 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
         std::cout << separator_bar << std::endl;
       }
       printf("| %6d ", k);
-      printf("| %8.3f ", EvalCost(state));
+      printf("| %8.3f ", EvalCost(*state));
       printf("| %7.1e ", Delta);
       printf("| %7.4f ", rho);
       printf("| %8.8f ", iter_time.count());
-      printf("| %10.3e |\n", EvalGradient(state).norm() / EvalCost(state));
+      printf("| %10.3e |\n", EvalGradient(*state).norm() / EvalCost(*state));
     }
 
     // Record statistics from this iteration
-    stats->push_data(iter_time.count(),            // iteration time
-                     EvalCost(state),              // cost
-                     0,                            // linesearch iterations
-                     NAN,                          // linesearch parameter
-                     Delta,                        // trust region size
-                     dq.norm(),                    // step size
-                     rho,                          // trust region ratio
-                     EvalGradient(state).norm());  // gradient size
+    stats->push_data(iter_time.count(),             // iteration time
+                     EvalCost(*state),              // cost
+                     0,                             // linesearch iterations
+                     NAN,                           // linesearch parameter
+                     Delta,                         // trust region size
+                     dq.norm(),                     // step size
+                     rho,                           // trust region ratio
+                     EvalGradient(*state).norm());  // gradient size
 
     // Update the size of the trust-region, if necessary
     if (rho < 0.25) {
@@ -1869,16 +1870,16 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
   stats->major_iteration_times.push_back(solve_time.count());
 
   // Record the solution
-  solution->q = state.q();
-  solution->v = EvalV(state);
-  solution->tau = EvalTau(state);
+  solution->q = state->q();
+  solution->v = EvalV(*state);
+  solution->tau = EvalTau(*state);
 
   // Record L(q) for various values of q so we can make plots
   if (params_.save_contour_data) {
-    SaveContourPlotDataFirstTwoVariables(&scratch_state);
+    SaveContourPlotDataFirstTwoVariables(scratch_state);
   }
   if (params_.save_lineplot_data) {
-    SaveLinePlotDataFirstVariable(&scratch_state);
+    SaveLinePlotDataFirstVariable(scratch_state);
   }
 
   return SolverFlag::kSuccess;
@@ -1928,7 +1929,7 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
     scratch_state.invalidate_cache();
 
     // Solve the sub-problem
-    status = SolveGaussNewton(state, scratch_state, q_init, solution, stats);
+    status = SolveGaussNewton(&state, &scratch_state, q_init, solution, stats);
 
     // Terminate if augmented Lagrangian is disabled
     // TODO(aykut): Consider terminating if the solver failed

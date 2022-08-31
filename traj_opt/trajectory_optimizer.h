@@ -4,6 +4,7 @@
 #include <optional>
 #include <string>
 #include <tuple>
+#include <utility>
 #include <vector>
 
 #include "drake/common/eigen_types.h"
@@ -89,7 +90,9 @@ class TrajectoryOptimizer {
    *
    * @return int the number of unactuated DOF.
    */
-  int num_unactuated_dof() const { return prob_.num_unactuated_dof; }
+  int num_unactuated_dof() const {
+    return static_cast<int>(prob_.unactuated_dof.size());
+  }
 
   /**
    * Convienience function to get the number of equality constraints.
@@ -160,8 +163,8 @@ class TrajectoryOptimizer {
    * data regarding the solve process.
    * @return SolverFlag
    */
-  SolverFlag SolveGaussNewton(TrajectoryOptimizerState<T>& state,
-                              TrajectoryOptimizerState<T>& scratch_state,
+  SolverFlag SolveGaussNewton(TrajectoryOptimizerState<T>* state,
+                              TrajectoryOptimizerState<T>* scratch_state,
                               const std::vector<VectorX<T>>& q_guess,
                               TrajectoryOptimizerSolution<T>* solution,
                               TrajectoryOptimizerStats<T>* stats) const;
@@ -231,8 +234,8 @@ class TrajectoryOptimizer {
    * data regarding the solve process.
    * @return SolverFlag
    */
-  SolverFlag SolveWithLinesearch(TrajectoryOptimizerState<T>& state,
-                                 TrajectoryOptimizerState<T>& scratch_state,
+  SolverFlag SolveWithLinesearch(TrajectoryOptimizerState<T>* state,
+                                 TrajectoryOptimizerState<T>* scratch_state,
                                  const std::vector<VectorX<T>>& q_guess,
                                  TrajectoryOptimizerSolution<T>* solution,
                                  TrajectoryOptimizerStats<T>* stats) const;
@@ -251,8 +254,8 @@ class TrajectoryOptimizer {
    * data regarding the solve process.
    * @return SolverFlag
    */
-  SolverFlag SolveWithTrustRegion(TrajectoryOptimizerState<T>& state,
-                                  TrajectoryOptimizerState<T>& scratch_state,
+  SolverFlag SolveWithTrustRegion(TrajectoryOptimizerState<T>* state,
+                                  TrajectoryOptimizerState<T>* scratch_state,
                                   const std::vector<VectorX<T>>& q_guess,
                                   TrajectoryOptimizerSolution<T>* solution,
                                   TrajectoryOptimizerStats<T>* stats) const;
@@ -720,13 +723,13 @@ class TrajectoryOptimizer {
 // Declare template specializations
 template <>
 SolverFlag TrajectoryOptimizer<double>::SolveWithLinesearch(
-    TrajectoryOptimizerState<double>&, TrajectoryOptimizerState<double>&,
+    TrajectoryOptimizerState<double>*, TrajectoryOptimizerState<double>*,
     const std::vector<VectorXd>&, TrajectoryOptimizerSolution<double>*,
     TrajectoryOptimizerStats<double>*) const;
 
 template <>
 SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
-    TrajectoryOptimizerState<double>&, TrajectoryOptimizerState<double>&,
+    TrajectoryOptimizerState<double>*, TrajectoryOptimizerState<double>*,
     const std::vector<VectorXd>&, TrajectoryOptimizerSolution<double>*,
     TrajectoryOptimizerStats<double>*) const;
 
