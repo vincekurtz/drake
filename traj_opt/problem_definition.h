@@ -1,5 +1,7 @@
 #pragma once
 
+#include <vector>
+
 #include "drake/common/eigen_types.h"
 
 namespace drake {
@@ -55,8 +57,6 @@ struct ProblemDefinition {
   // Target generalized velocities
   VectorXd v_nom;
 
-  // The number of unactuated DOF
-  int num_unactuated_dof;
   // Indices of the unactuated DOF
   std::vector<int> unactuated_dof;
 };

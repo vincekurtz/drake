@@ -83,9 +83,6 @@ class TrajOptExample {
         opt_prob.unactuated_dof.push_back(i);
       }
     }
-    // Get the number of unactuated DOF
-    opt_prob.num_unactuated_dof =
-        static_cast<int>(opt_prob.unactuated_dof.size());
 
     // Set our solver parameters
     // TODO(vincekurtz): consider separate functions mapping options to opt_prob
