@@ -31,8 +31,9 @@ class TrajectoryOptimizerTester {
                          const std::vector<VectorXd>& q,
                          const std::vector<VectorXd>& v,
                          const std::vector<VectorXd>& tau,
+                         const Eigen::VectorXd& lambda, const double mu,
                          TrajectoryOptimizerWorkspace<double>* workspace) {
-    return optimizer.CalcCost(q, v, tau, workspace);
+    return optimizer.CalcCost(q, v, tau, lambda, mu, workspace);
   }
 
   static void CalcVelocities(const TrajectoryOptimizer<double>& optimizer,
@@ -100,14 +101,14 @@ using Eigen::MatrixXd;
 using Eigen::Vector2d;
 using Eigen::Vector3d;
 using Eigen::VectorXd;
-using math::RotationMatrixd;
 using math::RigidTransformd;
+using math::RotationMatrixd;
 using multibody::DiscreteContactSolver;
 using multibody::MultibodyPlant;
 using multibody::MultibodyPlantConfig;
+using multibody::Parser;
 using multibody::PlanarJoint;
 using multibody::RigidBody;
-using multibody::Parser;
 using systems::DiagramBuilder;
 using test::LimitMalloc;
 
@@ -1056,11 +1057,15 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcCost) {
   q.push_back(Vector2d(0.2, 0.1));
   v.push_back(Vector2d(-0.1, 0.0));
 
+  // Make fake augmented Lagrange paramers
+  VectorXd lambda;
+  double mu = 0.0;
+
   // Compute the cost and compare with the true value
   TrajectoryOptimizer<double> optimizer(&plant, context.get(), opt_prob);
   TrajectoryOptimizerWorkspace<double> workspace(num_steps, plant);
-  double L =
-      TrajectoryOptimizerTester::CalcCost(optimizer, q, v, tau, &workspace);
+  double L = TrajectoryOptimizerTester::CalcCost(optimizer, q, v, tau, lambda,
+                                                 mu, &workspace);
   double L_gt =
       num_steps * dt * (2 * 0.1 + 2 * 0.2 + 2 * 0.5) + 2 * 0.3 + 2 * 0.4;
 
