@@ -612,12 +612,14 @@ void TrajectoryOptimizer<T>::CalcContactJacobian(
     // different values of q.
     // TODO(vincekurtz): no need to allocate t1_W and t2_W
     // TODO(vincekurtz): handle the case where r is very close to nhat_W
-    const Vector3<T> r(0,0,1);  // reference vector defines Cx and Cy
-    const Vector3<T> t1_W = nhat_W.cross(r);
-    const Vector3<T> t2_W = nhat_W.cross(t1_W);
-    Matrix3<T> R;
-    R << t1_W, t2_W, nhat_W;
-    R_WC->at(ic) = math::RotationMatrix<T>(R);
+    //const Vector3<T> r(0,0,1);  // reference vector defines Cx and Cy
+    //const Vector3<T> t1_W = nhat_W.cross(r);
+    //const Vector3<T> t2_W = nhat_W.cross(t1_W);
+    //Matrix3<T> R;
+    //R << t1_W, t2_W, nhat_W;
+    //R_WC->at(ic) = math::RotationMatrix<T>(R);
+    // TODO(vincekurtz): define a consistent contact frame
+    R_WC->at(ic) = math::RotationMatrix<T>::MakeFromOneVector(nhat_W, 2);
 
     // Contact Jacobian J_AcBc_C, expressed in the contact frame C.
     // That is, vc = J * v stores the contact velocities expressed in the

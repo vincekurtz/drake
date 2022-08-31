@@ -18,6 +18,7 @@ namespace drake {
 namespace traj_opt {
 
 using internal::PentaDiagonalMatrix;
+using math::RotationMatrix;
 using multibody::BodyIndex;
 using multibody::MultibodyPlant;
 using systems::Context;
@@ -124,6 +125,36 @@ struct TrajectoryOptimizerCache {
     std::vector<std::vector<geometry::SignedDistancePair<T>>> sdf_pairs;
     bool up_to_date{false};
   } sdf_data;
+
+  // Struct containing everything we need to know about each contact at each
+  // timestep to compute contact impulses γ and jacobians J.
+  //
+  // For some quanity X, ContactGeometryData.X[t][i] stores quanity X for the
+  // i^th contact pair at timestep t.
+  struct ContactGeometryData {
+    // signed distance pairs
+    std::vector<std::vector<geometry::SignedDistancePair<T>>> sdf_pairs;
+
+    // Position of the contact point in the world frame
+    std::vector<std::vector<Vector3<T>>> p_WC;
+    
+    // Orientation of the contact frame in the world frame
+    std::vector<std::vector<RotationMatrix<T>>> R_WC;
+
+    // Relative velocity at the contact point
+    std::vector<std::vector<Vector3<T>>> v_AcBc_W;
+
+    // Position of the contact point in the body frame(s)
+    std::vector<std::vector<Vector3<T>>> p_AoC_A;
+    std::vector<std::vector<Vector3<T>>> p_BoC_B;
+
+    // Body indices
+    std::vector<std::vector<BodyIndex>> bodyA_index;
+    std::vector<std::vector<BodyIndex>> bodyB_index;
+
+    bool up_to_date{false};
+
+  } contact_geometry_data;
 
   struct ContactJacobianData {
     // body_pairs[t] stores body pairs for all contacts at time t.
@@ -353,6 +384,7 @@ class TrajectoryOptimizerState {
     cache_.sdf_data.up_to_date = false;
     cache_.gamma_up_to_date = false;
     cache_.dgamma_dphi_up_to_date = false;
+    cache_.contact_geometry_data.up_to_date = false;
   }
 };
 
