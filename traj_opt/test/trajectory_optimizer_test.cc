@@ -161,67 +161,79 @@ GTEST_TEST(TrajectoryOptimizerTest, ContactGradientMethods) {
   state_ad.set_q(q);
 
   // Sanity check that forward dynamics match for all of the methods
-  const std::vector<VectorXd> tau_fd = optimizer_fd.EvalTau(state_fd);
-  const std::vector<VectorXd> tau_cd = optimizer_cd.EvalTau(state_cd);
-  const std::vector<VectorXd> tau_ad = optimizer_ad.EvalTau(state_ad);
+  //const std::vector<VectorXd> tau_fd = optimizer_fd.EvalTau(state_fd);
+  //const std::vector<VectorXd> tau_cd = optimizer_cd.EvalTau(state_cd);
+  //const std::vector<VectorXd> tau_ad = optimizer_ad.EvalTau(state_ad);
 
-  const double kEpsilon = std::numeric_limits<double>::epsilon();
-  EXPECT_TRUE(CompareMatrices(tau_fd[0], tau_cd[0],
-                              kEpsilon, MatrixCompareType::relative));
-  EXPECT_TRUE(CompareMatrices(tau_fd[0], tau_ad[0],
-                              kEpsilon, MatrixCompareType::relative));
+  //const double kEpsilon = std::numeric_limits<double>::epsilon();
+  //EXPECT_TRUE(CompareMatrices(tau_fd[0], tau_cd[0],
+  //                            kEpsilon, MatrixCompareType::relative));
+  //EXPECT_TRUE(CompareMatrices(tau_fd[0], tau_ad[0],
+  //                            kEpsilon, MatrixCompareType::relative));
 
-  std::cout << std::endl;
-  std::cout << tau_fd[0].transpose() << std::endl;
-  std::cout << tau_cd[0].transpose() << std::endl;
-  std::cout << tau_ad[0].transpose() << std::endl;
-  std::cout << std::endl;
-
+  std::cout << "q0_fd : " << state_fd.q()[0].transpose() << std::endl;
   std::cout << "v0_fd : " << optimizer_fd.EvalV(state_fd)[0].transpose() << std::endl;
   std::cout << "a0_fd : " << optimizer_fd.EvalA(state_fd)[0].transpose() << std::endl;
+  std::cout << "tau0_fd : " << optimizer_fd.EvalTau(state_fd)[0].transpose() << std::endl;
+  std::cout << std::endl;
+
+  // Get the autodiff version of the optimizer
+  TrajectoryOptimizer<AutoDiffXd>* ad_opt = optimizer_ad.get_autodiff_optimizer();
+  TrajectoryOptimizerState<AutoDiffXd>* ad_state = optimizer_ad.get_autodiff_state();
+
+  std::vector<VectorX<AutoDiffXd>> q_ad;
+  q_ad.push_back(static_cast<VectorX<AutoDiffXd>>(q[0]));
+  q_ad.push_back(static_cast<VectorX<AutoDiffXd>>(q[1]));
+  ad_state->set_q(q_ad);
+
+  std::cout << "q0_ad : " << ad_state->q()[0].transpose() << std::endl;
+  std::cout << "v0_ad : " << ad_opt->EvalV(*ad_state)[0].transpose() << std::endl;
+  std::cout << "a0_ad : " << ad_opt->EvalA(*ad_state)[0].transpose() << std::endl;
+  std::cout << "tau0_ad : " << ad_opt->EvalTau(*ad_state)[0].transpose() << std::endl;
+  std::cout << std::endl;
 
   // Compute inverse dynamics partials
-  InverseDynamicsPartials<double> idp_fd(num_steps, 3, 3);
-  TrajectoryOptimizerTester::CalcInverseDynamicsPartials(
-      optimizer_fd, state_fd, &state_fd.workspace, &idp_fd);
+  //InverseDynamicsPartials<double> idp_fd(num_steps, 3, 3);
+  //TrajectoryOptimizerTester::CalcInverseDynamicsPartials(
+  //    optimizer_fd, state_fd, &state_fd.workspace, &idp_fd);
   
-  InverseDynamicsPartials<double> idp_cd(num_steps, 3, 3);
-  TrajectoryOptimizerTester::CalcInverseDynamicsPartials(
-      optimizer_cd, state_cd, &state_cd.workspace, &idp_cd);
+  //InverseDynamicsPartials<double> idp_cd(num_steps, 3, 3);
+  //TrajectoryOptimizerTester::CalcInverseDynamicsPartials(
+  //    optimizer_cd, state_cd, &state_cd.workspace, &idp_cd);
   
-  InverseDynamicsPartials<double> idp_ad(num_steps, 3, 3);
-  TrajectoryOptimizerTester::CalcInverseDynamicsPartials(
-      optimizer_ad, state_ad, &state_ad.workspace, &idp_ad);
+  //InverseDynamicsPartials<double> idp_ad(num_steps, 3, 3);
+  //TrajectoryOptimizerTester::CalcInverseDynamicsPartials(
+  //    optimizer_ad, state_ad, &state_ad.workspace, &idp_ad);
 
-  for (int t=0; t<num_steps; ++t) {
-    std::cout << "∂τₜ/∂qₜ₋₁ : " << std::endl;
+  //for (int t=0; t<num_steps; ++t) {
+  //  std::cout << "∂τₜ/∂qₜ₋₁ : " << std::endl;
 
-    std::cout << "finite diff:" << std::endl;
-    std::cout << idp_fd.dtau_dqm[t] << std::endl;
-    std::cout << "central diff:" << std::endl;
-    std::cout << idp_cd.dtau_dqm[t] << std::endl;
-    std::cout << "auto diff:" << std::endl;
-    std::cout << idp_ad.dtau_dqm[t] << std::endl;
-    std::cout << std::endl;
+  //  std::cout << "finite diff:" << std::endl;
+  //  std::cout << idp_fd.dtau_dqm[t] << std::endl;
+  //  std::cout << "central diff:" << std::endl;
+  //  std::cout << idp_cd.dtau_dqm[t] << std::endl;
+  //  std::cout << "auto diff:" << std::endl;
+  //  std::cout << idp_ad.dtau_dqm[t] << std::endl;
+  //  std::cout << std::endl;
 
-    std::cout << "∂τₜ/∂qₜ   : " << std::endl;
-    std::cout << "finite diff:" << std::endl;
-    std::cout << idp_fd.dtau_dqt[t] << std::endl;
-    std::cout << "central diff:" << std::endl;
-    std::cout << idp_cd.dtau_dqt[t] << std::endl;
-    std::cout << "auto diff:" << std::endl;
-    std::cout << idp_ad.dtau_dqt[t] << std::endl;
-    std::cout << std::endl;
+  //  std::cout << "∂τₜ/∂qₜ   : " << std::endl;
+  //  std::cout << "finite diff:" << std::endl;
+  //  std::cout << idp_fd.dtau_dqt[t] << std::endl;
+  //  std::cout << "central diff:" << std::endl;
+  //  std::cout << idp_cd.dtau_dqt[t] << std::endl;
+  //  std::cout << "auto diff:" << std::endl;
+  //  std::cout << idp_ad.dtau_dqt[t] << std::endl;
+  //  std::cout << std::endl;
 
-    std::cout << "∂τₜ/∂qₜ₊₁ : " << std::endl;
-    std::cout << "finite diff:" << std::endl;
-    std::cout << idp_fd.dtau_dqp[t] << std::endl;
-    std::cout << "central diff:" << std::endl;
-    std::cout << idp_cd.dtau_dqp[t] << std::endl;
-    std::cout << "auto diff:" << std::endl;
-    std::cout << idp_ad.dtau_dqp[t] << std::endl;
-    std::cout << std::endl;
-  }
+  //  std::cout << "∂τₜ/∂qₜ₊₁ : " << std::endl;
+  //  std::cout << "finite diff:" << std::endl;
+  //  std::cout << idp_fd.dtau_dqp[t] << std::endl;
+  //  std::cout << "central diff:" << std::endl;
+  //  std::cout << idp_cd.dtau_dqp[t] << std::endl;
+  //  std::cout << "auto diff:" << std::endl;
+  //  std::cout << idp_ad.dtau_dqp[t] << std::endl;
+  //  std::cout << std::endl;
+  //}
 
 }
 

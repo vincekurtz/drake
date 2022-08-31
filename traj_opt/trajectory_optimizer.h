@@ -179,6 +179,14 @@ class TrajectoryOptimizer {
   const typename TrajectoryOptimizerCache<T>::ContactJacobianData&
   EvalContactJacobianData(const TrajectoryOptimizerState<T>& state) const;
 
+  // DEBUG: get the autodiff optimizer and state
+  TrajectoryOptimizer<AutoDiffXd>* get_autodiff_optimizer() const {
+    return optimizer_ad_.get();
+  }
+  TrajectoryOptimizerState<AutoDiffXd>* get_autodiff_state() const {
+    return state_ad_.get();
+  }
+
  private:
   // Friend class to facilitate testing.
   friend class TrajectoryOptimizerTester;
