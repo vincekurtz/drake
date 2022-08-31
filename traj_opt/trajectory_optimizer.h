@@ -179,14 +179,6 @@ class TrajectoryOptimizer {
   const typename TrajectoryOptimizerCache<T>::ContactJacobianData&
   EvalContactJacobianData(const TrajectoryOptimizerState<T>& state) const;
 
-  // DEBUG: get the autodiff optimizer and state
-  TrajectoryOptimizer<AutoDiffXd>* get_autodiff_optimizer() const {
-    return optimizer_ad_.get();
-  }
-  TrajectoryOptimizerState<AutoDiffXd>* get_autodiff_state() const {
-    return state_ad_.get();
-  }
-
  private:
   // Friend class to facilitate testing.
   friend class TrajectoryOptimizerTester;
@@ -348,8 +340,8 @@ class TrajectoryOptimizer {
    *
    * i.e., tau(t) takes us us from t to t+1.
    *
-   * @param q sequence of generalized positions
-   * @param v sequence of generalized velocities
+   * @param state state variable storing a context for each timestep. This
+   * context in turn stores q(t) and v(t) for each timestep.
    * @param a sequence of generalized accelerations
    * @param workspace scratch space for intermediate computations
    * @param tau sequence of generalized forces
@@ -366,8 +358,7 @@ class TrajectoryOptimizer {
    *
    * at a single timestep.
    *
-   * @param q generalized position
-   * @param v generalized velocity
+   * @param context system context storing q and v
    * @param a generalized acceleration
    * @param workspace scratch space for intermediate computations
    * @param tau generalized forces
@@ -380,9 +371,8 @@ class TrajectoryOptimizer {
    * Calculate the force contribution from contacts for each body, and add them
    * into the given MultibodyForces object.
    *
+   * @param context system context storing q and v
    * @param forces total forces applied to the plant, which we will add into.
-   * @pre generalized positions (q) and velocities (v) have been properly set in
-   *      context_
    */
   void CalcContactForceContribution(const Context<T>& context,
                                     MultibodyForces<T>* forces) const;
@@ -415,10 +405,7 @@ class TrajectoryOptimizer {
    *
    * and store them in the given InverseDynamicsPartials struct.
    *
-   * @param q sequence of generalized positions
-   * @param v sequence of generalized velocities (computed from q)
-   * @param a sequence of generalized accelerations (computed from q)
-   * @param tau sequence of generalized forces (computed from q)
+   * @param state state variable containing q for each timestep
    * @param workspace scratch space for intermediate computations
    * @param id_partials struct for holding dtau/dq
    */

@@ -519,10 +519,8 @@ TrajectoryOptimizer<T>::EvalContactJacobianData(
 template <typename T>
 void TrajectoryOptimizer<T>::CalcInverseDynamicsPartials(
     const TrajectoryOptimizerState<T>& state,
-    TrajectoryOptimizerWorkspace<T>* workspace,
+    TrajectoryOptimizerWorkspace<T>* workspace,  // TODO(vincekurtz) use state.workspace
     InverseDynamicsPartials<T>* id_partials) const {
-  // TODO(vincekurtz): use a solver flag to choose between finite differences
-  // and an analytical approximation
   switch (params_.gradients_method) {
     case GradientsMethod::kForwardDifferences: {
       CalcInverseDynamicsPartialsFiniteDiff(state, workspace, id_partials);
@@ -533,6 +531,7 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartials(
       break;
     }
     case GradientsMethod::kCentralDifferences4: {
+      // TODO(vincekurtz): document
       CalcInverseDynamicsPartialsCentralDiff(state, id_partials);
       break;
     }
