@@ -38,7 +38,7 @@ rho_proximal : 1e-5         # the proximal cost multiplier
 
 # Method used to compute gradients of inverse dynamics, one of
 # {forward_differences, central_differences, central_differences4, autodiff}
-gradients_method: "central_differences"
+gradients_method: "autodiff"
 
 # Playback/visualization parameters
 play_optimal_trajectory : true

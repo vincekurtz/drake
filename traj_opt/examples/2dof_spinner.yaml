@@ -38,7 +38,7 @@ rho_proximal : 0.0          # the proximal cost multiplier
 
 # Method used to compute gradients of inverse dynamics, one of
 # {forward_differences, central_differences, central_differences4, autodiff}
-gradients_method: "autodiff"
+gradients_method: "central_differences4"
 
 # Playback/visualization parameters
 play_optimal_trajectory : true
@@ -54,7 +54,7 @@ F : 1.0         # force at delta meters of penetration
 delta : 0.01  # penetration distance with F newtons of normal force
 stiffness_exponent : 2      # Compliant law exponent.
 dissipation_exponent : 1.0  # Hunt & Crossley-like model. Law exponent.
-dissipation_velocity : 0.1  # Hunt & Crossley-like model parameter, in m/s.
+dissipation_velocity : 1e16 # Hunt & Crossley-like model parameter, in m/s.
 
 # Friction
 friction_coefficient : 0.0  # Coefficient of friction.
