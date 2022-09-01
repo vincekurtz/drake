@@ -260,6 +260,16 @@ class TrajectoryOptimizerState {
     invalidate_cache();
   }
 
+  // Norm of the q vector for all trajectories.
+  T norm() const {
+    using std::sqrt;
+    T squared_norm = 0.0;
+    for (int t = 0; t <= num_steps_; ++t) {
+      squared_norm += q_[t].squaredNorm();
+    }
+    return sqrt(squared_norm);
+  }
+
   /**
    * Getter for the cache, containing other values computed from q, such as
    * generalized velocities, forces, and various dynamics derivatives.

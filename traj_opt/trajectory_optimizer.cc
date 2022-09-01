@@ -1816,7 +1816,8 @@ T TrajectoryOptimizer<T>::SolveDoglegQuadratic(const T& a, const T& b,
 
 template <typename T>
 bool TrajectoryOptimizer<T>::CalcDoglegPoint(const TrajectoryOptimizerState<T>&,
-                                             const double, VectorX<T>*) const {
+                                             const double, VectorX<T>*,
+                                             VectorX<T>*) const {
   // Only T=double is supported here, since pentadigonal matrix factorization is
   // (sometimes) required to compute the dogleg point.
   throw std::runtime_error(
@@ -1826,13 +1827,27 @@ bool TrajectoryOptimizer<T>::CalcDoglegPoint(const TrajectoryOptimizerState<T>&,
 template <>
 bool TrajectoryOptimizer<double>::CalcDoglegPoint(
     const TrajectoryOptimizerState<double>& state, const double Delta,
-    VectorXd* dq) const {
+    VectorXd* dq, VectorXd* dqH) const {
   // N.B. We'll rescale pU and pH by Δ to avoid roundoff error
   const VectorXd& g = EvalGradient(state);
   const PentaDiagonalMatrix<double>& H = EvalHessian(state);
   VectorXd& Hg = state.workspace.q_times_num_steps_size_tmp;
   H.MultiplyBy(g, &Hg);
   const double gHg = g.transpose() * Hg;
+
+  // Compute the full Gauss-Newton step
+  // N.B. We can avoid computing pH when pU is the dog-leg solution.
+  // However, we compute it here for logging stats since thus far the cost of
+  // computing pH is negligible compared to other costs (namely the computation
+  // of gradients of the inverse dynamics.)
+  // TODO(amcastro-tri): move this to after pU whenever we make the cost of
+  // gradients computation negligible.
+  VectorXd& pH = state.workspace.q_size_tmp2;
+  pH = -g / Delta;  // normalize by Δ
+  PentaDiagonalFactorization Hchol(H);
+  DRAKE_DEMAND(Hchol.status() == PentaDiagonalFactorizationStatus::kSuccess);
+  Hchol.SolveInPlace(&pH);
+  *dqH = pH * Delta;
 
   // Compute the unconstrained minimizer of m(δq) = L(q) + g(q)'*δq + 1/2
   // δq'*H(q)*δq along -g
@@ -1846,13 +1861,6 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
     *dq = (Delta / pU.norm()) * pU;
     return true;  // the trust region constraint is active
   }
-
-  // Compute the full Gauss-Newton step
-  VectorXd& pH = state.workspace.q_size_tmp2;
-  pH = -g / Delta;  // normalize by Δ
-  PentaDiagonalFactorization Hchol(H);
-  DRAKE_DEMAND(Hchol.status() == PentaDiagonalFactorizationStatus::kSuccess);
-  Hchol.SolveInPlace(&pH);
 
   // Check if the trust region is large enough to just take the full Newton step
   if (1.0 >= pH.norm()) {
@@ -2050,15 +2058,20 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithLinesearch(
       }
     }
 
+    const double dL_dq = g.dot(dq) / cost;
+
     // Record iteration data
     stats->push_data(iter_time.count(),  // iteration time
                      cost,               // cost
                      ls_iters,           // sub-problem iterations
                      alpha,              // linesearch parameter
                      NAN,                // trust region size
+                     state.norm(),       // q norm
+                     dq.norm(),          // step size
                      dq.norm(),          // step size
                      trust_ratio,        // trust ratio
-                     g.norm());          // gradient size
+                     g.norm(),           // gradient size
+                     dL_dq, dL_dq);      // Gradient along dq          
 
     ++k;
   } while (k < params_.max_iterations && !linesearch_failed);
@@ -2109,6 +2122,7 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
 
   // Allocate the update vector q_{k+1} = q_k + dq
   VectorXd dq(plant().num_positions() * (num_steps() + 1));
+  VectorXd dqH(dq.size());
 
   // Set up a file to record iteration data for a contour plot
   if (params_.save_contour_data) {
@@ -2146,7 +2160,7 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
 
   while (k < params_.max_iterations) {
     // Obtain the candiate update dq
-    tr_constraint_active = CalcDoglegPoint(state, Delta, &dq);
+    tr_constraint_active = CalcDoglegPoint(state, Delta, &dq, &dqH);
 
     // Compute the trust region ratio
     rho = CalcTrustRatio(state, dq, &scratch_state);
@@ -2202,15 +2216,24 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
       printf("| %10.3e |\n", EvalGradient(state).norm() / EvalCost(state));
     }
 
+    const double cost = EvalCost(state);
+    const VectorXd g = EvalGradient(state);
+    const double dL_dqH = g.dot(dqH)/cost;
+    const double dL_dq = g.dot(dq)/cost;
+
     // Record statistics from this iteration
     stats->push_data(iter_time.count(),            // iteration time
                      EvalCost(state),              // cost
                      0,                            // linesearch iterations
                      NAN,                          // linesearch parameter
                      Delta,                        // trust region size
+                     state.norm(),                 // q norm
                      dq.norm(),                    // step size
+                     dqH.norm(),                   // Unconstrained step size
                      rho,                          // trust region ratio
-                     EvalGradient(state).norm());  // gradient size
+                     g.norm(),                     // gradient size
+                     dL_dqH,                       // Gradient along dqH
+                     dL_dq);                      // Gradient along dq 
 
     // Update the size of the trust-region, if necessary
     if (rho < 0.25) {

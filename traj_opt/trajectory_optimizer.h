@@ -718,7 +718,8 @@ class TrajectoryOptimizer {
    * @return false if the step is in the interior of the trust region
    */
   bool CalcDoglegPoint(const TrajectoryOptimizerState<T>& state,
-                       const double Delta, VectorX<T>* dq) const;
+                       const double Delta, VectorX<T>* dq,
+                       VectorX<T>* dqH) const;
 
   /**
    * Solve the scalar quadratic equation
