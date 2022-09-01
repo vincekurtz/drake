@@ -1651,10 +1651,8 @@ std::tuple<double, int> TrajectoryOptimizer<T>::BacktrackingLinesearch(
   DRAKE_DEMAND(L_prime <= 0);
 
   // Exit early with alpha = 1 when we are close to convergence
-  // TODO(vincekurz): revisit this threshold. Should it be a function of
-  // gradients_method?
   const double convergence_threshold =
-      sqrt(std::numeric_limits<double>::epsilon());
+      10 * std::numeric_limits<double>::epsilon() / time_step() / time_step();
   if (abs(L_prime) / abs(L) <= convergence_threshold) {
     return {1.0, 0};
   }
@@ -1719,7 +1717,7 @@ std::tuple<double, int> TrajectoryOptimizer<T>::ArmijoLinesearch(
 
   // Exit early with alpha = 1 when we are close to convergence
   const double convergence_threshold =
-      sqrt(std::numeric_limits<double>::epsilon());
+      10 * std::numeric_limits<double>::epsilon() / time_step() / time_step();
   if (abs(L_prime) / abs(L) <= convergence_threshold) {
     return {1.0, 0};
   }
@@ -1763,10 +1761,15 @@ T TrajectoryOptimizer<T>::CalcTrustRatio(
   const T L_new = EvalCost(*scratch_state);  // L(q + dq)
   const T actual_reduction = L_old - L_new;
 
+  // Threshold for determining when the actual and predicted reduction in cost
+  // are essentially zero. This is determined by the approximate level of
+  // floating point error in our computation of the cost, L(q).
   const double eps =
       10 * std::numeric_limits<T>::epsilon() / time_step() / time_step();
   if ((predicted_reduction < eps) && (actual_reduction < eps)) {
-    // Predicted and actual reduction are essentially zero
+    // Actual and predicted improvements are both essentially zero, so we set
+    // the trust ratio to a value such that the step will be accepted, but the
+    // size of the trust region will not change.
     return 0.5;
   }
 

@@ -26,8 +26,8 @@ Qfq : [0.0, 0.0, 10.0]  # Terminal cost
 Qfv : [1.0, 1.0, 0.0]
 
 # Problem definition parameters
-time_step : 0.05   # Discretization timestep (seconds)
-num_steps : 40     # number of timesteps
+time_step : 0.05    # Discretization timestep (seconds)
+num_steps : 40      # number of timesteps
 
 # Solver parameters
 max_iters : 500             # maximum Gauss-Newton iterations
@@ -38,7 +38,7 @@ rho_proximal : 1e-5         # the proximal cost multiplier
 
 # Method used to compute gradients of inverse dynamics, one of
 # {forward_differences, central_differences, central_differences4, autodiff}
-gradients_method: "autodiff"
+gradients_method: "central_differences"
 
 # Playback/visualization parameters
 play_optimal_trajectory : true
