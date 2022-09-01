@@ -1650,10 +1650,17 @@ class MultibodyTree {
       EigenPtr<VectorX<T>> qdot) const;
 
   // See MultibodyPlant method.
-  void MapQDotToVelocity(
-      const systems::Context<T>& context,
-      const Eigen::Ref<const VectorX<T>>& qdot,
-      EigenPtr<VectorX<T>> v) const;
+  void MapQDotToVelocity(const systems::Context<T>& context,
+                         const Eigen::Ref<const VectorX<T>>& qdot,
+                         EigenPtr<VectorX<T>> v) const;
+
+  // See MultibodyPlant method.
+  void CalcNMatrix(const systems::Context<T>& context,
+                   EigenPtr<MatrixX<T>> N) const;
+
+  // See MultibodyPlant method.
+  void CalcNplusMatrix(const systems::Context<T>& context,
+                       EigenPtr<MatrixX<T>> Nplus) const;
 
   /**
   @anchor internal_forward_dynamics

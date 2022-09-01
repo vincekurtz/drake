@@ -2062,6 +2062,17 @@ GTEST_TEST(MultibodyPlantTest, MapVelocityToQDotAndBackContinuous) {
   const double kTolerance = 5 * std::numeric_limits<double>::epsilon();
   EXPECT_TRUE(
       CompareMatrices(v_back.CopyToVector(), v.CopyToVector(), kTolerance));
+
+  // Compute mapping matrices.
+  MatrixX<double> N(plant.num_positions(), plant.num_velocities());
+  plant.CalcNMatrix(*context, &N);
+  const VectorX<double> N_times_v = N * v.CopyToVector();
+  EXPECT_TRUE(CompareMatrices(N_times_v, qdot.CopyToVector(), kTolerance));
+
+  MatrixX<double> Nplus(plant.num_velocities(), plant.num_positions());
+  plant.CalcNplusMatrix(*context, &Nplus);
+  const VectorX<double> Nplus_times_qdot = Nplus * qdot.CopyToVector();
+  EXPECT_TRUE(CompareMatrices(Nplus_times_qdot, v.CopyToVector(), kTolerance));
 }
 
 GTEST_TEST(MultibodyPlantTest, MapVelocityToQDotAndBackDiscrete) {
