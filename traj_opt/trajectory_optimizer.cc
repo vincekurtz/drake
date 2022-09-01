@@ -755,6 +755,9 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsWrtQtCentralDiff(
   VectorX<T>& a_ep_tp = workspace.a_size_tmp11;
   VectorX<T>& a_epp_tp = workspace.a_size_tmp12;
 
+  // TODO(vincekurtz): we only need a single set of {tau_emm, tau_m, tau_ep,
+  // tau_epp}, regardless of time step (so no distinction for _tm, _t, _tp).
+  // Then we can reuse them below since they get overriden.
   VectorX<T>& tau_emm_tm = workspace.tau_size_tmp1;
   VectorX<T>& tau_em_tm = workspace.tau_size_tmp2;
   VectorX<T>& tau_ep_tm = workspace.tau_size_tmp3;

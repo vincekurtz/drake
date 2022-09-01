@@ -817,7 +817,8 @@ class TrajectoryOptimizer {
 
   // A context corresponding to plant_, to enable dynamics computations. Must be
   // connected to a larger Diagram with a SceneGraph for systems with contact.
-  // Right now only used by CalcInverseDynamicsPartialsFiniteDiff().
+  // Right now only used by CalcInverseDynamicsPartialsFiniteDiff() and
+  // CalcInverseDynamicsPartialsWrtQtCentralDiff().
   Context<T>* context_{nullptr};
 
   // Temporary workaround for when context_ is not provided at construction.
