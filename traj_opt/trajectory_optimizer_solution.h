@@ -11,7 +11,24 @@ namespace drake {
 namespace traj_opt {
 
 // Status indicator for the overall success of our trajectory optimization.
-enum SolverFlag { kSuccess, kLinesearchMaxIters, kFactorizationFailed };
+enum SolverFlag { 
+  kSuccess, 
+  kLinesearchMaxIters, 
+  kFactorizationFailed,
+  kMaxIterationsReached,
+};
+
+// Enum to indicate convergence reasons. Several convergence criteria can be
+// satisfied at a time.
+enum ConvergenceReason : int {
+  // Bitmask-able values so they can be OR'd together.
+  kNoConvergenceCriteriaSatisfied = 0b000,
+  kCostReductionCriterionSatisfied = 0b001,
+  kGradientCriterionSatisfied = 0b010,
+  kSateCriterionSatisfied = 0b100
+};
+
+std::string DecodeConvergenceReasons(ConvergenceReason reason);
 
 /**
  * A container for the optimal solution, including generalized positions,
@@ -37,6 +54,9 @@ struct TrajectoryOptimizerSolution {
  */
 template <typename T>
 struct TrajectoryOptimizerStats {
+  ConvergenceReason convergence_reason{
+      ConvergenceReason::kNoConvergenceCriteriaSatisfied};
+
   // Total solve time
   double solve_time;
 

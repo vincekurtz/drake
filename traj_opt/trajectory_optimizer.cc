@@ -1893,7 +1893,8 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
 template <typename T>
 SolverFlag TrajectoryOptimizer<T>::Solve(const std::vector<VectorX<T>>&,
                                          TrajectoryOptimizerSolution<T>*,
-                                         TrajectoryOptimizerStats<T>*) const {
+                                         TrajectoryOptimizerStats<T>*,
+                                         ConvergenceReason*) const {
   throw std::runtime_error(
       "TrajectoryOptimizer::Solve only supports T=double.");
 }
@@ -1902,7 +1903,7 @@ template <>
 SolverFlag TrajectoryOptimizer<double>::Solve(
     const std::vector<VectorXd>& q_guess,
     TrajectoryOptimizerSolution<double>* solution,
-    TrajectoryOptimizerStats<double>* stats) const {
+    TrajectoryOptimizerStats<double>* stats, ConvergenceReason* reason) const {
   // The guess must be consistent with the initial condition
   DRAKE_DEMAND(q_guess[0] == prob_.q_init);
   DRAKE_DEMAND(static_cast<int>(q_guess.size()) == num_steps() + 1);
@@ -1913,7 +1914,7 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
   if (params_.method == SolverMethod::kLinesearch) {
     return SolveWithLinesearch(q_guess, solution, stats);
   } else if (params_.method == SolverMethod::kTrustRegion) {
-    return SolveWithTrustRegion(q_guess, solution, stats);
+    return SolveWithTrustRegion(q_guess, solution, stats, reason);
   } else {
     throw std::runtime_error("Unsupported solver strategy!");
   }
@@ -2102,7 +2103,7 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithLinesearch(
 template <typename T>
 SolverFlag TrajectoryOptimizer<T>::SolveWithTrustRegion(
     const std::vector<VectorX<T>>&, TrajectoryOptimizerSolution<T>*,
-    TrajectoryOptimizerStats<T>*) const {
+    TrajectoryOptimizerStats<T>*, ConvergenceReason*) const {
   throw std::runtime_error(
       "TrajectoryOptimizer::SolveWithTrustRegion only supports T=double.");
 }
@@ -2111,7 +2112,7 @@ template <>
 SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
     const std::vector<VectorXd>& q_guess,
     TrajectoryOptimizerSolution<double>* solution,
-    TrajectoryOptimizerStats<double>* stats) const {
+    TrajectoryOptimizerStats<double>* stats, ConvergenceReason* reason_out) const {
   using std::min;
   // Allocate a state variable to store q and everything that is computed from q
   TrajectoryOptimizerState<double> state = CreateState();
@@ -2158,6 +2159,7 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
   const std::string printout_labels =
       "|  iter  |   cost   |    Δ    |    ρ    |  time (s)  |  |g|/cost  |";
 
+  double previous_cost = EvalCost(state);
   while (k < params_.max_iterations) {
     // Obtain the candiate update dq
     tr_constraint_active = CalcDoglegPoint(state, Delta, &dq, &dqH);
@@ -2233,7 +2235,20 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
                      rho,                          // trust region ratio
                      g.norm(),                     // gradient size
                      dL_dqH,                       // Gradient along dqH
-                     dL_dq);                      // Gradient along dq 
+                     dL_dq);                      // Gradient along dq
+
+    // Only check convergence criteria for valid steps.
+    ConvergenceReason reason{
+        ConvergenceReason::kNoConvergenceCriteriaSatisfied};
+    if (rho > eta) {
+      reason = VerifyConvergenceCriteria(state, previous_cost, dq);
+      previous_cost = EvalCost(state);
+      if (reason_out) *reason_out = reason;
+    }
+
+    if (reason != ConvergenceReason::kNoConvergenceCriteriaSatisfied) {
+      break;
+    }
 
     // Update the size of the trust-region, if necessary
     if (rho < 0.25) {
@@ -2270,7 +2285,47 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
     SaveLinePlotDataFirstVariable(&scratch_state);
   }
 
+  if (k == params_.max_iterations) return SolverFlag::kMaxIterationsReached;
+
   return SolverFlag::kSuccess;
+}
+
+template <typename T>
+ConvergenceReason TrajectoryOptimizer<T>::VerifyConvergenceCriteria(
+    const TrajectoryOptimizerState<T>& state, const T& previous_cost,
+    const VectorX<T>& dq) const {
+  using std::abs;
+
+  const auto& tolerances = params_.convergence_tolerances;
+
+  int reason(ConvergenceReason::kNoConvergenceCriteriaSatisfied);
+
+  // Cost reduction criterion:
+  //   |Lᵏ−Lᵏ⁺¹| < εₐ + εᵣ Lᵏ⁺¹
+  const T cost = EvalCost(state);
+  if (abs(previous_cost - cost) <
+      tolerances.abs_cost_reduction + tolerances.rel_cost_reduction * cost) {    
+    reason |= ConvergenceReason::kCostReductionCriterionSatisfied;
+  }
+
+  // Gradient criterion:
+  //   g⋅Δq < εₐ + εᵣ Lᵏ
+  const VectorX<T>& g = EvalGradient(state);
+  if (abs(g.dot(dq)) < tolerances.abs_gradient_along_dq +
+                           tolerances.rel_gradient_along_dq * cost) {    
+    reason |= ConvergenceReason::kGradientCriterionSatisfied;
+  }
+
+  // Relative state (q) change:
+  //   ‖Δq‖ < εₐ + εᵣ‖qᵏ‖
+  const T q_norm = state.norm();
+  const T dq_norm = dq.norm();
+  if (dq_norm <
+      tolerances.abs_state_change + tolerances.rel_state_change * q_norm) {
+    reason |= ConvergenceReason::kSateCriterionSatisfied;
+  }
+
+  return ConvergenceReason(reason);
 }
 
 }  // namespace traj_opt

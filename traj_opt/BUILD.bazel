@@ -83,11 +83,21 @@ drake_cc_library(
 )
 
 drake_cc_library(
+    name = "convergence_criteria_tolerances",
+    hdrs = [
+        "convergence_criteria_tolerances.h",
+    ],
+    deps = [
+        "//common/yaml",
+    ],
+)
+
+drake_cc_library(
     name = "solver_parameters",
     hdrs = [
         "solver_parameters.h",
     ],
-    deps = [],
+    deps = [":convergence_criteria_tolerances"],
 )
 
 drake_cc_library(

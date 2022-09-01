@@ -4,6 +4,7 @@
 #include <vector>
 
 #include "drake/common/yaml/yaml_io.h"
+#include "drake/traj_opt/convergence_criteria_tolerances.h"
 
 namespace drake {
 namespace traj_opt {
@@ -58,6 +59,7 @@ struct TrajOptExampleParams {
     a->Visit(DRAKE_NVP(save_lineplot_data));
     a->Visit(DRAKE_NVP(lineplot_q_min));
     a->Visit(DRAKE_NVP(lineplot_q_max));
+    a->Visit(DRAKE_NVP(tolerances));
   }
   std::vector<double> q_init;
   std::vector<double> v_init;
@@ -72,6 +74,7 @@ struct TrajOptExampleParams {
   double time_step;
   int num_steps;
   int max_iters;
+  ConvergenceCriteriaTolerances tolerances;
   std::string linesearch;
   std::string method;
   std::string gradients_method{"forward_differences"};
@@ -96,7 +99,7 @@ struct TrajOptExampleParams {
   double contour_q2_max = 1;
   bool save_lineplot_data = false;
   double lineplot_q_min = 0;
-  double lineplot_q_max = 1;
+  double lineplot_q_max = 1;  
 };
 
 }  // namespace examples

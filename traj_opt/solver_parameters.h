@@ -1,6 +1,7 @@
 #pragma once
 
 #include "drake/common/drake_copyable.h"
+#include "drake/traj_opt/convergence_criteria_tolerances.h"
 
 namespace drake {
 namespace traj_opt {
@@ -31,6 +32,8 @@ enum GradientsMethod {
 
 struct SolverParameters {
   DRAKE_DEFAULT_COPY_AND_MOVE_AND_ASSIGN(SolverParameters);
+
+  ConvergenceCriteriaTolerances convergence_tolerances;
 
   SolverParameters() = default;
 

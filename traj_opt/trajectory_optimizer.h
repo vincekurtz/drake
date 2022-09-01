@@ -146,7 +146,8 @@ class TrajectoryOptimizer {
    */
   SolverFlag Solve(const std::vector<VectorX<T>>& q_guess,
                    TrajectoryOptimizerSolution<T>* solution,
-                   TrajectoryOptimizerStats<T>* stats) const;
+                   TrajectoryOptimizerStats<T>* stats,
+                   ConvergenceReason* reason = nullptr) const;
 
   // The following evaluator functions get data from the state's cache, and
   // update it if necessary.
@@ -329,7 +330,8 @@ class TrajectoryOptimizer {
    */
   SolverFlag SolveWithTrustRegion(const std::vector<VectorX<T>>& q_guess,
                                   TrajectoryOptimizerSolution<T>* solution,
-                                  TrajectoryOptimizerStats<T>* stats) const;
+                                  TrajectoryOptimizerStats<T>* stats,
+                                  ConvergenceReason* reason) const;
 
   // Updates `cache` to store q and v from `state`.
   void CalcContextCache(
@@ -742,6 +744,10 @@ class TrajectoryOptimizer {
    */
   T SolveDoglegQuadratic(const T& a, const T& b, const T& c) const;
 
+  ConvergenceReason VerifyConvergenceCriteria(
+      const TrajectoryOptimizerState<T>& state, const T& previous_cost,
+      const VectorX<T>& dq) const;
+
   /**
    * Save the cost L(q) for a variety of values of q so that we can make a
    * contour plot (later) in python.
@@ -854,7 +860,7 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithLinesearch(
 template <>
 SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
     const std::vector<VectorXd>&, TrajectoryOptimizerSolution<double>*,
-    TrajectoryOptimizerStats<double>*) const;
+    TrajectoryOptimizerStats<double>*, ConvergenceReason*) const;
 
 }  // namespace traj_opt
 }  // namespace drake
