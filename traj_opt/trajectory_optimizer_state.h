@@ -1,16 +1,18 @@
 #pragma once
 
+#include <memory>
+#include <utility>
 #include <vector>
 
-#include "drake/common/eigen_types.h"
 #include "drake/common/drake_copyable.h"
+#include "drake/common/eigen_types.h"
 #include "drake/geometry/query_results/signed_distance_pair.h"
 #include "drake/multibody/plant/multibody_plant.h"
+#include "drake/systems/framework/diagram.h"
 #include "drake/traj_opt/inverse_dynamics_partials.h"
 #include "drake/traj_opt/penta_diagonal_matrix.h"
 #include "drake/traj_opt/trajectory_optimizer_workspace.h"
 #include "drake/traj_opt/velocity_partials.h"
-#include "drake/systems/framework/diagram.h"
 
 namespace drake {
 namespace traj_opt {
@@ -41,7 +43,7 @@ struct TrajectoryOptimizerCache {
         hessian(num_steps + 1, nq) {
     trajectory_data.v.assign(num_steps + 1, VectorX<T>(nv));
     trajectory_data.a.assign(num_steps, VectorX<T>(nv));
-    trajectory_data.tau.assign(num_steps, VectorX<T>(nv));
+    inverse_dynamics_cache.tau.assign(num_steps, VectorX<T>(nv));
     // TODO(amcastro-tri): We could allocate contact_jacobian_data here if we
     // knew the number of contacts. For now, we'll defer the allocation to a
     // later stage when the number of contacts is available.
@@ -95,12 +97,16 @@ struct TrajectoryOptimizerCache {
     // [a(0), a(1), ..., a(num_steps-1)]
     std::vector<VectorX<T>> a;
 
+    bool up_to_date{false};
+  } trajectory_data;
+
+  struct InverseDynamicsCache {
     // Generalized forces at each timestep
     // [tau(0), tau(1), ..., tau(num_steps-1)]
     std::vector<VectorX<T>> tau;
 
     bool up_to_date{false};
-  } trajectory_data;
+  } inverse_dynamics_cache;
 
   struct SdfData {
     // sdf_pairs[t], with t=0 to num_steps-1, stores the contact pairs for the
@@ -180,7 +186,15 @@ struct ProximalOperatorData {
 template <typename T>
 class TrajectoryOptimizerState {
  public:
-  DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(TrajectoryOptimizerState);
+  // Not copyable.
+  TrajectoryOptimizerState(const TrajectoryOptimizerState<T>&) = delete;
+  void operator=(const TrajectoryOptimizerState<T>&) = delete;
+
+  // We do allow to move it.
+  TrajectoryOptimizerState(TrajectoryOptimizerState<T>&&) = default;
+  TrajectoryOptimizerState<T>& operator=(TrajectoryOptimizerState<T>&&) =
+      default;
+
   /**
    * Constructor which allocates things of the proper sizes.
    *
@@ -321,11 +335,14 @@ class TrajectoryOptimizerState {
   // Set all the cache invalidation flags to false
   void invalidate_cache() {
     cache_.trajectory_data.up_to_date = false;
+    cache_.inverse_dynamics_cache.up_to_date = false;
     cache_.derivatives_data.up_to_date = false;
     cache_.cost_up_to_date = false;
     cache_.gradient_up_to_date = false;
     cache_.hessian_up_to_date = false;
     cache_.contact_jacobian_data.up_to_date = false;
+    if (cache_.context_cache) cache_.context_cache->up_to_date = false;
+    cache_.sdf_data.up_to_date = false;
   }
 };
 

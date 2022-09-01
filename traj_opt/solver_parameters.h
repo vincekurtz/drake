@@ -1,5 +1,7 @@
 #pragma once
 
+#include "drake/common/drake_copyable.h"
+
 namespace drake {
 namespace traj_opt {
 
@@ -13,7 +15,25 @@ enum LinesearchMethod {
 
 enum SolverMethod { kLinesearch, kTrustRegion };
 
+enum GradientsMethod {
+  // First order forward differences.
+  kForwardDifferences,
+  // Second order central differences.
+  kCentralDifferences,
+  // Fourth order central differences.
+  kCentralDifferences4,
+  // Automatic differentiation.
+  kAutoDiff,
+  // The optimizer will not be used for the computation of gradients. If
+  // requested, an exception will be thrown.
+  kNoGradients
+};
+
 struct SolverParameters {
+  DRAKE_DEFAULT_COPY_AND_MOVE_AND_ASSIGN(SolverParameters);
+
+  SolverParameters() = default;
+
   // Which overall optimization strategy to use - linesearch or trust region
   // TODO(vincekurtz): better name for this?
   SolverMethod method = SolverMethod::kTrustRegion;
@@ -26,6 +46,8 @@ struct SolverParameters {
 
   // Maximum number of linesearch iterations
   int max_linesearch_iterations = 50;
+
+  GradientsMethod gradients_method{kForwardDifferences};
 
   // Flag for whether to print out iteration data
   bool verbose = true;
