@@ -71,8 +71,28 @@ class TrajOptExample {
     opt_prob.Qf_q = Eigen::Map<VectorXd>(options.Qfq.data(), nq).asDiagonal();
     opt_prob.Qf_v = Eigen::Map<VectorXd>(options.Qfv.data(), nv).asDiagonal();
     opt_prob.R = Eigen::Map<VectorXd>(options.R.data(), nv).asDiagonal();
-    opt_prob.q_nom = Eigen::Map<VectorXd>(options.q_nom.data(), nq);
-    opt_prob.v_nom = Eigen::Map<VectorXd>(options.v_nom.data(), nv);
+
+    const VectorXd q_nom_start =
+        Eigen::Map<VectorXd>(options.q_nom_start.data(), nq);
+    const VectorXd q_nom_end =
+        Eigen::Map<VectorXd>(options.q_nom_end.data(), nq);
+
+    std::vector<VectorXd> q_nom;
+    double llambda = 0;
+    for (int t = 0; t <= options.num_steps; ++t) {
+      llambda = (1.0 * t) / (1.0 * options.num_steps);
+      opt_prob.q_nom.push_back((1 - llambda) * q_nom_start +
+                               llambda * q_nom_end);
+    }
+    opt_prob.v_nom.push_back(opt_prob.v_init);
+    for (int t = 1; t <= options.num_steps; ++t) {
+      // TODO(vincekurtz): handle quaternion DoFs
+      opt_prob.v_nom.push_back((opt_prob.q_nom[t] - opt_prob.q_nom[t - 1]) /
+                               options.time_step);
+    }
+    if (options.play_target_trajectory) {
+      PlayBackTrajectory(opt_prob.q_nom, options.time_step);
+    }
 
     // Set our solver parameters
     // TODO(vincekurtz): consider separate functions mapping options to opt_prob
@@ -182,12 +202,14 @@ class TrajOptExample {
 
     // Report desired and final state
     std::cout << std::endl;
-    std::cout << "q_nom : " << opt_prob.q_nom.transpose() << std::endl;
-    std::cout << "q[T]  : " << solution.q[options.num_steps].transpose()
+    std::cout << "q_nom[t] : " << opt_prob.q_nom[options.num_steps].transpose()
+              << std::endl;
+    std::cout << "q[T]     : " << solution.q[options.num_steps].transpose()
               << std::endl;
     std::cout << std::endl;
-    std::cout << "v_nom : " << opt_prob.v_nom.transpose() << std::endl;
-    std::cout << "v[T]  : " << solution.v[options.num_steps].transpose()
+    std::cout << "v_nom[t] : " << opt_prob.v_nom[options.num_steps].transpose()
+              << std::endl;
+    std::cout << "v[T]     : " << solution.v[options.num_steps].transpose()
               << std::endl;
 
     // Save stats to CSV for later plotting

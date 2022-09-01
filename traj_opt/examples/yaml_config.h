@@ -22,8 +22,8 @@ struct TrajOptExampleParams {
   void Serialize(Archive* a) {
     a->Visit(DRAKE_NVP(q_init));
     a->Visit(DRAKE_NVP(v_init));
-    a->Visit(DRAKE_NVP(q_nom));
-    a->Visit(DRAKE_NVP(v_nom));
+    a->Visit(DRAKE_NVP(q_nom_start));
+    a->Visit(DRAKE_NVP(q_nom_end));
     a->Visit(DRAKE_NVP(q_guess));
     a->Visit(DRAKE_NVP(Qq));
     a->Visit(DRAKE_NVP(Qv));
@@ -40,6 +40,7 @@ struct TrajOptExampleParams {
     a->Visit(DRAKE_NVP(rho_proximal));
     a->Visit(DRAKE_NVP(play_optimal_trajectory));
     a->Visit(DRAKE_NVP(play_initial_guess));
+    a->Visit(DRAKE_NVP(play_target_trajectory));
     a->Visit(DRAKE_NVP(linesearch_plot_every_iteration));
     a->Visit(DRAKE_NVP(print_debug_data));
     a->Visit(DRAKE_NVP(save_solver_stats_csv));
@@ -61,8 +62,8 @@ struct TrajOptExampleParams {
   }
   std::vector<double> q_init;
   std::vector<double> v_init;
-  std::vector<double> q_nom;
-  std::vector<double> v_nom;
+  std::vector<double> q_nom_start;
+  std::vector<double> q_nom_end;
   std::vector<double> q_guess;
   std::vector<double> Qq;
   std::vector<double> Qv;
@@ -78,7 +79,8 @@ struct TrajOptExampleParams {
   bool proximal_operator = false;
   double rho_proximal = 1e-8;
   bool play_optimal_trajectory = true;
-  bool play_initial_guess = true;
+  bool play_initial_guess = false;
+  bool play_target_trajectory = false;
   bool linesearch_plot_every_iteration = false;
   bool print_debug_data = false;
   bool save_solver_stats_csv = true;
