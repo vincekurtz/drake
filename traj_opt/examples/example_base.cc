@@ -160,8 +160,9 @@ void TrajOptExample::SetProblemDefinition(const TrajOptExampleParams& options,
   opt_prob->v_nom.push_back(opt_prob->v_init);
   for (int t = 1; t <= options.num_steps; ++t) {
     // TODO(vincekurtz): handle quaternion DoFs
-    opt_prob->v_nom.push_back((opt_prob->q_nom[t] - opt_prob->q_nom[t - 1]) /
-                              options.time_step);
+    opt_prob->v_nom.push_back(opt_prob->v_init);
+    //opt_prob->v_nom.push_back((opt_prob->q_nom[t] - opt_prob->q_nom[t - 1]) /
+    //                          options.time_step);
   }
 }
 

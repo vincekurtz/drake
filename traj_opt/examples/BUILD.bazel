@@ -60,6 +60,21 @@ drake_cc_binary(
 )
 
 drake_cc_binary(
+    name = "floating_box",
+    srcs = ["floating_box.cc"],
+    add_test_rule = 1,
+    data = [
+        ":floating_box.yaml",
+    ],
+    test_rule_args = [],
+    deps = [
+        ":example_base",
+        "//common:find_resource",
+        "//multibody/plant",
+    ],
+)
+
+drake_cc_binary(
     name = "wall_ball",
     srcs = ["wall_ball.cc"],
     add_test_rule = 1,
