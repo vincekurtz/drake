@@ -103,6 +103,52 @@ using systems::DiagramBuilder;
 using test::LimitMalloc;
 
 /**
+ * Test optimization for a simple system with quaternion DoFs.  
+ */
+GTEST_TEST(TrajectoryOptimizerTest, QuaternionDofs) {
+  // Set up a simple example system
+  const int dt = 1e-2;
+  DiagramBuilder<double> builder;
+  MultibodyPlantConfig config;
+  config.time_step = dt;
+  auto [plant, scene_graph] = multibody::AddMultibodyPlant(config, &builder);
+  const RigidBody<double>& body = plant.AddRigidBody(
+      "body", multibody::SpatialInertia<double>::MakeUnitary());
+
+  plant.Finalize();
+  auto diagram = builder.Build();
+  EXPECT_TRUE(body.is_floating());
+  ASSERT_EQ(plant.num_positions(), 7);
+  ASSERT_EQ(plant.num_velocities(), 6);
+
+  // Define a super simple optimization problem. We are only interested in
+  // configurations.
+  const int num_steps = 1;
+  ProblemDefinition opt_prob;
+  opt_prob.num_steps = num_steps;
+  opt_prob.q_init = VectorXd(7);
+  opt_prob.q_init << 1, 0, 0, 0, 0, 0, 0;  // N.B. orientation must be a valid quaterion
+  opt_prob.v_init = Vector6d::Zero();
+  opt_prob.q_nom.resize(num_steps + 1);
+  opt_prob.v_nom.resize(num_steps + 1);
+
+  TrajectoryOptimizer<double> optimizer(diagram.get(), &plant, opt_prob);
+  TrajectoryOptimizerState<double> state = optimizer.CreateState();
+
+  // Make some fake data
+  std::vector<VectorXd> q;
+  q.push_back(opt_prob.q_init);
+  q.push_back(opt_prob.q_init);
+  state.set_q(q);
+
+  std::vector<MatrixXd> Nplus = optimizer.EvalNplus(state);
+  for (int t=0; t<=num_steps; ++t) {
+    std::cout << fmt::format("N+(q_{}) : \n{}\n", t, Nplus[t]);
+  }
+
+}
+
+/**
  * Test different methods of computing gradients through contact.
  */
 GTEST_TEST(TrajectoryOptimizerTest, ContactGradientMethods) {

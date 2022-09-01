@@ -1447,6 +1447,50 @@ TrajectoryOptimizer<T>::EvalInverseDynamicsPartials(
 }
 
 template <typename T>
+const std::vector<MatrixX<T>>& TrajectoryOptimizer<T>::EvalNplus(
+    const TrajectoryOptimizerState<T>& state) const {
+  if (!state.cache().n_plus_up_to_date) {
+    CalcNplus(state, &state.mutable_cache().N_plus);
+    state.mutable_cache().n_plus_up_to_date = true;
+  }
+  return state.cache().N_plus;
+}
+
+template <typename T>
+void TrajectoryOptimizer<T>::CalcNplus(const TrajectoryOptimizerState<T>& state,
+                                       std::vector<MatrixX<T>>* N_plus) const {
+  DRAKE_DEMAND(static_cast<int>(N_plus->size()) == (num_steps() + 1));
+  const int nq = plant().num_positions();
+  const int nv = plant().num_velocities();
+
+  // We'll compute the i-th column of N+ as MapQDotToVelocity(e), where e is a
+  // vector with all zeros but a 1 in the ith position.
+  VectorX<T> e = VectorX<T>::Zero(nq);
+  for (int t = 0; t <= num_steps(); ++t) {
+    MatrixX<T>& Np_t = N_plus->at(t);  // N+(q_t)
+    DRAKE_ASSERT(Np_t.cols() == nq);
+    DRAKE_ASSERT(Np_t.rows() == nv);
+
+    // Get a context storing q at time t
+    // TODO(vincekurtz): consider using EvalPlantContext instead. In that case
+    // we do need to be a bit careful, however, since EvalPlantContext requires
+    // EvalV, which in turn requires EvalNplus.
+    plant().SetPositions(context_, state.q()[t]);
+
+    // Compute each column of N+(q)
+    // TODO(vincekurtz) this computation could be avoided if we instead call
+    // plant.MapQDotToVelocity() every time we need to mulitply something by
+    // N+(q).
+    for (int i = 0; i < nq; ++i) {
+      e[i] = 1.0;
+      auto Np_t_i = Np_t.col(i);  // i-th column of N+(q_t)
+      plant().MapQDotToVelocity(*context_, e, &Np_t_i);
+      e[i] = 0.0;
+    }
+  }
+}
+
+template <typename T>
 void TrajectoryOptimizer<T>::SaveLinePlotDataFirstVariable(
     TrajectoryOptimizerState<T>* scratch_state) const {
   std::ofstream data_file;
