@@ -169,30 +169,37 @@ GTEST_TEST(TrajectoryOptimizerTest, ContactGradientMethods) {
       optimizer_fd, state_fd, &idp_fd);
 
   InverseDynamicsPartials<double> idp_cd(num_steps, 3, 3);
-  TrajectoryOptimizerTester::CalcInverseDynamicsPartials(
-      optimizer_cd, state_cd, &idp_cd);
+  TrajectoryOptimizerTester::CalcInverseDynamicsPartials(optimizer_cd, state_cd,
+                                                         &idp_cd);
 
   InverseDynamicsPartials<double> idp_ad(num_steps, 3, 3);
-  TrajectoryOptimizerTester::CalcInverseDynamicsPartials(
-      optimizer_ad, state_ad, &idp_ad);
+  TrajectoryOptimizerTester::CalcInverseDynamicsPartials(optimizer_ad, state_ad,
+                                                         &idp_ad);
 
   // Verify that inverse dynamics partials match, at least roughly
-  const double kTolerance = 10 * sqrt(kEpsilon);
+  const double kToleranceForwardDifference = 100 * sqrt(kEpsilon);
+  const double kToleranceCentralDifference = 10 * sqrt(kEpsilon);
   for (int t = 0; t < num_steps; ++t) {
-    EXPECT_TRUE(CompareMatrices(idp_fd.dtau_dqm[t], idp_ad.dtau_dqm[0],
-                                10 * kTolerance, MatrixCompareType::relative));
-    EXPECT_TRUE(CompareMatrices(idp_cd.dtau_dqm[t], idp_ad.dtau_dqm[0],
-                                kTolerance, MatrixCompareType::relative));
+    EXPECT_TRUE(CompareMatrices(idp_fd.dtau_dqm[t], idp_ad.dtau_dqm[t],
+                                kToleranceForwardDifference,
+                                MatrixCompareType::relative));
+    EXPECT_TRUE(CompareMatrices(idp_cd.dtau_dqm[t], idp_ad.dtau_dqm[t],
+                                kToleranceCentralDifference,
+                                MatrixCompareType::relative));
 
-    EXPECT_TRUE(CompareMatrices(idp_fd.dtau_dqt[t], idp_ad.dtau_dqt[0],
-                                10 * kTolerance, MatrixCompareType::relative));
-    EXPECT_TRUE(CompareMatrices(idp_cd.dtau_dqt[t], idp_ad.dtau_dqt[0],
-                                kTolerance, MatrixCompareType::relative));
+    EXPECT_TRUE(CompareMatrices(idp_fd.dtau_dqt[t], idp_ad.dtau_dqt[t],
+                                kToleranceForwardDifference,
+                                MatrixCompareType::relative));
+    EXPECT_TRUE(CompareMatrices(idp_cd.dtau_dqt[t], idp_ad.dtau_dqt[t],
+                                kToleranceCentralDifference,
+                                MatrixCompareType::relative));
 
-    EXPECT_TRUE(CompareMatrices(idp_fd.dtau_dqp[t], idp_ad.dtau_dqp[0],
-                                10 * kTolerance, MatrixCompareType::relative));
-    EXPECT_TRUE(CompareMatrices(idp_cd.dtau_dqp[t], idp_ad.dtau_dqp[0],
-                                kTolerance, MatrixCompareType::relative));
+    EXPECT_TRUE(CompareMatrices(idp_fd.dtau_dqp[t], idp_ad.dtau_dqp[t],
+                                kToleranceForwardDifference,
+                                MatrixCompareType::relative));
+    EXPECT_TRUE(CompareMatrices(idp_cd.dtau_dqp[t], idp_ad.dtau_dqp[t],
+                                kToleranceCentralDifference,
+                                MatrixCompareType::relative));
   }
 }
 

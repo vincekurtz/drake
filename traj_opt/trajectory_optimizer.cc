@@ -811,6 +811,10 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsWrtQtCentralDiff(
   }
 
   // Compute small perturbations
+  // N.B. the theoretically optimal step size of eps^(1/3) appears to give worse
+  // performance than a smaller step size of eps^(1/2), possibly because the
+  // curvature scale (x_c) of problems with contact may be significantly smaller
+  // than the standard approximation of x_c = max(1,x).
   const double eps = sqrt(std::numeric_limits<double>::epsilon());
 
   for (int i = 0; i < plant().num_positions(); ++i) {
