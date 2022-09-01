@@ -180,14 +180,16 @@ T TrajectoryOptimizer<T>::CalcCost(
 
 template <typename T>
 void TrajectoryOptimizer<T>::CalcVelocities(const std::vector<VectorX<T>>& q,
+                                            const std::vector<MatrixX<T>>& Nplus,
                                             std::vector<VectorX<T>>* v) const {
   // x = [x0, x1, ..., xT]
   DRAKE_DEMAND(static_cast<int>(q.size()) == num_steps() + 1);
+  DRAKE_DEMAND(static_cast<int>(Nplus.size()) == num_steps() + 1);
   DRAKE_DEMAND(static_cast<int>(v->size()) == num_steps() + 1);
 
   v->at(0) = prob_.v_init;
   for (int t = 1; t <= num_steps(); ++t) {
-    v->at(t) = (q[t] - q[t - 1]) / time_step();
+    v->at(t) = Nplus[t] * (q[t] - q[t - 1]) / time_step();
   }
 }
 
@@ -1073,16 +1075,13 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsAutoDiff(
 
 template <typename T>
 void TrajectoryOptimizer<T>::CalcVelocityPartials(
-    const std::vector<VectorX<T>>&, VelocityPartials<T>* v_partials) const {
-  if (plant().num_velocities() != plant().num_positions()) {
-    throw std::runtime_error("Quaternion DoFs not yet supported");
-  } else {
-    const int nq = plant().num_positions();
-    for (int t = 0; t <= num_steps(); ++t) {
-      v_partials->dvt_dqt[t] = 1 / time_step() * MatrixXd::Identity(nq, nq);
-      if (t > 0) {
-        v_partials->dvt_dqm[t] = -1 / time_step() * MatrixXd::Identity(nq, nq);
-      }
+    const TrajectoryOptimizerState<T>& state,
+    VelocityPartials<T>* v_partials) const {
+  const std::vector<MatrixX<T>>& Nplus = EvalNplus(state);
+  for (int t = 0; t <= num_steps(); ++t) {
+    v_partials->dvt_dqt[t] = 1 / time_step() * Nplus[t];
+    if (t > 0) {
+      v_partials->dvt_dqm[t] = -1 / time_step() * Nplus[t];
     }
   }
 }
@@ -1327,7 +1326,8 @@ void TrajectoryOptimizer<T>::CalcCacheTrajectoryData(
 
   // Compute corresponding generalized velocities
   std::vector<VectorX<T>>& v = cache.trajectory_data.v;
-  CalcVelocities(q, &v);
+  const std::vector<MatrixX<T>>& Nplus = EvalNplus(state);
+  CalcVelocities(q, Nplus, &v);
 
   // Compute corresponding generalized accelerations
   std::vector<VectorX<T>>& a = cache.trajectory_data.a;
@@ -1422,8 +1422,7 @@ void TrajectoryOptimizer<T>::CalcCacheDerivativesData(
   CalcInverseDynamicsPartials(state, &id_partials);
 
   // Compute partial derivatives of velocities d(v)/d(q)
-  const std::vector<VectorX<T>>& q = state.q();
-  CalcVelocityPartials(q, &v_partials);
+  CalcVelocityPartials(state, &v_partials);
 
   // Set cache invalidation flag
   cache.derivatives_data.up_to_date = true;

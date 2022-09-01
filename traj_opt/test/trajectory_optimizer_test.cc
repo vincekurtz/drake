@@ -37,8 +37,9 @@ class TrajectoryOptimizerTester {
 
   static void CalcVelocities(const TrajectoryOptimizer<double>& optimizer,
                              const std::vector<VectorXd>& q,
+                             const std::vector<MatrixXd>& Nplus,
                              std::vector<VectorXd>* v) {
-    optimizer.CalcVelocities(q, v);
+    optimizer.CalcVelocities(q, Nplus, v);
   }
 
   static void CalcAccelerations(const TrajectoryOptimizer<double>& optimizer,
@@ -107,19 +108,21 @@ using test::LimitMalloc;
  */
 GTEST_TEST(TrajectoryOptimizerTest, QuaternionDofs) {
   // Set up a simple example system
-  const int dt = 1e-2;
+  const double dt = 1e-2;
   DiagramBuilder<double> builder;
   MultibodyPlantConfig config;
   config.time_step = dt;
   auto [plant, scene_graph] = multibody::AddMultibodyPlant(config, &builder);
   const RigidBody<double>& body = plant.AddRigidBody(
       "body", multibody::SpatialInertia<double>::MakeUnitary());
-
   plant.Finalize();
   auto diagram = builder.Build();
+  
+  const int nq = plant.num_positions();
+  const int nv = plant.num_velocities();
   EXPECT_TRUE(body.is_floating());
-  ASSERT_EQ(plant.num_positions(), 7);
-  ASSERT_EQ(plant.num_velocities(), 6);
+  ASSERT_EQ(nq, 7);
+  ASSERT_EQ(nv, 6);
 
   // Define a super simple optimization problem. We are only interested in
   // configurations.
@@ -139,13 +142,31 @@ GTEST_TEST(TrajectoryOptimizerTest, QuaternionDofs) {
   std::vector<VectorXd> q;
   q.push_back(opt_prob.q_init);
   q.push_back(opt_prob.q_init);
+  q[1](0) = 0.0;  // change orientation
+  q[1](1) = 0.1;
   state.set_q(q);
 
+  // Compute N+
   std::vector<MatrixXd> Nplus = optimizer.EvalNplus(state);
   for (int t=0; t<=num_steps; ++t) {
-    std::cout << fmt::format("N+(q_{}) : \n{}\n", t, Nplus[t]);
+    EXPECT_TRUE(Nplus[t].cols() == nq);
+    EXPECT_TRUE(Nplus[t].rows() == nv);
   }
 
+  // Compute velocities
+  const std::vector<VectorXd>& v = optimizer.EvalV(state);
+  for (int t=0; t<=num_steps; ++t) {
+    EXPECT_TRUE(v[t].size() == nv);
+  }
+
+  // Compute velocity partials
+  const VelocityPartials<double>& v_partials = optimizer.EvalVelocityPartials(state);
+  for (int t=0; t<=num_steps; ++t) {
+    EXPECT_TRUE(v_partials.dvt_dqt[t].cols() == nq);
+    EXPECT_TRUE(v_partials.dvt_dqm[t].cols() == nq);
+    EXPECT_TRUE(v_partials.dvt_dqt[t].rows() == nv);
+    EXPECT_TRUE(v_partials.dvt_dqm[t].rows() == nv);
+  }
 }
 
 /**
@@ -1069,7 +1090,8 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumDtauDq) {
   std::vector<VectorXd> v(num_steps + 1);
   std::vector<VectorXd> a(num_steps);
   std::vector<VectorXd> tau(num_steps);
-  TrajectoryOptimizerTester::CalcVelocities(optimizer, q, &v);
+  const std::vector<MatrixXd>& Nplus = optimizer.EvalNplus(state);
+  TrajectoryOptimizerTester::CalcVelocities(optimizer, q, Nplus, &v);
   TrajectoryOptimizerTester::CalcAccelerations(optimizer, v, &a);
   TrajectoryOptimizerTester::CalcInverseDynamics(optimizer, state, a,
                                                  &workspace, &tau);
@@ -1380,9 +1402,15 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcVelocities) {
     q.push_back(Vector2d(0.1 + 0.5 * t, 0.2 + 1.5 * t));
   }
 
+  // Make a dummy N+ for this (nonexistant) system
+  std::vector<MatrixXd> Nplus;
+  for (int t=0; t <= num_steps; ++t) {
+    Nplus.push_back(MatrixXd::Identity(2,2));
+  }
+
   // Compute v from q
   std::vector<VectorXd> v(num_steps + 1);
-  TrajectoryOptimizerTester::CalcVelocities(optimizer, q, &v);
+  TrajectoryOptimizerTester::CalcVelocities(optimizer, q, Nplus, &v);
 
   // Check that our computed v is correct
   const double kTolerance = std::numeric_limits<double>::epsilon() / dt;
