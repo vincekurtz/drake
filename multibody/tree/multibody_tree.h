@@ -1655,6 +1655,14 @@ class MultibodyTree {
       const Eigen::Ref<const VectorX<T>>& qdot,
       EigenPtr<VectorX<T>> v) const;
 
+  // See MultibodyPlant method.
+  void CalcNMatrix(const systems::Context<T>& context,
+                   EigenPtr<VectorX<T>> N) const;
+
+  // See MultibodyPlant method.
+  void CalcNplusMatrix(const systems::Context<T>& context,
+                       EigenPtr<VectorX<T>> Nplus) const;
+
   /**
   @anchor internal_forward_dynamics
   @name Articulated Body Algorithm Forward Dynamics.

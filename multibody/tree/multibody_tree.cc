@@ -1426,6 +1426,47 @@ void MultibodyTree<T>::MapVelocityToQDot(
 }
 
 template <typename T>
+void MultibodyTree<T>::CalcNMatrix(const systems::Context<T>& context,
+                                   EigenPtr<VectorX<T>> N) const {
+  DRAKE_DEMAND(N != nullptr);
+  N->resize(num_positions(), num_velocities());
+  N->setZero();
+
+  // A statically allocated matrix with a maximum number of rows and columns.
+  Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic, 0, 6, 7> mobilizer_N;
+
+  for (const auto& mobilizer : owned_mobilizers_) {
+    const int nq = mobilizer->num_positions();
+    const int nv = mobilizer->num_velocities();
+    mobilizer_N.resize(nq, nv);
+    mobilizer->CalcNMatrix(context, &mobilizer_N);
+    const int q_start = mobilizer->position_start_in_q();
+    const int v_start = mobilizer->velocity_start_in_v();
+    N->block(q_start, v_start, nq, nv) = mobilizer_N;
+  }
+}
+
+template <typename T>
+void MultibodyTree<T>::CalcNplusMatrix(const systems::Context<T>& context,
+                                       EigenPtr<VectorX<T>> Nplus) const {
+  Nplus->resize(num_velocities(), num_positions());
+  Nplus->setZero();
+
+  // A statically allocated matrix with a maximum number of rows and columns.
+  Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic, 0, 6, 7> mobilizer_Nplus;
+
+  for (const auto& mobilizer : owned_mobilizers_) {
+    const int nq = mobilizer->num_positions();
+    const int nv = mobilizer->num_velocities();
+    mobilizer_Nplus.resize(nv, nq);
+    mobilizer->CalcNplusMatrix(context, &mobilizer_Nplus);
+    const int q_start = mobilizer->position_start_in_q();
+    const int v_start = mobilizer->velocity_start_in_v();
+    Nplus->block(v_start, q_start, nv, nq) = mobilizer_Nplus;
+  }
+}
+
+template <typename T>
 void MultibodyTree<T>::CalcMassMatrixViaInverseDynamics(
     const systems::Context<T>& context, EigenPtr<MatrixX<T>> M) const {
   DRAKE_DEMAND(M != nullptr);

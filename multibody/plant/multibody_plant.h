@@ -3105,6 +3105,25 @@ class MultibodyPlant : public internal::MultibodyTreeSystem<T> {
     DRAKE_DEMAND(v != nullptr);
     internal_tree().MapQDotToVelocity(context, qdot, v);
   }
+
+  // Computes the kinematic mapping matrix N(q) such that `q̇ = N(q)⋅v`.
+  // Matrix N is resized properly on output.
+  void CalcNMatrix(const systems::Context<T>& context,
+                   EigenPtr<VectorX<T>> N) const {
+    this->ValidateContext(context);
+    DRAKE_DEMAND(N != nullptr);
+    internal_tree().CalcNMatrix(context, N);
+  }
+
+  // Computes the kinematic mapping matrix N⁺(q) such that v = N⁺(q)⋅q̇.
+  // Matrix Nplus is resized properly on output.
+  void CalcNplusMatrix(const systems::Context<T>& context,
+                       EigenPtr<VectorX<T>> Nplus) const {
+    this->ValidateContext(context);
+    DRAKE_DEMAND(Nplus != nullptr);
+    internal_tree().CalcNplusMatrix(context, Nplus);
+  }
+
   /// @} <!-- Kinematic and dynamic computations -->
 
   /// @anchor mbp_system_matrix_computations
