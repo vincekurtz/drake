@@ -20,7 +20,7 @@ void TrajOptExample::SolveTrajectoryOptimization(
   CreatePlantModel(&plant);
   plant.Finalize();
   const int nq = plant.num_positions();
-  const int nv = plant.num_positions();
+  const int nv = plant.num_velocities();
 
   auto diagram = builder.Build();
 
@@ -139,6 +139,8 @@ void TrajOptExample::SetProblemDefinition(const TrajOptExampleParams& options,
   // Initial state
   opt_prob->q_init = Eigen::Map<const VectorXd>(options.q_init.data(), nq);
   opt_prob->v_init = Eigen::Map<const VectorXd>(options.v_init.data(), nv);
+  std::cout << "nv: " << nv << std::endl;
+  std::cout << "v_init: " << opt_prob->v_init.size() << std::endl;
 
   // Cost weights
   opt_prob->Qq = Eigen::Map<const VectorXd>(options.Qq.data(), nq).asDiagonal();
