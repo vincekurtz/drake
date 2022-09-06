@@ -104,7 +104,7 @@ using systems::DiagramBuilder;
 using test::LimitMalloc;
 
 /**
- * Test optimization for a simple system with quaternion DoFs.  
+ * Test optimization for a simple system with quaternion DoFs.
  */
 GTEST_TEST(TrajectoryOptimizerTest, QuaternionDofs) {
   // Set up a simple example system
@@ -117,7 +117,7 @@ GTEST_TEST(TrajectoryOptimizerTest, QuaternionDofs) {
       "body", multibody::SpatialInertia<double>::MakeUnitary());
   plant.Finalize();
   auto diagram = builder.Build();
-  
+
   const int nq = plant.num_positions();
   const int nv = plant.num_velocities();
   EXPECT_TRUE(body.is_floating());
@@ -130,7 +130,7 @@ GTEST_TEST(TrajectoryOptimizerTest, QuaternionDofs) {
   ProblemDefinition opt_prob;
   opt_prob.num_steps = num_steps;
   opt_prob.q_init = VectorXd(7);
-  opt_prob.q_init << 1, 0, 0, 0, 0, 0, 0;  // N.B. orientation must be a valid quaterion
+  opt_prob.q_init << 1, 0, 0, 0, 0, 0, 0;
   opt_prob.v_init = Vector6d::Zero();
   opt_prob.q_nom.resize(num_steps + 1);
   opt_prob.v_nom.resize(num_steps + 1);
@@ -148,20 +148,21 @@ GTEST_TEST(TrajectoryOptimizerTest, QuaternionDofs) {
 
   // Compute N+
   std::vector<MatrixXd> Nplus = optimizer.EvalNplus(state);
-  for (int t=0; t<=num_steps; ++t) {
+  for (int t = 0; t <= num_steps; ++t) {
     EXPECT_TRUE(Nplus[t].cols() == nq);
     EXPECT_TRUE(Nplus[t].rows() == nv);
   }
 
   // Compute velocities
   const std::vector<VectorXd>& v = optimizer.EvalV(state);
-  for (int t=0; t<=num_steps; ++t) {
+  for (int t = 0; t <= num_steps; ++t) {
     EXPECT_TRUE(v[t].size() == nv);
   }
 
   // Compute velocity partials
-  const VelocityPartials<double>& v_partials = optimizer.EvalVelocityPartials(state);
-  for (int t=0; t<=num_steps; ++t) {
+  const VelocityPartials<double>& v_partials =
+      optimizer.EvalVelocityPartials(state);
+  for (int t = 0; t <= num_steps; ++t) {
     EXPECT_TRUE(v_partials.dvt_dqt[t].cols() == nq);
     EXPECT_TRUE(v_partials.dvt_dqm[t].cols() == nq);
     EXPECT_TRUE(v_partials.dvt_dqt[t].rows() == nv);
@@ -183,7 +184,7 @@ GTEST_TEST(TrajectoryOptimizerTest, ContactGradientMethods) {
   plant.Finalize();
   auto diagram = builder.Build();
 
-  const int num_steps = 1;
+  const int num_steps = 2;
   ProblemDefinition opt_prob;
   opt_prob.num_steps = num_steps;
   opt_prob.q_init = Vector3d(0.2, 1.5, 0.0);
@@ -217,6 +218,7 @@ GTEST_TEST(TrajectoryOptimizerTest, ContactGradientMethods) {
   std::vector<VectorXd> q;
   q.push_back(opt_prob.q_init);
   q.push_back(Vector3d(0.4, 1.5, 0.0));
+  q.push_back(Vector3d(0.3, 1.4, 0.0));
   state_cd.set_q(q);
   state_fd.set_q(q);
   state_ad.set_q(q);
@@ -248,7 +250,7 @@ GTEST_TEST(TrajectoryOptimizerTest, ContactGradientMethods) {
   // Verify that inverse dynamics partials match, at least roughly
   const double kToleranceForwardDifference = 100 * sqrt(kEpsilon);
   const double kToleranceCentralDifference = 10 * sqrt(kEpsilon);
-  for (int t = 0; t < num_steps; ++t) {
+  for (int t = 1; t < num_steps; ++t) {
     EXPECT_TRUE(CompareMatrices(idp_fd.dtau_dqm[t], idp_ad.dtau_dqm[t],
                                 kToleranceForwardDifference,
                                 MatrixCompareType::relative));
@@ -959,11 +961,9 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcGradientPendulumNoGravity) {
 
   const InverseDynamicsPartials<double>& id_partials =
       optimizer.EvalInverseDynamicsPartials(state);
-  for (int t = 0; t < num_steps; ++t) {
-    if (t > 0) {
-      EXPECT_NEAR(id_partials.dtau_dqm[t](0), id_partials_gt.dtau_dqm[t](0),
-                  10 * kTolerance);
-    }
+  for (int t = 1; t < num_steps; ++t) {
+    EXPECT_NEAR(id_partials.dtau_dqm[t](0), id_partials_gt.dtau_dqm[t](0),
+                10 * kTolerance);
     EXPECT_NEAR(id_partials.dtau_dqt[t](0), id_partials_gt.dtau_dqt[t](0),
                 10 * kTolerance);
     EXPECT_NEAR(id_partials.dtau_dqp[t](0), id_partials_gt.dtau_dqp[t](0),
@@ -1134,7 +1134,8 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumDtauDq) {
 
   // Compare the computed values and the analytical ground truth
   const double kTolerance = sqrt(std::numeric_limits<double>::epsilon());
-  for (int t = 0; t < num_steps; ++t) {
+  for (int t = 1; t < num_steps; ++t) {
+    // N.B. dX/dq0 is not used, sinze q0 is fixed.
     EXPECT_TRUE(CompareMatrices(grad_data.dtau_dqm[t], grad_data_gt.dtau_dqm[t],
                                 kTolerance, MatrixCompareType::relative));
     EXPECT_TRUE(CompareMatrices(grad_data.dtau_dqt[t], grad_data_gt.dtau_dqt[t],
@@ -1405,8 +1406,8 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcVelocities) {
 
   // Make a dummy N+ for this (nonexistant) system
   std::vector<MatrixXd> Nplus;
-  for (int t=0; t <= num_steps; ++t) {
-    Nplus.push_back(MatrixXd::Identity(2,2));
+  for (int t = 0; t <= num_steps; ++t) {
+    Nplus.push_back(MatrixXd::Identity(2, 2));
   }
 
   // Compute v from q

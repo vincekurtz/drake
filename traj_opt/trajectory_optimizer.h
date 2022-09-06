@@ -202,7 +202,7 @@ class TrajectoryOptimizer {
    */
   const VelocityPartials<T>& EvalVelocityPartials(
       const TrajectoryOptimizerState<T>& state) const;
-  
+
   /**
    * Evaluate the mapping from qdot to v, v = N+(q)*qdot, at each time step.
    *
