@@ -135,6 +135,7 @@ drake_cc_library(
     srcs = [],
     hdrs = ["yaml_config.h"],
     deps = [
+        "//common:essential",
         "//common/yaml",
     ],
 )

@@ -19,23 +19,21 @@ void TrajOptExample::SolveTrajectoryOptimization(
   auto [plant, scene_graph] = AddMultibodyPlant(config, &builder);
   CreatePlantModel(&plant);
   plant.Finalize();
-  const int nq = plant.num_positions();
   const int nv = plant.num_positions();
 
   auto diagram = builder.Build();
 
   // Define the optimization problem
   ProblemDefinition opt_prob;
-  SetProblemDefinition(options, nq, nv, &opt_prob);
+  SetProblemDefinition(options, &opt_prob);
 
   // Set our solver parameters
   SolverParameters solver_params;
   SetSolverParameters(options, &solver_params);
 
   // Establish an initial guess
-  const VectorXd qT_guess = Eigen::Map<VectorXd>(options.q_guess.data(), nq);
   std::vector<VectorXd> q_guess = MakeLinearInterpolation(
-      opt_prob.q_init, qT_guess, opt_prob.num_steps + 1);
+      opt_prob.q_init, options.q_guess, opt_prob.num_steps + 1);
 
   // Visualize the target trajectory and initial guess, if requested
   if (options.play_target_trajectory) {
@@ -132,30 +130,23 @@ void TrajOptExample::PlayBackTrajectory(const std::vector<VectorXd>& q,
 }
 
 void TrajOptExample::SetProblemDefinition(const TrajOptExampleParams& options,
-                                          int nq, int nv,
                                           ProblemDefinition* opt_prob) const {
   opt_prob->num_steps = options.num_steps;
 
   // Initial state
-  opt_prob->q_init = Eigen::Map<const VectorXd>(options.q_init.data(), nq);
-  opt_prob->v_init = Eigen::Map<const VectorXd>(options.v_init.data(), nv);
+  opt_prob->q_init = options.q_init;
+  opt_prob->v_init = options.v_init;
 
   // Cost weights
-  opt_prob->Qq = Eigen::Map<const VectorXd>(options.Qq.data(), nq).asDiagonal();
-  opt_prob->Qv = Eigen::Map<const VectorXd>(options.Qv.data(), nv).asDiagonal();
-  opt_prob->Qf_q =
-      Eigen::Map<const VectorXd>(options.Qfq.data(), nq).asDiagonal();
-  opt_prob->Qf_v =
-      Eigen::Map<const VectorXd>(options.Qfv.data(), nv).asDiagonal();
-  opt_prob->R = Eigen::Map<const VectorXd>(options.R.data(), nv).asDiagonal();
+  opt_prob->Qq = options.Qq.asDiagonal();
+  opt_prob->Qv = options.Qv.asDiagonal();
+  opt_prob->Qf_q = options.Qfq.asDiagonal();
+  opt_prob->Qf_v = options.Qfv.asDiagonal();
+  opt_prob->R = options.R.asDiagonal();
 
   // Target state at each timestep
-  const VectorXd q_nom_start =
-      Eigen::Map<const VectorXd>(options.q_nom_start.data(), nq);
-  const VectorXd q_nom_end =
-      Eigen::Map<const VectorXd>(options.q_nom_end.data(), nq);
-  opt_prob->q_nom =
-      MakeLinearInterpolation(q_nom_start, q_nom_end, options.num_steps + 1);
+  opt_prob->q_nom = MakeLinearInterpolation(
+      options.q_nom_start, options.q_nom_end, options.num_steps + 1);
 
   opt_prob->v_nom.push_back(opt_prob->v_init);
   for (int t = 1; t <= options.num_steps; ++t) {

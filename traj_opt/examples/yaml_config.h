@@ -1,13 +1,15 @@
 #pragma once
 
 #include <string>
-#include <vector>
 
+#include "drake/common/eigen_types.h"
 #include "drake/common/yaml/yaml_io.h"
 
 namespace drake {
 namespace traj_opt {
 namespace examples {
+
+using Eigen::VectorXd;
 
 /**
  * A simple object which stores parameters that define an optimization problem
@@ -61,25 +63,25 @@ struct TrajOptExampleParams {
     a->Visit(DRAKE_NVP(lineplot_q_max));
   }
   // Initial state
-  std::vector<double> q_init;
-  std::vector<double> v_init;
+  VectorXd q_init;
+  VectorXd v_init;
 
   // Nominal state at each timestep is defined by linear interpolation between
   // q_nom_start and q_nom_end
-  std::vector<double> q_nom_start;
-  std::vector<double> q_nom_end;
+  VectorXd q_nom_start;
+  VectorXd q_nom_end;
 
   // Initial guess is defined by linear interpolation between q_init and q_guess
-  std::vector<double> q_guess;
+  VectorXd q_guess;
 
-  // Running cost weights
-  std::vector<double> Qq;
-  std::vector<double> Qv;
-  std::vector<double> R;
+  // Running cost weights (diagonal matrices)
+  VectorXd Qq;
+  VectorXd Qv;
+  VectorXd R;
 
-  // Terminal cost weights
-  std::vector<double> Qfq;
-  std::vector<double> Qfv;
+  // Terminal cost weights (diagonal matrices)
+  VectorXd Qfq;
+  VectorXd Qfv;
 
   // Time step size, in seconds
   double time_step;

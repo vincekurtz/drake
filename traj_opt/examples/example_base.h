@@ -69,11 +69,9 @@ class TrajOptExample {
    * YAML.
    *
    * @param options parameters loaded from yaml
-   * @param nq number of multibody positions
-   * @param nv number of multibody velocities
    * @param opt_prob the problem definition (cost, initital state, etc)
    */
-  void SetProblemDefinition(const TrajOptExampleParams& options, int nq, int nv,
+  void SetProblemDefinition(const TrajOptExampleParams& options,
                             ProblemDefinition* opt_prob) const;
 
   /**
