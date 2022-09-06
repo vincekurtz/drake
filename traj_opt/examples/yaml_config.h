@@ -60,30 +60,67 @@ struct TrajOptExampleParams {
     a->Visit(DRAKE_NVP(lineplot_q_min));
     a->Visit(DRAKE_NVP(lineplot_q_max));
   }
+  // Initial state
   std::vector<double> q_init;
   std::vector<double> v_init;
+
+  // Nominal state at each timestep is defined by linear interpolation between
+  // q_nom_start and q_nom_end
   std::vector<double> q_nom_start;
   std::vector<double> q_nom_end;
+
+  // Initial guess is defined by linear interpolation between q_init and q_guess
   std::vector<double> q_guess;
+
+  // Running cost weights
   std::vector<double> Qq;
   std::vector<double> Qv;
   std::vector<double> R;
+
+  // Terminal cost weights
   std::vector<double> Qfq;
   std::vector<double> Qfv;
+
+  // Time step size, in seconds
   double time_step;
+
+  // Number of time steps in the optimization problem
   int num_steps;
+
+  // Maximum number of iterations
   int max_iters;
+
+  // Linesearch method, "backtracking" or "armijo"
   std::string linesearch;
+
+  // Optimization method, "linesearch" or "trust_region"
   std::string method;
+
+  // Method of computing gradients, "forward_differences",
+  // "central_differences", "central_differences4" or "autodiff"
   std::string gradients_method{"forward_differences"};
+
+  // Whether to add a proximal operator term to the cost (essentially adds to
+  // the diagonal of the Hessian)
   bool proximal_operator = false;
   double rho_proximal = 1e-8;
+
+  // Flags for playing back the target trajectory, initital guess, and optimal
+  // trajectory on the visualizer
   bool play_optimal_trajectory = true;
   bool play_initial_guess = false;
   bool play_target_trajectory = false;
+
+  // Save cost along the linesearch direction to linesearch_data.csv
   bool linesearch_plot_every_iteration = false;
+
+  // Print additional debugging data
   bool print_debug_data = false;
+
+  // Save convergence data to solver_stats.csv
   bool save_solver_stats_csv = true;
+
+  // Contact model parameters
   double F = 1.0;
   double delta = 0.01;
   double stiffness_exponent = 2;
@@ -91,11 +128,17 @@ struct TrajOptExampleParams {
   double dissipation_exponent = 1.0;
   double stiction_velocity = 0.05;
   double friction_coefficient = 0.0;
+
+  // Save data for a 2d contour plot of cost/gradient/Hessian w.r.t. the first
+  // two variables to contour_data.csv
   bool save_contour_data = false;
   double contour_q1_min = 0;
   double contour_q1_max = 1;
   double contour_q2_min = 0;
   double contour_q2_max = 1;
+
+  // Save data for plotting the cost/gradient/Hessian w.r.t. the first variable
+  // to lineplot_data.csv
   bool save_lineplot_data = false;
   double lineplot_q_min = 0;
   double lineplot_q_max = 1;

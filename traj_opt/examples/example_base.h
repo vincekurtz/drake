@@ -102,7 +102,7 @@ class TrajOptExample {
     std::vector<VectorXd> result;
     double lambda = 0;
     for (int i = 0; i < N; ++i) {
-      lambda = (1.0 * i) / (1.0 * (N - 1));
+      lambda = i / (N - 1.0);
       result.push_back((1 - lambda) * start + lambda * end);
     }
     return result;
