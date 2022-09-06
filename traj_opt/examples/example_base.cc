@@ -46,12 +46,6 @@ void TrajOptExample::SolveTrajectoryOptimization(
   // Solve the optimzation problem
   TrajectoryOptimizer<double> optimizer(diagram.get(), &plant, opt_prob,
                                         solver_params);
-
-  // DEBUG
-  TrajectoryOptimizerState<double> state = optimizer.CreateState();
-  state.set_q(q_guess);
-  std::cout << "cost: " << optimizer.EvalCost(state) << std::endl;
-
   TrajectoryOptimizerSolution<double> solution;
   TrajectoryOptimizerStats<double> stats;
   ConvergenceReason reason;
@@ -77,7 +71,6 @@ void TrajOptExample::SolveTrajectoryOptimization(
     }
   }
   std::cout << std::endl;
-  std::cout << nv << std::endl;
   std::cout << "Max torques: " << tau_max.transpose() << std::endl;
 
   // Report desired and final state
