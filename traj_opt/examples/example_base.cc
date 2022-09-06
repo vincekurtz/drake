@@ -50,10 +50,7 @@ void TrajOptExample::SolveTrajectoryOptimization(
   // DEBUG
   TrajectoryOptimizerState<double> state = optimizer.CreateState();
   state.set_q(q_guess);
-  std::cout << optimizer.EvalV(state)[0].transpose() << std::endl;
-  std::cout << optimizer.EvalA(state)[0].transpose() << std::endl;
-  std::cout << optimizer.EvalTau(state)[0].transpose() << std::endl;
-  std::cout << optimizer.EvalCost(state) << std::endl;
+  std::cout << "cost: " << optimizer.EvalCost(state) << std::endl;
 
   TrajectoryOptimizerSolution<double> solution;
   TrajectoryOptimizerStats<double> stats;
