@@ -79,8 +79,8 @@ class TrajectoryOptimizerTester {
 
   static bool CalcDoglegPoint(const TrajectoryOptimizer<double>& optimizer,
                               const TrajectoryOptimizerState<double>& state,
-                              const double Delta, VectorXd* dq) {
-    return optimizer.CalcDoglegPoint(state, Delta, dq);
+                              const double Delta, VectorXd* dq, VectorXd* dqH) {
+    return optimizer.CalcDoglegPoint(state, Delta, dq, dqH);
   }
 };
 
@@ -319,6 +319,7 @@ GTEST_TEST(TrajectoryOptimizerTest, DoglegPoint) {
   VectorXd dq_small(num_steps + 1);
   VectorXd dq_medium(num_steps + 1);
   VectorXd dq_large(num_steps + 1);
+  VectorXd dqH(num_steps + 1);  // dummy variable for newton step
   const double Delta_small = 1e-3;
   const double Delta_medium = 1.0;  // hand-chosen to intersect the second leg
   const double Delta_large = 1e3;
@@ -327,21 +328,21 @@ GTEST_TEST(TrajectoryOptimizerTest, DoglegPoint) {
 
   // Compute the dogleg point for a very small trust region
   trust_region_constraint_active = TrajectoryOptimizerTester::CalcDoglegPoint(
-      optimizer, state, Delta_small, &dq_small);
+      optimizer, state, Delta_small, &dq_small, &dqH);
 
   EXPECT_TRUE(trust_region_constraint_active);
   EXPECT_NEAR(dq_small.norm(), Delta_small, kTolerance);
 
   // Compute the dogleg point for a very large trust region
   trust_region_constraint_active = TrajectoryOptimizerTester::CalcDoglegPoint(
-      optimizer, state, Delta_large, &dq_large);
+      optimizer, state, Delta_large, &dq_large, &dqH);
 
   EXPECT_FALSE(trust_region_constraint_active);
   EXPECT_GT(dq_large.norm(), dq_small.norm());
 
   // Compute the dogleg point for a medium-sized trust region
   trust_region_constraint_active = TrajectoryOptimizerTester::CalcDoglegPoint(
-      optimizer, state, Delta_medium, &dq_medium);
+      optimizer, state, Delta_medium, &dq_medium, &dqH);
 
   EXPECT_TRUE(trust_region_constraint_active);
   EXPECT_NEAR(dq_medium.norm(), Delta_medium, kTolerance);

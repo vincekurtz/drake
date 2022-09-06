@@ -2808,6 +2808,27 @@ class MultibodyPlant : public internal::MultibodyTreeSystem<T> {
         CalcCenterOfMassPositionInWorld(context, model_instances);
   }
 
+  /// Returns M_SFo_F, the spatial inertia of a set S of bodies about point Fo
+  /// (the origin of a frame F), expressed in frame F. You may regard M_SFo_F as
+  /// measuring spatial inertia as if the set S of bodies were welded into a
+  /// single composite body at the configuration specified in the `context`.
+  /// @param[in] context Contains the configuration of the set S of bodies.
+  /// @param[in] frame_F specifies the about-point Fo (frame_F's origin) and
+  ///  the expressed-in frame for the returned spatial inertia.
+  /// @param[in] body_indexes Array of selected bodies.  This method does not
+  ///  distinguish between welded bodies, joint-connected bodies, etc.
+  /// @throws std::exception if body_indexes contains an invalid BodyIndex or
+  ///  if there is a repeated BodyIndex.
+  /// @note The mass and inertia of the world_body() does not contribute to the
+  ///  the returned spatial inertia.
+  SpatialInertia<T> CalcSpatialInertia(
+      const systems::Context<T>& context,
+      const Frame<T>& frame_F,
+      const std::vector<BodyIndex>& body_indexes) const {
+    this->ValidateContext(context);
+    return internal_tree().CalcSpatialInertia(context, frame_F, body_indexes);
+  }
+
   /// Calculates system center of mass translational velocity in world frame W.
   /// @param[in] context The context contains the state of the model.
   /// @retval v_WScm_W Scm's translational velocity in frame W, expressed in W,
@@ -3105,6 +3126,29 @@ class MultibodyPlant : public internal::MultibodyTreeSystem<T> {
     DRAKE_DEMAND(v != nullptr);
     internal_tree().MapQDotToVelocity(context, qdot, v);
   }
+
+  /// Computes the kinematic mapping matrix N(q) such that `q̇ = N(q)⋅v`.
+  /// @pre Matrix N must have size num_positions() times num_velocities().
+  void CalcNMatrix(const systems::Context<T>& context,
+                   EigenPtr<MatrixX<T>> N) const {
+    this->ValidateContext(context);
+    DRAKE_DEMAND(N != nullptr);
+    DRAKE_DEMAND(N->rows() == num_positions());
+    DRAKE_DEMAND(N->cols() == num_velocities());
+    internal_tree().CalcNMatrix(context, N);
+  }
+
+  /// Computes the kinematic mapping matrix N⁺(q) such that v = N⁺(q)⋅q̇.
+  /// @pre Matrix Nplus must have size num_velocities() times num_positions().
+  void CalcNplusMatrix(const systems::Context<T>& context,
+                       EigenPtr<MatrixX<T>> Nplus) const {
+    this->ValidateContext(context);
+    DRAKE_DEMAND(Nplus != nullptr);
+    DRAKE_DEMAND(Nplus->rows() == num_velocities());
+    DRAKE_DEMAND(Nplus->cols() == num_positions());
+    internal_tree().CalcNplusMatrix(context, Nplus);
+  }
+
   /// @} <!-- Kinematic and dynamic computations -->
 
   /// @anchor mbp_system_matrix_computations

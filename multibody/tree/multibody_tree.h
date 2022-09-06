@@ -1139,6 +1139,12 @@ class MultibodyTree {
       const std::vector<ModelInstanceIndex>& model_instances) const;
 
   // See MultibodyPlant method.
+  SpatialInertia<T> CalcSpatialInertia(
+      const systems::Context<T>& context,
+      const Frame<T>& frame_F,
+      const std::vector<BodyIndex>& body_indexes) const;
+
+  // See MultibodyPlant method.
   Vector3<T> CalcCenterOfMassTranslationalVelocityInWorld(
       const systems::Context<T>& context) const;
 
@@ -1650,10 +1656,17 @@ class MultibodyTree {
       EigenPtr<VectorX<T>> qdot) const;
 
   // See MultibodyPlant method.
-  void MapQDotToVelocity(
-      const systems::Context<T>& context,
-      const Eigen::Ref<const VectorX<T>>& qdot,
-      EigenPtr<VectorX<T>> v) const;
+  void MapQDotToVelocity(const systems::Context<T>& context,
+                         const Eigen::Ref<const VectorX<T>>& qdot,
+                         EigenPtr<VectorX<T>> v) const;
+
+  // See MultibodyPlant method.
+  void CalcNMatrix(const systems::Context<T>& context,
+                   EigenPtr<MatrixX<T>> N) const;
+
+  // See MultibodyPlant method.
+  void CalcNplusMatrix(const systems::Context<T>& context,
+                       EigenPtr<MatrixX<T>> Nplus) const;
 
   /**
   @anchor internal_forward_dynamics

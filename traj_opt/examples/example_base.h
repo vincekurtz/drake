@@ -69,11 +69,9 @@ class TrajOptExample {
    * YAML.
    *
    * @param options parameters loaded from yaml
-   * @param nq number of multibody positions
-   * @param nv number of multibody velocities
    * @param opt_prob the problem definition (cost, initital state, etc)
    */
-  void SetProblemDefinition(const TrajOptExampleParams& options, int nq, int nv,
+  void SetProblemDefinition(const TrajOptExampleParams& options,
                             ProblemDefinition* opt_prob) const;
 
   /**
@@ -102,7 +100,7 @@ class TrajOptExample {
     std::vector<VectorXd> result;
     double lambda = 0;
     for (int i = 0; i < N; ++i) {
-      lambda = (1.0 * i) / (1.0 * (N - 1));
+      lambda = i / (N - 1.0);
       result.push_back((1 - lambda) * start + lambda * end);
     }
     return result;

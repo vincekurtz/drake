@@ -19,23 +19,21 @@ void TrajOptExample::SolveTrajectoryOptimization(
   auto [plant, scene_graph] = AddMultibodyPlant(config, &builder);
   CreatePlantModel(&plant);
   plant.Finalize();
-  const int nq = plant.num_positions();
-  const int nv = plant.num_velocities();
+  const int nv = plant.num_positions();
 
   auto diagram = builder.Build();
 
   // Define the optimization problem
   ProblemDefinition opt_prob;
-  SetProblemDefinition(options, nq, nv, &opt_prob);
+  SetProblemDefinition(options, &opt_prob);
 
   // Set our solver parameters
   SolverParameters solver_params;
   SetSolverParameters(options, &solver_params);
 
   // Establish an initial guess
-  const VectorXd qT_guess = Eigen::Map<VectorXd>(options.q_guess.data(), nq);
   std::vector<VectorXd> q_guess = MakeLinearInterpolation(
-      opt_prob.q_init, qT_guess, opt_prob.num_steps + 1);
+      opt_prob.q_init, options.q_guess, opt_prob.num_steps + 1);
 
   // Visualize the target trajectory and initial guess, if requested
   if (options.play_target_trajectory) {
@@ -51,11 +49,15 @@ void TrajOptExample::SolveTrajectoryOptimization(
 
   TrajectoryOptimizerSolution<double> solution;
   TrajectoryOptimizerStats<double> stats;
-  SolverFlag status = optimizer.Solve(q_guess, &solution, &stats);
-  if (status != SolverFlag::kSuccess) {
-    std::cout << "Solver failed!" << std::endl;
-  } else {
+  ConvergenceReason reason;
+  SolverFlag status = optimizer.Solve(q_guess, &solution, &stats, &reason);
+  if (status == SolverFlag::kSuccess) {
     std::cout << "Solved in " << stats.solve_time << " seconds." << std::endl;
+  } else if (status == SolverFlag::kMaxIterationsReached) {
+    std::cout << "Maximum iterations reached in " << stats.solve_time
+              << " seconds." << std::endl;
+  } else {
+    std::cout << "Solver failed!" << std::endl;
   }
 
   // Report maximum torques on all DoFs
@@ -83,6 +85,9 @@ void TrajOptExample::SolveTrajectoryOptimization(
             << std::endl;
   std::cout << "v[T]     : " << solution.v[options.num_steps].transpose()
             << std::endl;
+
+  std::cout << "Convergence reason: "
+            << DecodeConvergenceReasons(reason) + ".\n";
 
   // Save stats to CSV for later plotting
   if (options.save_solver_stats_csv) {
@@ -132,32 +137,23 @@ void TrajOptExample::PlayBackTrajectory(const std::vector<VectorXd>& q,
 }
 
 void TrajOptExample::SetProblemDefinition(const TrajOptExampleParams& options,
-                                          int nq, int nv,
                                           ProblemDefinition* opt_prob) const {
   opt_prob->num_steps = options.num_steps;
 
   // Initial state
-  opt_prob->q_init = Eigen::Map<const VectorXd>(options.q_init.data(), nq);
-  opt_prob->v_init = Eigen::Map<const VectorXd>(options.v_init.data(), nv);
-  std::cout << "nv: " << nv << std::endl;
-  std::cout << "v_init: " << opt_prob->v_init.size() << std::endl;
+  opt_prob->q_init = options.q_init;
+  opt_prob->v_init = options.v_init;
 
   // Cost weights
-  opt_prob->Qq = Eigen::Map<const VectorXd>(options.Qq.data(), nq).asDiagonal();
-  opt_prob->Qv = Eigen::Map<const VectorXd>(options.Qv.data(), nv).asDiagonal();
-  opt_prob->Qf_q =
-      Eigen::Map<const VectorXd>(options.Qfq.data(), nq).asDiagonal();
-  opt_prob->Qf_v =
-      Eigen::Map<const VectorXd>(options.Qfv.data(), nv).asDiagonal();
-  opt_prob->R = Eigen::Map<const VectorXd>(options.R.data(), nv).asDiagonal();
+  opt_prob->Qq = options.Qq.asDiagonal();
+  opt_prob->Qv = options.Qv.asDiagonal();
+  opt_prob->Qf_q = options.Qfq.asDiagonal();
+  opt_prob->Qf_v = options.Qfv.asDiagonal();
+  opt_prob->R = options.R.asDiagonal();
 
   // Target state at each timestep
-  const VectorXd q_nom_start =
-      Eigen::Map<const VectorXd>(options.q_nom_start.data(), nq);
-  const VectorXd q_nom_end =
-      Eigen::Map<const VectorXd>(options.q_nom_end.data(), nq);
-  opt_prob->q_nom =
-      MakeLinearInterpolation(q_nom_start, q_nom_end, options.num_steps + 1);
+  opt_prob->q_nom = MakeLinearInterpolation(
+      options.q_nom_start, options.q_nom_end, options.num_steps + 1);
 
   opt_prob->v_nom.push_back(opt_prob->v_init);
   for (int t = 1; t <= options.num_steps; ++t) {
@@ -207,6 +203,8 @@ void TrajOptExample::SetSolverParameters(
   solver_params->print_debug_data = options.print_debug_data;
   solver_params->linesearch_plot_every_iteration =
       options.linesearch_plot_every_iteration;
+
+  solver_params->convergence_tolerances = options.tolerances;
 
   solver_params->proximal_operator = options.proximal_operator;
   solver_params->rho_proximal = options.rho_proximal;
