@@ -19,7 +19,7 @@ void TrajOptExample::SolveTrajectoryOptimization(
   auto [plant, scene_graph] = AddMultibodyPlant(config, &builder);
   CreatePlantModel(&plant);
   plant.Finalize();
-  const int nv = plant.num_positions();
+  const int nv = plant.num_velocities();
 
   auto diagram = builder.Build();
 
@@ -42,10 +42,18 @@ void TrajOptExample::SolveTrajectoryOptimization(
   if (options.play_initial_guess) {
     PlayBackTrajectory(q_guess, options.time_step);
   }
-
+  
   // Solve the optimzation problem
   TrajectoryOptimizer<double> optimizer(diagram.get(), &plant, opt_prob,
                                         solver_params);
+
+  // DEBUG
+  TrajectoryOptimizerState<double> state = optimizer.CreateState();
+  state.set_q(q_guess);
+  std::cout << optimizer.EvalV(state)[0].transpose() << std::endl;
+  std::cout << optimizer.EvalA(state)[0].transpose() << std::endl;
+  std::cout << optimizer.EvalTau(state)[0].transpose() << std::endl;
+  std::cout << optimizer.EvalCost(state) << std::endl;
 
   TrajectoryOptimizerSolution<double> solution;
   TrajectoryOptimizerStats<double> stats;
@@ -72,6 +80,7 @@ void TrajOptExample::SolveTrajectoryOptimization(
     }
   }
   std::cout << std::endl;
+  std::cout << nv << std::endl;
   std::cout << "Max torques: " << tau_max.transpose() << std::endl;
 
   // Report desired and final state

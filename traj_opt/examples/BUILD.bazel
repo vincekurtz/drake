@@ -27,6 +27,21 @@ drake_cc_binary(
 )
 
 drake_cc_binary(
+    name = "block_push",
+    srcs = ["block_push.cc"],
+    add_test_rule = 1,
+    data = [
+        ":block_push.yaml",
+    ],
+    test_rule_args = [],
+    deps = [
+        ":example_base",
+        "//common:find_resource",
+        "//multibody/plant",
+    ],
+)
+
+drake_cc_binary(
     name = "pendulum",
     srcs = ["pendulum.cc"],
     add_test_rule = 1,
