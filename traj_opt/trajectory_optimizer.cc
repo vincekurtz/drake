@@ -48,6 +48,10 @@ TrajectoryOptimizer<T>::TrajectoryOptimizer(const MultibodyPlant<T>* plant,
     joint_damping_.segment(velocity_start, nv) = joint.damping_vector();
   }
 
+  // Must have a target position and velocity specified for each time step
+  DRAKE_DEMAND(static_cast<int>(prob.q_nom.size()) == (num_steps() + 1));
+  DRAKE_DEMAND(static_cast<int>(prob.v_nom.size()) == (num_steps() + 1));
+
   if (params_.gradients_method == GradientsMethod::kAutoDiff) {
     throw std::runtime_error(
         "It is not possible to use automatic differentiation when only the "
@@ -77,6 +81,11 @@ TrajectoryOptimizer<T>::TrajectoryOptimizer(const Diagram<T>* diagram,
     joint_damping_.segment(velocity_start, nv) = joint.damping_vector();
   }
 
+  // Must have a target position and velocity specified for each time step
+  DRAKE_DEMAND(static_cast<int>(prob.q_nom.size()) == (num_steps() + 1));
+  DRAKE_DEMAND(static_cast<int>(prob.v_nom.size()) == (num_steps() + 1));
+
+  // Create an autodiff optimizer if we need exact gradients
   if constexpr (std::is_same_v<T, double>) {
     if (params_.gradients_method == GradientsMethod::kAutoDiff) {
       diagram_ad_ = systems::System<double>::ToAutoDiffXd(*diagram);
@@ -149,8 +158,8 @@ T TrajectoryOptimizer<T>::CalcCost(
 
   // Running cost
   for (int t = 0; t < num_steps(); ++t) {
-    q_err = q[t] - prob_.q_nom;
-    v_err = v[t] - prob_.v_nom;
+    q_err = q[t] - prob_.q_nom[t];
+    v_err = v[t] - prob_.v_nom[t];
     cost += T(q_err.transpose() * prob_.Qq * q_err);
     cost += T(v_err.transpose() * prob_.Qv * v_err);
     cost += T(tau[t].transpose() * prob_.R * tau[t]);
@@ -161,8 +170,8 @@ T TrajectoryOptimizer<T>::CalcCost(
   cost *= time_step();
 
   // Terminal cost
-  q_err = q[num_steps()] - prob_.q_nom;
-  v_err = v[num_steps()] - prob_.v_nom;
+  q_err = q[num_steps()] - prob_.q_nom[num_steps()];
+  v_err = v[num_steps()] - prob_.v_nom[num_steps()];
   cost += T(q_err.transpose() * prob_.Qf_q * q_err);
   cost += T(v_err.transpose() * prob_.Qf_v * v_err);
 
@@ -1157,17 +1166,18 @@ void TrajectoryOptimizer<T>::CalcGradient(
 
   for (int t = 1; t < num_steps(); ++t) {
     // Contribution from position cost
-    qt_term = (q[t] - prob_.q_nom).transpose() * 2 * prob_.Qq * dt;
+    qt_term = (q[t] - prob_.q_nom[t]).transpose() * 2 * prob_.Qq * dt;
 
     // Contribution from velocity cost
-    vt_term = (v[t] - prob_.v_nom).transpose() * 2 * prob_.Qv * dt * dvt_dqt[t];
+    vt_term =
+        (v[t] - prob_.v_nom[t]).transpose() * 2 * prob_.Qv * dt * dvt_dqt[t];
     if (t == num_steps() - 1) {
       // The terminal cost needs to be handled differently
-      vp_term = (v[t + 1] - prob_.v_nom).transpose() * 2 * prob_.Qf_v *
+      vp_term = (v[t + 1] - prob_.v_nom[t + 1]).transpose() * 2 * prob_.Qf_v *
                 dvt_dqm[t + 1];
     } else {
-      vp_term = (v[t + 1] - prob_.v_nom).transpose() * 2 * prob_.Qv * dt *
-                dvt_dqm[t + 1];
+      vp_term = (v[t + 1] - prob_.v_nom[t + 1]).transpose() * 2 * prob_.Qv *
+                dt * dvt_dqm[t + 1];
     }
 
     // Contribution from control cost
@@ -1189,9 +1199,10 @@ void TrajectoryOptimizer<T>::CalcGradient(
   // exist
   taum_term = tau[num_steps() - 1].transpose() * 2 * prob_.R * dt *
               dtau_dqp[num_steps() - 1];
-  qt_term = (q[num_steps()] - prob_.q_nom).transpose() * 2 * prob_.Qf_q;
-  vt_term = (v[num_steps()] - prob_.v_nom).transpose() * 2 * prob_.Qf_v *
-            dvt_dqt[num_steps()];
+  qt_term =
+      (q[num_steps()] - prob_.q_nom[num_steps()]).transpose() * 2 * prob_.Qf_q;
+  vt_term = (v[num_steps()] - prob_.v_nom[num_steps()]).transpose() * 2 *
+            prob_.Qf_v * dvt_dqt[num_steps()];
   g->tail(nq) = qt_term + vt_term + taum_term;
 
   // Add proximal operator term to the gradient, if requested

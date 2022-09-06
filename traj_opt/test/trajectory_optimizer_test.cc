@@ -121,6 +121,8 @@ GTEST_TEST(TrajectoryOptimizerTest, ContactGradientMethods) {
   opt_prob.num_steps = num_steps;
   opt_prob.q_init = Vector3d(0.2, 1.5, 0.0);
   opt_prob.v_init = Vector3d(0.0, 0.0, 0.0);
+  opt_prob.q_nom.resize(num_steps + 1);
+  opt_prob.v_nom.resize(num_steps + 1);
   SolverParameters solver_params;
   solver_params.F = 1.0;
   solver_params.delta = 0.01;
@@ -165,8 +167,8 @@ GTEST_TEST(TrajectoryOptimizerTest, ContactGradientMethods) {
 
   // Compute inverse dynamics partials for each method
   InverseDynamicsPartials<double> idp_fd(num_steps, 3, 3);
-  TrajectoryOptimizerTester::CalcInverseDynamicsPartials(
-      optimizer_fd, state_fd, &idp_fd);
+  TrajectoryOptimizerTester::CalcInverseDynamicsPartials(optimizer_fd, state_fd,
+                                                         &idp_fd);
 
   InverseDynamicsPartials<double> idp_cd(num_steps, 3, 3);
   TrajectoryOptimizerTester::CalcInverseDynamicsPartials(optimizer_cd, state_cd,
@@ -221,8 +223,10 @@ GTEST_TEST(TrajectoryOptimizerTest, DoglegPoint) {
   opt_prob.Qf_q = 1.0 * MatrixXd::Identity(1, 1);
   opt_prob.Qf_v = 0.0 * MatrixXd::Identity(1, 1);
   opt_prob.R = 1.0 * MatrixXd::Identity(1, 1);
-  opt_prob.q_nom = Vector1d(0.0);
-  opt_prob.v_nom = Vector1d(0.0);
+  for (int t = 0; t <= num_steps; ++t) {
+    opt_prob.q_nom.push_back(Vector1d(0.0));
+    opt_prob.v_nom.push_back(Vector1d(0.0));
+  }
 
   DiagramBuilder<double> builder;
   MultibodyPlantConfig config;
@@ -297,8 +301,10 @@ GTEST_TEST(TrajectoryOptimizerTest, TrustRatio) {
   opt_prob.Qf_q = 3.0 * MatrixXd::Identity(1, 1);
   opt_prob.Qf_v = 4.0 * MatrixXd::Identity(1, 1);
   opt_prob.R = 5.0 * MatrixXd::Identity(1, 1);
-  opt_prob.q_nom = Vector1d(M_PI);
-  opt_prob.v_nom = Vector1d(-0.3);
+  for (int t = 0; t <= num_steps; ++t) {
+    opt_prob.q_nom.push_back(Vector1d(M_PI));
+    opt_prob.v_nom.push_back(Vector1d(-0.3));
+  }
 
   // Create a pendulum model
   DiagramBuilder<double> builder;
@@ -359,8 +365,10 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumSwingup) {
   opt_prob.Qf_q = 1000 * MatrixXd::Identity(1, 1);
   opt_prob.Qf_v = 1 * MatrixXd::Identity(1, 1);
   opt_prob.R = 0.01 * MatrixXd::Identity(1, 1);
-  opt_prob.q_nom = Vector1d(M_PI);
-  opt_prob.v_nom = Vector1d(0);
+  for (int t = 0; t <= num_steps; ++t) {
+    opt_prob.q_nom.push_back(Vector1d(M_PI));
+    opt_prob.v_nom.push_back(Vector1d(0));
+  }
 
   // Create a pendulum model
   DiagramBuilder<double> builder;
@@ -395,7 +403,7 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumSwingup) {
 
   // With such a large penalty on the final position, and such a low control
   // penalty, we should be close to the target position at the last timestep.
-  EXPECT_NEAR(solution.q[num_steps][0], opt_prob.q_nom[0], 1e-3);
+  EXPECT_NEAR(solution.q[num_steps][0], opt_prob.q_nom[num_steps][0], 1e-3);
 }
 
 /**
@@ -416,8 +424,11 @@ GTEST_TEST(TrajectoryOptimizerTest, HessianAcrobot) {
   opt_prob.Qf_q = 0.3 * MatrixXd::Identity(2, 2);
   opt_prob.Qf_v = 0.4 * MatrixXd::Identity(2, 2);
   opt_prob.R = 0.01 * MatrixXd::Identity(2, 2);
-  opt_prob.q_nom = Vector2d(1.5, -0.1);
-  opt_prob.v_nom = Vector2d(0.2, 0.1);
+
+  for (int t = 0; t <= num_steps; ++t) {
+    opt_prob.q_nom.push_back(Vector2d(1.5, -0.1));
+    opt_prob.v_nom.push_back(Vector2d(0.2, 0.1));
+  }
 
   // Create an acrobot model
   DiagramBuilder<double> builder;
@@ -499,13 +510,14 @@ GTEST_TEST(TrajectoryOptimizerTest, HessianAcrobot) {
   VectorX<AutoDiffXd> r(num_steps * 6 + 4);
   r.setZero();
   for (int t = 0; t < num_steps; ++t) {
-    r.segment(t * 6, 2) = Qq_sqrt * (q_ad[t] - opt_prob.q_nom);
-    r.segment(t * 6 + 2, 2) = Qv_sqrt * (v_ad[t] - opt_prob.v_nom);
+    r.segment(t * 6, 2) = Qq_sqrt * (q_ad[t] - opt_prob.q_nom[t]);
+    r.segment(t * 6 + 2, 2) = Qv_sqrt * (v_ad[t] - opt_prob.v_nom[t]);
     r.segment(t * 6 + 4, 2) = R_sqrt * u_ad[t];
   }
-  r.segment(num_steps * 6, 2) = Qfq_sqrt * (q_ad[num_steps] - opt_prob.q_nom);
+  r.segment(num_steps * 6, 2) =
+      Qfq_sqrt * (q_ad[num_steps] - opt_prob.q_nom[num_steps]);
   r.segment(num_steps * 6 + 2, 2) =
-      Qfv_sqrt * (v_ad[num_steps] - opt_prob.v_nom);
+      Qfv_sqrt * (v_ad[num_steps] - opt_prob.v_nom[num_steps]);
 
   MatrixXd J = math::ExtractGradient(r);
   AutoDiffXd L_lsqr = 0.5 * r.transpose() * r;
@@ -558,8 +570,10 @@ GTEST_TEST(TrajectoryOptimizerTest, HessianPendulum) {
   opt_prob.Qf_q = 0.3 * MatrixXd::Identity(1, 1);
   opt_prob.Qf_v = 0.4 * MatrixXd::Identity(1, 1);
   opt_prob.R = 0.05 * MatrixXd::Identity(1, 1);
-  opt_prob.q_nom = Vector1d(0.1);
-  opt_prob.v_nom = Vector1d(-0.1);
+  for (int t = 0; t <= num_steps; ++t) {
+    opt_prob.q_nom.push_back(Vector1d(0.1));
+    opt_prob.v_nom.push_back(Vector1d(-0.1));
+  }
 
   // Create a pendulum model
   DiagramBuilder<double> builder;
@@ -634,8 +648,10 @@ GTEST_TEST(TrajectoryOptimizerTest, AutodiffGradient) {
   opt_prob.Qf_q = 0.3 * MatrixXd::Identity(1, 1);
   opt_prob.Qf_v = 0.4 * MatrixXd::Identity(1, 1);
   opt_prob.R = 0.5 * MatrixXd::Identity(1, 1);
-  opt_prob.q_nom = Vector1d(0.1);
-  opt_prob.v_nom = Vector1d(-0.1);
+  for (int t = 0; t <= num_steps; ++t) {
+    opt_prob.q_nom.push_back(Vector1d(0.1));
+    opt_prob.v_nom.push_back(Vector1d(-0.1));
+  }
 
   // Create a pendulum model
   DiagramBuilder<double> builder;
@@ -719,10 +735,15 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcGradientKuka) {
   opt_prob.Qf_q = 0.3 * MatrixXd::Identity(7, 7);
   opt_prob.Qf_v = 0.4 * MatrixXd::Identity(7, 7);
   opt_prob.R = 0.5 * MatrixXd::Identity(7, 7);
-  opt_prob.q_nom = VectorXd(7);
-  opt_prob.q_nom.setConstant(-0.2);
-  opt_prob.v_nom = VectorXd(7);
-  opt_prob.v_nom.setConstant(-0.1);
+
+  VectorXd q_nom(7);
+  VectorXd v_nom(7);
+  q_nom.setConstant(-0.2);
+  v_nom.setConstant(-0.1);
+  for (int t = 0; t <= num_steps; ++t) {
+    opt_prob.q_nom.push_back(q_nom);
+    opt_prob.v_nom.push_back(v_nom);
+  }
 
   // Create an optimizer
   TrajectoryOptimizer<double> optimizer(diagram.get(), &plant, opt_prob);
@@ -782,8 +803,10 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcGradientPendulumNoGravity) {
   opt_prob.Qf_q = 0.3 * MatrixXd::Identity(1, 1);
   opt_prob.Qf_v = 0.4 * MatrixXd::Identity(1, 1);
   opt_prob.R = 0.5 * MatrixXd::Identity(1, 1);
-  opt_prob.q_nom = Vector1d(M_PI);
-  opt_prob.v_nom = Vector1d(-0.1);
+  for (int t = 0; t <= num_steps; ++t) {
+    opt_prob.q_nom.push_back(Vector1d(M_PI));
+    opt_prob.v_nom.push_back(Vector1d(-0.1));
+  }
 
   // Create an optimizer
   TrajectoryOptimizer<double> optimizer(diagram.get(), &plant, opt_prob);
@@ -918,8 +941,10 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcGradientPendulum) {
   opt_prob.Qf_q = 0.3 * MatrixXd::Identity(1, 1);
   opt_prob.Qf_v = 0.4 * MatrixXd::Identity(1, 1);
   opt_prob.R = 0.5 * MatrixXd::Identity(1, 1);
-  opt_prob.q_nom = Vector1d(0.1);
-  opt_prob.v_nom = Vector1d(-0.1);
+  for (int t = 0; t <= num_steps; ++t) {
+    opt_prob.q_nom.push_back(Vector1d(0.1));
+    opt_prob.v_nom.push_back(Vector1d(-0.1));
+  }
 
   // Create a pendulum model
   DiagramBuilder<double> builder;
@@ -979,6 +1004,8 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumDtauDq) {
   opt_prob.q_init = Vector1d(0.0);
   opt_prob.v_init = Vector1d(0.1);
   opt_prob.num_steps = num_steps;
+  opt_prob.q_nom.resize(num_steps + 1);
+  opt_prob.v_nom.resize(num_steps + 1);
   TrajectoryOptimizer<double> optimizer(diagram.get(), &plant, opt_prob);
   TrajectoryOptimizerState<double> state = optimizer.CreateState();
   TrajectoryOptimizerWorkspace<double> workspace(num_steps, plant);
@@ -1000,8 +1027,8 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumDtauDq) {
   TrajectoryOptimizerTester::CalcAccelerations(optimizer, v, &a);
   TrajectoryOptimizerTester::CalcInverseDynamics(optimizer, state, a,
                                                  &workspace, &tau);
-  TrajectoryOptimizerTester::CalcInverseDynamicsPartials(
-      optimizer, state, &grad_data);
+  TrajectoryOptimizerTester::CalcInverseDynamicsPartials(optimizer, state,
+                                                         &grad_data);
 
   // Compute ground truth partials from the pendulum model
   //
@@ -1077,8 +1104,10 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcCostFromState) {
   opt_prob.Qf_q = 10.0 * MatrixXd::Identity(1, 1);
   opt_prob.Qf_v = 1.0 * MatrixXd::Identity(1, 1);
   opt_prob.R = 1.0 * MatrixXd::Identity(1, 1);
-  opt_prob.q_nom = Vector1d(M_PI);
-  opt_prob.v_nom = Vector1d(0.0);
+  for (int t = 0; t <= num_steps; ++t) {
+    opt_prob.q_nom.push_back(Vector1d(M_PI));
+    opt_prob.v_nom.push_back(Vector1d(-0.1));
+  }
 
   // Create some fake data, which are very close to optimality.
   std::vector<VectorXd> q;
@@ -1123,19 +1152,19 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcCostFromState) {
     vp = (q[t + 1][0] - q[t][0]) / dt;
     ut = m * l * l * (vp - vt) / dt + b * vp;
 
-    L_gt += dt * (qt - opt_prob.q_nom(0)) * opt_prob.Qq(0) *
-            (qt - opt_prob.q_nom(0));
-    L_gt += dt * (vt - opt_prob.v_nom(0)) * opt_prob.Qv(0) *
-            (vt - opt_prob.v_nom(0));
+    L_gt += dt * (qt - opt_prob.q_nom[t](0)) * opt_prob.Qq(0) *
+            (qt - opt_prob.q_nom[t](0));
+    L_gt += dt * (vt - opt_prob.v_nom[t](0)) * opt_prob.Qv(0) *
+            (vt - opt_prob.v_nom[t](0));
     L_gt += dt * ut * opt_prob.R(0) * ut;
   }
 
   qt = q[num_steps][0];
   vt = (q[num_steps][0] - q[num_steps - 1][0]) / dt;
-  L_gt +=
-      (qt - opt_prob.q_nom(0)) * opt_prob.Qf_q(0) * (qt - opt_prob.q_nom(0));
-  L_gt +=
-      (vt - opt_prob.v_nom(0)) * opt_prob.Qf_v(0) * (vt - opt_prob.v_nom(0));
+  L_gt += (qt - opt_prob.q_nom[num_steps](0)) * opt_prob.Qf_q(0) *
+          (qt - opt_prob.q_nom[num_steps](0));
+  L_gt += (vt - opt_prob.v_nom[num_steps](0)) * opt_prob.Qf_v(0) *
+          (vt - opt_prob.v_nom[num_steps](0));
 
   const double kTolerance = 100 * std::numeric_limits<double>::epsilon();
   EXPECT_NEAR(L, L_gt, kTolerance);
@@ -1163,8 +1192,10 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcCost) {
   opt_prob.Qf_q = 0.3 * Matrix2d::Identity();
   opt_prob.Qf_v = 0.4 * Matrix2d::Identity();
   opt_prob.R = 0.5 * Matrix2d::Identity();
-  opt_prob.q_nom = Vector2d(1.2, 1.1);
-  opt_prob.v_nom = Vector2d(-1.1, 1.0);
+  for (int t = 0; t <= num_steps; ++t) {
+    opt_prob.q_nom.push_back(Vector2d(1.2, 1.1));
+    opt_prob.v_nom.push_back(Vector2d(-1.1, 1.0));
+  }
 
   // Make some fake data
   std::vector<VectorXd> q;
@@ -1223,6 +1254,8 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumCalcInverseDynamics) {
   ProblemDefinition opt_prob;
   opt_prob.num_steps = num_steps;
   opt_prob.v_init = Vector1d(-0.23);
+  opt_prob.q_nom.resize(num_steps + 1);
+  opt_prob.v_nom.resize(num_steps + 1);
   TrajectoryOptimizer<double> optimizer(diagram.get(), &plant, opt_prob);
   TrajectoryOptimizerState<double> state = optimizer.CreateState();
   TrajectoryOptimizerWorkspace<double> workspace(num_steps, plant);
@@ -1289,6 +1322,8 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcVelocities) {
   opt_prob.q_init = Vector2d(0.1, 0.2);
   opt_prob.v_init = Vector2d(0.5 / dt, 1.5 / dt);
   opt_prob.num_steps = num_steps;
+  opt_prob.q_nom.resize(num_steps + 1);
+  opt_prob.v_nom.resize(num_steps + 1);
   TrajectoryOptimizer<double> optimizer(&plant, context.get(), opt_prob);
 
   // Construct a std::vector of generalized positions (q)
@@ -1353,6 +1388,8 @@ GTEST_TEST(TrajectoryOptimizerTest, ContactJacobians) {
   opt_prob.num_steps = num_steps;
   opt_prob.q_init = Vector3d::Zero();
   opt_prob.v_init = Vector3d::Zero();
+  opt_prob.q_nom.resize(num_steps + 1);
+  opt_prob.v_nom.resize(num_steps + 1);
 
   TrajectoryOptimizer<double> optimizer(diagram.get(), &plant, opt_prob);
   TrajectoryOptimizerState<double> state = optimizer.CreateState();

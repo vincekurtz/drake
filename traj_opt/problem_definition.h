@@ -1,5 +1,7 @@
 #pragma once
 
+#include <vector>
+
 #include "drake/common/eigen_types.h"
 
 namespace drake {
@@ -49,11 +51,11 @@ struct ProblemDefinition {
   // N.B. these weights are per unit of time
   MatrixXd R;
 
-  // Target generalized positions
-  VectorXd q_nom;
+  // Target generalized positions at each time step
+  std::vector<VectorXd> q_nom;
 
-  // Target generalized velocities
-  VectorXd v_nom;
+  // Target generalized velocities at each time step
+  std::vector<VectorXd> v_nom;
 };
 
 }  // namespace traj_opt
