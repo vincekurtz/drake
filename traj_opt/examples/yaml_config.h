@@ -99,7 +99,7 @@ struct TrajOptExampleParams {
   double contour_q2_max = 1;
   bool save_lineplot_data = false;
   double lineplot_q_min = 0;
-  double lineplot_q_max = 1;  
+  double lineplot_q_max = 1;
 };
 
 }  // namespace examples

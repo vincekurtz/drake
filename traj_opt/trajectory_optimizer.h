@@ -715,7 +715,8 @@ class TrajectoryOptimizer {
    * @param state the optimizer state, containing q and the ability to compute
    * g(q) and H(q)
    * @param Delta the trust region size
-   * @param dq  the dogleg step (change in decision variables)
+   * @param dq the dogleg step (change in decision variables)
+   * @param dqH the Newton step
    * @return true if the step intersects the trust region
    * @return false if the step is in the interior of the trust region
    */

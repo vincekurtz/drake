@@ -17,6 +17,7 @@ drake_cc_package_library(
     name = "traj_opt",
     visibility = ["//visibility:public"],
     deps = [
+        ":convergence_criteria_tolerances",
         ":inverse_dynamics_partials",
         ":penta_diagonal_matrix",
         ":penta_diagonal_solver",

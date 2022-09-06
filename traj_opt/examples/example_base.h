@@ -47,7 +47,6 @@ class TrajOptExample {
     TrajOptExampleParams default_options;
     TrajOptExampleParams options = yaml::LoadYamlFile<TrajOptExampleParams>(
         FindResourceOrThrow(options_file), {}, default_options);
-    yaml::SaveYamlFile("tmp.yaml", options);
 
     // Create a system model
     // N.B. we need a whole diagram, including scene_graph, to handle contact

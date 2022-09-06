@@ -16,18 +16,17 @@ struct ConvergenceCriteriaTolerances {
     a->Visit(DRAKE_NVP(abs_state_change));
   }
 
-  // Cost reduction criterion: Absolute εₐ and εᵣ tolerances for the
-  // criterion:
+  // Cost reduction criterion: Absolute (εₐ) and relative (εᵣ) tolerances for
+  // the criterion:
   //   |Lᵏ−Lᵏ⁺¹| < εₐ + εᵣ Lᵏ
   double rel_cost_reduction{1.0e-6};
   double abs_cost_reduction{1.0e-12};
 
-  // Gradient criterion: Absolute εₐ and εᵣ tolerances for criterion on the
-  // directional derivative of the gradient along the search direction,
-  // normalized by the cost to make it dimensionless.
-  // Typically these tolerances are the same as those for the "Cost reduction
-  // criterion", leading to similar stopping behaviour.
-  // This criterion reads:
+  // Gradient criterion: Absolute (εₐ) and relative (εᵣ) tolerances for
+  // criterion on the directional derivative of the gradient along the search
+  // direction, normalized by the cost to make it dimensionless. Typically these
+  // tolerances are the same as those for the "Cost reduction criterion",
+  // leading to similar stopping behaviour. This criterion reads:
   //   g⋅Δq < εₐ + εᵣ Lᵏ
   double rel_gradient_along_dq{1.0e-6};
   double abs_gradient_along_dq{1.0e-12};

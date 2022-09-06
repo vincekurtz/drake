@@ -2072,7 +2072,8 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithLinesearch(
                      dq.norm(),          // step size
                      trust_ratio,        // trust ratio
                      g.norm(),           // gradient size
-                     dL_dq, dL_dq);      // Gradient along dq          
+                     dL_dq,              // gradient along dqH (dqH = dq)
+                     dL_dq);             // Gradient along dq
 
     ++k;
   } while (k < params_.max_iterations && !linesearch_failed);
@@ -2112,7 +2113,8 @@ template <>
 SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
     const std::vector<VectorXd>& q_guess,
     TrajectoryOptimizerSolution<double>* solution,
-    TrajectoryOptimizerStats<double>* stats, ConvergenceReason* reason_out) const {
+    TrajectoryOptimizerStats<double>* stats,
+    ConvergenceReason* reason_out) const {
   using std::min;
   // Allocate a state variable to store q and everything that is computed from q
   TrajectoryOptimizerState<double> state = CreateState();
@@ -2220,22 +2222,22 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
 
     const double cost = EvalCost(state);
     const VectorXd g = EvalGradient(state);
-    const double dL_dqH = g.dot(dqH)/cost;
-    const double dL_dq = g.dot(dq)/cost;
+    const double dL_dqH = g.dot(dqH) / cost;
+    const double dL_dq = g.dot(dq) / cost;
 
     // Record statistics from this iteration
-    stats->push_data(iter_time.count(),            // iteration time
-                     EvalCost(state),              // cost
-                     0,                            // linesearch iterations
-                     NAN,                          // linesearch parameter
-                     Delta,                        // trust region size
-                     state.norm(),                 // q norm
-                     dq.norm(),                    // step size
-                     dqH.norm(),                   // Unconstrained step size
-                     rho,                          // trust region ratio
-                     g.norm(),                     // gradient size
-                     dL_dqH,                       // Gradient along dqH
-                     dL_dq);                      // Gradient along dq
+    stats->push_data(iter_time.count(),  // iteration time
+                     EvalCost(state),    // cost
+                     0,                  // linesearch iterations
+                     NAN,                // linesearch parameter
+                     Delta,              // trust region size
+                     state.norm(),       // q norm
+                     dq.norm(),          // step size
+                     dqH.norm(),         // Unconstrained step size
+                     rho,                // trust region ratio
+                     g.norm(),           // gradient size
+                     dL_dqH,             // Gradient along dqH
+                     dL_dq);             // Gradient along dq
 
     // Only check convergence criteria for valid steps.
     ConvergenceReason reason{
@@ -2304,7 +2306,7 @@ ConvergenceReason TrajectoryOptimizer<T>::VerifyConvergenceCriteria(
   //   |Lᵏ−Lᵏ⁺¹| < εₐ + εᵣ Lᵏ⁺¹
   const T cost = EvalCost(state);
   if (abs(previous_cost - cost) <
-      tolerances.abs_cost_reduction + tolerances.rel_cost_reduction * cost) {    
+      tolerances.abs_cost_reduction + tolerances.rel_cost_reduction * cost) {
     reason |= ConvergenceReason::kCostReductionCriterionSatisfied;
   }
 
@@ -2312,7 +2314,7 @@ ConvergenceReason TrajectoryOptimizer<T>::VerifyConvergenceCriteria(
   //   g⋅Δq < εₐ + εᵣ Lᵏ
   const VectorX<T>& g = EvalGradient(state);
   if (abs(g.dot(dq)) < tolerances.abs_gradient_along_dq +
-                           tolerances.rel_gradient_along_dq * cost) {    
+                           tolerances.rel_gradient_along_dq * cost) {
     reason |= ConvergenceReason::kGradientCriterionSatisfied;
   }
 

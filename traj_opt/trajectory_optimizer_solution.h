@@ -11,9 +11,9 @@ namespace drake {
 namespace traj_opt {
 
 // Status indicator for the overall success of our trajectory optimization.
-enum SolverFlag { 
-  kSuccess, 
-  kLinesearchMaxIters, 
+enum SolverFlag {
+  kSuccess,
+  kLinesearchMaxIters,
   kFactorizationFailed,
   kMaxIterationsReached,
 };
