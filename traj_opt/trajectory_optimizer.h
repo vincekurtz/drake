@@ -204,6 +204,15 @@ class TrajectoryOptimizer {
       const TrajectoryOptimizerState<T>& state) const;
 
   /**
+   * Evaluate the mapping from qdot to v, v = N+(q)*qdot, at each time step.
+   *
+   * @param state optimizer state
+   * @return const std::vector<MatrixX<T>>& N+(q_t) for each time step t.
+   */
+  const std::vector<MatrixX<T>>& EvalNplus(
+      const TrajectoryOptimizerState<T>& state) const;
+
+  /**
    * Evaluate partial derivatives of generalized forces with respect to
    * positions at each time step.
    *
@@ -399,7 +408,7 @@ class TrajectoryOptimizer {
    * Compute a sequence of generalized velocities v from a sequence of
    * generalized positions, where
    *
-   *     v_t = (q_t - q_{t-1})/dt            (1)
+   *     v_t = N+(q_t) * (q_t - q_{t-1}) / dt            (1)
    *
    * v and q are each vectors of length num_steps+1,
    *
@@ -410,9 +419,11 @@ class TrajectoryOptimizer {
    * problem, rather than Equation (1) above.
    *
    * @param q sequence of generalized positions
+   * @param Nplus the mapping from qdot to v, N+(q_t).
    * @param v sequence of generalized velocities
    */
   void CalcVelocities(const std::vector<VectorX<T>>& q,
+                      const std::vector<MatrixX<T>>& Nplus,
                       std::vector<VectorX<T>>* v) const;
 
   /**
@@ -531,16 +542,25 @@ class TrajectoryOptimizer {
           contact_jacobian_data) const;
 
   /**
+   * Compute the mapping from qdot to v, v = N+(q)*qdot, at each time step.
+   *
+   * @param state optimizer state
+   * @param N_plus vector containing N+(q_t) for each time step t.
+   */
+  void CalcNplus(const TrajectoryOptimizerState<T>& state,
+                 std::vector<MatrixX<T>>* N_plus) const;
+
+  /**
    * Compute partial derivatives of the generalized velocities
    *
    *    v_t = N+(q_t) * (q_t - q_{t-1}) / dt
    *
-   * and store them in the given VelocityPartials struct
+   * and store them in the given VelocityPartials struct.
    *
    * @param q sequence of generalized positions
    * @param v_partials struct for holding dv/dq
    */
-  void CalcVelocityPartials(const std::vector<VectorX<T>>& q,
+  void CalcVelocityPartials(const TrajectoryOptimizerState<T>& state,
                             VelocityPartials<T>* v_partials) const;
 
   /**

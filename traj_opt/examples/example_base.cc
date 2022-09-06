@@ -157,9 +157,16 @@ void TrajOptExample::SetProblemDefinition(const TrajOptExampleParams& options,
 
   opt_prob->v_nom.push_back(opt_prob->v_init);
   for (int t = 1; t <= options.num_steps; ++t) {
-    // TODO(vincekurtz): handle quaternion DoFs
-    opt_prob->v_nom.push_back((opt_prob->q_nom[t] - opt_prob->q_nom[t - 1]) /
-                              options.time_step);
+    if (options.q_init.size() == options.v_init.size()) {
+      // No quaternion DoFs, so compute v_nom from q_nom
+      opt_prob->v_nom.push_back((opt_prob->q_nom[t] - opt_prob->q_nom[t - 1]) /
+                                options.time_step);
+    } else {
+      // Set v_nom = v_init for systems with quaternion DoFs
+      // TODO(vincekurtz): enable better specification of v_nom for
+      // floating-base systems
+      opt_prob->v_nom.push_back(opt_prob->v_init);
+    }
   }
 }
 

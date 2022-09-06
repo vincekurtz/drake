@@ -37,8 +37,9 @@ class TrajectoryOptimizerTester {
 
   static void CalcVelocities(const TrajectoryOptimizer<double>& optimizer,
                              const std::vector<VectorXd>& q,
+                             const std::vector<MatrixXd>& Nplus,
                              std::vector<VectorXd>* v) {
-    optimizer.CalcVelocities(q, v);
+    optimizer.CalcVelocities(q, Nplus, v);
   }
 
   static void CalcAccelerations(const TrajectoryOptimizer<double>& optimizer,
@@ -103,6 +104,73 @@ using systems::DiagramBuilder;
 using test::LimitMalloc;
 
 /**
+ * Test optimization for a simple system with quaternion DoFs.
+ */
+GTEST_TEST(TrajectoryOptimizerTest, QuaternionDofs) {
+  // Set up a simple example system
+  const double dt = 1e-2;
+  DiagramBuilder<double> builder;
+  MultibodyPlantConfig config;
+  config.time_step = dt;
+  auto [plant, scene_graph] = multibody::AddMultibodyPlant(config, &builder);
+  const RigidBody<double>& body = plant.AddRigidBody(
+      "body", multibody::SpatialInertia<double>::MakeUnitary());
+  plant.Finalize();
+  auto diagram = builder.Build();
+
+  const int nq = plant.num_positions();
+  const int nv = plant.num_velocities();
+  EXPECT_TRUE(body.is_floating());
+  ASSERT_EQ(nq, 7);
+  ASSERT_EQ(nv, 6);
+
+  // Define a super simple optimization problem. We are only interested in
+  // configurations.
+  const int num_steps = 1;
+  ProblemDefinition opt_prob;
+  opt_prob.num_steps = num_steps;
+  opt_prob.q_init = VectorXd(7);
+  opt_prob.q_init << 1, 0, 0, 0, 0, 0, 0;
+  opt_prob.v_init = Vector6d::Zero();
+  opt_prob.q_nom.resize(num_steps + 1);
+  opt_prob.v_nom.resize(num_steps + 1);
+
+  TrajectoryOptimizer<double> optimizer(diagram.get(), &plant, opt_prob);
+  TrajectoryOptimizerState<double> state = optimizer.CreateState();
+
+  // Make some fake data
+  std::vector<VectorXd> q;
+  q.push_back(opt_prob.q_init);
+  q.push_back(opt_prob.q_init);
+  q[1](0) = 0.0;  // change orientation
+  q[1](1) = 0.1;
+  state.set_q(q);
+
+  // Compute N+
+  std::vector<MatrixXd> Nplus = optimizer.EvalNplus(state);
+  for (int t = 0; t <= num_steps; ++t) {
+    EXPECT_TRUE(Nplus[t].cols() == nq);
+    EXPECT_TRUE(Nplus[t].rows() == nv);
+  }
+
+  // Compute velocities
+  const std::vector<VectorXd>& v = optimizer.EvalV(state);
+  for (int t = 0; t <= num_steps; ++t) {
+    EXPECT_TRUE(v[t].size() == nv);
+  }
+
+  // Compute velocity partials
+  const VelocityPartials<double>& v_partials =
+      optimizer.EvalVelocityPartials(state);
+  for (int t = 0; t <= num_steps; ++t) {
+    EXPECT_TRUE(v_partials.dvt_dqt[t].cols() == nq);
+    EXPECT_TRUE(v_partials.dvt_dqm[t].cols() == nq);
+    EXPECT_TRUE(v_partials.dvt_dqt[t].rows() == nv);
+    EXPECT_TRUE(v_partials.dvt_dqm[t].rows() == nv);
+  }
+}
+
+/**
  * Test different methods of computing gradients through contact.
  */
 GTEST_TEST(TrajectoryOptimizerTest, ContactGradientMethods) {
@@ -116,7 +184,7 @@ GTEST_TEST(TrajectoryOptimizerTest, ContactGradientMethods) {
   plant.Finalize();
   auto diagram = builder.Build();
 
-  const int num_steps = 1;
+  const int num_steps = 2;
   ProblemDefinition opt_prob;
   opt_prob.num_steps = num_steps;
   opt_prob.q_init = Vector3d(0.2, 1.5, 0.0);
@@ -150,6 +218,7 @@ GTEST_TEST(TrajectoryOptimizerTest, ContactGradientMethods) {
   std::vector<VectorXd> q;
   q.push_back(opt_prob.q_init);
   q.push_back(Vector3d(0.4, 1.5, 0.0));
+  q.push_back(Vector3d(0.3, 1.4, 0.0));
   state_cd.set_q(q);
   state_fd.set_q(q);
   state_ad.set_q(q);
@@ -181,7 +250,7 @@ GTEST_TEST(TrajectoryOptimizerTest, ContactGradientMethods) {
   // Verify that inverse dynamics partials match, at least roughly
   const double kToleranceForwardDifference = 100 * sqrt(kEpsilon);
   const double kToleranceCentralDifference = 10 * sqrt(kEpsilon);
-  for (int t = 0; t < num_steps; ++t) {
+  for (int t = 1; t < num_steps; ++t) {
     EXPECT_TRUE(CompareMatrices(idp_fd.dtau_dqm[t], idp_ad.dtau_dqm[t],
                                 kToleranceForwardDifference,
                                 MatrixCompareType::relative));
@@ -892,11 +961,9 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcGradientPendulumNoGravity) {
 
   const InverseDynamicsPartials<double>& id_partials =
       optimizer.EvalInverseDynamicsPartials(state);
-  for (int t = 0; t < num_steps; ++t) {
-    if (t > 0) {
-      EXPECT_NEAR(id_partials.dtau_dqm[t](0), id_partials_gt.dtau_dqm[t](0),
-                  10 * kTolerance);
-    }
+  for (int t = 1; t < num_steps; ++t) {
+    EXPECT_NEAR(id_partials.dtau_dqm[t](0), id_partials_gt.dtau_dqm[t](0),
+                10 * kTolerance);
     EXPECT_NEAR(id_partials.dtau_dqt[t](0), id_partials_gt.dtau_dqt[t](0),
                 10 * kTolerance);
     EXPECT_NEAR(id_partials.dtau_dqp[t](0), id_partials_gt.dtau_dqp[t](0),
@@ -1024,7 +1091,8 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumDtauDq) {
   std::vector<VectorXd> v(num_steps + 1);
   std::vector<VectorXd> a(num_steps);
   std::vector<VectorXd> tau(num_steps);
-  TrajectoryOptimizerTester::CalcVelocities(optimizer, q, &v);
+  const std::vector<MatrixXd>& Nplus = optimizer.EvalNplus(state);
+  TrajectoryOptimizerTester::CalcVelocities(optimizer, q, Nplus, &v);
   TrajectoryOptimizerTester::CalcAccelerations(optimizer, v, &a);
   TrajectoryOptimizerTester::CalcInverseDynamics(optimizer, state, a,
                                                  &workspace, &tau);
@@ -1066,7 +1134,8 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumDtauDq) {
 
   // Compare the computed values and the analytical ground truth
   const double kTolerance = sqrt(std::numeric_limits<double>::epsilon());
-  for (int t = 0; t < num_steps; ++t) {
+  for (int t = 1; t < num_steps; ++t) {
+    // N.B. dX/dq0 is not used, sinze q0 is fixed.
     EXPECT_TRUE(CompareMatrices(grad_data.dtau_dqm[t], grad_data_gt.dtau_dqm[t],
                                 kTolerance, MatrixCompareType::relative));
     EXPECT_TRUE(CompareMatrices(grad_data.dtau_dqt[t], grad_data_gt.dtau_dqt[t],
@@ -1335,9 +1404,15 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcVelocities) {
     q.push_back(Vector2d(0.1 + 0.5 * t, 0.2 + 1.5 * t));
   }
 
+  // Make a dummy N+ for this (nonexistant) system
+  std::vector<MatrixXd> Nplus;
+  for (int t = 0; t <= num_steps; ++t) {
+    Nplus.push_back(MatrixXd::Identity(2, 2));
+  }
+
   // Compute v from q
   std::vector<VectorXd> v(num_steps + 1);
-  TrajectoryOptimizerTester::CalcVelocities(optimizer, q, &v);
+  TrajectoryOptimizerTester::CalcVelocities(optimizer, q, Nplus, &v);
 
   // Check that our computed v is correct
   const double kTolerance = std::numeric_limits<double>::epsilon() / dt;

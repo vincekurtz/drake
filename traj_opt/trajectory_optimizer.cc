@@ -179,15 +179,17 @@ T TrajectoryOptimizer<T>::CalcCost(
 }
 
 template <typename T>
-void TrajectoryOptimizer<T>::CalcVelocities(const std::vector<VectorX<T>>& q,
-                                            std::vector<VectorX<T>>* v) const {
+void TrajectoryOptimizer<T>::CalcVelocities(
+    const std::vector<VectorX<T>>& q, const std::vector<MatrixX<T>>& Nplus,
+    std::vector<VectorX<T>>* v) const {
   // x = [x0, x1, ..., xT]
   DRAKE_DEMAND(static_cast<int>(q.size()) == num_steps() + 1);
+  DRAKE_DEMAND(static_cast<int>(Nplus.size()) == num_steps() + 1);
   DRAKE_DEMAND(static_cast<int>(v->size()) == num_steps() + 1);
 
   v->at(0) = prob_.v_init;
   for (int t = 1; t <= num_steps(); ++t) {
-    v->at(t) = (q[t] - q[t - 1]) / time_step();
+    v->at(t) = Nplus[t] * (q[t] - q[t - 1]) / time_step();
   }
 }
 
@@ -582,6 +584,9 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsFiniteDiff(
   std::vector<MatrixX<T>>& dtau_dqt = id_partials->dtau_dqt;
   std::vector<MatrixX<T>>& dtau_dqp = id_partials->dtau_dqp;
 
+  // Get kinematic mapping matrices for each time step
+  const std::vector<MatrixX<T>>& Nplus = EvalNplus(state);
+
   // Get references to perturbed versions of q, v, tau, and a, at (t-1, t, t).
   // These are all of the quantities that change when we perturb q_t.
   TrajectoryOptimizerWorkspace<T>& workspace = state.workspace;
@@ -637,19 +642,19 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsFiniteDiff(
       da_i = dv_i / time_step();
 
       // Perturb q_t[i], v_t[i], and a_t[i]
-      // TODO(vincekurtz): add N(q)+ factor to consider quaternion DoFs.
       q_eps_t(i) += dq_i;
 
-      if (t == 0) {
-        // v[0] is constant
-        a_eps_t(i) -= 1.0 * da_i;
-      } else {
-        v_eps_t(i) += dv_i;
-        a_eps_tm(i) += da_i;
-        a_eps_t(i) -= 2.0 * da_i;
+      if (t > 0) {
+        v_eps_t += dv_i * Nplus[t].col(i);
+        a_eps_tm += da_i * Nplus[t].col(i);
       }
-      v_eps_tp(i) -= dv_i;
-      a_eps_tp(i) += da_i;
+      if (t < num_steps()) {
+        v_eps_tp -= dv_i * Nplus[t + 1].col(i);
+        a_eps_t -= da_i * (Nplus[t + 1].col(i) + Nplus[t].col(i));
+      }
+      if (t < num_steps() - 1) {
+        a_eps_tp += da_i * Nplus[t + 1].col(i);
+      }
 
       // Compute perturbed tau(q) and calculate the nonzero entries of dtau/dq
       // via finite differencing
@@ -679,17 +684,17 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsFiniteDiff(
       }
 
       // Unperturb q_t[i], v_t[i], and a_t[i]
-      q_eps_t(i) = q[t](i);
-      v_eps_t(i) = v[t](i);
+      q_eps_t = q[t];
+      if (t > 0) {
+        v_eps_t = v[t];
+        a_eps_tm = a[t - 1];
+      }
       if (t < num_steps()) {
-        v_eps_tp(i) = v[t + 1](i);
-        a_eps_t(i) = a[t](i);
+        v_eps_tp = v[t + 1];
+        a_eps_t = a[t];
       }
       if (t < num_steps() - 1) {
-        a_eps_tp(i) = a[t + 1](i);
-      }
-      if (t > 0) {
-        a_eps_tm(i) = a[t - 1](i);
+        a_eps_tp = a[t + 1];
       }
     }
   }
@@ -732,6 +737,14 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsWrtQtCentralDiff(
   if (t < num_steps() - 1) DRAKE_DEMAND(dtaup_dqt != nullptr);
   if (t < num_steps()) DRAKE_DEMAND(dtaut_dqt != nullptr);
   if (t > 0) DRAKE_DEMAND(dtaum_dqt != nullptr);
+
+  // Flag indicating whether we're doing 4th order central differences. If
+  // false, we just do regular 2nd order central differences
+  bool fourth_order =
+      (params_.gradients_method == GradientsMethod::kCentralDifferences4);
+
+  // Get kinematic mapping matrices for each time step
+  const std::vector<MatrixX<T>>& Nplus = EvalNplus(state);
 
   TrajectoryOptimizerWorkspace<T>& workspace = state.workspace;
 
@@ -784,7 +797,6 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsWrtQtCentralDiff(
   const std::vector<VectorX<T>>& q = state.q();
   const std::vector<VectorX<T>>& v = EvalV(state);
   const std::vector<VectorX<T>>& a = EvalA(state);
-  // const std::vector<VectorX<T>>& tau = EvalTau(state);
 
   // Set perturbed versions of variables
   q_emm_t = q[t];
@@ -795,6 +807,13 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsWrtQtCentralDiff(
   v_em_t = v[t];
   v_ep_t = v[t];
   v_epp_t = v[t];
+  if (t > 0) {
+    // a[-1] is undefined
+    a_emm_tm = a[t - 1];
+    a_em_tm = a_emm_tm;
+    a_ep_tm = a_emm_tm;
+    a_epp_tm = a_emm_tm;
+  }
   if (t < num_steps()) {
     // v[num_steps + 1] is not defined
     v_emm_tp = v[t + 1];
@@ -813,13 +832,6 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsWrtQtCentralDiff(
     a_em_tp = a_emm_tp;
     a_ep_tp = a_emm_tp;
     a_epp_tp = a_emm_tp;
-  }
-  if (t > 0) {
-    // a[-1] is undefined
-    a_emm_tm = a[t - 1];
-    a_em_tm = a_emm_tm;
-    a_ep_tm = a_emm_tm;
-    a_epp_tm = a_emm_tm;
   }
 
   // Compute small perturbations
@@ -842,44 +854,47 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsWrtQtCentralDiff(
     const T da = dv / time_step();
 
     // Perturb q_t[i], v_t[i], and a_t[i]
-    // TODO(vincekurtz): add N(q)+ factor to consider quaternion DoFs.
-    q_emm_t(i) -= 2.0 * dq;
     q_em_t(i) -= dq;
     q_ep_t(i) += dq;
-    q_epp_t(i) += 2.0 * dq;
-
-    if (t == 0) {
-      // v[0] is constant.
-      // TODO(vincekurtz): Can we make these NAN? in principle only go into
-      // dtau0_dq0, which should not show up in either gradient or Hessian.
-      a_emm_t(i) += 2.0 * da;
-      a_em_t(i) += 1.0 * da;
-      a_ep_t(i) -= 1.0 * da;
-      a_epp_t(i) -= 2.0 * da;
-    } else {
-      v_emm_t(i) -= 2.0 * dv;
-      v_em_t(i) -= dv;
-      v_ep_t(i) += dv;
-      v_epp_t(i) += 2.0 * dv;
-
-      a_emm_tm(i) -= 2.0 * da;
-      a_em_tm(i) -= da;
-      a_ep_tm(i) += da;
-      a_epp_tm(i) += 2.0 * da;
-
-      a_emm_t(i) += 4.0 * da;
-      a_em_t(i) += 2.0 * da;
-      a_ep_t(i) -= 2.0 * da;
-      a_epp_t(i) -= 4.0 * da;
+    if (fourth_order) {
+      q_emm_t(i) -= 2.0 * dq;
+      q_epp_t(i) += 2.0 * dq;
     }
-    v_emm_tp(i) += 2.0 * dv;
-    v_em_tp(i) += dv;
-    v_ep_tp(i) -= dv;
-    v_epp_tp(i) -= 2.0 * dv;
-    a_emm_tp(i) -= 2.0 * da;
-    a_em_tp(i) -= da;
-    a_ep_tp(i) += da;
-    a_epp_tp(i) += 2.0 * da;
+
+    if (t > 0) {
+      v_em_t -= dv * Nplus[t].col(i);
+      v_ep_t += dv * Nplus[t].col(i);
+      a_em_tm -= da * Nplus[t].col(i);
+      a_ep_tm += da * Nplus[t].col(i);
+      if (fourth_order) {
+        v_emm_t -= 2.0 * dv * Nplus[t].col(i);
+        v_epp_t += 2.0 * dv * Nplus[t].col(i);
+        a_emm_tm -= 2.0 * da * Nplus[t].col(i);
+        a_epp_tm += 2.0 * da * Nplus[t].col(i);
+      }
+    }
+
+    if (t < num_steps()) {
+      v_em_tp += dv * Nplus[t + 1].col(i);
+      v_ep_tp -= dv * Nplus[t + 1].col(i);
+      a_em_t += da * (Nplus[t + 1].col(i) + Nplus[t].col(i));
+      a_ep_t -= da * (Nplus[t + 1].col(i) + Nplus[t].col(i));
+      if (fourth_order) {
+        v_emm_tp += 2.0 * dv * Nplus[t + 1].col(i);
+        v_epp_tp -= 2.0 * dv * Nplus[t + 1].col(i);
+        a_emm_t += 2.0 * da * (Nplus[t + 1].col(i) + Nplus[t].col(i));
+        a_epp_t -= 2.0 * da * (Nplus[t + 1].col(i) + Nplus[t].col(i));
+      }
+    }
+
+    if (t < num_steps() - 1) {
+      a_em_tp -= da * Nplus[t + 1].col(i);
+      a_ep_tp += da * Nplus[t + 1].col(i);
+      if (fourth_order) {
+        a_emm_tp -= 2.0 * da * Nplus[t + 1].col(i);
+        a_epp_tp += 2.0 * da * Nplus[t + 1].col(i);
+      }
+    }
 
     // Compute perturbed tau(q) and calculate the nonzero entries of dtau/dq
     // via finite differencing
@@ -893,7 +908,7 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsWrtQtCentralDiff(
       plant().SetVelocities(context_, v_ep_t);
       CalcInverseDynamicsSingleTimeStep(*context_, a_ep_tm, &workspace,
                                         &tau_ep_tm);
-      if (params_.gradients_method == GradientsMethod::kCentralDifferences4) {
+      if (fourth_order) {
         plant().SetPositions(context_, q_emm_t);
         plant().SetVelocities(context_, v_emm_t);
         CalcInverseDynamicsSingleTimeStep(*context_, a_emm_tm, &workspace,
@@ -919,7 +934,7 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsWrtQtCentralDiff(
       plant().SetVelocities(context_, v_em_tp);
       CalcInverseDynamicsSingleTimeStep(*context_, a_em_t, &workspace,
                                         &tau_em_t);
-      if (params_.gradients_method == GradientsMethod::kCentralDifferences4) {
+      if (fourth_order) {
         plant().SetPositions(context_, q[t + 1]);
         plant().SetVelocities(context_, v_epp_tp);
         CalcInverseDynamicsSingleTimeStep(*context_, a_epp_t, &workspace,
@@ -945,7 +960,7 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsWrtQtCentralDiff(
       plant().SetVelocities(context_, v[t + 2]);
       CalcInverseDynamicsSingleTimeStep(*context_, a_ep_tp, &workspace,
                                         &tau_ep_tp);
-      if (params_.gradients_method == GradientsMethod::kCentralDifferences4) {
+      if (fourth_order) {
         plant().SetPositions(context_, q[t + 2]);
         plant().SetVelocities(context_, v[t + 2]);
         CalcInverseDynamicsSingleTimeStep(*context_, a_emm_tp, &workspace,
@@ -962,36 +977,47 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsWrtQtCentralDiff(
     }
 
     // Unperturb q_t[i], v_t[i], and a_t[i]
-    q_emm_t(i) = q[t](i);
-    q_em_t(i) = q_emm_t(i);
-    q_ep_t(i) = q_emm_t(i);
-    q_epp_t(i) = q_emm_t(i);
+    q_em_t = q[t];
+    q_ep_t = q[t];
+    v_em_t = v[t];
+    v_ep_t = v[t];
+    if (fourth_order) {
+      q_emm_t = q[t];
+      q_epp_t = q[t];
+      v_emm_t = v[t];
+      v_epp_t = v[t];
+    }
 
-    v_emm_t(i) = v[t](i);
-    v_em_t(i) = v_emm_t(i);
-    v_ep_t(i) = v_emm_t(i);
-    v_epp_t(i) = v_emm_t(i);
     if (t < num_steps()) {
-      v_emm_tp(i) = v[t + 1](i);
-      v_em_tp(i) = v_emm_tp(i);
-      v_ep_tp(i) = v_emm_tp(i);
-      v_epp_tp(i) = v_emm_tp(i);
-      a_emm_t(i) = a[t](i);
-      a_em_t(i) = a_emm_t(i);
-      a_ep_t(i) = a_emm_t(i);
-      a_epp_t(i) = a_emm_t(i);
+      v_em_tp = v[t + 1];
+      v_ep_tp = v[t + 1];
+      a_em_t = a[t];
+      a_ep_t = a[t];
+
+      if (fourth_order) {
+        v_emm_tp = v[t + 1];
+        v_epp_tp = v[t + 1];
+        a_emm_t = a[t];
+        a_epp_t = a[t];
+      }
     }
     if (t < num_steps() - 1) {
-      a_emm_tp(i) = a[t + 1](i);
-      a_em_tp(i) = a_emm_tp(i);
-      a_ep_tp(i) = a_emm_tp(i);
-      a_epp_tp(i) = a_emm_tp(i);
+      a_em_tp = a[t + 1];
+      a_ep_tp = a[t + 1];
+
+      if (fourth_order) {
+        a_emm_tp = a[t + 1];
+        a_epp_tp = a[t + 1];
+      }
     }
     if (t > 0) {
-      a_emm_tm(i) = a[t - 1](i);
-      a_em_tm(i) = a_emm_tm(i);
-      a_ep_tm(i) = a_emm_tm(i);
-      a_epp_tm(i) = a_emm_tm(i);
+      a_em_tm = a[t - 1];
+      a_ep_tm = a[t - 1];
+
+      if (fourth_order) {
+        a_emm_tm = a[t - 1];
+        a_epp_tm = a[t - 1];
+      }
     }
   }
 }
@@ -1073,16 +1099,13 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsAutoDiff(
 
 template <typename T>
 void TrajectoryOptimizer<T>::CalcVelocityPartials(
-    const std::vector<VectorX<T>>&, VelocityPartials<T>* v_partials) const {
-  if (plant().num_velocities() != plant().num_positions()) {
-    throw std::runtime_error("Quaternion DoFs not yet supported");
-  } else {
-    const int nq = plant().num_positions();
-    for (int t = 0; t <= num_steps(); ++t) {
-      v_partials->dvt_dqt[t] = 1 / time_step() * MatrixXd::Identity(nq, nq);
-      if (t > 0) {
-        v_partials->dvt_dqm[t] = -1 / time_step() * MatrixXd::Identity(nq, nq);
-      }
+    const TrajectoryOptimizerState<T>& state,
+    VelocityPartials<T>* v_partials) const {
+  const std::vector<MatrixX<T>>& Nplus = EvalNplus(state);
+  for (int t = 0; t <= num_steps(); ++t) {
+    v_partials->dvt_dqt[t] = 1 / time_step() * Nplus[t];
+    if (t > 0) {
+      v_partials->dvt_dqm[t] = -1 / time_step() * Nplus[t];
     }
   }
 }
@@ -1327,7 +1350,8 @@ void TrajectoryOptimizer<T>::CalcCacheTrajectoryData(
 
   // Compute corresponding generalized velocities
   std::vector<VectorX<T>>& v = cache.trajectory_data.v;
-  CalcVelocities(q, &v);
+  const std::vector<MatrixX<T>>& Nplus = EvalNplus(state);
+  CalcVelocities(q, Nplus, &v);
 
   // Compute corresponding generalized accelerations
   std::vector<VectorX<T>>& a = cache.trajectory_data.a;
@@ -1422,8 +1446,7 @@ void TrajectoryOptimizer<T>::CalcCacheDerivativesData(
   CalcInverseDynamicsPartials(state, &id_partials);
 
   // Compute partial derivatives of velocities d(v)/d(q)
-  const std::vector<VectorX<T>>& q = state.q();
-  CalcVelocityPartials(q, &v_partials);
+  CalcVelocityPartials(state, &v_partials);
 
   // Set cache invalidation flag
   cache.derivatives_data.up_to_date = true;
@@ -1444,6 +1467,32 @@ TrajectoryOptimizer<T>::EvalInverseDynamicsPartials(
   if (!state.cache().derivatives_data.up_to_date)
     CalcCacheDerivativesData(state);
   return state.cache().derivatives_data.id_partials;
+}
+
+template <typename T>
+const std::vector<MatrixX<T>>& TrajectoryOptimizer<T>::EvalNplus(
+    const TrajectoryOptimizerState<T>& state) const {
+  if (!state.cache().n_plus_up_to_date) {
+    CalcNplus(state, &state.mutable_cache().N_plus);
+    state.mutable_cache().n_plus_up_to_date = true;
+  }
+  return state.cache().N_plus;
+}
+
+template <typename T>
+void TrajectoryOptimizer<T>::CalcNplus(const TrajectoryOptimizerState<T>& state,
+                                       std::vector<MatrixX<T>>* N_plus) const {
+  DRAKE_DEMAND(static_cast<int>(N_plus->size()) == (num_steps() + 1));
+  for (int t = 0; t <= num_steps(); ++t) {
+    // Get a context storing q at time t
+    // TODO(vincekurtz): consider using EvalPlantContext instead. In that case
+    // we do need to be a bit careful, however, since EvalPlantContext requires
+    // EvalV, which in turn requires EvalNplus.
+    plant().SetPositions(context_, state.q()[t]);
+
+    // Compute N+(q_t)
+    plant().CalcNplusMatrix(*context_, &N_plus->at(t));
+  }
 }
 
 template <typename T>

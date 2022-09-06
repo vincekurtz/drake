@@ -44,6 +44,7 @@ struct TrajectoryOptimizerCache {
     trajectory_data.v.assign(num_steps + 1, VectorX<T>(nv));
     trajectory_data.a.assign(num_steps, VectorX<T>(nv));
     inverse_dynamics_cache.tau.assign(num_steps, VectorX<T>(nv));
+    N_plus.assign(num_steps+1, MatrixX<T>::Zero(nv, nq));
     // TODO(amcastro-tri): We could allocate contact_jacobian_data here if we
     // knew the number of contacts. For now, we'll defer the allocation to a
     // later stage when the number of contacts is available.
@@ -128,6 +129,10 @@ struct TrajectoryOptimizerCache {
     std::vector<MatrixX<T>> J;
     bool up_to_date{false};
   } contact_jacobian_data;
+
+  // The mapping from qdot to v, v = N+(q)*qdot, at each time step
+  std::vector<MatrixX<T>> N_plus;
+  bool n_plus_up_to_date{false};
 
   // Data used to construct the gradient ∇L and Hessian ∇²L approximation
   struct DerivativesData {
@@ -353,6 +358,7 @@ class TrajectoryOptimizerState {
     cache_.contact_jacobian_data.up_to_date = false;
     if (cache_.context_cache) cache_.context_cache->up_to_date = false;
     cache_.sdf_data.up_to_date = false;
+    cache_.n_plus_up_to_date = false;
   }
 };
 
