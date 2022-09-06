@@ -36,6 +36,7 @@ using drake::multibody::MultibodyPlant;
 using drake::multibody::PackageMap;
 using drake::multibody::Parser;
 using drake::yaml::LoadYamlFile;
+using drake::yaml::LoadYamlString;
 
 namespace {
 
@@ -61,9 +62,10 @@ namespace {
 void AddWeld(
     const Frame<double>& parent_frame,
     const Frame<double>& child_frame,
+    const math::RigidTransform<double>& X_PC,
     MultibodyPlant<double>* plant,
     std::vector<ModelInstanceInfo>* added_models) {
-  plant->WeldFrames(parent_frame, child_frame);
+  plant->WeldFrames(parent_frame, child_frame, X_PC);
   if (added_models) {
     // Record weld info into crappy ModelInstanceInfo struct.
     bool found = false;
@@ -158,10 +160,13 @@ void ProcessModelDirectivesImpl(
       drake::log()->debug("    resolved_name: {}", resolved_name);
 
     } else if (directive.add_weld) {
-      AddWeld(
-          get_scoped_frame(directive.add_weld->parent),
-          get_scoped_frame(directive.add_weld->child),
-          plant, added_models);
+      math::RigidTransform<double> X_PC{};
+      if (directive.add_weld->X_PC) {
+        X_PC = directive.add_weld->X_PC->GetDeterministicValue();
+      }
+      AddWeld(get_scoped_frame(directive.add_weld->parent),
+              get_scoped_frame(directive.add_weld->child), X_PC, plant,
+              added_models);
 
     } else if (directive.add_collision_filter_group) {
       // Find the model instance index that corresponds to model_namespace, if
@@ -254,6 +259,20 @@ ModelDirectives LoadModelDirectives(const std::string& filename) {
   const ModelDirectives defaults;
   const auto directives = LoadYamlFile<ModelDirectives>(
       filename, std::nullopt /* child_name */, defaults);
+  DRAKE_DEMAND(directives.IsValid());
+  return directives;
+}
+
+ModelDirectives LoadModelDirectivesFromString(
+    const std::string& model_directives) {
+  // Even though the 'defaults' we use to start parsing here are empty, by
+  // providing any defaults at all, the effect during parsing will be that
+  // any of the users' ModelDirective structs and sub-structs will _also_
+  // start from their default values and allow for overwriting only a subset
+  // of the data fields instead of requiring that the user provide them all.
+  const ModelDirectives defaults;
+  const auto directives = LoadYamlString<ModelDirectives>(
+      model_directives, std::nullopt /* child_name */, defaults);
   DRAKE_DEMAND(directives.IsValid());
   return directives;
 }
