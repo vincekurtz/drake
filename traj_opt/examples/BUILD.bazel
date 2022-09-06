@@ -116,12 +116,13 @@ drake_cc_binary(
 
 drake_cc_library(
     name = "example_base",
-    srcs = [],
+    srcs = ["example_base.cc"],
     hdrs = ["example_base.h"],
     deps = [
         ":yaml_config",
         "//common:find_resource",
         "//geometry:drake_visualizer",
+        "//multibody/parsing",
         "//multibody/plant",
         "//systems/framework:diagram",
         "//traj_opt:problem_definition",
@@ -134,6 +135,7 @@ drake_cc_library(
     srcs = [],
     hdrs = ["yaml_config.h"],
     deps = [
+        "//common:essential",
         "//common/yaml",
     ],
 )
