@@ -1827,7 +1827,8 @@ T TrajectoryOptimizer<T>::SolveDoglegQuadratic(const T& a, const T& b,
 
 template <typename T>
 bool TrajectoryOptimizer<T>::CalcDoglegPoint(const TrajectoryOptimizerState<T>&,
-                                             const double, VectorX<T>*) const {
+                                             const double, VectorX<T>*,
+                                             VectorX<T>*) const {
   // Only T=double is supported here, since pentadigonal matrix factorization is
   // (sometimes) required to compute the dogleg point.
   throw std::runtime_error(
@@ -1837,13 +1838,27 @@ bool TrajectoryOptimizer<T>::CalcDoglegPoint(const TrajectoryOptimizerState<T>&,
 template <>
 bool TrajectoryOptimizer<double>::CalcDoglegPoint(
     const TrajectoryOptimizerState<double>& state, const double Delta,
-    VectorXd* dq) const {
+    VectorXd* dq, VectorXd* dqH) const {
   // N.B. We'll rescale pU and pH by Δ to avoid roundoff error
   const VectorXd& g = EvalGradient(state);
   const PentaDiagonalMatrix<double>& H = EvalHessian(state);
   VectorXd& Hg = state.workspace.q_times_num_steps_size_tmp;
   H.MultiplyBy(g, &Hg);
   const double gHg = g.transpose() * Hg;
+
+  // Compute the full Gauss-Newton step
+  // N.B. We can avoid computing pH when pU is the dog-leg solution.
+  // However, we compute it here for logging stats since thus far the cost of
+  // computing pH is negligible compared to other costs (namely the computation
+  // of gradients of the inverse dynamics.)
+  // TODO(amcastro-tri): move this to after pU whenever we make the cost of
+  // gradients computation negligible.
+  VectorXd& pH = state.workspace.q_size_tmp2;
+  pH = -g / Delta;  // normalize by Δ
+  PentaDiagonalFactorization Hchol(H);
+  DRAKE_DEMAND(Hchol.status() == PentaDiagonalFactorizationStatus::kSuccess);
+  Hchol.SolveInPlace(&pH);
+  *dqH = pH * Delta;
 
   // Compute the unconstrained minimizer of m(δq) = L(q) + g(q)'*δq + 1/2
   // δq'*H(q)*δq along -g
@@ -1857,13 +1872,6 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
     *dq = (Delta / pU.norm()) * pU;
     return true;  // the trust region constraint is active
   }
-
-  // Compute the full Gauss-Newton step
-  VectorXd& pH = state.workspace.q_size_tmp2;
-  pH = -g / Delta;  // normalize by Δ
-  PentaDiagonalFactorization Hchol(H);
-  DRAKE_DEMAND(Hchol.status() == PentaDiagonalFactorizationStatus::kSuccess);
-  Hchol.SolveInPlace(&pH);
 
   // Check if the trust region is large enough to just take the full Newton step
   if (1.0 >= pH.norm()) {
@@ -1896,7 +1904,8 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
 template <typename T>
 SolverFlag TrajectoryOptimizer<T>::Solve(const std::vector<VectorX<T>>&,
                                          TrajectoryOptimizerSolution<T>*,
-                                         TrajectoryOptimizerStats<T>*) const {
+                                         TrajectoryOptimizerStats<T>*,
+                                         ConvergenceReason*) const {
   throw std::runtime_error(
       "TrajectoryOptimizer::Solve only supports T=double.");
 }
@@ -1905,7 +1914,7 @@ template <>
 SolverFlag TrajectoryOptimizer<double>::Solve(
     const std::vector<VectorXd>& q_guess,
     TrajectoryOptimizerSolution<double>* solution,
-    TrajectoryOptimizerStats<double>* stats) const {
+    TrajectoryOptimizerStats<double>* stats, ConvergenceReason* reason) const {
   // The guess must be consistent with the initial condition
   DRAKE_DEMAND(q_guess[0] == prob_.q_init);
   DRAKE_DEMAND(static_cast<int>(q_guess.size()) == num_steps() + 1);
@@ -1916,7 +1925,7 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
   if (params_.method == SolverMethod::kLinesearch) {
     return SolveWithLinesearch(q_guess, solution, stats);
   } else if (params_.method == SolverMethod::kTrustRegion) {
-    return SolveWithTrustRegion(q_guess, solution, stats);
+    return SolveWithTrustRegion(q_guess, solution, stats, reason);
   } else {
     throw std::runtime_error("Unsupported solver strategy!");
   }
@@ -2061,15 +2070,21 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithLinesearch(
       }
     }
 
+    const double dL_dq = g.dot(dq) / cost;
+
     // Record iteration data
     stats->push_data(iter_time.count(),  // iteration time
                      cost,               // cost
                      ls_iters,           // sub-problem iterations
                      alpha,              // linesearch parameter
                      NAN,                // trust region size
+                     state.norm(),       // q norm
+                     dq.norm(),          // step size
                      dq.norm(),          // step size
                      trust_ratio,        // trust ratio
-                     g.norm());          // gradient size
+                     g.norm(),           // gradient size
+                     dL_dq,              // gradient along dqH (dqH = dq)
+                     dL_dq);             // Gradient along dq
 
     ++k;
   } while (k < params_.max_iterations && !linesearch_failed);
@@ -2100,7 +2115,7 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithLinesearch(
 template <typename T>
 SolverFlag TrajectoryOptimizer<T>::SolveWithTrustRegion(
     const std::vector<VectorX<T>>&, TrajectoryOptimizerSolution<T>*,
-    TrajectoryOptimizerStats<T>*) const {
+    TrajectoryOptimizerStats<T>*, ConvergenceReason*) const {
   throw std::runtime_error(
       "TrajectoryOptimizer::SolveWithTrustRegion only supports T=double.");
 }
@@ -2109,7 +2124,8 @@ template <>
 SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
     const std::vector<VectorXd>& q_guess,
     TrajectoryOptimizerSolution<double>* solution,
-    TrajectoryOptimizerStats<double>* stats) const {
+    TrajectoryOptimizerStats<double>* stats,
+    ConvergenceReason* reason_out) const {
   using std::min;
   // Allocate a state variable to store q and everything that is computed from q
   TrajectoryOptimizerState<double> state = CreateState();
@@ -2120,6 +2136,7 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
 
   // Allocate the update vector q_{k+1} = q_k + dq
   VectorXd dq(plant().num_positions() * (num_steps() + 1));
+  VectorXd dqH(dq.size());
 
   // Set up a file to record iteration data for a contour plot
   if (params_.save_contour_data) {
@@ -2150,14 +2167,14 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
 
   // Define printout data
   const std::string separator_bar =
-      "-----------------------------------------------------------------------"
-      "-";
+      "-------------------------------------------------------------------";
   const std::string printout_labels =
       "|  iter  |   cost   |    Δ    |    ρ    |  time (s)  |  |g|/cost  |";
 
+  double previous_cost = EvalCost(state);
   while (k < params_.max_iterations) {
     // Obtain the candiate update dq
-    tr_constraint_active = CalcDoglegPoint(state, Delta, &dq);
+    tr_constraint_active = CalcDoglegPoint(state, Delta, &dq, &dqH);
 
     // Compute the trust region ratio
     rho = CalcTrustRatio(state, dq, &scratch_state);
@@ -2213,15 +2230,37 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
       printf("| %10.3e |\n", EvalGradient(state).norm() / EvalCost(state));
     }
 
+    const double cost = EvalCost(state);
+    const VectorXd g = EvalGradient(state);
+    const double dL_dqH = g.dot(dqH) / cost;
+    const double dL_dq = g.dot(dq) / cost;
+
     // Record statistics from this iteration
-    stats->push_data(iter_time.count(),            // iteration time
-                     EvalCost(state),              // cost
-                     0,                            // linesearch iterations
-                     NAN,                          // linesearch parameter
-                     Delta,                        // trust region size
-                     dq.norm(),                    // step size
-                     rho,                          // trust region ratio
-                     EvalGradient(state).norm());  // gradient size
+    stats->push_data(iter_time.count(),  // iteration time
+                     EvalCost(state),    // cost
+                     0,                  // linesearch iterations
+                     NAN,                // linesearch parameter
+                     Delta,              // trust region size
+                     state.norm(),       // q norm
+                     dq.norm(),          // step size
+                     dqH.norm(),         // Unconstrained step size
+                     rho,                // trust region ratio
+                     g.norm(),           // gradient size
+                     dL_dqH,             // Gradient along dqH
+                     dL_dq);             // Gradient along dq
+
+    // Only check convergence criteria for valid steps.
+    ConvergenceReason reason{
+        ConvergenceReason::kNoConvergenceCriteriaSatisfied};
+    if (rho > eta) {
+      reason = VerifyConvergenceCriteria(state, previous_cost, dq);
+      previous_cost = EvalCost(state);
+      if (reason_out) *reason_out = reason;
+    }
+
+    if (reason != ConvergenceReason::kNoConvergenceCriteriaSatisfied) {
+      break;
+    }
 
     // Update the size of the trust-region, if necessary
     if (rho < 0.25) {
@@ -2258,7 +2297,47 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
     SaveLinePlotDataFirstVariable(&scratch_state);
   }
 
+  if (k == params_.max_iterations) return SolverFlag::kMaxIterationsReached;
+
   return SolverFlag::kSuccess;
+}
+
+template <typename T>
+ConvergenceReason TrajectoryOptimizer<T>::VerifyConvergenceCriteria(
+    const TrajectoryOptimizerState<T>& state, const T& previous_cost,
+    const VectorX<T>& dq) const {
+  using std::abs;
+
+  const auto& tolerances = params_.convergence_tolerances;
+
+  int reason(ConvergenceReason::kNoConvergenceCriteriaSatisfied);
+
+  // Cost reduction criterion:
+  //   |Lᵏ−Lᵏ⁺¹| < εₐ + εᵣ Lᵏ⁺¹
+  const T cost = EvalCost(state);
+  if (abs(previous_cost - cost) <
+      tolerances.abs_cost_reduction + tolerances.rel_cost_reduction * cost) {
+    reason |= ConvergenceReason::kCostReductionCriterionSatisfied;
+  }
+
+  // Gradient criterion:
+  //   g⋅Δq < εₐ + εᵣ Lᵏ
+  const VectorX<T>& g = EvalGradient(state);
+  if (abs(g.dot(dq)) < tolerances.abs_gradient_along_dq +
+                           tolerances.rel_gradient_along_dq * cost) {
+    reason |= ConvergenceReason::kGradientCriterionSatisfied;
+  }
+
+  // Relative state (q) change:
+  //   ‖Δq‖ < εₐ + εᵣ‖qᵏ‖
+  const T q_norm = state.norm();
+  const T dq_norm = dq.norm();
+  if (dq_norm <
+      tolerances.abs_state_change + tolerances.rel_state_change * q_norm) {
+    reason |= ConvergenceReason::kSateCriterionSatisfied;
+  }
+
+  return ConvergenceReason(reason);
 }
 
 }  // namespace traj_opt

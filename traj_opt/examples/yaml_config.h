@@ -4,6 +4,7 @@
 
 #include "drake/common/eigen_types.h"
 #include "drake/common/yaml/yaml_io.h"
+#include "drake/traj_opt/convergence_criteria_tolerances.h"
 
 namespace drake {
 namespace traj_opt {
@@ -61,6 +62,7 @@ struct TrajOptExampleParams {
     a->Visit(DRAKE_NVP(save_lineplot_data));
     a->Visit(DRAKE_NVP(lineplot_q_min));
     a->Visit(DRAKE_NVP(lineplot_q_max));
+    a->Visit(DRAKE_NVP(tolerances));
   }
   // Initial state
   VectorXd q_init;
@@ -91,6 +93,9 @@ struct TrajOptExampleParams {
 
   // Maximum number of iterations
   int max_iters;
+
+  // Convergence tolerances
+  ConvergenceCriteriaTolerances tolerances;
 
   // Linesearch method, "backtracking" or "armijo"
   std::string linesearch;

@@ -49,11 +49,15 @@ void TrajOptExample::SolveTrajectoryOptimization(
 
   TrajectoryOptimizerSolution<double> solution;
   TrajectoryOptimizerStats<double> stats;
-  SolverFlag status = optimizer.Solve(q_guess, &solution, &stats);
-  if (status != SolverFlag::kSuccess) {
-    std::cout << "Solver failed!" << std::endl;
-  } else {
+  ConvergenceReason reason;
+  SolverFlag status = optimizer.Solve(q_guess, &solution, &stats, &reason);
+  if (status == SolverFlag::kSuccess) {
     std::cout << "Solved in " << stats.solve_time << " seconds." << std::endl;
+  } else if (status == SolverFlag::kMaxIterationsReached) {
+    std::cout << "Maximum iterations reached in " << stats.solve_time
+              << " seconds." << std::endl;
+  } else {
+    std::cout << "Solver failed!" << std::endl;
   }
 
   // Report maximum torques on all DoFs
@@ -81,6 +85,9 @@ void TrajOptExample::SolveTrajectoryOptimization(
             << std::endl;
   std::cout << "v[T]     : " << solution.v[options.num_steps].transpose()
             << std::endl;
+
+  std::cout << "Convergence reason: "
+            << DecodeConvergenceReasons(reason) + ".\n";
 
   // Save stats to CSV for later plotting
   if (options.save_solver_stats_csv) {
@@ -195,6 +202,8 @@ void TrajOptExample::SetSolverParameters(
   solver_params->print_debug_data = options.print_debug_data;
   solver_params->linesearch_plot_every_iteration =
       options.linesearch_plot_every_iteration;
+
+  solver_params->convergence_tolerances = options.tolerances;
 
   solver_params->proximal_operator = options.proximal_operator;
   solver_params->rho_proximal = options.rho_proximal;

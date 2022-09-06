@@ -146,7 +146,8 @@ class TrajectoryOptimizer {
    */
   SolverFlag Solve(const std::vector<VectorX<T>>& q_guess,
                    TrajectoryOptimizerSolution<T>* solution,
-                   TrajectoryOptimizerStats<T>* stats) const;
+                   TrajectoryOptimizerStats<T>* stats,
+                   ConvergenceReason* reason = nullptr) const;
 
   // The following evaluator functions get data from the state's cache, and
   // update it if necessary.
@@ -329,7 +330,8 @@ class TrajectoryOptimizer {
    */
   SolverFlag SolveWithTrustRegion(const std::vector<VectorX<T>>& q_guess,
                                   TrajectoryOptimizerSolution<T>* solution,
-                                  TrajectoryOptimizerStats<T>* stats) const;
+                                  TrajectoryOptimizerStats<T>* stats,
+                                  ConvergenceReason* reason) const;
 
   // Updates `cache` to store q and v from `state`.
   void CalcContextCache(
@@ -713,12 +715,14 @@ class TrajectoryOptimizer {
    * @param state the optimizer state, containing q and the ability to compute
    * g(q) and H(q)
    * @param Delta the trust region size
-   * @param dq  the dogleg step (change in decision variables)
+   * @param dq the dogleg step (change in decision variables)
+   * @param dqH the Newton step
    * @return true if the step intersects the trust region
    * @return false if the step is in the interior of the trust region
    */
   bool CalcDoglegPoint(const TrajectoryOptimizerState<T>& state,
-                       const double Delta, VectorX<T>* dq) const;
+                       const double Delta, VectorX<T>* dq,
+                       VectorX<T>* dqH) const;
 
   /**
    * Solve the scalar quadratic equation
@@ -740,6 +744,10 @@ class TrajectoryOptimizer {
    * @return T the positive root
    */
   T SolveDoglegQuadratic(const T& a, const T& b, const T& c) const;
+
+  ConvergenceReason VerifyConvergenceCriteria(
+      const TrajectoryOptimizerState<T>& state, const T& previous_cost,
+      const VectorX<T>& dq) const;
 
   /**
    * Save the cost L(q) for a variety of values of q so that we can make a
@@ -853,7 +861,7 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithLinesearch(
 template <>
 SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
     const std::vector<VectorXd>&, TrajectoryOptimizerSolution<double>*,
-    TrajectoryOptimizerStats<double>*) const;
+    TrajectoryOptimizerStats<double>*, ConvergenceReason*) const;
 
 }  // namespace traj_opt
 }  // namespace drake
