@@ -584,6 +584,9 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsFiniteDiff(
   std::vector<MatrixX<T>>& dtau_dqt = id_partials->dtau_dqt;
   std::vector<MatrixX<T>>& dtau_dqp = id_partials->dtau_dqp;
 
+  // Get kinematic mapping matrices for each time step
+  const std::vector<MatrixX<T>>& Nplus = EvalNplus(state);
+
   // Get references to perturbed versions of q, v, tau, and a, at (t-1, t, t).
   // These are all of the quantities that change when we perturb q_t.
   TrajectoryOptimizerWorkspace<T>& workspace = state.workspace;
@@ -600,8 +603,8 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsFiniteDiff(
   // Store small perturbations
   const double eps = sqrt(std::numeric_limits<double>::epsilon());
   T dq_i;
-  T dv_i;
-  T da_i;
+  //T dv_i;
+  //T da_i;
   for (int t = 0; t <= num_steps(); ++t) {
     // N.B. A perturbation of qt propagates to tau[t-1], tau[t] and tau[t+1].
     // Therefore we compute one column of grad_tau at a time. That is, once the
@@ -635,23 +638,38 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsFiniteDiff(
       const T temp = q_eps_t(i) + dq_i;
       dq_i = temp - q_eps_t(i);
 
-      dv_i = dq_i / time_step();
-      da_i = dv_i / time_step();
+      //dv_i = dq_i / time_step();
+      //da_i = dv_i / time_step();
 
       // Perturb q_t[i], v_t[i], and a_t[i]
       // TODO(vincekurtz): add N(q)+ factor to consider quaternion DoFs.
       q_eps_t(i) += dq_i;
 
-      if (t == 0) {
-        // v[0] is constant
-        a_eps_t(i) -= 1.0 * da_i;
-      } else {
-        v_eps_t(i) += dv_i;
-        a_eps_tm(i) += da_i;
-        a_eps_t(i) -= 2.0 * da_i;
+      if (t > 0) {
+        v_eps_t = Nplus[t] * (q_eps_t - q[t - 1]) / time_step();
+        a_eps_tm = (v_eps_t - v[t - 1]) / time_step();
       }
-      v_eps_tp(i) -= dv_i;
-      a_eps_tp(i) += da_i;
+      if (t < num_steps()) {
+        v_eps_tp = Nplus[t + 1] * (q[t + 1] - q_eps_t) / time_step();
+        a_eps_t = (v_eps_tp - v_eps_t) / time_step();
+      }
+      if (t < num_steps() - 1) {
+        a_eps_tp = (v[t + 2] - v_eps_tp) / time_step();
+      }
+
+      //if (t == 0) {
+      //  // v[0] is constant
+      //  a_eps_t -= da_i * Nplus[t].row(i);
+      //} else {
+      //  v_eps_t += dv_i * Nplus[t].row(i);
+      //  a_eps_tm += da_i * Nplus[t-1].row(i);
+      //  a_eps_t -= da_i * (Nplus[t].row(i) + Nplus[t - 1].row(i));
+      //}
+
+      //if (t < num_steps()) {
+      //  v_eps_tp -= dv_i * Nplus[t+1].row(i);
+      //  a_eps_tp += da_i * Nplus[t+1].row(i);
+      //}
 
       // Compute perturbed tau(q) and calculate the nonzero entries of dtau/dq
       // via finite differencing
@@ -681,17 +699,17 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsFiniteDiff(
       }
 
       // Unperturb q_t[i], v_t[i], and a_t[i]
-      q_eps_t(i) = q[t](i);
-      v_eps_t(i) = v[t](i);
+      q_eps_t = q[t];
+      if (t > 0) {
+        v_eps_t = v[t];
+        a_eps_tm = a[t - 1];
+      }
       if (t < num_steps()) {
-        v_eps_tp(i) = v[t + 1](i);
-        a_eps_t(i) = a[t](i);
+        v_eps_tp = v[t + 1];
+        a_eps_t = a[t];
       }
       if (t < num_steps() - 1) {
-        a_eps_tp(i) = a[t + 1](i);
-      }
-      if (t > 0) {
-        a_eps_tm(i) = a[t - 1](i);
+        a_eps_tp = a[t + 1];
       }
     }
   }
