@@ -44,11 +44,11 @@ q_guess : [0.0,
            0.0, 0.3, 0.2]
 
 # Cost Weights
-Qq : [1, 
+Qq : [10, 
       1, 1, 1, 
       1, 1, 1, 1, 1, 
       1, 1, 1, 1, 1,
-      1,1,1,1,
+      1, 1, 1, 1,
       1, 1, 100]
 Qv : [1, 
       1, 1, 1, 
@@ -56,7 +56,7 @@ Qv : [1,
       1, 1, 1, 1, 1,
       1, 1, 1,
       1, 1, 1]
-R : [1e-5, 
+R : [1e-4, 
      1e-2, 1e-2, 1e-2, 
      1e-2, 1e-2, 1e-2, 1e-2, 1e-2, 
      1e-2, 1e-2, 1e-2, 1e-2, 1e-2,
@@ -93,7 +93,7 @@ tolerances:
 
 # Method used to compute gradients of inverse dynamics, one of
 # {forward_differences, central_differences, central_differences4, autodiff}
-gradients_method: "central_differences"
+gradients_method: "forward_differences"
 
 # Playback/visualization parameters
 play_target_trajectory : true
