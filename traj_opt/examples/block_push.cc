@@ -38,23 +38,23 @@ class BlockPushExample : public TrajOptExample {
     const double w = 0.2;    // width
     const double h = 0.2;    // height
     const double cr = 0.07;  // corner ball radius
-    const double ll = l/2 - cr;
-    const double ww = w/2 - cr;
-    const double hh = h/2 - cr;
-    
+    const double ll = l / 2 - cr;
+    const double ww = w / 2 - cr;
+    const double hh = h / 2 - cr;
+
     const SpatialInertia<double> I_block(
         block_mass, Vector3d::Zero(), UnitInertia<double>::SolidBox(l, w, h));
     const RigidBody<double>& block = plant->AddRigidBody("block", I_block);
     const CoulombFriction<double> friction;
 
-    RigidTransformd X_000(Vector3d( ll, ww, hh));
-    RigidTransformd X_001(Vector3d( ll, ww,-hh));
-    RigidTransformd X_010(Vector3d( ll,-ww, hh));
-    RigidTransformd X_011(Vector3d( ll,-ww,-hh));
+    RigidTransformd X_000(Vector3d(ll, ww, hh));
+    RigidTransformd X_001(Vector3d(ll, ww, -hh));
+    RigidTransformd X_010(Vector3d(ll, -ww, hh));
+    RigidTransformd X_011(Vector3d(ll, -ww, -hh));
     RigidTransformd X_100(Vector3d(-ll, ww, hh));
-    RigidTransformd X_101(Vector3d(-ll, ww,-hh));
-    RigidTransformd X_110(Vector3d(-ll,-ww, hh));
-    RigidTransformd X_111(Vector3d(-ll,-ww,-hh));
+    RigidTransformd X_101(Vector3d(-ll, ww, -hh));
+    RigidTransformd X_110(Vector3d(-ll, -ww, hh));
+    RigidTransformd X_111(Vector3d(-ll, -ww, -hh));
 
     plant->RegisterVisualGeometry(block, X_000, Sphere(cr), "box_000", blue);
     plant->RegisterVisualGeometry(block, X_001, Sphere(cr), "box_001", blue);
@@ -64,19 +64,27 @@ class BlockPushExample : public TrajOptExample {
     plant->RegisterVisualGeometry(block, X_101, Sphere(cr), "box_101", blue);
     plant->RegisterVisualGeometry(block, X_110, Sphere(cr), "box_110", blue);
     plant->RegisterVisualGeometry(block, X_111, Sphere(cr), "box_111", blue);
-    plant->RegisterCollisionGeometry(block, X_000, Sphere(cr), "box_000", friction);
-    plant->RegisterCollisionGeometry(block, X_001, Sphere(cr), "box_001", friction);
-    plant->RegisterCollisionGeometry(block, X_010, Sphere(cr), "box_010", friction);
-    plant->RegisterCollisionGeometry(block, X_011, Sphere(cr), "box_011", friction);
-    plant->RegisterCollisionGeometry(block, X_100, Sphere(cr), "box_100", friction);
-    plant->RegisterCollisionGeometry(block, X_101, Sphere(cr), "box_101", friction);
-    plant->RegisterCollisionGeometry(block, X_110, Sphere(cr), "box_110", friction);
-    plant->RegisterCollisionGeometry(block, X_111, Sphere(cr), "box_111", friction);
+    plant->RegisterCollisionGeometry(block, X_000, Sphere(cr), "box_000",
+                                     friction);
+    plant->RegisterCollisionGeometry(block, X_001, Sphere(cr), "box_001",
+                                     friction);
+    plant->RegisterCollisionGeometry(block, X_010, Sphere(cr), "box_010",
+                                     friction);
+    plant->RegisterCollisionGeometry(block, X_011, Sphere(cr), "box_011",
+                                     friction);
+    plant->RegisterCollisionGeometry(block, X_100, Sphere(cr), "box_100",
+                                     friction);
+    plant->RegisterCollisionGeometry(block, X_101, Sphere(cr), "box_101",
+                                     friction);
+    plant->RegisterCollisionGeometry(block, X_110, Sphere(cr), "box_110",
+                                     friction);
+    plant->RegisterCollisionGeometry(block, X_111, Sphere(cr), "box_111",
+                                     friction);
 
     plant->RegisterVisualGeometry(block, RigidTransformd::Identity(),
-                                  Sphere(0.5*h), "box_visual", blue);
+                                  Sphere(0.5 * h), "box_visual", blue);
     plant->RegisterCollisionGeometry(block, RigidTransformd::Identity(),
-                                     Sphere(0.5*h), "box_collision",
+                                     Sphere(0.5 * h), "box_collision",
                                      friction);
 
     // Ground is modeled as a large box
@@ -84,8 +92,7 @@ class BlockPushExample : public TrajOptExample {
     plant->RegisterVisualGeometry(plant->world_body(), X_ground,
                                   Box(25, 25, 10), "ground", green);
     plant->RegisterCollisionGeometry(plant->world_body(), X_ground,
-                                     Box(25, 25, 10), "ground",
-                                     friction);
+                                     Box(25, 25, 10), "ground", friction);
 
     // Pusher is a sphere that can move in 3d, but doesn't rotate
     const double radius = 0.03;

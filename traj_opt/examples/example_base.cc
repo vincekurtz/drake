@@ -42,7 +42,7 @@ void TrajOptExample::SolveTrajectoryOptimization(
   if (options.play_initial_guess) {
     PlayBackTrajectory(q_guess, options.time_step);
   }
-  
+
   // Solve the optimzation problem
   TrajectoryOptimizer<double> optimizer(diagram.get(), &plant, opt_prob,
                                         solver_params);
