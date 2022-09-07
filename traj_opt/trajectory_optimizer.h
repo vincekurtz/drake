@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "drake/common/eigen_types.h"
+#include "drake/common/profiler.h"
 #include "drake/multibody/plant/multibody_plant.h"
 #include "drake/traj_opt/inverse_dynamics_partials.h"
 #include "drake/traj_opt/penta_diagonal_matrix.h"
@@ -104,6 +105,7 @@ class TrajectoryOptimizer {
    * @return TrajectoryOptimizerState
    */
   TrajectoryOptimizerState<T> CreateState() const {
+    INSTRUMENT_FUNCTION("Creates state object with caching.");
     if (diagram_ != nullptr) {
       return TrajectoryOptimizerState<T>(num_steps(), *diagram_, plant());
     }
