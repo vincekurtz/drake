@@ -124,6 +124,7 @@ drake_cc_binary(
     deps = [
         ":example_base",
         "//common:find_resource",
+        "//common:profiler",
         "//multibody/parsing",
         "//multibody/plant",
     ],
