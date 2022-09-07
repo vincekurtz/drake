@@ -42,7 +42,7 @@ class PunyoHugExample : public TrajOptExample {
     // Add a free-floating ball to pick up
     ModelInstanceIndex ball_idx = plant->AddModelInstance("ball");
 
-    const double mass = 0.1;
+    const double mass = 1.0;
     const double radius = 0.2;
 
     const SpatialInertia<double> I(mass, Vector3d::Zero(),
