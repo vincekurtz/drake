@@ -25,6 +25,7 @@ using multibody::UnitInertia;
 class PunyoHugExample : public TrajOptExample {
   void CreatePlantModel(MultibodyPlant<double>* plant) const final {
     const Vector4<double> blue(0.1, 0.3, 0.5, 1.0);
+    const Vector4<double> green(0.3, 0.6, 0.4, 1.0);
     const Vector4<double> black(0.0, 0.0, 0.0, 1.0);
 
     // Add a humanoid model
@@ -34,9 +35,12 @@ class PunyoHugExample : public TrajOptExample {
     plant->WeldFrames(plant->world_frame(), plant->GetFrameByName("base"));
 
     // Add a ground with contact
-    RigidTransformd X_ground(Eigen::Vector3d(0.0, 0.0, -5.0));
+    RigidTransformd X_ground(Eigen::Vector3d(0.0, 0.3, 0.05));
+    plant->RegisterVisualGeometry(plant->world_body(), X_ground,
+                                     Box(0.3, 0.3, 0.1), "ground",
+                                     green);
     plant->RegisterCollisionGeometry(plant->world_body(), X_ground,
-                                     Box(25, 25, 10), "ground",
+                                     Box(0.3, 0.3, 0.1), "ground",
                                      CoulombFriction<double>());
 
     // Add a free-floating ball to pick up
