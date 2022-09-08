@@ -34,15 +34,6 @@ class PunyoHugExample : public TrajOptExample {
     Parser(plant).AddAllModelsFromFile(urdf_file);
     plant->WeldFrames(plant->world_frame(), plant->GetFrameByName("base"));
 
-    // Add a ground with contact
-    RigidTransformd X_ground(Eigen::Vector3d(0.0, 0.3, 0.05));
-    plant->RegisterVisualGeometry(plant->world_body(), X_ground,
-                                     Box(0.3, 0.3, 0.1), "ground",
-                                     green);
-    plant->RegisterCollisionGeometry(plant->world_body(), X_ground,
-                                     Box(0.3, 0.3, 0.1), "ground",
-                                     CoulombFriction<double>());
-
     // Add a free-floating ball to pick up
     ModelInstanceIndex ball_idx = plant->AddModelInstance("ball");
 
