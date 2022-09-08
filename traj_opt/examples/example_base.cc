@@ -129,7 +129,9 @@ void TrajOptExample::PlayBackTrajectory(const std::vector<VectorXd>& q,
   CreatePlantModel(&plant);
   plant.Finalize();
 
-  DrakeVisualizerd::AddToBuilder(&builder, scene_graph);
+  geometry::DrakeVisualizerParams vis_params;
+  vis_params.role = geometry::Role::kIllustration;
+  DrakeVisualizerd::AddToBuilder(&builder, scene_graph, {}, vis_params);
 
   auto diagram = builder.Build();
   std::unique_ptr<systems::Context<double>> diagram_context =

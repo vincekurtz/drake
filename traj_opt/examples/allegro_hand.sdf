@@ -47,6 +47,9 @@
       <collision name="hand_root_fixed_joint_lump__palm_link_collision">
         <pose>-0.0093 0 0.0475 0 0 0</pose>
         <geometry>
+          <sphere>
+            <radius>0.015</radius>
+          </sphere>
           <box>
             <size>0.0408 0.113 0.095</size>
           </box>
@@ -78,9 +81,9 @@
       <collision name="link_8_collision">
         <pose>0 0 0.0082 0 0 0</pose>
         <geometry>
-          <box>
-            <size>0.0196 0.0275 0.0164</size>
-          </box>
+          <sphere>
+            <radius>0.015</radius>
+          </sphere>
         </geometry>
       </collision>
       <visual name="link_8_visual">
@@ -123,9 +126,9 @@
       <collision name="link_9_collision">
         <pose>0 0 0.027 0 0 0</pose>
         <geometry>
-          <box>
-            <size>0.0196 0.0275 0.054</size>
-          </box>
+          <sphere>
+            <radius>0.015</radius>
+          </sphere>
         </geometry>
       </collision>
       <visual name="link_9_visual">
@@ -168,9 +171,9 @@
       <collision name="link_10_collision">
         <pose>0 0 0.0192 0 0 0</pose>
         <geometry>
-          <box>
-            <size>0.0196 0.0275 0.0384</size>
-          </box>
+          <sphere>
+            <radius>0.015</radius>
+          </sphere>
         </geometry>
       </collision>
       <visual name="link_10_visual">
@@ -213,9 +216,9 @@
       <collision name="link_11_collision">
         <pose>0 0 0.01335 0 0 0</pose>
         <geometry>
-          <box>
-            <size>0.0196 0.0275 0.0267</size>
-          </box>
+          <sphere>
+            <radius>0.015</radius>
+          </sphere>
         </geometry>
       </collision>
       <collision name="link_11_tip_collision_1">
@@ -275,9 +278,9 @@
       <collision name="link_12_collision">
         <pose>-0.0179 0.009 0.0145 0 0 0</pose>
         <geometry>
-          <box>
-            <size>0.0358 0.034 0.0455</size>
-          </box>
+          <sphere>
+            <radius>0.015</radius>
+          </sphere>
         </geometry>
       </collision>
       <visual name="link_12_visual">
@@ -318,16 +321,6 @@
           <izz>   1.496e-06</izz>
         </inertia>
       </inertial>
-      <!--
-      <collision name='link_13_collision'>
-        <pose>0 0 0.00885 0 0 0</pose>
-        <geometry>
-          <box>
-            <size>0.0196 0.0275 0.0177</size>
-          </box>
-        </geometry>
-      </collision>
-    -->
       <visual name="link_13_visual">
         <geometry>
           <mesh>
@@ -368,9 +361,9 @@
       <collision name="link_14_collision">
         <pose>0 0 0.0257 0 0 0</pose>
         <geometry>
-          <box>
-            <size>0.0196 0.0275 0.0514</size>
-          </box>
+          <sphere>
+            <radius>0.015</radius>
+          </sphere>
         </geometry>
       </collision>
       <visual name="link_14_visual">
@@ -414,9 +407,9 @@
       <collision name="link_15_collision">
         <pose>0 0 0.02115 0 0 0</pose>
         <geometry>
-          <box>
-            <size>0.0196 0.0275 0.0423</size>
-          </box>
+          <sphere>
+            <radius>0.015</radius>
+          </sphere>
         </geometry>
       </collision>
       <collision name="link_15_tip_collision_1">
@@ -476,9 +469,9 @@
       <collision name="link_4_collision">
         <pose>0 0 0.0082 0 0 0</pose>
         <geometry>
-          <box>
-            <size>0.0196 0.0275 0.0164</size>
-          </box>
+          <sphere>
+            <radius>0.015</radius>
+          </sphere>
         </geometry>
       </collision>
       <visual name="link_4_visual">
@@ -521,9 +514,9 @@
       <collision name="link_5_collision">
         <pose>0 0 0.027 0 0 0</pose>
         <geometry>
-          <box>
-            <size>0.0196 0.0275 0.054</size>
-          </box>
+          <sphere>
+            <radius>0.015</radius>
+          </sphere>
         </geometry>
       </collision>
       <visual name="link_5_visual">
@@ -566,9 +559,9 @@
       <collision name="link_6_collision">
         <pose>0 0 0.0192 0 0 0</pose>
         <geometry>
-          <box>
-            <size>0.0196 0.0275 0.0384</size>
-          </box>
+          <sphere>
+            <radius>0.015</radius>
+          </sphere>
         </geometry>
       </collision>
       <visual name="link_6_visual">
@@ -611,9 +604,9 @@
       <collision name="link_7_collision">
         <pose>0 0 0.01335 0 0 0</pose>
         <geometry>
-          <box>
-            <size>0.0196 0.0275 0.0267</size>
-          </box>
+          <sphere>
+            <radius>0.015</radius>
+          </sphere>
         </geometry>
       </collision>
       <collision name="link_7_tip_collision_1">
@@ -673,9 +666,9 @@
       <collision name="link_0_collision">
         <pose>0 0 0.0082 0 0 0</pose>
         <geometry>
-          <box>
-            <size>0.0196 0.0275 0.0164</size>
-          </box>
+          <sphere>
+            <radius>0.015</radius>
+          </sphere>
         </geometry>
       </collision>
       <visual name="link_0_visual">
@@ -718,9 +711,9 @@
       <collision name="link_1_collision">
         <pose>0 0 0.027 0 0 0</pose>
         <geometry>
-          <box>
-            <size>0.0196 0.0275 0.054</size>
-          </box>
+          <sphere>
+            <radius>0.015</radius>
+          </sphere>
         </geometry>
       </collision>
       <visual name="link_1_visual">
@@ -763,9 +756,9 @@
       <collision name="link_2_collision">
         <pose>0 0 0.0192 0 0 0</pose>
         <geometry>
-          <box>
-            <size>0.0196 0.0275 0.0384</size>
-          </box>
+          <sphere>
+            <radius>0.015</radius>
+          </sphere>
         </geometry>
       </collision>
       <visual name="link_2_visual">
@@ -808,9 +801,9 @@
       <collision name="link_3_collision">
         <pose>0 0 0.01335 0 0 0</pose>
         <geometry>
-          <box>
-            <size>0.0196 0.0275 0.0267</size>
-          </box>
+          <sphere>
+            <radius>0.015</radius>
+          </sphere>
         </geometry>
       </collision>
       <collision name="link_3_tip_collision_1">

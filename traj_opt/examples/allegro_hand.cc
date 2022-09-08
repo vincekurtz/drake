@@ -35,6 +35,12 @@ class AllegroHandExample : public TrajOptExample {
     plant->WeldFrames(plant->world_frame(), plant->GetFrameByName("hand_root"),
                       X_hand);
 
+    // Define gravity (so we can turn the hand upside down)
+    bool upside_down = false;
+    if (upside_down) {
+      plant->mutable_gravity_field().set_gravity_vector(Vector3d(0, 0, 9.81));
+    }
+
     // Add a free-floating ball
     ModelInstanceIndex ball_idx = plant->AddModelInstance("ball");
 
