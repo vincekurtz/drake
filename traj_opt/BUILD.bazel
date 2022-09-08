@@ -48,6 +48,7 @@ drake_cc_library(
     deps = [
         ":penta_diagonal_matrix",
         "//common:essential",
+        "//common:profiler",
     ],
 )
 
@@ -68,6 +69,7 @@ drake_cc_library(
         ":trajectory_optimizer_workspace",
         ":velocity_partials",
         "//common:essential",
+        "//common:profiler",
         "//geometry:scene_graph_inspector",
         "//multibody/plant",
     ],

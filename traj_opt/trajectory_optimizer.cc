@@ -7,6 +7,7 @@
 #include <limits>
 #include <string>
 
+#include "drake/common/profiler.h"
 #include "drake/geometry/scene_graph_inspector.h"
 #include "drake/multibody/math/spatial_algebra.h"
 #include "drake/systems/framework/diagram.h"
@@ -127,6 +128,7 @@ const T TrajectoryOptimizer<T>::EvalCost(
 template <typename T>
 T TrajectoryOptimizer<T>::CalcCost(
     const TrajectoryOptimizerState<T>& state) const {
+  INSTRUMENT_FUNCTION("Computes the total cost.");
   const std::vector<VectorX<T>>& v = EvalV(state);
   const std::vector<VectorX<T>>& tau = EvalTau(state);
   T cost = CalcCost(state.q(), v, tau, &state.workspace);
@@ -227,6 +229,8 @@ template <typename T>
 void TrajectoryOptimizer<T>::CalcInverseDynamicsSingleTimeStep(
     const Context<T>& context, const VectorX<T>& a,
     TrajectoryOptimizerWorkspace<T>* workspace, VectorX<T>* tau) const {
+  INSTRUMENT_FUNCTION("Computes inverse dynamics.");
+
   plant().CalcForceElementsContribution(context, &workspace->f_ext);
 
   // Add in contact force contribution to f_ext
@@ -245,6 +249,8 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsSingleTimeStep(
 template <typename T>
 void TrajectoryOptimizer<T>::CalcContactForceContribution(
     const Context<T>& context, MultibodyForces<T>* forces) const {
+  INSTRUMENT_FUNCTION("Computes contact forces.");
+
   using std::abs;
   using std::max;
   using std::pow;
@@ -531,6 +537,7 @@ template <typename T>
 void TrajectoryOptimizer<T>::CalcInverseDynamicsPartials(
     const TrajectoryOptimizerState<T>& state,
     InverseDynamicsPartials<T>* id_partials) const {
+  INSTRUMENT_FUNCTION("Computes dtau/dq.");
   switch (params_.gradients_method) {
     case GradientsMethod::kForwardDifferences: {
       CalcInverseDynamicsPartialsFiniteDiff(state, id_partials);
@@ -1158,6 +1165,7 @@ void TrajectoryOptimizer<T>::CalcGradientFiniteDiff(
 template <typename T>
 void TrajectoryOptimizer<T>::CalcGradient(
     const TrajectoryOptimizerState<T>& state, EigenPtr<VectorX<T>> g) const {
+  INSTRUMENT_FUNCTION("Assembly of the gradient.");
   const double dt = time_step();
   const int nq = plant().num_positions();
   TrajectoryOptimizerWorkspace<T>* workspace = &state.workspace;
@@ -1256,6 +1264,7 @@ void TrajectoryOptimizer<T>::CalcHessian(
   DRAKE_DEMAND(H->is_symmetric());
   DRAKE_DEMAND(H->block_rows() == num_steps() + 1);
   DRAKE_DEMAND(H->block_size() == plant().num_positions());
+  INSTRUMENT_FUNCTION("Assembly of the Hessian.");
 
   // Some convienient aliases
   const double dt = time_step();
@@ -1336,6 +1345,7 @@ const PentaDiagonalMatrix<T>& TrajectoryOptimizer<T>::EvalHessian(
     const TrajectoryOptimizerState<T>& state) const {
   if (!state.cache().hessian_up_to_date) {
     CalcHessian(state, &state.mutable_cache().hessian);
+    state.mutable_cache().hessian_up_to_date = true;
   }
   return state.cache().hessian;
 }
@@ -1888,6 +1898,8 @@ template <>
 bool TrajectoryOptimizer<double>::CalcDoglegPoint(
     const TrajectoryOptimizerState<double>& state, const double Delta,
     VectorXd* dq, VectorXd* dqH) const {
+  INSTRUMENT_FUNCTION("Find search direction with dogleg method.");
+
   // N.B. We'll rescale pU and pH by Δ to avoid roundoff error
   const VectorXd& g = EvalGradient(state);
   const PentaDiagonalMatrix<double>& H = EvalHessian(state);
@@ -1964,6 +1976,8 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
     const std::vector<VectorXd>& q_guess,
     TrajectoryOptimizerSolution<double>* solution,
     TrajectoryOptimizerStats<double>* stats, ConvergenceReason* reason) const {
+  INSTRUMENT_FUNCTION("Main entry point.");
+
   // The guess must be consistent with the initial condition
   DRAKE_DEMAND(q_guess[0] == prob_.q_init);
   DRAKE_DEMAND(static_cast<int>(q_guess.size()) == num_steps() + 1);
@@ -2175,6 +2189,7 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
     TrajectoryOptimizerSolution<double>* solution,
     TrajectoryOptimizerStats<double>* stats,
     ConvergenceReason* reason_out) const {
+  INSTRUMENT_FUNCTION("Trust region solver.");
   using std::min;
   // Allocate a state variable to store q and everything that is computed from q
   TrajectoryOptimizerState<double> state = CreateState();
