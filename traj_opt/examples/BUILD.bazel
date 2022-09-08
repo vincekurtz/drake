@@ -78,9 +78,9 @@ drake_cc_binary(
     srcs = ["allegro_hand.cc"],
     add_test_rule = 1,
     data = [
+        ":allegro_hand.sdf",
         ":allegro_hand.yaml",
         "//manipulation/models/allegro_hand_description:models",
-        ":allegro_hand.sdf",
     ],
     deps = [
         ":example_base",
