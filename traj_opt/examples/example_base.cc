@@ -253,6 +253,9 @@ void TrajOptExample::SetSolverParameters(
   solver_params->save_lineplot_data = options.save_lineplot_data;
   solver_params->lineplot_q_min = options.lineplot_q_min;
   solver_params->lineplot_q_max = options.lineplot_q_max;
+
+  // Flag for printing iteration data
+  solver_params->verbose = options.verbose;
 }
 
 }  // namespace examples
