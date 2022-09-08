@@ -31,13 +31,8 @@ class SpinnerExample : public TrajOptExample {
 }  // namespace drake
 
 int main() {
-  // Solve the optimization problem
   drake::traj_opt::examples::spinner::SpinnerExample spinner_example;
   spinner_example.SolveTrajectoryOptimization(
       "drake/traj_opt/examples/spinner.yaml");
-
-  // Print speed profiling info
-  std::cout << std::endl;
-  std::cout << TableOfAverages() << std::endl;
   return 0;
 }

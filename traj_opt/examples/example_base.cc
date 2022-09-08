@@ -75,13 +75,17 @@ void TrajOptExample::SolveTrajectoryOptimization(
 
   // Report maximum actuated and unactuated torques
   const MatrixXd B = plant.MakeActuationMatrix();
-  const VectorXd tau_max_actuated = B * tau_max;
-  const VectorXd tau_max_unactuated = tau_max - tau_max_actuated;
+  const double tau_max_actuated = (B * tau_max).maxCoeff();
+  double tau_max_unactuated = 0;
+  for (int i = 0; i < nv; ++i) {
+    if ((B.row(i).sum() == 0) & (tau_max(i) > tau_max_unactuated)) {
+      tau_max_unactuated = tau_max(i);
+    }
+  }
+
   std::cout << std::endl;
-  std::cout << "Max actuated torque   : " << tau_max_actuated.maxCoeff()
-            << std::endl;
-  std::cout << "Max unactuated torque : " << tau_max_unactuated.maxCoeff()
-            << std::endl;
+  std::cout << "Max actuated torque   : " << tau_max_actuated << std::endl;
+  std::cout << "Max unactuated torque : " << tau_max_unactuated << std::endl;
 
   // Report desired and final state
   std::cout << std::endl;
@@ -97,6 +101,10 @@ void TrajOptExample::SolveTrajectoryOptimization(
 
   std::cout << "Convergence reason: "
             << DecodeConvergenceReasons(reason) + ".\n";
+
+  // Print speed profiling info
+  std::cout << std::endl;
+  std::cout << TableOfAverages() << std::endl;
 
   // Save stats to CSV for later plotting
   if (options.save_solver_stats_csv) {
