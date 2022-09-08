@@ -128,6 +128,7 @@ const T TrajectoryOptimizer<T>::EvalCost(
 template <typename T>
 T TrajectoryOptimizer<T>::CalcCost(
     const TrajectoryOptimizerState<T>& state) const {
+  INSTRUMENT_FUNCTION("Computes the total cost.");
   const std::vector<VectorX<T>>& v = EvalV(state);
   const std::vector<VectorX<T>>& tau = EvalTau(state);
   T cost = CalcCost(state.q(), v, tau, &state.workspace);
@@ -536,7 +537,7 @@ template <typename T>
 void TrajectoryOptimizer<T>::CalcInverseDynamicsPartials(
     const TrajectoryOptimizerState<T>& state,
     InverseDynamicsPartials<T>* id_partials) const {
-  INSTRUMENT_FUNCTION("Computes of dtau/dq.");
+  INSTRUMENT_FUNCTION("Computes dtau/dq.");
   switch (params_.gradients_method) {
     case GradientsMethod::kForwardDifferences: {
       CalcInverseDynamicsPartialsFiniteDiff(state, id_partials);
@@ -1164,6 +1165,7 @@ void TrajectoryOptimizer<T>::CalcGradientFiniteDiff(
 template <typename T>
 void TrajectoryOptimizer<T>::CalcGradient(
     const TrajectoryOptimizerState<T>& state, EigenPtr<VectorX<T>> g) const {
+  INSTRUMENT_FUNCTION("Assembly of the gradient.");
   const double dt = time_step();
   const int nq = plant().num_positions();
   TrajectoryOptimizerWorkspace<T>* workspace = &state.workspace;
