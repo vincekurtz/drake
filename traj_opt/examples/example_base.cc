@@ -59,6 +59,9 @@ void TrajOptExample::SolveTrajectoryOptimization(
     std::cout << "Solver failed!" << std::endl;
   }
 
+  std::cout << "Convergence reason: "
+            << DecodeConvergenceReasons(reason) + ".\n";
+
   // Report maximum torques on all DoFs
   VectorXd tau_max = VectorXd::Zero(nv);
   VectorXd abs_tau_t = VectorXd::Zero(nv);
@@ -73,20 +76,35 @@ void TrajOptExample::SolveTrajectoryOptimization(
   std::cout << std::endl;
   std::cout << "Max torques: " << tau_max.transpose() << std::endl;
 
+  // Report maximum actuated and unactuated torques
+  const MatrixXd B = plant.MakeActuationMatrix();
+  const double tau_max_actuated = (B * tau_max).maxCoeff();
+  double tau_max_unactuated = 0;
+  for (int i = 0; i < nv; ++i) {
+    if ((B.row(i).sum() == 0) & (tau_max(i) > tau_max_unactuated)) {
+      tau_max_unactuated = tau_max(i);
+    }
+  }
+
+  std::cout << std::endl;
+  std::cout << "Max actuated torque   : " << tau_max_actuated << std::endl;
+  std::cout << "Max unactuated torque : " << tau_max_unactuated << std::endl;
+
   // Report desired and final state
   std::cout << std::endl;
-  std::cout << "q_nom[t] : " << opt_prob.q_nom[options.num_steps].transpose()
+  std::cout << "q_nom[T] : " << opt_prob.q_nom[options.num_steps].transpose()
             << std::endl;
   std::cout << "q[T]     : " << solution.q[options.num_steps].transpose()
             << std::endl;
   std::cout << std::endl;
-  std::cout << "v_nom[t] : " << opt_prob.v_nom[options.num_steps].transpose()
+  std::cout << "v_nom[T] : " << opt_prob.v_nom[options.num_steps].transpose()
             << std::endl;
   std::cout << "v[T]     : " << solution.v[options.num_steps].transpose()
             << std::endl;
 
-  std::cout << "Convergence reason: "
-            << DecodeConvergenceReasons(reason) + ".\n";
+  // Print speed profiling info
+  std::cout << std::endl;
+  std::cout << TableOfAverages() << std::endl;
 
   // Save stats to CSV for later plotting
   if (options.save_solver_stats_csv) {
@@ -235,6 +253,9 @@ void TrajOptExample::SetSolverParameters(
   solver_params->save_lineplot_data = options.save_lineplot_data;
   solver_params->lineplot_q_min = options.lineplot_q_min;
   solver_params->lineplot_q_max = options.lineplot_q_max;
+
+  // Flag for printing iteration data
+  solver_params->verbose = options.verbose;
 }
 
 }  // namespace examples

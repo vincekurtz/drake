@@ -63,6 +63,7 @@ struct TrajOptExampleParams {
     a->Visit(DRAKE_NVP(lineplot_q_min));
     a->Visit(DRAKE_NVP(lineplot_q_max));
     a->Visit(DRAKE_NVP(tolerances));
+    a->Visit(DRAKE_NVP(verbose));
   }
   // Initial state
   VectorXd q_init;
@@ -149,6 +150,9 @@ struct TrajOptExampleParams {
   bool save_lineplot_data = false;
   double lineplot_q_min = 0;
   double lineplot_q_max = 1;
+
+  // Whether to print iteration data to stdout
+  bool verbose = true;
 };
 
 }  // namespace examples

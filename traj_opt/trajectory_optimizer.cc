@@ -2286,12 +2286,10 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
         std::cout << printout_labels << std::endl;
         std::cout << separator_bar << std::endl;
       }
-      printf("| %6d ", k);
-      printf("| %8.3f ", EvalCost(state));
-      printf("| %7.1e ", Delta);
-      printf("| %7.4f ", rho);
-      printf("| %8.8f ", iter_time.count());
-      printf("| %10.3e |\n", EvalGradient(state).norm() / EvalCost(state));
+      std::cout << fmt::format(
+          "| {:>6} | {:>8.3g} | {:>7.2} | {:>7.1} | {:>10.5} | {:>10.5} |\n", k,
+          EvalCost(state), Delta, rho, iter_time.count(),
+          EvalGradient(state).norm() / EvalCost(state));
     }
 
     const double cost = EvalCost(state);
