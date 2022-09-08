@@ -226,7 +226,7 @@ std::string TableOfAverages() {
     ss << "\n";
     self_total += profiler.self_time(i);
   }
-  ss << fmt::format("Self Total: {}\n", self_total);
+  ss << fmt::format("Self Total: {}", self_total);
   return ss.str();
 }
 
