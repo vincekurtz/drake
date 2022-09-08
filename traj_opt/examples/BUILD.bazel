@@ -43,6 +43,22 @@ drake_cc_binary(
 )
 
 drake_cc_binary(
+    name = "punyo_hug",
+    srcs = ["punyo_hug.cc"],
+    add_test_rule = 1,
+    data = [
+        ":punyo_hug.yaml",
+        ":punyoid.sdf",
+    ],
+    deps = [
+        ":example_base",
+        "//common:find_resource",
+        "//multibody/parsing",
+        "//multibody/plant",
+    ],
+)
+
+drake_cc_binary(
     name = "2dof_spinner",
     srcs = ["2dof_spinner.cc"],
     add_test_rule = 1,
