@@ -59,6 +59,9 @@ void TrajOptExample::SolveTrajectoryOptimization(
     std::cout << "Solver failed!" << std::endl;
   }
 
+  std::cout << "Convergence reason: "
+            << DecodeConvergenceReasons(reason) + ".\n";
+
   // Report maximum torques on all DoFs
   VectorXd tau_max = VectorXd::Zero(nv);
   VectorXd abs_tau_t = VectorXd::Zero(nv);
@@ -98,9 +101,6 @@ void TrajOptExample::SolveTrajectoryOptimization(
             << std::endl;
   std::cout << "v[T]     : " << solution.v[options.num_steps].transpose()
             << std::endl;
-
-  std::cout << "Convergence reason: "
-            << DecodeConvergenceReasons(reason) + ".\n";
 
   // Print speed profiling info
   std::cout << std::endl;
