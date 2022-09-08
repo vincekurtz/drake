@@ -80,6 +80,7 @@ drake_cc_binary(
     data = [
         ":allegro_hand.yaml",
         "//manipulation/models/allegro_hand_description:models",
+        ":allegro_hand.sdf",
     ],
     deps = [
         ":example_base",
