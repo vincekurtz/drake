@@ -4,8 +4,8 @@
 
 #include "drake/common/drake_copyable.h"
 #include "drake/common/eigen_types.h"
-#include "drake/traj_opt/penta_diagonal_matrix.h"
 #include "drake/common/profiler.h"
+#include "drake/traj_opt/penta_diagonal_matrix.h"
 
 namespace drake {
 namespace traj_opt {
@@ -110,7 +110,7 @@ PentaDiagonalFactorization<kBlockSize>::PentaDiagonalFactorization(
 
 template <int kBlockSize>
 void PentaDiagonalFactorization<kBlockSize>::Factorize(
-    const PentaDiagonalMatrix<double>& M) { 
+    const PentaDiagonalMatrix<double>& M) {
   DRAKE_DEMAND(M.is_symmetric());
   INSTRUMENT_FUNCTION("Factorization by Thomas-algorithm.");
 

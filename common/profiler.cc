@@ -22,8 +22,8 @@ void Timer::start() { start_ = std::chrono::high_resolution_clock::now(); }
 
 namespace {
 
-using drake::common::TimerIndex;
 using drake::common::LapTimer;
+using drake::common::TimerIndex;
 
 /**  Class for storing sets of timers for profiling. This is a singleton class
  and _not_ threadsafe.  */
@@ -56,15 +56,13 @@ class Profiler {
     return index;
   }
 
-  void PopTimer() {
-    timers_stack_.pop();
-  }
+  void PopTimer() { timers_stack_.pop(); }
 
   void UpdateStack(double total_time) {
     double& self_time = self_wallclock_[timers_stack_.top()];
     self_time += total_time;
     std::stack<TimerIndex> parent_timers(timers_stack_);  // copy.
-    parent_timers.pop();  // remove self.
+    parent_timers.pop();                                  // remove self.
     if (!parent_timers.empty()) {
       self_wallclock_[parent_timers.top()] -= total_time;
     }
@@ -84,7 +82,7 @@ class Profiler {
        timer.
    @param  i  The identifier for the timer. Only checked in debug mode.
    @tparam Units  the units in which the elapsed time will be reported.  */
-  template<typename Units>
+  template <typename Units>
   double elapsed(TimerIndex i) const {
     DRAKE_ASSERT(i < timers_.size());
     return timers_[i].elapsed<Units>();
@@ -95,7 +93,7 @@ class Profiler {
    starts.
    @param  i  The identifier for the timer. Only checked in debug mode.
    @tparam Units  the units in which the elapsed time will be reported.  */
-  template<typename Units>
+  template <typename Units>
   double lap(TimerIndex i) {
     DRAKE_ASSERT(i < timers_.size());
     return timers_[i].lap<Units>();
@@ -104,7 +102,7 @@ class Profiler {
   /**  Reports the average lap time across all recorded laps for the ith timer.
    @param  i  The identifier for the timer. Only checked in debug mode.
    @tparam Units  the units in which the elapsed time will be reported.  */
-  template<typename Units>
+  template <typename Units>
   double average(TimerIndex i) const {
     DRAKE_ASSERT(i < timers_.size());
     return timers_[i].average<Units>();
@@ -113,7 +111,7 @@ class Profiler {
   /**  Reports the total time across all recorded laps for the ith timer.
    @param  i  The identifier for the timer. Only checked in debug mode.
    @tparam Units  the units in which the elapsed time will be reported.  */
-  template<typename Units>
+  template <typename Units>
   double total(TimerIndex i) const {
     DRAKE_ASSERT(i < timers_.size());
     return timers_[i].total<Units>();
@@ -130,11 +128,11 @@ class Profiler {
   /**  Reports the average lap time across all recorded laps for
    *the first "count" timers.
    *
-   *	@param		count		The first count timers' average times will be
+   * @param  count  The first count timers' average times will be
    *reported. Only checked in debug mode.
-   *	@param		scale		The scale of the units to report the elapsed
+   * @param  scale  The scale of the units to report the elapsed
    *time in. e.g., 1.0 --> seconds, 0.001 -->, 1e-6 --> microseconds.
-   *	@param		averages	A pointer to an array of floats sufficiently
+   * @param  averages A pointer to an array of floats sufficiently
    *large to hold count values.
    */
   void averages(size_t count, float scale, float* averages) {
@@ -153,9 +151,7 @@ class Profiler {
     return display_string_[i];
   }
 
-  double self_time(TimerIndex i) const {
-    return self_wallclock_[i];
-  }
+  double self_time(TimerIndex i) const { return self_wallclock_[i]; }
 
  private:
   // Singleton pointer.
@@ -194,13 +190,9 @@ TimerIndex PushTimer(TimerIndex index) {
   return Profiler::getMutableInstance().PushTimer(index);
 }
 
-void PopTimer() {
-  return Profiler::getMutableInstance().PopTimer();
-}
+void PopTimer() { return Profiler::getMutableInstance().PopTimer(); }
 
-void UpdateStack(double dt) {
-  Profiler::getMutableInstance().UpdateStack(dt);
-}
+void UpdateStack(double dt) { Profiler::getMutableInstance().UpdateStack(dt); }
 
 double lapTimer(TimerIndex index) {
   return Profiler::getMutableInstance().lap<LapTimer::Units>(index);
@@ -230,12 +222,12 @@ std::string TableOfAverages() {
     ss << fmt::format("{:>15.7g}{:>10}{:>17.7g}{:>15.7g}  {}", time,
                       profiler.laps(i), profiler.total<Seconds>(i),
                       profiler.self_time(i), profiler.displayString(i));
-    //if (i < count - 1)                       
+    // if (i < count - 1)
     ss << "\n";
     self_total += profiler.self_time(i);
-  }  
+  }
   ss << fmt::format("Self Total: {}\n", self_total);
-  return ss.str();  
+  return ss.str();
 }
 
 #endif  // ENABLE_TIMERS

@@ -1087,7 +1087,7 @@ drake_cc_googletest(
 drake_cc_googletest(
     name = "profiler_test",
     copts = ["-DENABLE_TIMERS"],
-    deps = [":profiler"],    
+    deps = [":profiler"],
 )
 
 drake_cc_googletest(

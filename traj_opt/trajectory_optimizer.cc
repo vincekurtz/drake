@@ -248,7 +248,7 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsSingleTimeStep(
 template <typename T>
 void TrajectoryOptimizer<T>::CalcContactForceContribution(
     const Context<T>& context, MultibodyForces<T>* forces) const {
-  INSTRUMENT_FUNCTION("Computes contact forces.");    
+  INSTRUMENT_FUNCTION("Computes contact forces.");
 
   using std::abs;
   using std::max;
@@ -536,7 +536,7 @@ template <typename T>
 void TrajectoryOptimizer<T>::CalcInverseDynamicsPartials(
     const TrajectoryOptimizerState<T>& state,
     InverseDynamicsPartials<T>* id_partials) const {
-  INSTRUMENT_FUNCTION("Computes of dtau/dq.");    
+  INSTRUMENT_FUNCTION("Computes of dtau/dq.");
   switch (params_.gradients_method) {
     case GradientsMethod::kForwardDifferences: {
       CalcInverseDynamicsPartialsFiniteDiff(state, id_partials);
@@ -2187,7 +2187,7 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
     TrajectoryOptimizerSolution<double>* solution,
     TrajectoryOptimizerStats<double>* stats,
     ConvergenceReason* reason_out) const {
-  INSTRUMENT_FUNCTION("Trust region solver.");    
+  INSTRUMENT_FUNCTION("Trust region solver.");
   using std::min;
   // Allocate a state variable to store q and everything that is computed from q
   TrajectoryOptimizerState<double> state = CreateState();

@@ -35,9 +35,10 @@ total execution time of the function or code block we are interested in.
 #include <chrono>
 #include <ratio>
 #include <string>
+#include <utility>
 
-#include "drake/common/type_safe_index.h"
 #include "drake/common/scope_exit.h"
+#include "drake/common/type_safe_index.h"
 
 namespace drake {
 namespace common {
@@ -124,7 +125,7 @@ class LapTimer : public Timer {
    this call.
    @tparam Units  the units in which the elapsed time will be reported.  */
   template <typename Units>
-  double lap()  {
+  double lap() {
     auto now = std::chrono::high_resolution_clock::now();
     auto delta = now - start_;
     start_ = now;
