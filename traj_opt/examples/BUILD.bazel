@@ -80,6 +80,7 @@ drake_cc_binary(
     data = [
         ":allegro_hand.sdf",
         ":allegro_hand.yaml",
+        ":allegro_hand_upside_down.yaml",
         "//manipulation/models/allegro_hand_description:models",
     ],
     deps = [
@@ -87,6 +88,7 @@ drake_cc_binary(
         "//common:find_resource",
         "//multibody/parsing",
         "//multibody/plant",
+        "@gflags",
     ],
 )
 

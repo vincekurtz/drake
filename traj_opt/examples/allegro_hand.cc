@@ -1,7 +1,12 @@
+#include <gflags/gflags.h>
+
 #include "drake/common/find_resource.h"
 #include "drake/multibody/parsing/parser.h"
 #include "drake/multibody/plant/multibody_plant.h"
 #include "drake/traj_opt/examples/example_base.h"
+
+DEFINE_bool(upside_down, false,
+            "whether to treat the hand as upside down (by reversing gravity)");
 
 namespace drake {
 namespace traj_opt {
@@ -36,8 +41,7 @@ class AllegroHandExample : public TrajOptExample {
                       X_hand);
 
     // Define gravity (so we can turn the hand upside down)
-    bool upside_down = false;
-    if (upside_down) {
+    if (FLAGS_upside_down) {
       plant->mutable_gravity_field().set_gravity_vector(Vector3d(0, 0, 9.81));
     }
 
@@ -78,9 +82,17 @@ class AllegroHandExample : public TrajOptExample {
 }  // namespace traj_opt
 }  // namespace drake
 
-int main() {
+int main(int argc, char* argv[]) {
+  gflags::ParseCommandLineFlags(&argc, &argv, true);
+
   drake::traj_opt::examples::allegro_hand::AllegroHandExample example;
-  example.SolveTrajectoryOptimization(
-      "drake/traj_opt/examples/allegro_hand.yaml");
+  if (FLAGS_upside_down) {
+    example.SolveTrajectoryOptimization(
+        "drake/traj_opt/examples/allegro_hand_upside_down.yaml");
+  } else {
+    example.SolveTrajectoryOptimization(
+        "drake/traj_opt/examples/allegro_hand.yaml");
+  }
+
   return 0;
 }
