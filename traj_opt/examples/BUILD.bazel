@@ -58,6 +58,23 @@ drake_cc_binary(
 )
 
 drake_cc_binary(
+    name = "atlas",
+    srcs = ["atlas.cc"],
+    add_test_rule = 1,
+    data = [
+        ":atlas.yaml",
+        ":atlas.urdf",
+        "//examples/atlas:models",
+    ],
+    deps = [
+        ":example_base",
+        "//common:find_resource",
+        "//multibody/parsing",
+        "//multibody/plant",
+    ],
+)
+
+drake_cc_binary(
     name = "punyo_hug",
     srcs = ["punyo_hug.cc"],
     add_test_rule = 1,
