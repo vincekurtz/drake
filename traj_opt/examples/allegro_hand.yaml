@@ -113,6 +113,13 @@ stiffness_exponent : 1      # Compliant law exponent.
 dissipation_exponent : 1.0  # Hunt & Crossley-like model. Law exponent.
 dissipation_velocity : 0.01  # Hunt & Crossley-like model parameter, in m/s.
 
+# Force at a distance parameters. If force at a distance is enabled,
+# we still use F and delta to determine compliance, but assume
+# stiffness_exponent = 1 and smooth out the contact forces to allow
+# the given amount of force at when the penetration distance is zero.
+force_at_a_distance : false
+force_at_boundary : 0.1
+
 # Friction
 friction_coefficient : 1.0  # Coefficient of friction.
 stiction_velocity: 0.03     # Regularization velocity, in m/s.
