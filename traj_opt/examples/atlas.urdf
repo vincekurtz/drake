@@ -27,7 +27,7 @@
     <collision>
       <origin rpy="0 0 0" xyz="-0.0876 0.066 -0.07645"/>
       <geometry>
-        <sphere radius="0.0"/>
+        <sphere radius="0.01"/>
       </geometry>
     </collision>
     <visual>
@@ -39,7 +39,7 @@
     <collision>
       <origin rpy="0 0 0" xyz="-0.0876 -0.0626 -0.07645"/>
       <geometry>
-        <sphere radius="0.0"/>
+        <sphere radius="0.01"/>
       </geometry>
     </collision>
     <visual>
@@ -51,7 +51,7 @@
     <collision>
       <origin rpy="0 0 0" xyz="0.1728 0.066 -0.07645"/>
       <geometry>
-        <sphere radius="0.0"/>
+        <sphere radius="0.01"/>
       </geometry>
     </collision>
     <visual>
@@ -63,7 +63,7 @@
     <collision>
       <origin rpy="0 0 0" xyz="0.1728 -0.0626 -0.07645"/>
       <geometry>
-        <sphere radius="0.0"/>
+        <sphere radius="0.01"/>
       </geometry>
     </collision>
     <visual>
@@ -75,7 +75,7 @@
     <collision>
       <origin rpy="0 0 0" xyz="0.086 0.066 -0.07645"/>
       <geometry>
-        <sphere radius="0.0"/>
+        <sphere radius="0.01"/>
       </geometry>
     </collision>
     <visual>
@@ -87,7 +87,7 @@
     <collision>
       <origin rpy="0 0 0" xyz="0.086 -0.0626 -0.07645"/>
       <geometry>
-        <sphere radius="0.0"/>
+        <sphere radius="0.01"/>
       </geometry>
     </collision>
     <visual>
@@ -99,7 +99,7 @@
     <collision>
       <origin rpy="0 0 0" xyz="-0.0008 0.066 -0.07645"/>
       <geometry>
-        <sphere radius="0.0"/>
+        <sphere radius="0.01"/>
       </geometry>
     </collision>
     <visual>
@@ -111,7 +111,7 @@
     <collision>
       <origin rpy="0 0 0" xyz="-0.0008 -0.0626 -0.07645"/>
       <geometry>
-        <sphere radius="0.0"/>
+        <sphere radius="0.01"/>
       </geometry>
     </collision>
     <visual>
@@ -314,7 +314,7 @@
     <collision>
       <origin rpy="0 0 0" xyz="-0.0876 0.0626 -0.07645"/>
       <geometry>
-        <sphere radius="0.0"/>
+        <sphere radius="0.01"/>
       </geometry>
     </collision>
     <visual>
@@ -326,7 +326,7 @@
     <collision>
       <origin rpy="0 0 0" xyz="-0.0876 -0.066 -0.07645"/>
       <geometry>
-        <sphere radius="0.0"/>
+        <sphere radius="0.01"/>
       </geometry>
     </collision>
     <visual>
@@ -338,7 +338,7 @@
     <collision>
       <origin rpy="0 0 0" xyz="0.1728 0.0626 -0.07645"/>
       <geometry>
-        <sphere radius="0.0"/>
+        <sphere radius="0.01"/>
       </geometry>
     </collision>
     <visual>
@@ -350,7 +350,7 @@
     <collision>
       <origin rpy="0 0 0" xyz="0.1728 -0.066 -0.07645"/>
       <geometry>
-        <sphere radius="0.0"/>
+        <sphere radius="0.01"/>
       </geometry>
     </collision>
     <visual>
@@ -362,7 +362,7 @@
     <collision>
       <origin rpy="0 0 0" xyz="0.086 0.0626 -0.07645"/>
       <geometry>
-        <sphere radius="0.0"/>
+        <sphere radius="0.01"/>
       </geometry>
     </collision>
     <visual>
@@ -374,7 +374,7 @@
     <collision>
       <origin rpy="0 0 0" xyz="0.086 -0.066 -0.07645"/>
       <geometry>
-        <sphere radius="0.0"/>
+        <sphere radius="0.01"/>
       </geometry>
     </collision>
     <visual>
@@ -386,7 +386,7 @@
     <collision>
       <origin rpy="0 0 0" xyz="-0.0008 0.0626 -0.07645"/>
       <geometry>
-        <sphere radius="0.0"/>
+        <sphere radius="0.01"/>
       </geometry>
     </collision>
     <visual>
@@ -398,7 +398,7 @@
     <collision>
       <origin rpy="0 0 0" xyz="-0.0008 -0.066 -0.07645"/>
       <geometry>
-        <sphere radius="0.0"/>
+        <sphere radius="0.01"/>
       </geometry>
     </collision>
     <visual>
@@ -1372,4 +1372,10 @@
     <parent link="r_hand"/>
     <child link="r_hand_force_torque"/>
   </joint>
+
+  <drake:collision_filter_group name="feet">
+    <drake:member link="l_foot"/>
+    <drake:member link="r_foot"/>
+    <drake:ignored_collision_filter_group name="feet"/>
+  </drake:collision_filter_group>
 </robot>

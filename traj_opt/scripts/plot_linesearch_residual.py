@@ -32,7 +32,7 @@ else:
 # exist is if either (1) linesearch fails or (2) you edit 
 # TrajectoryOptimizer::Solve to save the linesearch residual at a particular
 # iteration.
-data_file = drake_root + "/bazel-out/k8-opt/bin/traj_opt/examples/spinner.runfiles/drake/" + filename
+data_file = drake_root + "/bazel-out/k8-opt/bin/traj_opt/examples/atlas.runfiles/drake/" + filename
 data = np.genfromtxt(data_file, delimiter=',', names=True)
 alpha = data["alpha"]
 cost = data["cost"]

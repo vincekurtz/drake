@@ -24,9 +24,7 @@ using multibody::UnitInertia;
 
 class AtlasExample : public TrajOptExample {
   void CreatePlantModel(MultibodyPlant<double>* plant) const final {
-    const Vector4<double> blue(0.1, 0.3, 0.5, 1.0);
     const Vector4<double> green(0.3, 0.6, 0.4, 1.0);
-    const Vector4<double> black(0.0, 0.0, 0.0, 1.0);
 
     // Add the atlas model
     std::string urdf_file =
@@ -34,9 +32,15 @@ class AtlasExample : public TrajOptExample {
     Parser(plant).AddAllModelsFromFile(urdf_file);
 
     // Turn off gravity
-    plant->mutable_gravity_field().set_gravity_vector(Vector3d(0, 0, 0));
+    //plant->mutable_gravity_field().set_gravity_vector(Vector3d(0, 0, 0));
 
-
+    // Add some ground 
+    RigidTransformd X_ground(Vector3d(0.0, 0.0, -5.0));
+    plant->RegisterVisualGeometry(plant->world_body(), X_ground,
+                                  Box(25, 25, 10), "ground", green);
+    plant->RegisterCollisionGeometry(plant->world_body(), X_ground,
+                                     Box(25, 25, 10), "ground",
+                                     CoulombFriction<double>());
   }
 };
 
