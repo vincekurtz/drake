@@ -32,7 +32,7 @@ class AtlasExample : public TrajOptExample {
     Parser(plant).AddAllModelsFromFile(urdf_file);
 
     // Turn off gravity
-    //plant->mutable_gravity_field().set_gravity_vector(Vector3d(0, 0, 0));
+    plant->mutable_gravity_field().set_gravity_vector(Vector3d(0, 0, 0));
 
     // Add some ground 
     RigidTransformd X_ground(Vector3d(0.0, 0.0, -5.0));
