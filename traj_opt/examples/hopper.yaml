@@ -16,7 +16,7 @@ Qv : [1.0, 1.0, 1.0, 1.0, 1.0]
 
 R : [1e2, 1e3, 1e2, 1e-2, 1e-2]
 
-Qfq : [1, 1e4, 1, 1, 1]  # Terminal cost
+Qfq : [1, 1e4, 1, 10, 10]  # Terminal cost
 Qfv : [0.1, 0.1, 0.1, 0.1, 0.1]
 
 # Problem definition parameters
