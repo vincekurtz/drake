@@ -27,7 +27,7 @@ class HopperExample : public TrajOptExample {
     std::string urdf_file =
         FindResourceOrThrow("drake/traj_opt/examples/hopper.urdf");
     Parser(plant).AddAllModelsFromFile(urdf_file);
-    
+
     // Add collision with the ground
     RigidTransformd X_ground(Vector3d(0.0, 0.0, -5.0));
     plant->RegisterVisualGeometry(plant->world_body(), X_ground,

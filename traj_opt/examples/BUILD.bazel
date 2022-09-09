@@ -46,8 +46,8 @@ drake_cc_binary(
     srcs = ["hopper.cc"],
     add_test_rule = 1,
     data = [
-        ":hopper.yaml",
         ":hopper.urdf",
+        ":hopper.yaml",
     ],
     test_rule_args = [],
     deps = [
