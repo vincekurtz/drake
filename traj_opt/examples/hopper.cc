@@ -11,24 +11,31 @@ namespace hopper {
 
 using Eigen::Vector3d;
 using geometry::Box;
-using geometry::Sphere;
 using math::RigidTransformd;
 using multibody::CoulombFriction;
 using multibody::MultibodyPlant;
-using multibody::PrismaticJoint;
 using multibody::Parser;
-using multibody::RigidBody;
-using multibody::SpatialInertia;
-using multibody::UnitInertia;
 
 /**
  * A simple planar hopper, inspired by https://youtu.be/uWADBSmHebA?t=893.
  */
 class HopperExample : public TrajOptExample {
   void CreatePlantModel(MultibodyPlant<double>* plant) const {
+    const Vector4<double> green(0.3, 0.6, 0.4, 0.5);
+
+    // Add a hopper
     std::string urdf_file =
         FindResourceOrThrow("drake/traj_opt/examples/hopper.urdf");
     Parser(plant).AddAllModelsFromFile(urdf_file);
+    //plant->mutable_gravity_field().set_gravity_vector(Vector3d(0, 0, 0));
+    
+    // Add collision with the ground
+    RigidTransformd X_ground(Vector3d(0.0, 0.0, -5.0));
+    plant->RegisterVisualGeometry(plant->world_body(), X_ground,
+                                  Box(25, 25, 10), "ground", green);
+    plant->RegisterCollisionGeometry(plant->world_body(), X_ground,
+                                     Box(25, 25, 10), "ground",
+                                     CoulombFriction<double>());
   }
 };
 

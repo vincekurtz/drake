@@ -67,6 +67,18 @@
       </geometry>
       <material name="yellow"/>
     </visual>
+    <collision>
+      <origin xyz="0.15 0 0" rpy="1.570796326790 0 1.570796326790"/>
+      <geometry>
+        <sphere radius=".03"/>
+      </geometry>
+    </collision>
+    <collision>
+      <origin xyz="-0.05 0 0" rpy="1.570796326790 0 1.570796326790"/>
+      <geometry>
+        <sphere radius=".03"/>
+      </geometry>
+    </collision>
   </link>
   <joint name="ankle" type="revolute">
     <parent link="leg"/>
