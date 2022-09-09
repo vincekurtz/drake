@@ -42,6 +42,23 @@ drake_cc_binary(
 )
 
 drake_cc_binary(
+    name = "hopper",
+    srcs = ["hopper.cc"],
+    add_test_rule = 1,
+    data = [
+        ":hopper.yaml",
+        ":hopper.urdf",
+    ],
+    test_rule_args = [],
+    deps = [
+        ":example_base",
+        "//common:find_resource",
+        "//multibody/parsing",
+        "//multibody/plant",
+    ],
+)
+
+drake_cc_binary(
     name = "pendulum",
     srcs = ["pendulum.cc"],
     add_test_rule = 1,
