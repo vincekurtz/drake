@@ -255,6 +255,8 @@ void TrajectoryOptimizer<T>::CalcContactForceContribution(
   using std::max;
   using std::pow;
   using std::sqrt;
+  using std::log;
+  using std::exp;
 
   // Compliant contact parameters. stiffness_exponent = 3/2 corresponds to Hertz
   // model for spherical contact. stiffness_exponent = 1.0 corresponds to a
@@ -284,7 +286,7 @@ void TrajectoryOptimizer<T>::CalcContactForceContribution(
 
   for (const SignedDistancePair<T>& pair : signed_distance_pairs) {
     // Don't do any contact force computations if we're not in contact
-    if (pair.distance < 0) {
+    if (pair.distance < 10) {
       // Normal outwards from A.
       const Vector3<T> nhat = -pair.nhat_BA_W;
 
@@ -347,8 +349,15 @@ void TrajectoryOptimizer<T>::CalcContactForceContribution(
       const T dissipation_factor = max(
           0.0, 1.0 - pow(abs(vn / dissipation_velocity), dissipation_exponent) *
                          sign_vn);
-      const T compliant_fn =
-          F * pow(-pair.distance / delta, stiffness_exponent);
+      //const T compliant_fn =
+      //    F * pow(-pair.distance / delta, stiffness_exponent);
+      (void) stiffness_exponent;
+
+      //DEBUG: force at a distance
+      const T s = 1e2;
+      const T k = F / delta;
+      const T compliant_fn = k / s * log(1 + exp(-s * pair.distance));
+
       const T fn = compliant_fn * dissipation_factor;
 
       // Tangential frictional component.
