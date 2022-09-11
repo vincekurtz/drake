@@ -77,12 +77,20 @@ void TrajOptExample::SolveTrajectoryOptimization(
   std::cout << "Max torques: " << tau_max.transpose() << std::endl;
 
   // Report maximum actuated and unactuated torques
+  // TODO(vincekurtz): deal with the fact that B is not well-defined for some
+  // systems, such as the block pusher and floating box examples.
   const MatrixXd B = plant.MakeActuationMatrix();
-  const double tau_max_actuated = (B.transpose() * tau_max).maxCoeff();
   double tau_max_unactuated = 0;
+  double tau_max_actuated = 0;
   for (int i = 0; i < nv; ++i) {
-    if ((B.row(i).sum() == 0) && (tau_max(i) > tau_max_unactuated)) {
-      tau_max_unactuated = tau_max(i);
+    if (B.row(i).sum() == 0) {
+      if (tau_max(i) > tau_max_unactuated) {
+        tau_max_unactuated = tau_max(i);
+      }
+    } else {
+      if (tau_max(i) > tau_max_actuated) {
+        tau_max_actuated = tau_max(i);
+      }
     }
   }
 
