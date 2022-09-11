@@ -264,7 +264,7 @@ void TrajectoryOptimizer<T>::CalcContactForceContribution(
   const double F = params_.F;
   const double delta = params_.delta;
   const double stiffness_exponent = params_.stiffness_exponent;
-  const double force_at_boundary = params_.force_at_boundary;
+  const double smoothing_factor = params_.smoothing_factor;
 
   // (Normal) Dissipation. dissipation_exponent = 1.0 corresponds to the Hunt &
   // Crossley model of dissipation.
@@ -288,7 +288,7 @@ void TrajectoryOptimizer<T>::CalcContactForceContribution(
   for (const SignedDistancePair<T>& pair : signed_distance_pairs) {
     // Don't do any contact force computations if we're not in contact, unless
     // we're using a contact model that allows force at a distance.
-    if ((pair.distance < 0) || (params_.force_at_a_distance)) {
+    if ((params_.force_at_a_distance) || (pair.distance < 0)) {
       // Normal outwards from A.
       const Vector3<T> nhat = -pair.nhat_BA_W;
 
@@ -354,9 +354,8 @@ void TrajectoryOptimizer<T>::CalcContactForceContribution(
 
       T compliant_fn;
       if (params_.force_at_a_distance) {
-        const T k = F / delta;
-        const T s = k * log(2) / force_at_boundary;
-        compliant_fn = k / s * log(1 + exp(-s * pair.distance));
+        compliant_fn = F / delta / smoothing_factor *
+                       log(1 + exp(-smoothing_factor * pair.distance));
       } else {
         compliant_fn = F * pow(-pair.distance / delta, stiffness_exponent);
       }

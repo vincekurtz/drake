@@ -59,10 +59,10 @@ dissipation_velocity : 0.1  # Hunt & Crossley-like model parameter, in m/s.
 
 # Force at a distance parameters. If force at a distance is enabled,
 # we still use F and delta to determine compliance, but assume
-# stiffness_exponent = 1 and smooth out the contact forces to allow
-# the given amount of force at when the penetration distance is zero.
+# stiffness_exponent = 1 and smooth out the contact forces according
+# to the given factor (lower is smoother).
 force_at_a_distance : true
-force_at_boundary : 0.5
+smoothing_factor : 140
 
 # Friction
 friction_coefficient : 0.2  # Coefficient of friction.

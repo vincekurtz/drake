@@ -55,7 +55,7 @@ struct TrajOptExampleParams {
     a->Visit(DRAKE_NVP(stiction_velocity));
     a->Visit(DRAKE_NVP(friction_coefficient));
     a->Visit(DRAKE_NVP(force_at_a_distance));
-    a->Visit(DRAKE_NVP(force_at_boundary));
+    a->Visit(DRAKE_NVP(smoothing_factor));
     a->Visit(DRAKE_NVP(save_contour_data));
     a->Visit(DRAKE_NVP(contour_q1_min));
     a->Visit(DRAKE_NVP(contour_q1_max));
@@ -140,7 +140,7 @@ struct TrajOptExampleParams {
   double friction_coefficient = 0.0;
 
   bool force_at_a_distance = false;
-  double force_at_boundary = 0.1;
+  double smoothing_factor = 1e2;
 
   // Save data for a 2d contour plot of cost/gradient/Hessian w.r.t. the first
   // two variables to contour_data.csv

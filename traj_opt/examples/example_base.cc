@@ -244,11 +244,8 @@ void TrajOptExample::SetSolverParameters(
   solver_params->friction_coefficient = options.friction_coefficient;
   solver_params->stiction_velocity = options.stiction_velocity;
 
-  // TODO(vincekurtz): consider checking whether force_at_boundary is too small.
-  // If it's very small, the current smoothing model introduces numerical
-  // problems.
   solver_params->force_at_a_distance = options.force_at_a_distance;
-  solver_params->force_at_boundary = options.force_at_boundary;
+  solver_params->smoothing_factor = options.smoothing_factor;
 
 
   // Set parameters for making contour plot of the first two variables

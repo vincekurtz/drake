@@ -88,7 +88,7 @@ struct SolverParameters {
   double friction_coefficient{1.0};  // Coefficient of friction.
 
   bool force_at_a_distance{false};  // whether to allow force at a distance
-  double force_at_boundary{0.1};    // smoothing factor for force at a distance
+  double smoothing_factor{1e2};     // smoothing factor for force at a distance
 
   // Flags for making a contour plot with the first two decision variables.
   bool save_contour_data = false;
