@@ -78,10 +78,10 @@ void TrajOptExample::SolveTrajectoryOptimization(
 
   // Report maximum actuated and unactuated torques
   const MatrixXd B = plant.MakeActuationMatrix();
-  const double tau_max_actuated = (B * tau_max).maxCoeff();
+  const double tau_max_actuated = (B.transpose() * tau_max).maxCoeff();
   double tau_max_unactuated = 0;
   for (int i = 0; i < nv; ++i) {
-    if ((B.row(i).sum() == 0) & (tau_max(i) > tau_max_unactuated)) {
+    if ((B.row(i).sum() == 0) && (tau_max(i) > tau_max_unactuated)) {
       tau_max_unactuated = tau_max(i);
     }
   }
@@ -246,7 +246,6 @@ void TrajOptExample::SetSolverParameters(
 
   solver_params->force_at_a_distance = options.force_at_a_distance;
   solver_params->smoothing_factor = options.smoothing_factor;
-
 
   // Set parameters for making contour plot of the first two variables
   solver_params->save_contour_data = options.save_contour_data;
