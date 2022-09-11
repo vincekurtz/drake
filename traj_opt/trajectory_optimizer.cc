@@ -354,8 +354,14 @@ void TrajectoryOptimizer<T>::CalcContactForceContribution(
 
       T compliant_fn;
       if (params_.force_at_a_distance) {
-        compliant_fn = F / delta / smoothing_factor *
-                       log(1 + exp(-smoothing_factor * pair.distance));
+        if (smoothing_factor * pair.distance < -100) {
+          // If the exponent is going to be very large, replace with the
+          // functional limit as smoothing_factor goes to infinity.
+          compliant_fn = -F / delta * pair.distance;
+        } else {
+          compliant_fn = F / delta / smoothing_factor *
+                        log(1 + exp(-smoothing_factor * pair.distance));
+        }
       } else {
         compliant_fn = F * pow(-pair.distance / delta, stiffness_exponent);
       }
