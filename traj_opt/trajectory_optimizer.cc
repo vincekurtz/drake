@@ -1676,7 +1676,7 @@ void TrajectoryOptimizer<T>::SaveLinesearchResidual(
     const std::string filename) const {
   double alpha_min = -0.2;
   double alpha_max = 1.2;
-  double dalpha = 0.001;
+  double dalpha = 0.01;
 
   std::ofstream data_file;
   data_file.open(filename);
@@ -1863,6 +1863,7 @@ T TrajectoryOptimizer<T>::CalcTrustRatio(
     // Actual and predicted improvements are both essentially zero, so we set
     // the trust ratio to a value such that the step will be accepted, but the
     // size of the trust region will not change.
+    std::cout << "DEBUG: rho = 0/0" << std::endl;
     return 0.5;
   }
 
@@ -2268,45 +2269,12 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
       SaveIterationData(k, Delta, rho, dq(1), state);
     }
 
-    // If the ratio is large enough, accept the change
-    if (rho > eta) {
-      // Update the coefficients for the proximal operator cost
-      if (params_.proximal_operator) {
-        state.set_proximal_operator_data(state.q(), EvalHessian(state));
-        scratch_state.set_proximal_operator_data(state.q(), EvalHessian(state));
-      }
-
-      state.AddToQ(dq);  // q += dq
-    }
-    // Else (rho <= eta), the trust region ratio is too small to accept dq, so
-    // we'll need to so keep reducing the trust region. Note that the trust
-    // region will be reduced in this case, since eta < 0.25.
-
-    // N.B. if this is the case (q_{k+1} = q_k), we haven't touched state, so we
-    // should be reusing the cached gradient and Hessian in the next iteration.
-    // TODO(vincekurtz): should we be caching the factorization of the Hessian,
-    // as well as the Hessian itself?
-
     // Compute iteration timing
     // N.B. this is in kind of a weird place because we want to record
     // statistics before updating the trust-region size. That ensures that
     // ‖ δq ‖ ≤ Δ in our logs.
     iter_time = std::chrono::high_resolution_clock::now() - iter_start_time;
     iter_start_time = std::chrono::high_resolution_clock::now();
-
-    // Printout statistics from this iteration
-    if (params_.verbose) {
-      if ((k % 50) == 0) {
-        // Refresh the labels for easy reading
-        std::cout << separator_bar << std::endl;
-        std::cout << printout_labels << std::endl;
-        std::cout << separator_bar << std::endl;
-      }
-      std::cout << fmt::format(
-          "| {:>6} | {:>8.3g} | {:>7.2} | {:>7.1} | {:>10.5} | {:>10.5} |\n", k,
-          EvalCost(state), Delta, rho, iter_time.count(),
-          EvalGradient(state).norm() / EvalCost(state));
-    }
 
     const double cost = EvalCost(state);
     const VectorXd g = EvalGradient(state);
@@ -2326,6 +2294,48 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
                      g.norm(),           // gradient size
                      dL_dqH,             // Gradient along dqH
                      dL_dq);             // Gradient along dq
+    
+    // Printout statistics from this iteration
+    if (params_.verbose) {
+      if ((k % 50) == 0) {
+        // Refresh the labels for easy reading
+        std::cout << separator_bar << std::endl;
+        std::cout << printout_labels << std::endl;
+        std::cout << separator_bar << std::endl;
+      }
+      std::cout << fmt::format(
+          "| {:>6} | {:>8.3g} | {:>7.2} | {:>7.1} | {:>10.5} | {:>10.5} | {:>10.5} |\n", k,
+          EvalCost(state), Delta, rho, iter_time.count(),
+          EvalGradient(state).norm() / EvalCost(state), dL_dq);
+    }
+
+    if (k == (params_.max_iterations - 1)) {
+      // DEBUG: plot linesearch residual
+      std::cout << "saving linesearch residual\n";
+      std::cout << "L' = dq*g = " << dq.dot(EvalGradient(state)) << std::endl;
+      SaveLinesearchResidual(state, dq, &scratch_state);
+      std::cout << "done.\n";
+    }
+
+    // If the ratio is large enough, accept the change
+    if (rho > eta) {
+      // Update the coefficients for the proximal operator cost
+      if (params_.proximal_operator) {
+        state.set_proximal_operator_data(state.q(), EvalHessian(state));
+        scratch_state.set_proximal_operator_data(state.q(), EvalHessian(state));
+      }
+
+      state.AddToQ(dq);  // q += dq
+    }
+    // Else (rho <= eta), the trust region ratio is too small to accept dq, so
+    // we'll need to so keep reducing the trust region. Note that the trust
+    // region will be reduced in this case, since eta < 0.25.
+
+    // N.B. if this is the case (q_{k+1} = q_k), we haven't touched state, so we
+    // should be reusing the cached gradient and Hessian in the next iteration.
+    // TODO(vincekurtz): should we be caching the factorization of the Hessian,
+    // as well as the Hessian itself?
+
 
     // Only check convergence criteria for valid steps.
     ConvergenceReason reason{
@@ -2361,7 +2371,7 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
 
   solve_time = std::chrono::high_resolution_clock::now() - start_time;
   stats->solve_time = solve_time.count();
-
+  
   // Record the solution
   solution->q = state.q();
   solution->v = EvalV(state);
