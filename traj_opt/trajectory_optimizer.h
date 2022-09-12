@@ -514,6 +514,19 @@ class TrajectoryOptimizer {
       typename TrajectoryOptimizerCache<T>::SdfData* sdf_data) const;
 
   /**
+   * Compute signed distance pairs for the given context. This allows us to do
+   * separate timing measurements for geometry queries.
+   *
+   * TODO(vincekurtz): retire this in favor of EvalSignedDistancePairs.
+   *
+   * @param context context storing positions and velocities
+   * @param signed_distance_pairs signed distance pairs for each contact
+   */
+  void ComputeSignedDistancePairs(
+      const Context<T>& context,
+      std::vector<geometry::SignedDistancePair<T>>* signed_distance_pairs) const;
+
+  /**
    * Helper to compute the contact Jacobian (at a particular time step) for the
    * configuration stored in `context`.
    *

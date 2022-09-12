@@ -128,7 +128,6 @@ const T TrajectoryOptimizer<T>::EvalCost(
 template <typename T>
 T TrajectoryOptimizer<T>::CalcCost(
     const TrajectoryOptimizerState<T>& state) const {
-  INSTRUMENT_FUNCTION("Computes the total cost.");
   const std::vector<VectorX<T>>& v = EvalV(state);
   const std::vector<VectorX<T>>& tau = EvalTau(state);
   T cost = CalcCost(state.q(), v, tau, &state.workspace);
@@ -247,6 +246,19 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsSingleTimeStep(
 }
 
 template <typename T>
+void TrajectoryOptimizer<T>::ComputeSignedDistancePairs(
+    const Context<T>& context,
+    std::vector<SignedDistancePair<T>>* signed_distance_pairs) const {
+  INSTRUMENT_FUNCTION("Computes signed distance pairs.");
+  const geometry::QueryObject<T>& query_object =
+      plant()
+          .get_geometry_query_input_port()
+          .template Eval<geometry::QueryObject<T>>(context);
+  *signed_distance_pairs =
+      query_object.ComputeSignedDistancePairwiseClosestPoints();
+}
+
+template <typename T>
 void TrajectoryOptimizer<T>::CalcContactForceContribution(
     const Context<T>& context, MultibodyForces<T>* forces) const {
   INSTRUMENT_FUNCTION("Computes contact forces.");
@@ -276,12 +288,13 @@ void TrajectoryOptimizer<T>::CalcContactForceContribution(
   const double mu = params_.friction_coefficient;  // Coefficient of friction.
 
   // Get signed distance pairs
+  // TODO(vincekurtz): refactor to use EvalSignedDistancePairs instead
+  std::vector<SignedDistancePair<T>> signed_distance_pairs;
+  ComputeSignedDistancePairs(context, &signed_distance_pairs);
   const geometry::QueryObject<T>& query_object =
       plant()
           .get_geometry_query_input_port()
           .template Eval<geometry::QueryObject<T>>(context);
-  const std::vector<SignedDistancePair<T>>& signed_distance_pairs =
-      query_object.ComputeSignedDistancePairwiseClosestPoints();
   const drake::geometry::SceneGraphInspector<T>& inspector =
       query_object.inspector();
 
@@ -553,7 +566,6 @@ template <typename T>
 void TrajectoryOptimizer<T>::CalcInverseDynamicsPartials(
     const TrajectoryOptimizerState<T>& state,
     InverseDynamicsPartials<T>* id_partials) const {
-  INSTRUMENT_FUNCTION("Computes dtau/dq.");
   switch (params_.gradients_method) {
     case GradientsMethod::kForwardDifferences: {
       CalcInverseDynamicsPartialsFiniteDiff(state, id_partials);
@@ -1181,7 +1193,6 @@ void TrajectoryOptimizer<T>::CalcGradientFiniteDiff(
 template <typename T>
 void TrajectoryOptimizer<T>::CalcGradient(
     const TrajectoryOptimizerState<T>& state, EigenPtr<VectorX<T>> g) const {
-  INSTRUMENT_FUNCTION("Assembly of the gradient.");
   const double dt = time_step();
   const int nq = plant().num_positions();
   TrajectoryOptimizerWorkspace<T>* workspace = &state.workspace;
@@ -1280,7 +1291,6 @@ void TrajectoryOptimizer<T>::CalcHessian(
   DRAKE_DEMAND(H->is_symmetric());
   DRAKE_DEMAND(H->block_rows() == num_steps() + 1);
   DRAKE_DEMAND(H->block_size() == plant().num_positions());
-  INSTRUMENT_FUNCTION("Assembly of the Hessian.");
 
   // Some convienient aliases
   const double dt = time_step();
