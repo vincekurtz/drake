@@ -1864,6 +1864,9 @@ T TrajectoryOptimizer<T>::CalcTrustRatio(
     // the trust ratio to a value such that the step will be accepted, but the
     // size of the trust region will not change.
     std::cout << "DEBUG: rho = 0/0" << std::endl;
+    std::cout << "DEBUG: predicted reduction = " << predicted_reduction << std::endl;
+    std::cout << "DEBUG: actual reduction = " << actual_reduction << std::endl;
+    std::cout << "DEBUG: |dq| = " << dq.norm() << std::endl;
     return 0.5;
   }
 
@@ -1881,6 +1884,7 @@ T TrajectoryOptimizer<T>::SolveDoglegQuadratic(const T& a, const T& b,
   if (a < std::numeric_limits<double>::epsilon()) {
     // If a is essentially zero, just solve bx + c = 0
     s = -c / b;
+    std::cout << "DEBUG: small a" << std::endl;
   } else {
     // Normalize everything by a
     const T b_tilde = b / a;
@@ -1977,6 +1981,33 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
   *dq = (pU + s * (pH - pU)) * Delta;
 
   return true;  // the trust region constraint is active
+}
+
+template <typename T>
+void TrajectoryOptimizer<T>::CalcCauchyPoint(
+    const TrajectoryOptimizerState<T>& state, const double Delta,
+    VectorX<T>* dq) const {
+  using std::min;
+  const VectorX<T>& g = EvalGradient(state);
+  const PentaDiagonalMatrix<T>& H = EvalHessian(state);
+  const T g_norm = g.norm();
+  VectorX<T>& Hg = state.workspace.q_times_num_steps_size_tmp;
+  H.MultiplyBy(g, &Hg);
+  const T gHg = g.transpose() * Hg;
+
+  // Solution to min_{p} L + g'*p  s.t. ‖ p ‖ ≤ Δ
+  const VectorX<T> ps = - Delta / g_norm * g;
+
+  // Minimizer of quadratic cost s.t. ‖ τpₛ ‖ ≤ Δ
+  T tau;
+  if ( gHg <= 0 ) {
+    tau = 1.;
+  } else {
+    tau = min(1., pow(g_norm, 3) / (Delta * gHg));
+  }
+
+  // Cauchy point is given by τpₛ
+  *dq = tau * ps;
 }
 
 template <typename T>
@@ -2254,8 +2285,29 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
 
   double previous_cost = EvalCost(state);
   while (k < params_.max_iterations) {
-    // Obtain the candiate update dq
+    // Obtain the candidate update dq
     tr_constraint_active = CalcDoglegPoint(state, Delta, &dq, &dqH);
+
+    // DEBUG: make sure we actually have a descent direction
+    const VectorXd& g = EvalGradient(state);
+    const double Lprime = g.transpose() * dq;
+    if (Lprime > 0) {
+      std::cout << "DEBUG: g'dq_H old: " << g.transpose() * dqH << std::endl;
+
+      const PentaDiagonalMatrix<double>& H = EvalHessian(state);
+  
+      PentaDiagonalFactorization Hchol(H);
+      DRAKE_DEMAND(Hchol.status() == PentaDiagonalFactorizationStatus::kSuccess);
+      Hchol.SolveInPlace(&dqH);
+      
+      const MatrixXd H_dense = H.MakeDense();
+      const VectorXd dqH_dense = -H_dense.inverse() * g;
+
+      std::cout << "DEBUG: g'dq: " << g.transpose() * dq << std::endl;
+      std::cout << "DEBUG: g'dq_H: " << g.transpose() * dqH << std::endl;
+      std::cout << "DEBUG: g'dq_H dense: " << g.transpose() * dqH_dense << std::endl;
+      std::cout << "DEBUG: H positive definite: " << H_dense.ldlt().isPositive() << std::endl;
+    }
 
     // Compute the trust region ratio
     rho = CalcTrustRatio(state, dq, &scratch_state);
@@ -2277,7 +2329,6 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
     iter_start_time = std::chrono::high_resolution_clock::now();
 
     const double cost = EvalCost(state);
-    const VectorXd g = EvalGradient(state);
     const double dL_dqH = g.dot(dqH) / cost;
     const double dL_dq = g.dot(dq) / cost;
 
