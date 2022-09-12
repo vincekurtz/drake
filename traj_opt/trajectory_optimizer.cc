@@ -1936,10 +1936,13 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
   // TODO(amcastro-tri): move this to after pU whenever we make the cost of
   // gradients computation negligible.
   VectorXd& pH = state.workspace.q_size_tmp2;
-  pH = -g / Delta;  // normalize by Δ
-  PentaDiagonalFactorization Hchol(H);
-  DRAKE_DEMAND(Hchol.status() == PentaDiagonalFactorizationStatus::kSuccess);
-  Hchol.SolveInPlace(&pH);
+  //pH = -g / Delta;  // normalize by Δ
+  //PentaDiagonalFactorization Hchol(H);
+  //DRAKE_DEMAND(Hchol.status() == PentaDiagonalFactorizationStatus::kSuccess);
+  //Hchol.SolveInPlace(&pH);
+  //*dqH = pH * Delta;
+
+  pH = H.MakeDense().inverse() * (- g / Delta);
   *dqH = pH * Delta;
 
   // Compute the unconstrained minimizer of m(δq) = L(q) + g(q)'*δq + 1/2
@@ -2295,18 +2298,13 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
       std::cout << "DEBUG: g'dq_H old: " << g.transpose() * dqH << std::endl;
 
       const PentaDiagonalMatrix<double>& H = EvalHessian(state);
-  
-      PentaDiagonalFactorization Hchol(H);
-      DRAKE_DEMAND(Hchol.status() == PentaDiagonalFactorizationStatus::kSuccess);
-      Hchol.SolveInPlace(&dqH);
-      
       const MatrixXd H_dense = H.MakeDense();
       const VectorXd dqH_dense = -H_dense.inverse() * g;
 
-      std::cout << "DEBUG: g'dq: " << g.transpose() * dq << std::endl;
-      std::cout << "DEBUG: g'dq_H: " << g.transpose() * dqH << std::endl;
+      std::cout << "DEBUG: g'dq_H new: " << g.transpose() * dqH << std::endl;
       std::cout << "DEBUG: g'dq_H dense: " << g.transpose() * dqH_dense << std::endl;
       std::cout << "DEBUG: H positive definite: " << H_dense.ldlt().isPositive() << std::endl;
+      std::cout << "DEBUG: g'dq: " << g.transpose() * dq << std::endl;
     }
 
     // Compute the trust region ratio
