@@ -1931,10 +1931,15 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
   // TODO(amcastro-tri): move this to after pU whenever we make the cost of
   // gradients computation negligible.
   VectorXd& pH = state.workspace.q_size_tmp2;
-  pH = -g / Delta;  // normalize by Δ
-  PentaDiagonalFactorization Hchol(H);
-  DRAKE_DEMAND(Hchol.status() == PentaDiagonalFactorizationStatus::kSuccess);
-  Hchol.SolveInPlace(&pH);
+
+  // Use dense algebra rather than our pentadiagonal solver to avoid a bug that
+  // results in dq'g > 0 (search direction is not descent direction.)
+  // TODO(vincekurtz): debug the sparse solver and use sparse algebra again.
+  pH = H.MakeDense().ldlt().solve(-g / Delta);
+  // pH = -g / Delta;  // normalize by Δ
+  // PentaDiagonalFactorization Hchol(H);
+  // DRAKE_DEMAND(Hchol.status() == PentaDiagonalFactorizationStatus::kSuccess);
+  // Hchol.SolveInPlace(&pH);
   *dqH = pH * Delta;
 
   // Compute the unconstrained minimizer of m(δq) = L(q) + g(q)'*δq + 1/2
@@ -2256,6 +2261,10 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
     // Obtain the candiate update dq
     tr_constraint_active = CalcDoglegPoint(state, Delta, &dq, &dqH);
 
+    // Verify that dq is a descent direction
+    const VectorXd& g = EvalGradient(state);
+    DRAKE_DEMAND(dq.transpose() * g < 0);
+
     // Compute the trust region ratio
     rho = CalcTrustRatio(state, dq, &scratch_state);
 
@@ -2309,7 +2318,6 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
     }
 
     const double cost = EvalCost(state);
-    const VectorXd g = EvalGradient(state);
     const double dL_dqH = g.dot(dqH) / cost;
     const double dL_dq = g.dot(dq) / cost;
 
