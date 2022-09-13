@@ -1295,6 +1295,18 @@ void TrajectoryOptimizer<T>::CalcGradient(
   qt_term = (q[num_steps()] - prob_.q_nom[num_steps()]).transpose() * 2 * prob_.Qf_q;
   vt_term = (v[num_steps()] - prob_.v_nom[num_steps()]).transpose() * 2 * prob_.Qf_v *
             dvt_dqt[num_steps()];
+
+  // Contribution from the unactuation constraints
+  if (params_.augmented_lagrangian) {
+    for (auto dof_id : prob_.unactuated_dof) {
+      taum_term +=
+          (-state.lambda_iter_[(num_steps() - 1) * num_unactuated_dof() +
+                               dof_id] +
+           state.mu_iter_ * tau[num_steps() - 1][dof_id]) *
+          (dt * dtau_dqp[num_steps() - 1].row(dof_id));
+    }
+  }
+
   g->tail(nq) = qt_term + vt_term + taum_term;
 
   // Add proximal operator term to the gradient, if requested
