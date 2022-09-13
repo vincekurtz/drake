@@ -51,11 +51,11 @@ struct ProblemDefinition {
   // N.B. these weights are per unit of time
   MatrixXd R;
 
-  // Target generalized positions
-  VectorXd q_nom;
+  // Target generalized positions at each time step
+  std::vector<VectorXd> q_nom;
 
-  // Target generalized velocities
-  VectorXd v_nom;
+  // Target generalized velocities at each time step
+  std::vector<VectorXd> v_nom;
 
   // Indices of the unactuated DOF
   std::vector<int> unactuated_dof;

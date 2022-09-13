@@ -1,5 +1,8 @@
 #pragma once
 
+#include "drake/common/drake_copyable.h"
+#include "drake/traj_opt/convergence_criteria_tolerances.h"
+
 namespace drake {
 namespace traj_opt {
 
@@ -13,7 +16,27 @@ enum LinesearchMethod {
 
 enum SolverMethod { kLinesearch, kTrustRegion };
 
+enum GradientsMethod {
+  // First order forward differences.
+  kForwardDifferences,
+  // Second order central differences.
+  kCentralDifferences,
+  // Fourth order central differences.
+  kCentralDifferences4,
+  // Automatic differentiation.
+  kAutoDiff,
+  // The optimizer will not be used for the computation of gradients. If
+  // requested, an exception will be thrown.
+  kNoGradients
+};
+
 struct SolverParameters {
+  DRAKE_DEFAULT_COPY_AND_MOVE_AND_ASSIGN(SolverParameters);
+
+  ConvergenceCriteriaTolerances convergence_tolerances;
+
+  SolverParameters() = default;
+
   // Which overall optimization strategy to use - linesearch or trust region
   // TODO(vincekurtz): better name for this?
   SolverMethod method = SolverMethod::kTrustRegion;
@@ -26,6 +49,8 @@ struct SolverParameters {
 
   // Maximum number of linesearch iterations
   int max_linesearch_iterations = 50;
+
+  GradientsMethod gradients_method{kForwardDifferences};
 
   // Flag for whether to print out iteration data
   bool verbose = true;
@@ -61,6 +86,9 @@ struct SolverParameters {
   double dissipation_velocity{0.1};  // Hunt-Crossley velocity, in m/s.
   double stiction_velocity{1.0e-2};  // Regularization of stiction, in m/s.
   double friction_coefficient{1.0};  // Coefficient of friction.
+
+  bool force_at_a_distance{false};  // whether to allow force at a distance
+  double smoothing_factor{1e2};     // smoothing factor for force at a distance
 
   // Flags for making a contour plot with the first two decision variables.
   bool save_contour_data = false;

@@ -27,6 +27,38 @@ drake_cc_binary(
 )
 
 drake_cc_binary(
+    name = "block_push",
+    srcs = ["block_push.cc"],
+    add_test_rule = 1,
+    data = [
+        ":block_push.yaml",
+    ],
+    test_rule_args = [],
+    deps = [
+        ":example_base",
+        "//common:find_resource",
+        "//multibody/plant",
+    ],
+)
+
+drake_cc_binary(
+    name = "hopper",
+    srcs = ["hopper.cc"],
+    add_test_rule = 1,
+    data = [
+        ":hopper.urdf",
+        ":hopper.yaml",
+    ],
+    test_rule_args = [],
+    deps = [
+        ":example_base",
+        "//common:find_resource",
+        "//multibody/parsing",
+        "//multibody/plant",
+    ],
+)
+
+drake_cc_binary(
     name = "pendulum",
     srcs = ["pendulum.cc"],
     add_test_rule = 1,
@@ -43,6 +75,41 @@ drake_cc_binary(
 )
 
 drake_cc_binary(
+    name = "punyo_hug",
+    srcs = ["punyo_hug.cc"],
+    add_test_rule = 1,
+    data = [
+        ":punyo_hug.yaml",
+        ":punyoid.sdf",
+    ],
+    deps = [
+        ":example_base",
+        "//common:find_resource",
+        "//multibody/parsing",
+        "//multibody/plant",
+    ],
+)
+
+drake_cc_binary(
+    name = "allegro_hand",
+    srcs = ["allegro_hand.cc"],
+    add_test_rule = 1,
+    data = [
+        ":allegro_hand.sdf",
+        ":allegro_hand.yaml",
+        ":allegro_hand_upside_down.yaml",
+        "//manipulation/models/allegro_hand_description:models",
+    ],
+    deps = [
+        ":example_base",
+        "//common:find_resource",
+        "//multibody/parsing",
+        "//multibody/plant",
+        "@gflags",
+    ],
+)
+
+drake_cc_binary(
     name = "2dof_spinner",
     srcs = ["2dof_spinner.cc"],
     add_test_rule = 1,
@@ -55,6 +122,21 @@ drake_cc_binary(
         ":example_base",
         "//common:find_resource",
         "//multibody/parsing",
+        "//multibody/plant",
+    ],
+)
+
+drake_cc_binary(
+    name = "floating_box",
+    srcs = ["floating_box.cc"],
+    add_test_rule = 1,
+    data = [
+        ":floating_box.yaml",
+    ],
+    test_rule_args = [],
+    deps = [
+        ":example_base",
+        "//common:find_resource",
         "//multibody/plant",
     ],
 )
@@ -109,6 +191,7 @@ drake_cc_binary(
     deps = [
         ":example_base",
         "//common:find_resource",
+        "//common:profiler",
         "//multibody/parsing",
         "//multibody/plant",
     ],
@@ -116,12 +199,13 @@ drake_cc_binary(
 
 drake_cc_library(
     name = "example_base",
-    srcs = [],
+    srcs = ["example_base.cc"],
     hdrs = ["example_base.h"],
     deps = [
         ":yaml_config",
         "//common:find_resource",
         "//geometry:drake_visualizer",
+        "//multibody/parsing",
         "//multibody/plant",
         "//systems/framework:diagram",
         "//traj_opt:problem_definition",
@@ -134,6 +218,7 @@ drake_cc_library(
     srcs = [],
     hdrs = ["yaml_config.h"],
     deps = [
+        "//common:essential",
         "//common/yaml",
     ],
 )

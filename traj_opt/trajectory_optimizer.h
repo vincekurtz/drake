@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "drake/common/eigen_types.h"
+#include "drake/common/profiler.h"
 #include "drake/multibody/plant/multibody_plant.h"
 #include "drake/traj_opt/inverse_dynamics_partials.h"
 #include "drake/traj_opt/penta_diagonal_matrix.h"
@@ -50,6 +51,8 @@ class TrajectoryOptimizer {
    */
   // TODO(amcastro-tri): Get rid of this constructor. Favor the new construction
   // below so that we can cache the context at each time step in the state.
+  // In particular, context only gets used for
+  // CalcInverseDynamicsPartialsFiniteDiff().
   TrajectoryOptimizer(const MultibodyPlant<T>* plant, Context<T>* context,
                       const ProblemDefinition& prob,
                       const SolverParameters& params = SolverParameters{});
@@ -118,6 +121,7 @@ class TrajectoryOptimizer {
    * @return TrajectoryOptimizerState
    */
   TrajectoryOptimizerState<T> CreateState() const {
+    INSTRUMENT_FUNCTION("Creates state object with caching.");
     if (diagram_ != nullptr) {
       return TrajectoryOptimizerState<T>(
           num_steps(), params_, num_eq_constraints(), *diagram_, plant());
@@ -161,64 +165,182 @@ class TrajectoryOptimizer {
    * and torques
    * @param stats a container for other timing and iteration-specific
    * data regarding the solve process.
+   * @param reason the stopping condition met for the Gauss-Newton solver.
    * @return SolverFlag
    */
   SolverFlag SolveGaussNewton(TrajectoryOptimizerState<T>* state,
                               TrajectoryOptimizerState<T>* scratch_state,
                               const std::vector<VectorX<T>>& q_guess,
                               TrajectoryOptimizerSolution<T>* solution,
-                              TrajectoryOptimizerStats<T>* stats) const;
+                              TrajectoryOptimizerStats<T>* stats,
+                              ConvergenceReason* reason = nullptr) const;
 
   /**
    * Solve the optimization from the given initial guess.
    *
+   * @param state optimizer state, including q, v, tau, gradients, etc.
+   * @param scratch_state a separate state variable for linesearch/trust-region
+   * computations
    * @param q_guess a sequence of generalized positions corresponding to the
    * initial guess
    * @param solution a container for the optimal solution, including velocities
    * and torques
    * @param stats a container for other timing and iteration-specific
    * data regarding the solve process.
+   * @param reason the stopping condition met for the Gauss-Newton solver.
    * @return SolverFlag
    */
   SolverFlag Solve(const std::vector<VectorX<T>>& q_guess,
                    TrajectoryOptimizerSolution<T>* solution,
-                   TrajectoryOptimizerStats<T>* stats) const;
-
-  // Evaluates the MultibodyPlant context at the t-th time.
-  const Context<T>& EvalPlantContext(const TrajectoryOptimizerState<T>& state,
-                                     int t) const;
+                   TrajectoryOptimizerStats<T>* stats,
+                   ConvergenceReason* reason = nullptr) const;
 
   // Evaluator functions to get data from the state's cache, and update it if
   // necessary.
   const std::vector<VectorX<T>>& EvalV(
       const TrajectoryOptimizerState<T>& state) const;
+
+  /**
+   * Evaluate generalized accelerations
+   *
+   *    a_t = (v_{t+1} - v_t) / dt
+   *
+   * at each timestep t, t = [0, ..., num_steps()-1].
+   *
+   * @param state optimizer state
+   * @return const std::vector<VectorX<T>>& a_t
+   */
   const std::vector<VectorX<T>>& EvalA(
       const TrajectoryOptimizerState<T>& state) const;
+
+  /**
+   * Evaluate generalized forces
+   *
+   *    τ_t = ID(q_{t+1}, v_{t+1}, a_t) - J(q_{t+1})'γ(q_{t+1},v_{t+1})
+   *
+   * at each timestep t, t = [0, ..., num_steps()-1].
+   *
+   * @param state optimizer state
+   * @return const std::vector<VectorX<T>>& τ_t
+   */
   const std::vector<VectorX<T>>& EvalTau(
       const TrajectoryOptimizerState<T>& state) const;
 
+  /**
+   * Evaluate partial derivatives of velocites with respect to positions at each
+   * time step.
+   *
+   * @param state optimizer state
+   * @return const VelocityPartials<T>& container for ∂v/∂q
+   */
   const VelocityPartials<T>& EvalVelocityPartials(
       const TrajectoryOptimizerState<T>& state) const;
+
+  /**
+   * Evaluate the mapping from qdot to v, v = N+(q)*qdot, at each time step.
+   *
+   * @param state optimizer state
+   * @return const std::vector<MatrixX<T>>& N+(q_t) for each time step t.
+   */
+  const std::vector<MatrixX<T>>& EvalNplus(
+      const TrajectoryOptimizerState<T>& state) const;
+
+  /**
+   * Evaluate partial derivatives of generalized forces with respect to
+   * positions at each time step.
+   *
+   * @param state optimizer state
+   * @return const InverseDynamicsPartials<T>& container for ∂τ/∂q
+   */
   const InverseDynamicsPartials<T>& EvalInverseDynamicsPartials(
       const TrajectoryOptimizerState<T>& state) const;
 
+  /**
+   * Evaluate the total (unconstrained) cost of the optimization problem,
+   *
+   *     L(q) = x_err(T)'*Qf*x_err(T)
+   *                + dt*sum_{t=0}^{T-1} x_err(t)'*Q*x_err(t) + u(t)'*R*u(t),
+   *
+   * where:
+   *      x_err(t) = x(t) - x_nom is the state error,
+   *      T = num_steps() is the time horizon of the optimization problem,
+   *      x(t) = [q(t); v(t)] is the system state at time t,
+   *      u(t) are control inputs, and we assume (for now) that u(t) = tau(t),
+   *      Q{f} = diag([Qq{f}, Qv{f}]) are a block diagonal PSD state-error
+   *       weighting matrices,
+   *      R is a PSD control weighting matrix.
+   *
+   * A cached version of this cost is stored in the state. If the cache is up to
+   * date, simply return that cost.
+   *
+   * @param state optimizer state
+   * @return const double, total cost
+   */
   const T EvalCost(const TrajectoryOptimizerState<T>& state) const;
+
+  /**
+   * Evaluate the Hessian of the unconstrained cost L(q) as a sparse
+   * penta-diagonal matrix.
+   *
+   * @param state optimizer state, including q, v, tau, gradients, etc.
+   * @return const PentaDiagonalMatrix<T>& the second-order derivatives of
+   *          the total cost L(q). This matrix is composed of (num_steps+1 x
+   *          num_steps+1) blocks of size (nq x nq) each.
+   */
   const PentaDiagonalMatrix<T>& EvalHessian(
       const TrajectoryOptimizerState<T>& state) const;
+
+  /**
+   * Evaluate the gradient of the unconstrained cost L(q).
+   *
+   * @param state optimizer state, including q, v, tau, gradients, etc.
+   * @return const VectorX<T>& a single vector containing the partials of L
+   * w.r.t. each decision variable (q_t[i]).
+   */
   const VectorX<T>& EvalGradient(
       const TrajectoryOptimizerState<T>& state) const;
 
-  /* Evaluates the signed distance pairs for the t-th step stored in `state`. */
+  /**
+   * Evaluate a system context for the plant at the given time step.
+   *
+   * @param state optimizer state
+   * @param t time step
+   * @return const Context<T>& context for the plant at time t
+   */
+  const Context<T>& EvalPlantContext(const TrajectoryOptimizerState<T>& state,
+                                     int t) const;
+
+  /**
+   * Evaluate signed distance pairs for each potential contact pair at the given
+   * time step
+   *
+   * @param state optimizer state
+   * @param t time step
+   * @return const std::vector<geometry::SignedDistancePair<T>>& contact
+   * geometry information for each contact pair at time t
+   */
   const std::vector<geometry::SignedDistancePair<T>>& EvalSignedDistancePairs(
       const TrajectoryOptimizerState<T>& state, int t) const;
 
-  /* Evaluates data storing contact Jacobians at all time steps in `state`. */
+  /**
+   * Evaluate contact jacobians (includes all contact pairs) at each time step.
+   *
+   * @param state optimizer state
+   * @return const TrajectoryOptimizerCache<T>::ContactJacobianData& contact
+   * jacobian data
+   */
   const typename TrajectoryOptimizerCache<T>::ContactJacobianData&
   EvalContactJacobianData(const TrajectoryOptimizerState<T>& state) const;
 
  private:
   // Friend class to facilitate testing.
   friend class TrajectoryOptimizerTester;
+
+  // Allow different specializations to access each other's private functions.
+  // In particular we want to allow TrajectoryOptimizer<double> to have access
+  // to TrajectoryOptimizer<AutoDiffXd>'s functions for computing gradients.
+  template <typename U>
+  friend class TrajectoryOptimizer;
 
   /**
    * Solve the optimization problem from the given initial guess using a
@@ -258,7 +380,8 @@ class TrajectoryOptimizer {
                                   TrajectoryOptimizerState<T>* scratch_state,
                                   const std::vector<VectorX<T>>& q_guess,
                                   TrajectoryOptimizerSolution<T>* solution,
-                                  TrajectoryOptimizerStats<T>* stats) const;
+                                  TrajectoryOptimizerStats<T>* stats,
+                                  ConvergenceReason* reason) const;
 
   // Updates `cache` to store q and v from `state`.
   void CalcContextCache(
@@ -273,6 +396,10 @@ class TrajectoryOptimizer {
    * @param state optimizer state to update.
    */
   void CalcCacheTrajectoryData(const TrajectoryOptimizerState<T>& state) const;
+
+  void CalcInverseDynamicsCache(
+      const TrajectoryOptimizerState<T>& state,
+      typename TrajectoryOptimizerCache<T>::InverseDynamicsCache* cache) const;
 
   /**
    * Compute all of the "derivatives data" (dv/dq, dtau/dq) stored in the
@@ -332,7 +459,7 @@ class TrajectoryOptimizer {
    * Compute a sequence of generalized velocities v from a sequence of
    * generalized positions, where
    *
-   *     v_t = (q_t - q_{t-1})/dt            (1)
+   *     v_t = N+(q_t) * (q_t - q_{t-1}) / dt            (1)
    *
    * v and q are each vectors of length num_steps+1,
    *
@@ -343,9 +470,11 @@ class TrajectoryOptimizer {
    * problem, rather than Equation (1) above.
    *
    * @param q sequence of generalized positions
+   * @param Nplus the mapping from qdot to v, N+(q_t).
    * @param v sequence of generalized velocities
    */
   void CalcVelocities(const std::vector<VectorX<T>>& q,
+                      const std::vector<MatrixX<T>>& Nplus,
                       std::vector<VectorX<T>>* v) const;
 
   /**
@@ -385,14 +514,13 @@ class TrajectoryOptimizer {
    *
    * i.e., tau(t) takes us us from t to t+1.
    *
-   * @param q sequence of generalized positions
-   * @param v sequence of generalized velocities
+   * @param state state variable storing a context for each timestep. This
+   * context in turn stores q(t) and v(t) for each timestep.
    * @param a sequence of generalized accelerations
    * @param workspace scratch space for intermediate computations
    * @param tau sequence of generalized forces
    */
-  void CalcInverseDynamics(const std::vector<VectorX<T>>& q,
-                           const std::vector<VectorX<T>>& v,
+  void CalcInverseDynamics(const TrajectoryOptimizerState<T>& state,
                            const std::vector<VectorX<T>>& a,
                            TrajectoryOptimizerWorkspace<T>* workspace,
                            std::vector<VectorX<T>>* tau) const;
@@ -404,46 +532,87 @@ class TrajectoryOptimizer {
    *
    * at a single timestep.
    *
-   * @param q generalized position
-   * @param v generalized velocity
+   * @param context system context storing q and v
    * @param a generalized acceleration
    * @param workspace scratch space for intermediate computations
    * @param tau generalized forces
    */
   void CalcInverseDynamicsSingleTimeStep(
-      const VectorX<T>& q, const VectorX<T>& v, const VectorX<T>& a,
+      const Context<T>& context, const VectorX<T>& a,
       TrajectoryOptimizerWorkspace<T>* workspace, VectorX<T>* tau) const;
 
   /**
    * Calculate the force contribution from contacts for each body, and add them
    * into the given MultibodyForces object.
    *
+   * @param context system context storing q and v
    * @param forces total forces applied to the plant, which we will add into.
-   * @pre generalized positions (q) and velocities (v) have been properly set in
-   *      context_
    */
-  void CalcContactForceContribution(MultibodyForces<T>* forces) const;
+  void CalcContactForceContribution(const Context<T>& context,
+                                    MultibodyForces<T>* forces) const;
 
-  /* Computes signed distance data for all time configurations in `state`. */
+  /**
+   * Compute signed distance data for all contact pairs for all time steps.
+   *
+   * @param state state variable storing system configurations at each time
+   * step.
+   * @param sdf_data signed distance data that we'll set.
+   */
   void CalcSdfData(
       const TrajectoryOptimizerState<T>& state,
       typename TrajectoryOptimizerCache<T>::SdfData* sdf_data) const;
 
-  /* Helper to compute the contact Jacobian for the configuration stored in
-  `context`. Signed distance pairs `sdf_pairs` must be consistent with
-  `context`. */
+  /**
+   * Helper to compute the contact Jacobian (at a particular time step) for the
+   * configuration stored in `context`.
+   *
+   * Signed distance pairs `sdf_pairs` must be consistent with
+   * `context`.
+   *
+   * @param context context storing q and v
+   * @param sdf_pairs vector of signed distance pairs
+   * @param J the jacobian to set
+   * @param R_WC the rotation of each contact frame in the world
+   * @param body_pairs each pair of bodies that are in contact
+   */
   void CalcContactJacobian(
       const Context<T>& context,
       const std::vector<geometry::SignedDistancePair<T>>& sdf_pairs,
       MatrixX<T>* J, std::vector<math::RotationMatrix<T>>* R_WC,
       std::vector<std::pair<BodyIndex, BodyIndex>>* body_pairs) const;
 
-  /* Computes the Jacobian data for all time step configurations stored in
-   * `state`.*/
+  /**
+   * Compute Jacobian data for all time steps.
+   *
+   * @param state state variable containing configurations q for each time
+   * @param contact_jacobian_data jacobian data that we'll set
+   */
   void CalcContactJacobianData(
       const TrajectoryOptimizerState<T>& state,
       typename TrajectoryOptimizerCache<T>::ContactJacobianData*
           contact_jacobian_data) const;
+
+  /**
+   * Compute the mapping from qdot to v, v = N+(q)*qdot, at each time step.
+   *
+   * @param state optimizer state
+   * @param N_plus vector containing N+(q_t) for each time step t.
+   */
+  void CalcNplus(const TrajectoryOptimizerState<T>& state,
+                 std::vector<MatrixX<T>>* N_plus) const;
+
+  /**
+   * Compute partial derivatives of the generalized velocities
+   *
+   *    v_t = N+(q_t) * (q_t - q_{t-1}) / dt
+   *
+   * and store them in the given VelocityPartials struct.
+   *
+   * @param q sequence of generalized positions
+   * @param v_partials struct for holding dv/dq
+   */
+  void CalcVelocityPartials(const TrajectoryOptimizerState<T>& state,
+                            VelocityPartials<T>* v_partials) const;
 
   /**
    * Compute partial derivatives of the inverse dynamics
@@ -452,53 +621,71 @@ class TrajectoryOptimizer {
    *
    * and store them in the given InverseDynamicsPartials struct.
    *
-   * @param q sequence of generalized positions
-   * @param v sequence of generalized velocities (computed from q)
-   * @param a sequence of generalized accelerations (computed from q)
-   * @param tau sequence of generalized forces (computed from q)
-   * @param workspace scratch space for intermediate computations
+   * @param state state variable containing q for each timestep
    * @param id_partials struct for holding dtau/dq
    */
   void CalcInverseDynamicsPartials(
-      const std::vector<VectorX<T>>& q, const std::vector<VectorX<T>>& v,
-      const std::vector<VectorX<T>>& a, const std::vector<VectorX<T>>& tau,
-      TrajectoryOptimizerWorkspace<T>* workspace,
+      const TrajectoryOptimizerState<T>& state,
       InverseDynamicsPartials<T>* id_partials) const;
-
-  /**
-   * Compute partial derivatives of the generalized velocities
-   *
-   *    v_t = N+(q_t) * (q_t - q_{t-1}) / dt
-   *
-   * and store them in the given VelocityPartials struct
-   *
-   * @param q sequence of generalized positions
-   * @param v_partials struct for holding dv/dq
-   */
-  void CalcVelocityPartials(const std::vector<VectorX<T>>& q,
-                            VelocityPartials<T>* v_partials) const;
 
   /**
    * Compute partial derivatives of the inverse dynamics
    *
    *    tau_t = ID(q_{t-1}, q_t, q_{t+1})
    *
-   * using finite differences.
+   * using forward finite differences.
    *
-   * For testing purposes only - this is very inefficient.
-   *
-   * @param q sequence of generalized positions
-   * @param v sequence of generalized velocities (computed from q)
-   * @param a sequence of generalized accelerations (computed from q)
-   * @param tau sequence of generalized forces (computed from q)
-   * @param workspace scratch space for intermediate computations
+   * @param state state variable storing q, v, tau, etc.
    * @param id_partials struct for holding dtau/dq
    */
   void CalcInverseDynamicsPartialsFiniteDiff(
-      const std::vector<VectorX<T>>& q, const std::vector<VectorX<T>>& v,
-      const std::vector<VectorX<T>>& a, const std::vector<VectorX<T>>& tau,
-      TrajectoryOptimizerWorkspace<T>* workspace,
+      const TrajectoryOptimizerState<T>& state,
       InverseDynamicsPartials<T>* id_partials) const;
+
+  /**
+   * Compute partial derivatives of the inverse dynamics
+   *
+   *    tau_t = ID(q_{t-1}, q_t, q_{t+1})
+   *
+   * exactly using central differences.
+   *
+   * Uses second order or 4th order central differences, depending on
+   * the value of params_.gradients_method.
+   *
+   * @param state state variable storing q, v, tau, etc.
+   * @param id_partials struct for holding dtau/dq
+   */
+  void CalcInverseDynamicsPartialsCentralDiff(
+      const TrajectoryOptimizerState<T>& state,
+      InverseDynamicsPartials<T>* id_partials) const;
+
+  /**
+   * Helper to compute derivatives of tau[t-1], tau[t] and tau[t+1] w.r.t. q[t]
+   * for central differences.
+   *
+   * @param t the timestep under consideration
+   * @param state state variable storing q, v, tau, etc
+   * @param dtaum_dqt ∂τₜ₋₁/∂qₜ
+   * @param dtaut_dqt ∂τₜ/∂qₜ
+   * @param dtaup_dqt ∂τₜ₊₁/∂qₜ
+   */
+  void CalcInverseDynamicsPartialsWrtQtCentralDiff(
+      int t, const TrajectoryOptimizerState<T>& state, MatrixX<T>* dtaum_dqt,
+      MatrixX<T>* dtaut_dqt, MatrixX<T>* dtaup_dqt) const;
+
+  /**
+   * Compute partial derivatives of the inverse dynamics
+   *
+   *    tau_t = ID(q_{t-1}, q_t, q_{t+1})
+   *
+   * exactly using autodiff.
+   *
+   * @param state state variable storing q, v, tau, etc.
+   * @param id_partials struct for holding dtau/dq
+   */
+  void CalcInverseDynamicsPartialsAutoDiff(
+      const TrajectoryOptimizerState<double>& state,
+      InverseDynamicsPartials<double>* id_partials) const;
 
   /**
    * Compute the gradient of the unconstrained cost L(q) using finite
@@ -599,12 +786,14 @@ class TrajectoryOptimizer {
    * @param state the optimizer state, containing q and the ability to compute
    * g(q) and H(q)
    * @param Delta the trust region size
-   * @param dq  the dogleg step (change in decision variables)
+   * @param dq the dogleg step (change in decision variables)
+   * @param dqH the Newton step
    * @return true if the step intersects the trust region
    * @return false if the step is in the interior of the trust region
    */
   bool CalcDoglegPoint(const TrajectoryOptimizerState<T>& state,
-                       const double Delta, VectorX<T>* dq) const;
+                       const double Delta, VectorX<T>* dq,
+                       VectorX<T>* dqH) const;
 
   /**
    * Solve the scalar quadratic equation
@@ -613,7 +802,7 @@ class TrajectoryOptimizer {
    *
    * for the positive root. This problem arises from finding the intersection
    * between the trust region and the second leg of the dogleg path. Provided we
-   * have properly checked that the trust region does intersect this seconds
+   * have properly checked that the trust region does intersect this second
    * leg, this quadratic equation has some special properties:
    *
    *     - a is strictly positive
@@ -626,6 +815,10 @@ class TrajectoryOptimizer {
    * @return T the positive root
    */
   T SolveDoglegQuadratic(const T& a, const T& b, const T& c) const;
+
+  ConvergenceReason VerifyConvergenceCriteria(
+      const TrajectoryOptimizerState<T>& state, const T& previous_cost,
+      const VectorX<T>& dq) const;
 
   /**
    * Save the cost L(q) for a variety of values of q so that we can make a
@@ -703,9 +896,12 @@ class TrajectoryOptimizer {
 
   // A context corresponding to plant_, to enable dynamics computations. Must be
   // connected to a larger Diagram with a SceneGraph for systems with contact.
+  // Right now only used by CalcInverseDynamicsPartialsFiniteDiff() and
+  // CalcInverseDynamicsPartialsWrtQtCentralDiff().
   Context<T>* context_{nullptr};
 
   // Temporary workaround for when context_ is not provided at construction.
+  // Right now only used by CalcInverseDynamicsPartialsFiniteDiff().
   // TODO(amcastro-tri): Get rid of context_ and owned_context_.
   std::unique_ptr<Context<T>> owned_context_;
 
@@ -718,6 +914,13 @@ class TrajectoryOptimizer {
 
   // Various parameters
   const SolverParameters params_;
+
+  // Autodiff copies of the system diagram, plant model, optimizer state, and a
+  // whole optimizer for computing exact gradients.
+  std::unique_ptr<Diagram<AutoDiffXd>> diagram_ad_;
+  const MultibodyPlant<AutoDiffXd>* plant_ad_;
+  std::unique_ptr<TrajectoryOptimizer<AutoDiffXd>> optimizer_ad_;
+  std::unique_ptr<TrajectoryOptimizerState<AutoDiffXd>> state_ad_;
 };
 
 // Declare template specializations
@@ -731,7 +934,7 @@ template <>
 SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
     TrajectoryOptimizerState<double>*, TrajectoryOptimizerState<double>*,
     const std::vector<VectorXd>&, TrajectoryOptimizerSolution<double>*,
-    TrajectoryOptimizerStats<double>*) const;
+    TrajectoryOptimizerStats<double>*, ConvergenceReason*) const;
 
 }  // namespace traj_opt
 }  // namespace drake

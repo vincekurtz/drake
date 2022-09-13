@@ -14,8 +14,9 @@ using multibody::Parser;
 class AcrobotExample : public TrajOptExample {
   void CreatePlantModel(MultibodyPlant<double>* plant) const {
     const std::string urdf_file =
-        FindResourceOrThrow("drake/examples/acrobot/Acrobot.urdf");
+        FindResourceOrThrow("drake/examples/acrobot/Acrobot_no_collision.urdf");
     Parser(plant).AddAllModelsFromFile(urdf_file);
+    plant->WeldFrames(plant->world_frame(), plant->GetFrameByName("base_link"));
   }
 };
 

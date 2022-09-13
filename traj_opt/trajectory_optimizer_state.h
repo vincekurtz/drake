@@ -44,7 +44,8 @@ struct TrajectoryOptimizerCache {
         hessian(num_steps + 1, nq) {
     trajectory_data.v.assign(num_steps + 1, VectorX<T>(nv));
     trajectory_data.a.assign(num_steps, VectorX<T>(nv));
-    trajectory_data.tau.assign(num_steps, VectorX<T>(nv));
+    inverse_dynamics_cache.tau.assign(num_steps, VectorX<T>(nv));
+    N_plus.assign(num_steps+1, MatrixX<T>::Zero(nv, nq));
     // TODO(amcastro-tri): We could allocate contact_jacobian_data here if we
     // knew the number of contacts. For now, we'll defer the allocation to a
     // later stage when the number of contacts is available.
@@ -98,12 +99,16 @@ struct TrajectoryOptimizerCache {
     // [a(0), a(1), ..., a(num_steps-1)]
     std::vector<VectorX<T>> a;
 
+    bool up_to_date{false};
+  } trajectory_data;
+
+  struct InverseDynamicsCache {
     // Generalized forces at each timestep
     // [tau(0), tau(1), ..., tau(num_steps-1)]
     std::vector<VectorX<T>> tau;
 
     bool up_to_date{false};
-  } trajectory_data;
+  } inverse_dynamics_cache;
 
   struct SdfData {
     // sdf_pairs[t], with t=0 to num_steps-1, stores the contact pairs for the
@@ -125,6 +130,10 @@ struct TrajectoryOptimizerCache {
     std::vector<MatrixX<T>> J;
     bool up_to_date{false};
   } contact_jacobian_data;
+
+  // The mapping from qdot to v, v = N+(q)*qdot, at each time step
+  std::vector<MatrixX<T>> N_plus;
+  bool n_plus_up_to_date{false};
 
   // Data used to construct the gradient ∇L and Hessian ∇²L approximation
   struct DerivativesData {
@@ -183,7 +192,15 @@ struct ProximalOperatorData {
 template <typename T>
 class TrajectoryOptimizerState {
  public:
-  DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(TrajectoryOptimizerState);
+  // Not copyable.
+  TrajectoryOptimizerState(const TrajectoryOptimizerState<T>&) = delete;
+  void operator=(const TrajectoryOptimizerState<T>&) = delete;
+
+  // We do allow to move it.
+  TrajectoryOptimizerState(TrajectoryOptimizerState<T>&&) = default;
+  TrajectoryOptimizerState<T>& operator=(TrajectoryOptimizerState<T>&&) =
+      default;
+
   /**
    * Constructor which allocates things of the proper sizes.
    *
@@ -272,6 +289,16 @@ class TrajectoryOptimizerState {
     invalidate_cache();
   }
 
+  // Norm of the q vector for all trajectories.
+  T norm() const {
+    using std::sqrt;
+    T squared_norm = 0.0;
+    for (int t = 0; t <= num_steps_; ++t) {
+      squared_norm += q_[t].squaredNorm();
+    }
+    return sqrt(squared_norm);
+  }
+
   /**
    * Getter for the cache, containing other values computed from q, such as
    * generalized velocities, forces, and various dynamics derivatives.
@@ -326,11 +353,15 @@ class TrajectoryOptimizerState {
   // Set all the cache invalidation flags to false
   void invalidate_cache() {
     cache_.trajectory_data.up_to_date = false;
+    cache_.inverse_dynamics_cache.up_to_date = false;
     cache_.derivatives_data.up_to_date = false;
     cache_.cost_up_to_date = false;
     cache_.gradient_up_to_date = false;
     cache_.hessian_up_to_date = false;
     cache_.contact_jacobian_data.up_to_date = false;
+    if (cache_.context_cache) cache_.context_cache->up_to_date = false;
+    cache_.sdf_data.up_to_date = false;
+    cache_.n_plus_up_to_date = false;
   }
 
   // Augmented Lagrangian parameters

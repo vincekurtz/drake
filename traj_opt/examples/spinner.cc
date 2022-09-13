@@ -1,4 +1,7 @@
+#include <iostream>
+
 #include "drake/common/find_resource.h"
+#include "drake/common/profiler.h"
 #include "drake/multibody/parsing/parser.h"
 #include "drake/multibody/plant/multibody_plant.h"
 #include "drake/traj_opt/examples/example_base.h"

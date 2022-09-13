@@ -860,6 +860,11 @@ class TestPlant(unittest.TestCase):
             context=context, model_instances=[instance])
         self.assertTupleEqual(p_com.shape, (3, ))
 
+        M_WWo_W = plant.CalcSpatialInertia(
+            context=context, frame_F=world_frame,
+            body_indexes=[BodyIndex(0)])
+        self.assertIsInstance(M_WWo_W, SpatialInertia_[T])
+
         nq = plant.num_positions()
         nv = plant.num_velocities()
         wrt_list = [
@@ -978,7 +983,7 @@ class TestPlant(unittest.TestCase):
         file_name = FindResourceOrThrow(
             "drake/multibody/benchmarks/acrobot/acrobot.sdf")
         # N.B. `Parser` only supports `MultibodyPlant_[float]`.
-        Parser(plant_f).AddModelFromFile(file_name)
+        instance = Parser(plant_f).AddModelFromFile(file_name)
         plant_f.Finalize()
         plant = to_type(plant_f, T)
         context = plant.CreateDefaultContext()
@@ -1043,6 +1048,10 @@ class TestPlant(unittest.TestCase):
         plant.SetPositionsAndVelocities(context, x0)
         numpy_compare.assert_float_allclose(
             plant.GetPositionsAndVelocities(context), x0)
+
+        # Test SetDefaultPositions
+        plant.SetDefaultPositions(q=q0)
+        plant.SetDefaultPositions(model_instance=instance, q_instance=q0)
 
         # Test existence of context resetting methods.
         plant.SetDefaultState(context, state=context.get_mutable_state())
