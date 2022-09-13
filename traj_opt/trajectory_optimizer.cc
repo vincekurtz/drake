@@ -2534,6 +2534,8 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
   // Initialize the status and the seed
   SolverFlag status = SolverFlag::kSuccess;
   auto q_init = q_guess;
+  // Reserve storage for major iteration times
+  stats->major_iteration_times.reserve(params_.max_major_iterations);
   // Allocate a state variable to keep track of optimization
   TrajectoryOptimizerState<double> state = CreateState();
   // Allocate a separate state variable for linesearch/trust-region computations
