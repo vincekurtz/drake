@@ -58,9 +58,9 @@ ax[3,0].set_ylabel("$||g||$")
 ax[3,0].set_yscale("log")
 
 # subplot 4,0 is blank for now
-ax[4,0].set_visible(False)
-plt.setp(ax[3,0].get_xticklabels(),visible=True)
-ax[3,0].xaxis.set_tick_params(which='both', labelbottom=True)
+ax[4,0].plot(iters, -data["dL_dq"])
+ax[4,0].set_ylabel("|$g' \Delta q| / cost$")
+ax[4,0].set_yscale("log")
 
 ax[0,1].plot(iters, data["cost"] - data["cost"][-1])
 ax[0,1].set_ylabel("Cost (minus baseline)")
