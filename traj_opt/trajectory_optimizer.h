@@ -195,8 +195,21 @@ class TrajectoryOptimizer {
                    TrajectoryOptimizerStats<T>* stats,
                    ConvergenceReason* reason = nullptr) const;
 
-  // Evaluator functions to get data from the state's cache, and update it if
-  // necessary.
+  // The following evaluator functions get data from the state's cache, and
+  // update it if necessary.
+
+  /**
+   * Evaluate generalized velocities
+   *
+   *    v_t = (q_t - q_{t-1}) / dt
+   *
+   * at each timestep t, t = [0, ..., num_steps()],
+   *
+   * where v_0 is fixed by the initial condition.
+   *
+   * @param state optimizer state
+   * @return const std::vector<VectorX<T>>& v_t
+   */
   const std::vector<VectorX<T>>& EvalV(
       const TrajectoryOptimizerState<T>& state) const;
 
