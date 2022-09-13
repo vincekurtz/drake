@@ -20,9 +20,9 @@ import sys
 drake_root = os.getcwd()
 
 # Bazel stores files in strange places
-data_file1 = drake_root + f"/bazel-out/k8-opt/bin/traj_opt/examples/spinner.runfiles/drake/solver_stats_1.csv"
-data_file2 = drake_root + f"/bazel-out/k8-opt/bin/traj_opt/examples/spinner.runfiles/drake/solver_stats_2.csv"
-data_file3 = drake_root + f"/bazel-out/k8-opt/bin/traj_opt/examples/spinner.runfiles/drake/solver_stats_3.csv"
+data_file1 = drake_root + f"/bazel-out/k8-opt/bin/traj_opt/examples/hopper.runfiles/drake/solver_stats_1.csv"
+data_file2 = drake_root + f"/bazel-out/k8-opt/bin/traj_opt/examples/hopper.runfiles/drake/solver_stats_2.csv"
+data_file3 = drake_root + f"/bazel-out/k8-opt/bin/traj_opt/examples/hopper.runfiles/drake/solver_stats_3.csv"
 
 # Read data from the file and format nicely
 data1 = np.genfromtxt(data_file1, delimiter=',', names=True)
@@ -38,7 +38,7 @@ plt.subplots_adjust(left=0.14,
                     wspace=0.1,
                     hspace=0.1)
 
-fig.suptitle(f"Spinner Convergence\n$F=1N$, $\delta=1cm$, $v_s = 0.01m/s$")
+fig.suptitle(f"Hopper Convergence\n$F=10N$, $\delta=1cm$, $v_s = 0.1m/s$")
 
 ax[0].plot(data1["iter"], data1["cost"], label="autodiff")
 ax[0].plot(data2["iter"], data2["cost"], label="central differences")
