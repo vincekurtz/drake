@@ -38,13 +38,15 @@ plt.subplots_adjust(left=0.14,
                     wspace=0.1,
                     hspace=0.1)
 
-fig.suptitle(f"Spinner Convergence from Different Initial Conditions\n$F=1N$, $\delta=1cm$, $v_s = 0.05m/s$")
+fig.suptitle(f"Spinner Convergence\n$F=1N$, $\delta=1cm$, $v_s = 0.01m/s$")
 
-ax[0].plot(data1["iter"], data1["cost"])
-ax[0].plot(data2["iter"], data2["cost"])
-ax[0].plot(data3["iter"], data3["cost"])
+ax[0].plot(data1["iter"], data1["cost"], label="autodiff")
+ax[0].plot(data2["iter"], data2["cost"], label="central differences")
+ax[0].plot(data3["iter"], data3["cost"], label="forward differences")
 ax[0].set_ylabel("Cost")
 ax[0].set_yscale("log")
+
+ax[0].legend()
 
 ax[1].plot(data1["iter"], -data1["dL_dq"])
 ax[1].plot(data2["iter"], -data2["dL_dq"])
