@@ -187,15 +187,8 @@ GTEST_TEST(PentaDiagonalMatrixTest, SolvePentaDiagonal) {
   const int num_blocks = 3;
   const int size = num_blocks * block_size;
   // Generate an SPD matrix.
-  //const MatrixXd A = MatrixXd::Random(size, size);
-  //const MatrixXd P = MatrixXd::Identity(size, size) + A * A.transpose();
-  MatrixXd P(size, size);
-  P <<     1,            0,            0,            0,            0,            0,
-           0,            1,            0,            0,            0,            0,
-           0,            0,  1.74177e+09,  8.69777e+08, -6.87778e+08, -3.44226e+08,
-           0,            0,  8.69777e+08,  4.34347e+08, -3.43484e+08, -1.71913e+08,
-           0,            0, -6.87778e+08, -3.43484e+08,  3.39555e+08,  1.69944e+08,
-           0,            0, -3.44226e+08, -1.71913e+08,  1.69944e+08,  8.50673e+07;
+  const MatrixXd A = 1e4 * MatrixXd::Random(size, size);
+  const MatrixXd P = MatrixXd::Identity(size, size) + A * A.transpose();
 
   // Generate a penta-diagonal SPD matrix. Ignore off-diagonal elements of
   // Hdense outside the 5-diagonal band.
@@ -204,16 +197,9 @@ GTEST_TEST(PentaDiagonalMatrixTest, SolvePentaDiagonal) {
                                                                block_size);
   const MatrixXd Hdense = H.MakeDense();
 
-  std::cout << "H: \n";
-  std::cout << Hdense << std::endl;
-
   PentaDiagonalFactorization Hchol(H);
   EXPECT_EQ(Hchol.status(), PentaDiagonalFactorizationStatus::kSuccess);
-  //const VectorXd b = VectorXd::LinSpaced(size, -3, 12.4);
-  VectorXd b(size);
-  b << -0,          -0, -5.51051e+08, -2.75069e+08,      -580552,      -289916;
-
-  std::cout << "b: " << b.transpose() << std::endl;;
+  const VectorXd b = 1e8 * VectorXd::LinSpaced(size, -3, 12.4);
 
   VectorXd x = b;
   Hchol.SolveInPlace(&x);
