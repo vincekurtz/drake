@@ -1945,13 +1945,12 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
 
   const VectorXd pH_gt = H.MakeDense().ldlt().solve(- g / Delta);
   const VectorXd pH_err = pH - pH_gt;
-  std::cout << "H : \n";
-  std::cout << H.MakeDense() << std::endl;
-  std::cout << "(-g/Delta) : \n";
-  std::cout << -g.transpose()/Delta << std::endl;
+  //std::cout << "H : \n";
+  //std::cout << H.MakeDense() << std::endl;
+  //std::cout << "(-g/Delta) : \n";
+  //std::cout << -g.transpose()/Delta << std::endl;
   std::cout << "pH_err : " << pH_err.norm() << std::endl;
   std::cout << std::endl;
-  //*dqH = pH * Delta;
 
   // Compute the unconstrained minimizer of m(δq) = L(q) + g(q)'*δq + 1/2
   // δq'*H(q)*δq along -g
