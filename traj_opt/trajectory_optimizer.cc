@@ -2261,6 +2261,13 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
     // Obtain the candiate update dq
     tr_constraint_active = CalcDoglegPoint(state, Delta, &dq, &dqH);
 
+    // DEBUG: save hessian to a file so we can plot its sparsity pattern
+    //std::ofstream data_file;
+    //data_file.open("hessian.csv");
+    //const MatrixXd Hdense = EvalHessian(state).MakeDense();
+    //data_file << Hdense;
+    //data_file.close();
+
     // Verify that dq is a descent direction
     const VectorXd& g = EvalGradient(state);
     DRAKE_DEMAND(dq.transpose() * g < 0);
@@ -2276,26 +2283,6 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
     if (params_.save_lineplot_data) {
       SaveIterationData(k, Delta, rho, dq(1), state);
     }
-
-    // If the ratio is large enough, accept the change
-    if (rho > eta) {
-      // Update the coefficients for the proximal operator cost
-      if (params_.proximal_operator) {
-        state.set_proximal_operator_data(state.q(), EvalHessian(state));
-        scratch_state.set_proximal_operator_data(state.q(), EvalHessian(state));
-      }
-
-      state.AddToQ(dq);  // q += dq
-    }
-    // Else (rho <= eta), the trust region ratio is too small to accept dq, so
-    // we'll need to so keep reducing the trust region. Note that the trust
-    // region will be reduced in this case, since eta < 0.25.
-
-    // N.B. if this is the case (q_{k+1} = q_k), we haven't touched state, so we
-    // should be reusing the cached gradient and Hessian in the next iteration.
-    // TODO(vincekurtz): should we be caching the factorization of the Hessian,
-    // as well as the Hessian itself?
-
     // Compute iteration timing
     // N.B. this is in kind of a weird place because we want to record
     // statistics before updating the trust-region size. That ensures that
@@ -2347,6 +2334,26 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
     if (reason != ConvergenceReason::kNoConvergenceCriteriaSatisfied) {
       break;
     }
+
+    // If the ratio is large enough, accept the change
+    if (rho > eta) {
+      // Update the coefficients for the proximal operator cost
+      if (params_.proximal_operator) {
+        state.set_proximal_operator_data(state.q(), EvalHessian(state));
+        scratch_state.set_proximal_operator_data(state.q(), EvalHessian(state));
+      }
+
+      state.AddToQ(dq);  // q += dq
+    }
+    // Else (rho <= eta), the trust region ratio is too small to accept dq, so
+    // we'll need to so keep reducing the trust region. Note that the trust
+    // region will be reduced in this case, since eta < 0.25.
+
+    // N.B. if this is the case (q_{k+1} = q_k), we haven't touched state, so we
+    // should be reusing the cached gradient and Hessian in the next iteration.
+    // TODO(vincekurtz): should we be caching the factorization of the Hessian,
+    // as well as the Hessian itself?
+
 
     // Update the size of the trust-region, if necessary
     if (rho < 0.25) {

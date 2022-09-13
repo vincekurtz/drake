@@ -20,24 +20,38 @@ import sys
 drake_root = os.getcwd()
 
 # Bazel stores files in strange places
-data_file = drake_root + f"/bazel-out/k8-opt/bin/traj_opt/examples/spinner.runfiles/drake/solver_stats.csv"
+data_file1 = drake_root + f"/bazel-out/k8-opt/bin/traj_opt/examples/spinner.runfiles/drake/solver_stats_1.csv"
+data_file2 = drake_root + f"/bazel-out/k8-opt/bin/traj_opt/examples/spinner.runfiles/drake/solver_stats_2.csv"
+data_file3 = drake_root + f"/bazel-out/k8-opt/bin/traj_opt/examples/spinner.runfiles/drake/solver_stats_3.csv"
 
 # Read data from the file and format nicely
-data = np.genfromtxt(data_file, delimiter=',', names=True)
-iters = data["iter"]
+data1 = np.genfromtxt(data_file1, delimiter=',', names=True)
+data2 = np.genfromtxt(data_file2, delimiter=',', names=True)
+data3 = np.genfromtxt(data_file3, delimiter=',', names=True)
 
 # Make plots
 fig, ax = plt.subplots(2,1,sharex=True,figsize=(6,6))
+plt.subplots_adjust(left=0.14,
+                    bottom=0.08,
+                    right=0.98,
+                    top=0.94,
+                    wspace=0.1,
+                    hspace=0.1)
 
-#fig.suptitle(f"spinner convergence data")
+fig.suptitle(f"Spinner Convergence from Different Initial Conditions")
 
-ax[0].plot(iters, data["cost"])
+ax[0].plot(data1["iter"], data1["cost"])
+ax[0].plot(data2["iter"], data2["cost"])
+ax[0].plot(data3["iter"], data3["cost"])
 ax[0].set_ylabel("Cost")
 ax[0].set_yscale("log")
 
-ax[1].plot(iters, -data["dL_dq"])
+ax[1].plot(data1["iter"], -data1["dL_dq"])
+ax[1].plot(data2["iter"], -data2["dL_dq"])
+ax[1].plot(data3["iter"], -data3["dL_dq"])
 ax[1].set_ylabel(r"Gradient ($\frac{|g' \Delta q|}{cost}$)")
 ax[1].set_yscale("log")
+ax[1].set_ylim(1e-16,1e1)
 
 ax[1].set_xlabel("Iteration")
 
