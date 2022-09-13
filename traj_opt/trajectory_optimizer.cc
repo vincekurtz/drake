@@ -1936,14 +1936,22 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
   // TODO(amcastro-tri): move this to after pU whenever we make the cost of
   // gradients computation negligible.
   VectorXd& pH = state.workspace.q_size_tmp2;
-  //pH = -g / Delta;  // normalize by Δ
-  //PentaDiagonalFactorization Hchol(H);
-  //DRAKE_DEMAND(Hchol.status() == PentaDiagonalFactorizationStatus::kSuccess);
-  //Hchol.SolveInPlace(&pH);
-  //*dqH = pH * Delta;
-
-  pH = H.MakeDense().inverse() * (- g / Delta);
+  pH = -g / Delta;  // normalize by Δ
+  PentaDiagonalFactorization Hchol(H);
+  DRAKE_DEMAND(Hchol.status() == PentaDiagonalFactorizationStatus::kSuccess);
+  Hchol.SolveInPlace(&pH);
   *dqH = pH * Delta;
+
+
+  const VectorXd pH_gt = H.MakeDense().ldlt().solve(- g / Delta);
+  const VectorXd pH_err = pH - pH_gt;
+  std::cout << "H : \n";
+  std::cout << H.MakeDense() << std::endl;
+  std::cout << "(-g/Delta) : \n";
+  std::cout << -g.transpose()/Delta << std::endl;
+  std::cout << "pH_err : " << pH_err.norm() << std::endl;
+  std::cout << std::endl;
+  //*dqH = pH * Delta;
 
   // Compute the unconstrained minimizer of m(δq) = L(q) + g(q)'*δq + 1/2
   // δq'*H(q)*δq along -g
