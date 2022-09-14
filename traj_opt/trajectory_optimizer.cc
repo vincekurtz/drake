@@ -1943,13 +1943,13 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
   DRAKE_DEMAND(Hchol.status() == PentaDiagonalFactorizationStatus::kSuccess);
   Hchol.SolveInPlace(&pH_sparse);
 
-  std::cout << "H :\n";
-  std::cout << H.MakeDense() << std::endl;
-  std::cout << std::endl;
-  std::cout << "g : " << g.transpose()/Delta << std::endl;
-  std::cout << std::endl;
+  //std::cout << "H :\n";
+  //std::cout << H.MakeDense() << std::endl;
+  //std::cout << std::endl;
+  //std::cout << "g : " << g.transpose()/Delta << std::endl;
+  //std::cout << std::endl;
 
-  std::cout << "error: " << (pH - pH_sparse).norm() << std::endl;
+  std::cout << "sparse vs dense error: " << (pH - pH_sparse).norm() << std::endl;
 
   // Compute the unconstrained minimizer of m(δq) = L(q) + g(q)'*δq + 1/2
   // δq'*H(q)*δq along -g
