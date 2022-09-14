@@ -2278,7 +2278,7 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithLinesearch(
   stats->major_iteration_times.push_back(solve_time.count());
 
   // Record the number of iterations
-  stats->num_minor_iterations.push_back(k);
+  stats->num_minor_iterations.push_back(k + 1);
 
   // Record the solution
   solution->q = state->q();
@@ -2468,7 +2468,7 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
   stats->major_iteration_times.push_back(solve_time.count());
 
   // Record the number of iterations
-  stats->num_minor_iterations.push_back(k);
+  stats->num_minor_iterations.push_back(k + 1);
 
   // Record the solution
   solution->q = state->q();
