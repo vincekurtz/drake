@@ -55,10 +55,19 @@ void TrajOptExample::SolveTrajectoryOptimization(
       for (int i = 0; i < static_cast<int>(stats.major_iteration_times.size());
            ++i) {
         std::cout << "Major iteration " << i << " was solved in "
-                  << stats.major_iteration_times[i] << " seconds.\n";
+                  << stats.major_iteration_times[i] << " s and in "
+                  << stats.num_minor_iterations[i]
+                  << " minor iterations.\n\tmax. violation: "
+                  << stats.max_unactuation_violations[i]
+                  << "\n\tconvergence reason: "
+                  << DecodeConvergenceReasons(
+                         stats.major_convergence_reasons[i])
+                  << std::endl;
       }
     }
-    std::cout << "Solved in " << stats.solve_time << " seconds." << std::endl;
+    std::cout << "Solved in " << stats.solve_time << " s and "
+              << static_cast<int>(stats.iteration_times.size())
+              << " Gauss-Newton iterations." << std::endl;
   } else if (status == SolverFlag::kMaxIterationsReached) {
     std::cout << "Maximum iterations reached in " << stats.solve_time
               << " seconds." << std::endl;
@@ -66,8 +75,9 @@ void TrajOptExample::SolveTrajectoryOptimization(
     std::cout << "Solver failed!" << std::endl;
   }
 
-  std::cout << "Convergence reason: "
-            << DecodeConvergenceReasons(reason) + ".\n";
+  if (!options.augmented_lagrangian)
+    std::cout << "Convergence reason: "
+              << DecodeConvergenceReasons(reason) + ".\n";
 
   // Report maximum torques on all DoFs
   VectorXd tau_max = VectorXd::Zero(nv);
@@ -168,9 +178,9 @@ void TrajOptExample::PlayBackTrajectory(const std::vector<VectorXd>& q,
   }
 }
 
-void TrajOptExample::SetProblemDefinition(const TrajOptExampleParams& options,
-                                          ProblemDefinition* opt_prob,
-                                          const MultibodyPlant<double>& plant) const {
+void TrajOptExample::SetProblemDefinition(
+    const TrajOptExampleParams& options, ProblemDefinition* opt_prob,
+    const MultibodyPlant<double>& plant) const {
   opt_prob->num_steps = options.num_steps;
 
   // Initial state
@@ -267,6 +277,9 @@ void TrajOptExample::SetSolverParameters(
   }
   solver_params->update_init_guess = options.update_init_guess;
   solver_params->max_major_iterations = options.max_major_iterations;
+  if (!options.augmented_lagrangian) {
+    solver_params->max_major_iterations = 1;
+  }
   solver_params->lambda0 = options.lambda0;
   solver_params->mu0 = options.mu0;
   solver_params->mu_expand_coef = options.mu_expand_coef;
