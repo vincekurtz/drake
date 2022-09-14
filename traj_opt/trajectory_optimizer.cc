@@ -255,6 +255,8 @@ void TrajectoryOptimizer<T>::CalcContactForceContribution(
   using std::max;
   using std::pow;
   using std::sqrt;
+  using std::log;
+  using std::exp;
 
   // Compliant contact parameters. stiffness_exponent = 3/2 corresponds to Hertz
   // model for spherical contact. stiffness_exponent = 1.0 corresponds to a
@@ -262,6 +264,7 @@ void TrajectoryOptimizer<T>::CalcContactForceContribution(
   const double F = params_.F;
   const double delta = params_.delta;
   const double stiffness_exponent = params_.stiffness_exponent;
+  const double smoothing_factor = params_.smoothing_factor;
 
   // (Normal) Dissipation. dissipation_exponent = 1.0 corresponds to the Hunt &
   // Crossley model of dissipation.
@@ -283,8 +286,9 @@ void TrajectoryOptimizer<T>::CalcContactForceContribution(
       query_object.inspector();
 
   for (const SignedDistancePair<T>& pair : signed_distance_pairs) {
-    // Don't do any contact force computations if we're not in contact
-    if (pair.distance < 0) {
+    // Don't do any contact force computations if we're not in contact, unless
+    // we're using a contact model that allows force at a distance.
+    if ((params_.force_at_a_distance) || (pair.distance < 0)) {
       // Normal outwards from A.
       const Vector3<T> nhat = -pair.nhat_BA_W;
 
@@ -347,8 +351,20 @@ void TrajectoryOptimizer<T>::CalcContactForceContribution(
       const T dissipation_factor = max(
           0.0, 1.0 - pow(abs(vn / dissipation_velocity), dissipation_exponent) *
                          sign_vn);
-      const T compliant_fn =
-          F * pow(-pair.distance / delta, stiffness_exponent);
+
+      T compliant_fn;
+      if (params_.force_at_a_distance) {
+        if (smoothing_factor * pair.distance < -100) {
+          // If the exponent is going to be very large, replace with the
+          // functional limit as smoothing_factor goes to infinity.
+          compliant_fn = -F / delta * pair.distance;
+        } else {
+          compliant_fn = F / delta / smoothing_factor *
+                        log(1 + exp(-smoothing_factor * pair.distance));
+        }
+      } else {
+        compliant_fn = F * pow(-pair.distance / delta, stiffness_exponent);
+      }
       const T fn = compliant_fn * dissipation_factor;
 
       // Tangential frictional component.
@@ -1915,10 +1931,15 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
   // TODO(amcastro-tri): move this to after pU whenever we make the cost of
   // gradients computation negligible.
   VectorXd& pH = state.workspace.q_size_tmp2;
-  pH = -g / Delta;  // normalize by Δ
-  PentaDiagonalFactorization Hchol(H);
-  DRAKE_DEMAND(Hchol.status() == PentaDiagonalFactorizationStatus::kSuccess);
-  Hchol.SolveInPlace(&pH);
+
+  // Use dense algebra rather than our pentadiagonal solver to avoid a bug that
+  // results in dq'g > 0 (search direction is not descent direction.)
+  // TODO(vincekurtz): debug the sparse solver and use sparse algebra again.
+  pH = H.MakeDense().ldlt().solve(-g / Delta);
+  // pH = -g / Delta;  // normalize by Δ
+  // PentaDiagonalFactorization Hchol(H);
+  // DRAKE_DEMAND(Hchol.status() == PentaDiagonalFactorizationStatus::kSuccess);
+  // Hchol.SolveInPlace(&pH);
   *dqH = pH * Delta;
 
   // Compute the unconstrained minimizer of m(δq) = L(q) + g(q)'*δq + 1/2
@@ -2240,6 +2261,10 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
     // Obtain the candiate update dq
     tr_constraint_active = CalcDoglegPoint(state, Delta, &dq, &dqH);
 
+    // Verify that dq is a descent direction
+    const VectorXd& g = EvalGradient(state);
+    DRAKE_DEMAND(dq.transpose() * g < 0);
+
     // Compute the trust region ratio
     rho = CalcTrustRatio(state, dq, &scratch_state);
 
@@ -2293,7 +2318,6 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
     }
 
     const double cost = EvalCost(state);
-    const VectorXd g = EvalGradient(state);
     const double dL_dqH = g.dot(dqH) / cost;
     const double dL_dq = g.dot(dq) / cost;
 
