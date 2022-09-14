@@ -31,9 +31,6 @@ ls_data = np.genfromtxt(ls_data_file, delimiter=',', names=True)
 ls_wall_clock = np.cumsum(ls_data["time"])
 tr_wall_clock = np.cumsum(tr_data["time"])
 
-plt.figure()
-plt.plot(ls_data["iter"], ls_wall_clock)
-
 # Make plots
 fig, ax = plt.subplots(2,1,sharex=True,figsize=(6,6))
 plt.subplots_adjust(left=0.14,
