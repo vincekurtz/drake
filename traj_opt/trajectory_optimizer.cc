@@ -2277,6 +2277,9 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithLinesearch(
   stats->solve_time += solve_time.count();
   stats->major_iteration_times.push_back(solve_time.count());
 
+  // Record the number of iterations
+  stats->num_minor_iterations.push_back(k);
+
   // Record the solution
   solution->q = state->q();
   solution->v = EvalV(*state);
@@ -2464,6 +2467,9 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
   stats->solve_time += solve_time.count();
   stats->major_iteration_times.push_back(solve_time.count());
 
+  // Record the number of iterations
+  stats->num_minor_iterations.push_back(k);
+
   // Record the solution
   solution->q = state->q();
   solution->v = EvalV(*state);
@@ -2536,8 +2542,6 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
   // Initialize the status and the seed
   SolverFlag status = SolverFlag::kSuccess;
   auto q_init = q_guess;
-  // Reserve storage for major iteration times
-  stats->major_iteration_times.reserve(params_.max_major_iterations);
   // Allocate a state variable to keep track of optimization
   TrajectoryOptimizerState<double> state = CreateState();
   // Allocate a separate state variable for linesearch/trust-region computations
@@ -2575,16 +2579,18 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
 
     // Evaluate the constraint violations
     auto violations = CalcConstraintViolations(solution->tau);
+    auto max_violation = violations.lpNorm<Eigen::Infinity>();
+    stats->max_unactuation_violations.push_back(max_violation);
+
+    // Record the convergence reason for the Gauss-Newton solver
+    stats->major_convergence_reasons.push_back(*reason);
 
     // Report constraint violations
     if (params_.verbose)
-      std::cout << "\nConstraint violations:\n"
-                << violations
-                << "\nMax. violation: " << violations.lpNorm<Eigen::Infinity>()
-                << "\n\n";
+      std::cout << "\nMax. violation: " << max_violation << "\n\n";
 
     // Check for constraint satisfaction w.r.t. a tolerance
-    if (violations.lpNorm<Eigen::Infinity>() < params_.constraint_tol) {
+    if (max_violation < params_.constraint_tol) {
       std::cout << "\nStopping b/c the max. constraint violation "
                 << violations.lpNorm<Eigen::Infinity>()
                 << " is smaller than the constraint satisfaction tolerance "

@@ -63,6 +63,15 @@ struct TrajectoryOptimizerStats {
   // Augmented Lagrangian (major) iteration times
   std::vector<double> major_iteration_times;
 
+  // Constraint violations for major iterations
+  std::vector<double> max_unactuation_violations;
+
+  // Number of minor iterations per major iteration
+  std::vector<int> num_minor_iterations;
+
+  // Convergence reasons for major iterations
+  std::vector<ConvergenceReason> major_convergence_reasons;
+
   // Time for each Gauss-Newton (minor) iteration
   std::vector<double> iteration_times;
 
