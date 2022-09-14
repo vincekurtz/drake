@@ -121,8 +121,9 @@ VectorX<T> TrajectoryOptimizer<T>::CalcConstraintViolations(
     const std::vector<VectorX<T>>& tau) const {
   VectorX<T> violations(num_eq_constraints());
   for (int t = 0; t < num_steps(); ++t) {
-    for (int dof_id : prob_.unactuated_dof) {
-      violations[t * num_unactuated_dof() + dof_id] = tau[t][dof_id];
+    for (int j = 0; j < num_unactuated_dof(); ++j) {
+      violations[t * num_unactuated_dof() + j] =
+          tau[t][prob_.unactuated_dof[j]];
     }
   }
   return violations;
@@ -182,9 +183,10 @@ T TrajectoryOptimizer<T>::CalcCost(
     cost += T(tau[t].transpose() * prob_.R * tau[t]);
     // Augmented Lagrangian component
     if (params_.augmented_lagrangian) {
-      for (int dof_id : prob_.unactuated_dof) {
+      for (int j = 0; j < num_unactuated_dof(); ++j) {
+        int dof_id = prob_.unactuated_dof[j];
         augmented_cost +=
-            -lambda[t * num_unactuated_dof() + dof_id] * T(tau[t][dof_id]) +
+            -lambda[t * num_unactuated_dof() + j] * T(tau[t][dof_id]) +
             mu / 2 * (T(tau[t][dof_id] * tau[t][dof_id]));
       }
     }
@@ -1266,17 +1268,17 @@ void TrajectoryOptimizer<T>::CalcGradient(
 
     // Contribution from the unactuation constraints
     if (params_.augmented_lagrangian) {
-      for (auto dof_id : prob_.unactuated_dof) {
-        taum_term +=
-            (-state.lambda_iter_[(t - 1) * num_unactuated_dof() + dof_id] +
-             state.mu_iter_ * tau[t - 1][dof_id]) *
-            (dt * dtau_dqp[t - 1].row(dof_id));
-        taut_term += (-state.lambda_iter_[t * num_unactuated_dof() + dof_id] +
+      for (int j = 0; j < num_unactuated_dof(); ++j) {
+        int dof_id = prob_.unactuated_dof[j];
+        taum_term += (-state.lambda_iter_[(t - 1) * num_unactuated_dof() + j] +
+                      state.mu_iter_ * tau[t - 1][dof_id]) *
+                     (dt * dtau_dqp[t - 1].row(dof_id));
+        taut_term += (-state.lambda_iter_[t * num_unactuated_dof() + j] +
                       state.mu_iter_ * tau[t][dof_id]) *
                      (dt * dtau_dqt[t].row(dof_id));
         if (t < num_steps() - 1) {
           taup_term +=
-              (-state.lambda_iter_[(t + 1) * num_unactuated_dof() + dof_id] +
+              (-state.lambda_iter_[(t + 1) * num_unactuated_dof() + j] +
                state.mu_iter_ * tau[t + 1][dof_id]) *
               (dt * dtau_dqm[t + 1].row(dof_id));
         }
@@ -1298,10 +1300,10 @@ void TrajectoryOptimizer<T>::CalcGradient(
 
   // Contribution from the unactuation constraints
   if (params_.augmented_lagrangian) {
-    for (auto dof_id : prob_.unactuated_dof) {
+    for (int j = 0; j < num_unactuated_dof(); ++j) {
+      int dof_id = prob_.unactuated_dof[j];
       taum_term +=
-          (-state.lambda_iter_[(num_steps() - 1) * num_unactuated_dof() +
-                               dof_id] +
+          (-state.lambda_iter_[(num_steps() - 1) * num_unactuated_dof() + j] +
            state.mu_iter_ * tau[num_steps() - 1][dof_id]) *
           (dt * dtau_dqp[num_steps() - 1].row(dof_id));
     }
