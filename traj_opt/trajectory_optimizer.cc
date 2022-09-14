@@ -1936,11 +1936,20 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
   // results in dq'g > 0 (search direction is not descent direction.)
   // TODO(vincekurtz): debug the sparse solver and use sparse algebra again.
   pH = H.MakeDense().ldlt().solve(-g / Delta);
-  // pH = -g / Delta;  // normalize by Δ
-  // PentaDiagonalFactorization Hchol(H);
-  // DRAKE_DEMAND(Hchol.status() == PentaDiagonalFactorizationStatus::kSuccess);
-  // Hchol.SolveInPlace(&pH);
   *dqH = pH * Delta;
+
+  VectorXd pH_sparse = -g / Delta;  // normalize by Δ
+  PentaDiagonalFactorization Hchol(H);
+  DRAKE_DEMAND(Hchol.status() == PentaDiagonalFactorizationStatus::kSuccess);
+  Hchol.SolveInPlace(&pH_sparse);
+
+  std::cout << "H :\n";
+  std::cout << H.MakeDense() << std::endl;
+  std::cout << std::endl;
+  std::cout << "g : " << g.transpose()/Delta << std::endl;
+  std::cout << std::endl;
+
+  std::cout << "error: " << (pH - pH_sparse).norm() << std::endl;
 
   // Compute the unconstrained minimizer of m(δq) = L(q) + g(q)'*δq + 1/2
   // δq'*H(q)*δq along -g
