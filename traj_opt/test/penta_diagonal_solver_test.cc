@@ -278,6 +278,65 @@ GTEST_TEST(PentaDiagonalMatrixTest, SolvePentaDiagonal) {
   //    CompareMatrices(x, x_expected, kTolerance, MatrixCompareType::relative));
 }
 
+// Solve H*x = b, where H has a high condition number
+GTEST_TEST(PentaDiagonalMatrixTest, ConditionNumber) {
+  const int block_size = 5;
+  const int num_blocks = 30;
+  const int size = num_blocks * block_size;
+
+
+  std::cout << "Condition number, dense error, sparse error" << std::endl;
+  for (double scale_factor = 1e1; scale_factor < 1e20; scale_factor *= 10) {
+    // Generate a matrix H 
+    const MatrixXd A = 1e4 * MatrixXd::Random(size, size);
+    const MatrixXd P = MatrixXd::Identity(size, size) + A.transpose() * A;
+    PentaDiagonalMatrix<double> H =
+        PentaDiagonalMatrix<double>::MakeSymmetricFromLowerDense(P, num_blocks,
+                                                                block_size);
+    MatrixXd Hdense = H.MakeDense();
+
+    // Modify H so it has the desired condition number
+    Eigen::JacobiSVD<MatrixXd> svd(Hdense,
+                                  Eigen::ComputeThinU | Eigen::ComputeThinV);
+    const MatrixXd U = svd.matrixU();
+    const MatrixXd V = svd.matrixV();
+    VectorXd S = svd.singularValues();
+    const double S_0 = S(0);
+    const double S_end = S(size - 1);
+    S = S_0 *
+        (VectorXd::Ones(size) -
+        ((scale_factor - 1) / scale_factor) * (S_0 * VectorXd::Ones(size) - S) / (S_0 - S_end));
+
+    const MatrixXd H_reconstructed = U * S.asDiagonal() * V.transpose();
+    H = PentaDiagonalMatrix<double>::MakeSymmetricFromLowerDense(
+        H_reconstructed, num_blocks, block_size);
+    Hdense = H.MakeDense();
+
+    // Define a ground truth solution x
+    const VectorXd x_gt = VectorXd::Random(size);
+
+    // Define the vector b
+    const VectorXd b = Hdense * x_gt;
+
+    // Compute x using the Thomas algorithm (sparse)
+    PentaDiagonalFactorization Hchol(H);
+    EXPECT_EQ(Hchol.status(), PentaDiagonalFactorizationStatus::kSuccess);
+    VectorXd x_sparse = b;
+    Hchol.SolveInPlace(&x_sparse);
+
+    // Compute x using LDLT (dense)
+    const VectorXd x_dense = Hdense.ldlt().solve(b);
+
+    // Compare with ground truth
+    const double cond = 1 / Hdense.ldlt().rcond();
+    const double dense_error = (x_gt - x_dense).norm();
+    const double sparse_error = (x_gt - x_sparse).norm();
+    std::cout << fmt::format("{}, {}, {}\n", cond, dense_error, sparse_error);
+  }
+
+
+}
+
 }  // namespace internal
 }  // namespace traj_opt
 }  // namespace drake
