@@ -187,10 +187,7 @@ GTEST_TEST(PentaDiagonalMatrixTest, SolvePentaDiagonal) {
   const int num_blocks = 21;
   const int size = num_blocks * block_size;
 
-  // Flag indicating what sort of data to use. If true, data is generated
-  // randomly. If false, we use some data that we know gives a bad result.
   bool random_H = false;  // we'll solve H*x = b
-  bool random_b = true;
 
   // Generate an SPD matrix.
   MatrixXd P(size, size);
@@ -253,25 +250,20 @@ GTEST_TEST(PentaDiagonalMatrixTest, SolvePentaDiagonal) {
 
   PentaDiagonalFactorization Hchol(H);
   EXPECT_EQ(Hchol.status(), PentaDiagonalFactorizationStatus::kSuccess);
-  VectorXd b(size);
-  if (random_b) {
-    b = 1e5 * VectorXd::LinSpaced(size, -3, 12.4);
-  } else {
-    b << 0, 0, 3.22389e+07, 1.6029e+07, -21376.8, -12513.3, -25942.1, -15612.9,
-        -32007.4, -19183.6, -39799.2, -23287.8, -49254.8, -27876.2, -60012.2,
-        -32784.1, -71431.1, -37740.3, -82645.4, -42389.1, -92641.9, -46321,
-        -100358, -49112.5, -104786, -50368.1, -105080, -49761.9, -100648,
-        -47075.1, -91224.1, -42223.4, -76909.9, -35274.4, -58187.4, -26451.2,
-        -35893, -16120.9, 544036, 272692, 40407.3, 20198.1;
-  }
 
-  VectorXd x = b;
-  Hchol.SolveInPlace(&x);
+  // Compute a ground truth value
+  VectorXd x_gt = VectorXd::LinSpaced(size, -3, 12.4);
+  VectorXd b = Hdense*x_gt;
 
-  // Reference solution computed with Eigen, dense.
-  const VectorXd x_expected = Hdense.ldlt().solve(b);
+  // Solution with ours sparse solver
+  VectorXd x_sparse = b;
+  Hchol.SolveInPlace(&x_sparse);
 
-  std::cout << "error: " << (x_expected - x).norm() << std::endl;
+  // Solution with dense algebra
+  const VectorXd x_dense = Hdense.ldlt().solve(b);
+
+  std::cout << "dense error: " << (x_dense - x_gt).norm() << std::endl;
+  std::cout << "sparse error: " << (x_sparse - x_gt).norm() << std::endl;
 
   //const double kTolerance = std::numeric_limits<double>::epsilon() * size;
   //EXPECT_TRUE(
