@@ -239,31 +239,78 @@ GTEST_TEST(PentaDiagonalMatrixTest, SolvePentaDiagonal) {
             0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,   9.9078e+07,  4.95073e+07, -1.98283e+08, -9.90152e+07,  9.73295e+07,  4.87577e+07;
   }
 
+  // Make sure matrix is SPD.
+  Eigen::JacobiSVD<MatrixXd> svd(P, Eigen::ComputeThinU | Eigen::ComputeThinV);
+  const MatrixXd U = svd.matrixU();
+  const MatrixXd V = svd.matrixV();
+  std::cout << "sigma(P): " << svd.singularValues().transpose()
+            << std::endl;
+  // Only get positive values.
+  const VectorXd S = svd.singularValues().cwiseAbs();
+  const MatrixXd Pspd = U * S.asDiagonal() * V.transpose();
+
   // Generate a penta-diagonal SPD matrix. Ignore off-diagonal elements of
   // P outside the 5-diagonal band.
   const PentaDiagonalMatrix<double> H =
-      PentaDiagonalMatrix<double>::MakeSymmetricFromLowerDense(P, num_blocks,
+      PentaDiagonalMatrix<double>::MakeSymmetricFromLowerDense(Pspd, num_blocks,
                                                                block_size);
   const MatrixXd Hdense = H.MakeDense();
+  std::cout << "P error: " << (Pspd - Hdense).norm() / Pspd.norm() << std::endl;
 
-  std::cout << "condition number: " << 1/Hdense.llt().rcond() << std::endl;
+  std::cout << "condition number: " << 1/Hdense.llt().rcond() << std::endl;  
 
   PentaDiagonalFactorization Hchol(H);
   EXPECT_EQ(Hchol.status(), PentaDiagonalFactorizationStatus::kSuccess);
 
   // Compute a ground truth value
-  VectorXd x_gt = VectorXd::LinSpaced(size, -3, 12.4);
-  VectorXd b = Hdense*x_gt;
+  const VectorXd x_gt = VectorXd::LinSpaced(size, -3, 12.4);
+  const VectorXd b = Hdense*x_gt;
+  VectorXd b2(b.size());
+  H.MultiplyBy(x_gt, &b2);
+  std::cout << "b error: " << (b - b2).norm() / b.norm() << std::endl;
 
   // Solution with ours sparse solver
   VectorXd x_sparse = b;
   Hchol.SolveInPlace(&x_sparse);
 
   // Solution with dense algebra
-  const VectorXd x_dense = Hdense.ldlt().solve(b);
+  const auto ldlt = Hdense.ldlt();
+  const VectorXd x_ldlt = ldlt.solve(b);
+  std::cout << "D(ldlt): " << ldlt.vectorD().transpose() << std::endl;
+  std::cout << "P(ldlt):\n"
+            << ldlt.transpositionsP().indices().transpose() << std::endl;
 
-  std::cout << "dense error: " << (x_dense - x_gt).norm() << std::endl;
+  const VectorXd x_llt = Hdense.llt().solve(b);
+  const VectorXd x_lu = Hdense.partialPivLu().solve(b);  
+
+  std::cout << "LU(partial piv.) error: " << (x_lu - x_gt).norm() << std::endl;
+  std::cout << "LLT error: " << (x_llt - x_gt).norm() << std::endl;
+  std::cout << "LDLT error: " << (x_ldlt - x_gt).norm() << std::endl;
   std::cout << "sparse error: " << (x_sparse - x_gt).norm() << std::endl;
+
+  // Solve the permuted system instead to see if stability affects round-off  
+  // errors.
+  //const Eigen::PermutationMatrix<Eigen::Dynamic>
+  //perm(ldlt.transpositionsP().indices());
+  const MatrixXd perm = Hdense.partialPivLu().permutationP() * MatrixXd::Identity(Hdense.rows(), Hdense.cols());
+  std::cout << "perm:\n" << perm << std::endl;
+  //std::cout << "perm:\n" << perm.indices().transpose() << std::endl;  
+  const MatrixXd H_tilde = perm * Hdense * perm.transpose();  
+  const VectorXd b_tilde = perm * b;  
+  const VectorXd x_tilde = H_tilde.partialPivLu().solve(b_tilde);
+#if 0  
+  const PentaDiagonalMatrix<double> H_tilde_sparse =
+      PentaDiagonalMatrix<double>::MakeSymmetricFromLowerDense(
+          H_tilde, num_blocks, block_size);
+  PentaDiagonalFactorization Hlu_tilde(H_tilde_sparse);
+  EXPECT_EQ(Hlu_tilde.status(), PentaDiagonalFactorizationStatus::kSuccess);
+  VectorXd x_tilde = b_tilde;
+  Hlu_tilde.SolveInPlace(&x_tilde);
+#endif
+  const VectorXd x2 = perm.transpose() * x_tilde;
+  std::cout << "(permuted) sparse error: " << (x2 - x_gt).norm() << std::endl;
+
+
 
   //const double kTolerance = std::numeric_limits<double>::epsilon() * size;
   //EXPECT_TRUE(
@@ -324,6 +371,10 @@ GTEST_TEST(PentaDiagonalMatrixTest, ConditionNumber) {
     const double dense_error = (x_gt - x_dense).norm();
     const double sparse_error = (x_gt - x_sparse).norm();
     std::cout << fmt::format("{}, {}, {}\n", cond, dense_error, sparse_error);
+
+    const auto ldlt = Hdense.ldlt();    
+    std::cout << "Dmin(ldlt): " << ldlt.vectorD().transpose().minCoeff() << std::endl;
+    std::cout << "Dmax(ldlt): " << ldlt.vectorD().transpose().maxCoeff() << std::endl;
   }
 
 
