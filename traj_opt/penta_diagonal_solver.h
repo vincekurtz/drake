@@ -36,6 +36,9 @@ class PentaDiagonalFactorization {
   DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(PentaDiagonalFactorization);
 
   using BlockType = Eigen::Matrix<double, kBlockSize, kBlockSize>;
+  using BlockSolver = Eigen::PartialPivLU<BlockType>;
+  // Using this solver leads to large round-off errors.
+  //using BlockSolver = Eigen::LDLT<BlockType>;
 
   /// Peforms the factorization of M to solve the system of equations M⋅x = b.
   /// This constructor only throws if the matrix is not symmetric. Call status()
@@ -87,7 +90,7 @@ class PentaDiagonalFactorization {
     int num_blocks{0};
     std::vector<BlockType> A;
     std::vector<BlockType> G;
-    std::vector<Eigen::LDLT<BlockType>> Ginv;
+    std::vector<BlockSolver> Ginv;
     std::vector<BlockType> K;
     std::vector<BlockType> Ym2;  // The very first entry is i=-1 (one-based).
     std::vector<BlockType> Zm2;  // The very first entry is i=-1 (one-based).
@@ -164,12 +167,12 @@ void PentaDiagonalFactorization<kBlockSize>::Factorize(
     Yi.noalias() = Di - Ki * Zim1;  // = Hi
 
     // Factorize Gi and reuse it.
-    Eigen::LDLT<BlockType>& Ginv_i = Ginv[i];
+    BlockSolver& Ginv_i = Ginv[i];
     Ginv_i.compute(Gi);
-    if (Ginv_i.info() != Eigen::Success) {
-      status_ = PentaDiagonalFactorizationStatus::kFailure;
-      return;
-    }
+    //if (Ginv_i.info() != Eigen::Success) {
+    //  status_ = PentaDiagonalFactorizationStatus::kFailure;
+    //  return;
+    //}
 
     // TODO(amcastro-tri): can I call .noalias() here?
     Yi = Ginv_i.solve(Yi);
@@ -206,7 +209,7 @@ void PentaDiagonalFactorization<kBlockSize>::SolveInPlace(
 
     const BlockType& Ai = factorization_.A[i];
     const BlockType& Ki = factorization_.K[i];
-    const Eigen::LDLT<BlockType>& Ginv = factorization_.Ginv[i];
+    const BlockSolver& Ginv = factorization_.Ginv[i];
 
     ri -= Ai * rim2;
     ri -= Ki * rim1;

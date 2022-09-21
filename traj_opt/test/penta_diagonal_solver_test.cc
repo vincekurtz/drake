@@ -109,12 +109,12 @@ GTEST_TEST(PentaDiagonalMatrixTest, SolveIdentity) {
   const int size = num_blocks * block_size;
   const PentaDiagonalMatrix<double> H =
       PentaDiagonalMatrix<double>::MakeIdentity(num_blocks, block_size);
-  PentaDiagonalFactorization Hchol(H);
-  EXPECT_EQ(Hchol.status(), PentaDiagonalFactorizationStatus::kSuccess);
+  PentaDiagonalFactorization Hlu(H);
+  EXPECT_EQ(Hlu.status(), PentaDiagonalFactorizationStatus::kSuccess);
 
   const VectorXd b = VectorXd::LinSpaced(size, -3, 12.4);
   VectorXd x = b;
-  Hchol.SolveInPlace(&x);
+  Hlu.SolveInPlace(&x);
 
   EXPECT_EQ(x, b);
 }
@@ -136,11 +136,11 @@ GTEST_TEST(PentaDiagonalMatrixTest, SolveBlockDiagonal) {
   const PentaDiagonalMatrix<double> H(std::move(A), std::move(B), std::move(C));
   const MatrixXd Hdense = H.MakeDense();
 
-  PentaDiagonalFactorization Hchol(H);
-  EXPECT_EQ(Hchol.status(), PentaDiagonalFactorizationStatus::kSuccess);
+  PentaDiagonalFactorization Hlu(H);
+  EXPECT_EQ(Hlu.status(), PentaDiagonalFactorizationStatus::kSuccess);
   const VectorXd b = VectorXd::LinSpaced(size, -3, 12.4);
   VectorXd x = b;
-  Hchol.SolveInPlace(&x);
+  Hlu.SolveInPlace(&x);
 
   // Reference solution computed with Eigen, dense.
   const VectorXd x_expected = Hdense.ldlt().solve(b);
@@ -168,11 +168,11 @@ GTEST_TEST(PentaDiagonalMatrixTest, SolveTriDiagonal) {
   const PentaDiagonalMatrix<double> H(std::move(A), std::move(B), std::move(C));
   const MatrixXd Hdense = H.MakeDense();
 
-  PentaDiagonalFactorization Hchol(H);
-  EXPECT_EQ(Hchol.status(), PentaDiagonalFactorizationStatus::kSuccess);
+  PentaDiagonalFactorization Hlu(H);
+  EXPECT_EQ(Hlu.status(), PentaDiagonalFactorizationStatus::kSuccess);
   const VectorXd b = VectorXd::LinSpaced(size, -3, 12.4);
   VectorXd x = b;
-  Hchol.SolveInPlace(&x);
+  Hlu.SolveInPlace(&x);
 
   // Reference solution computed with Eigen, dense.
   const VectorXd x_expected = Hdense.ldlt().solve(b);
@@ -237,41 +237,31 @@ GTEST_TEST(PentaDiagonalMatrixTest, SolvePentaDiagonal) {
             0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,  9.90968e+07,  4.95167e+07, -3.99527e+08, -1.99572e+08,  5.00041e+08,  2.49853e+08, -1.97655e+08, -9.90152e+07,
             0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,  1.97781e+08,  9.88274e+07, -3.95818e+08, -1.97655e+08,  1.94292e+08,  9.73295e+07,
             0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,            0,   9.9078e+07,  4.95073e+07, -1.98283e+08, -9.90152e+07,  9.73295e+07,  4.87577e+07;
-  }
-
-  // Make sure matrix is SPD.
-  Eigen::JacobiSVD<MatrixXd> svd(P, Eigen::ComputeThinU | Eigen::ComputeThinV);
-  const MatrixXd U = svd.matrixU();
-  const MatrixXd V = svd.matrixV();
-  std::cout << "sigma(P): " << svd.singularValues().transpose()
-            << std::endl;
-  // Only get positive values.
-  const VectorXd S = svd.singularValues().cwiseAbs();
-  const MatrixXd Pspd = U * S.asDiagonal() * V.transpose();
+  }  
 
   // Generate a penta-diagonal SPD matrix. Ignore off-diagonal elements of
   // P outside the 5-diagonal band.
   const PentaDiagonalMatrix<double> H =
-      PentaDiagonalMatrix<double>::MakeSymmetricFromLowerDense(Pspd, num_blocks,
+      PentaDiagonalMatrix<double>::MakeSymmetricFromLowerDense(P, num_blocks,
                                                                block_size);
   const MatrixXd Hdense = H.MakeDense();
-  std::cout << "P error: " << (Pspd - Hdense).norm() / Pspd.norm() << std::endl;
+  std::cout << "P error: " << (P - Hdense).norm() / P.norm() << std::endl;
 
-  std::cout << "condition number: " << 1/Hdense.llt().rcond() << std::endl;  
+  std::cout << "condition number: " << 1 / Hdense.llt().rcond() << std::endl;
 
-  PentaDiagonalFactorization Hchol(H);
-  EXPECT_EQ(Hchol.status(), PentaDiagonalFactorizationStatus::kSuccess);
+  PentaDiagonalFactorization Hlu(H);
+  EXPECT_EQ(Hlu.status(), PentaDiagonalFactorizationStatus::kSuccess);
 
   // Compute a ground truth value
   const VectorXd x_gt = VectorXd::LinSpaced(size, -3, 12.4);
-  const VectorXd b = Hdense*x_gt;
+  const VectorXd b = Hdense * x_gt;
   VectorXd b2(b.size());
   H.MultiplyBy(x_gt, &b2);
   std::cout << "b error: " << (b - b2).norm() / b.norm() << std::endl;
 
   // Solution with ours sparse solver
   VectorXd x_sparse = b;
-  Hchol.SolveInPlace(&x_sparse);
+  Hlu.SolveInPlace(&x_sparse);
 
   // Solution with dense algebra
   const auto ldlt = Hdense.ldlt();
@@ -281,24 +271,28 @@ GTEST_TEST(PentaDiagonalMatrixTest, SolvePentaDiagonal) {
             << ldlt.transpositionsP().indices().transpose() << std::endl;
 
   const VectorXd x_llt = Hdense.llt().solve(b);
-  const VectorXd x_lu = Hdense.partialPivLu().solve(b);  
+  const VectorXd x_lu = Hdense.partialPivLu().solve(b);
 
-  std::cout << "LU(partial piv.) error: " << (x_lu - x_gt).norm() << std::endl;
-  std::cout << "LLT error: " << (x_llt - x_gt).norm() << std::endl;
-  std::cout << "LDLT error: " << (x_ldlt - x_gt).norm() << std::endl;
-  std::cout << "sparse error: " << (x_sparse - x_gt).norm() << std::endl;
+  std::cout << "LU(partial piv.) error: " << (x_lu - x_gt).norm() / x_gt.norm()
+            << std::endl;
+  std::cout << "LLT error: " << (x_llt - x_gt).norm() / x_gt.norm()
+            << std::endl;
+  std::cout << "LDLT error: " << (x_ldlt - x_gt).norm() / x_gt.norm()
+            << std::endl;
+  std::cout << "sparse error: " << (x_sparse - x_gt).norm() / x_gt.norm()
+            << std::endl;
 
-  // Solve the permuted system instead to see if stability affects round-off  
-  // errors.
-  //const Eigen::PermutationMatrix<Eigen::Dynamic>
-  //perm(ldlt.transpositionsP().indices());
-  const MatrixXd perm = Hdense.partialPivLu().permutationP() * MatrixXd::Identity(Hdense.rows(), Hdense.cols());
-  std::cout << "perm:\n" << perm << std::endl;
-  //std::cout << "perm:\n" << perm.indices().transpose() << std::endl;  
-  const MatrixXd H_tilde = perm * Hdense * perm.transpose();  
-  const VectorXd b_tilde = perm * b;  
+  // Solve the permuted system instead to see if stability affects round-off
+  // errors.  
+  const MatrixXd perm = Hdense.partialPivLu().permutationP() *
+                        MatrixXd::Identity(Hdense.rows(), Hdense.cols());
+  const MatrixXd H_tilde = perm * Hdense * perm.transpose();
+  const VectorXd b_tilde = perm * b;
   const VectorXd x_tilde = H_tilde.partialPivLu().solve(b_tilde);
-#if 0  
+  // N.B. The experiments below with a permuted sparse matrix do not work
+  // because we must ensure the permutation is applied blockwise, something that
+  // we cannot guarantee with the permutation obtained with Eigen's LU.
+#if 0   
   const PentaDiagonalMatrix<double> H_tilde_sparse =
       PentaDiagonalMatrix<double>::MakeSymmetricFromLowerDense(
           H_tilde, num_blocks, block_size);
@@ -308,13 +302,13 @@ GTEST_TEST(PentaDiagonalMatrixTest, SolvePentaDiagonal) {
   Hlu_tilde.SolveInPlace(&x_tilde);
 #endif
   const VectorXd x2 = perm.transpose() * x_tilde;
-  std::cout << "(permuted) sparse error: " << (x2 - x_gt).norm() << std::endl;
+  std::cout << "(permuted) error: " << (x2 - x_gt).norm() / x_gt.norm()
+            << std::endl;
 
-
-
-  //const double kTolerance = std::numeric_limits<double>::epsilon() * size;
-  //EXPECT_TRUE(
-  //    CompareMatrices(x, x_expected, kTolerance, MatrixCompareType::relative));
+  // const double kTolerance = std::numeric_limits<double>::epsilon() * size;
+  // EXPECT_TRUE(
+  //     CompareMatrices(x, x_expected, kTolerance,
+  //     MatrixCompareType::relative));
 }
 
 // Solve H*x = b, where H has a high condition number
@@ -358,10 +352,10 @@ GTEST_TEST(PentaDiagonalMatrixTest, ConditionNumber) {
     const VectorXd b = Hdense * x_gt;
 
     // Compute x using the Thomas algorithm (sparse)
-    PentaDiagonalFactorization Hchol(H);
-    EXPECT_EQ(Hchol.status(), PentaDiagonalFactorizationStatus::kSuccess);
+    PentaDiagonalFactorization Hlu(H);
+    EXPECT_EQ(Hlu.status(), PentaDiagonalFactorizationStatus::kSuccess);
     VectorXd x_sparse = b;
-    Hchol.SolveInPlace(&x_sparse);
+    Hlu.SolveInPlace(&x_sparse);
 
     // Compute x using LDLT (dense)
     const VectorXd x_dense = Hdense.ldlt().solve(b);
