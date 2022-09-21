@@ -67,7 +67,7 @@ struct TrajectoryOptimizerStats {
   std::vector<double> max_unactuation_violations;
 
   // Final position error per major iteration
-  std::vector<double> final_pos_errors;
+  std::vector<double> final_pos_costs;
 
   // Number of minor iterations per major iteration
   std::vector<int> num_minor_iterations;

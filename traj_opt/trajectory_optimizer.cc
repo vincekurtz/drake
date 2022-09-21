@@ -2576,10 +2576,10 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
     status = SolveGaussNewton(&state, &scratch_state, q_init, solution, stats,
                               reason);
 
-    // Evaluate the final position error for the solution
-    double final_pos_err =
-        (prob_.q_nom[num_steps()] - state.q()[num_steps()]).norm();
-    stats->final_pos_errors.push_back(final_pos_err);
+    // Evaluate the final position cost for the solution
+    VectorXd qf_err = prob_.q_nom[num_steps()] - state.q()[num_steps()];
+    double final_pos_cost = qf_err.transpose() * prob_.Qf_q * qf_err;
+    stats->final_pos_costs.push_back(final_pos_cost);
 
     // Evaluate the constraint violations
     auto violations = CalcConstraintViolations(solution->tau);
@@ -2589,7 +2589,7 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
     // Report constraint violation and final position error
     if (params_.verbose)
       std::cout << "\nMax. violation: " << max_violation
-                << "\nFinal position error: " << final_pos_err << "\n\n";
+                << "\nFinal position error: " << final_pos_cost << "\n\n";
 
     // Terminate if augmented Lagrangian is disabled
     // TODO(aykut): Consider terminating if the solver failed

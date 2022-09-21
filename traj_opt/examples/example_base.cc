@@ -70,7 +70,7 @@ void TrajOptExample::SolveTrajectoryOptimization(
                 << stats.num_minor_iterations[i]
                 << " minor iterations.\n\tmax. violation: "
                 << stats.max_unactuation_violations[i]
-                << ", final position error: " << stats.final_pos_errors[i]
+                << ", final position error: " << stats.final_pos_costs[i]
                 << "\n\tconvergence reason: "
                 << DecodeConvergenceReasons(stats.major_convergence_reasons[i])
                 << std::endl;
