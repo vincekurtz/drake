@@ -2574,26 +2574,26 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
                               reason);
 
     // Evaluate the final position error for the solution
-    VectorXd q_err = state.q()[num_steps()] - prob_.q_nom[num_steps()];
-    double final_pos_err  = q_err.transpose() * prob_.Qf_q * q_err;
+    double final_pos_err =
+        (prob_.q_nom[num_steps()] - state.q()[num_steps()]).norm();
     stats->final_pos_errors.push_back(final_pos_err);
-
-    // Terminate if augmented Lagrangian is disabled
-    // TODO(aykut): Consider terminating if the solver failed
-    if (!params_.augmented_lagrangian) return status;
 
     // Evaluate the constraint violations
     auto violations = CalcConstraintViolations(solution->tau);
     auto max_violation = violations.lpNorm<Eigen::Infinity>();
     stats->max_unactuation_violations.push_back(max_violation);
 
-    // Record the convergence reason for the Gauss-Newton solver
-    stats->major_convergence_reasons.push_back(*reason);
-
     // Report constraint violation and final position error
     if (params_.verbose)
       std::cout << "\nMax. violation: " << max_violation
-                << "Final position error: " << final_pos_err << "\n\n";
+                << "\nFinal position error: " << final_pos_err << "\n\n";
+
+    // Terminate if augmented Lagrangian is disabled
+    // TODO(aykut): Consider terminating if the solver failed
+    if (!params_.augmented_lagrangian) return status;
+
+    // Record the convergence reason for the Gauss-Newton solver
+    stats->major_convergence_reasons.push_back(*reason);
 
     // Check for constraint satisfaction w.r.t. a tolerance
     if (max_violation < params_.constraint_tol) {

@@ -51,21 +51,6 @@ void TrajOptExample::SolveTrajectoryOptimization(
   ConvergenceReason reason;
   SolverFlag status = optimizer.Solve(q_guess, &solution, &stats, &reason);
   if (status == SolverFlag::kSuccess) {
-    if (options.augmented_lagrangian) {
-      for (int i = 0; i < static_cast<int>(stats.major_iteration_times.size());
-           ++i) {
-        std::cout << "Major iteration " << i << " was solved in "
-                  << stats.major_iteration_times[i] << " s and in "
-                  << stats.num_minor_iterations[i]
-                  << " minor iterations.\n\tmax. violation: "
-                  << stats.max_unactuation_violations[i]
-                  << ", final position error: " << stats.final_pos_errors[i]
-                  << "\n\tconvergence reason: "
-                  << DecodeConvergenceReasons(
-                         stats.major_convergence_reasons[i])
-                  << std::endl;
-      }
-    }
     std::cout << "Solved in " << stats.solve_time << " s and "
               << static_cast<int>(stats.iteration_times.size())
               << " Gauss-Newton iterations." << std::endl;
@@ -75,10 +60,25 @@ void TrajOptExample::SolveTrajectoryOptimization(
   } else {
     std::cout << "Solver failed!" << std::endl;
   }
+  std::cout << std::endl;
 
-  if (!options.augmented_lagrangian)
+  if (options.augmented_lagrangian) {
+    for (int i = 0; i < static_cast<int>(stats.major_iteration_times.size());
+         ++i) {
+      std::cout << "Major iteration " << i << " was solved in "
+                << stats.major_iteration_times[i] << " s and in "
+                << stats.num_minor_iterations[i]
+                << " minor iterations.\n\tmax. violation: "
+                << stats.max_unactuation_violations[i]
+                << ", final position error: " << stats.final_pos_errors[i]
+                << "\n\tconvergence reason: "
+                << DecodeConvergenceReasons(stats.major_convergence_reasons[i])
+                << std::endl;
+    }
+  } else {
     std::cout << "Convergence reason: "
               << DecodeConvergenceReasons(reason) + ".\n";
+  }
 
   // Report maximum torques on all DoFs
   VectorXd tau_max = VectorXd::Zero(nv);
