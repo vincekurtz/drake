@@ -520,6 +520,21 @@ void DoScalarDependentDefinitions(py::module m, T) {
             py::arg("p_BoBi_B"), py::arg("frame_A"), py::arg("frame_E"),
             cls_doc.CalcJacobianTranslationalVelocity.doc)
         .def(
+            "CalcJacobianPositionVector",
+            [](const Class* self, const Context<T>& context,
+                const Frame<T>& frame_B,
+                const Eigen::Ref<const Matrix3X<T>>& p_BoBi_B,
+                const Frame<T>& frame_A, const Frame<T>& frame_E) {
+              const int num_points = p_BoBi_B.cols();
+              MatrixX<T> Jq_p_AoBi_E(3 * num_points, self->num_positions());
+              self->CalcJacobianPositionVector(
+                  context, frame_B, p_BoBi_B, frame_A, frame_E, &Jq_p_AoBi_E);
+              return Jq_p_AoBi_E;
+            },
+            py::arg("context"), py::arg("frame_B"), py::arg("p_BoBi_B"),
+            py::arg("frame_A"), py::arg("frame_E"),
+            cls_doc.CalcJacobianPositionVector.doc)
+        .def(
             "CalcSpatialAccelerationsFromVdot",
             [](const Class* self, const Context<T>& context,
                 const Eigen::Ref<const VectorX<T>>& known_vdot) {
@@ -752,6 +767,9 @@ void DoScalarDependentDefinitions(py::module m, T) {
                   py::cast(welded_bodies), py::cast(&self));
             },
             py::arg("body"), cls_doc.GetBodiesWeldedTo.doc)
+        .def("GetBodiesKinematicallyAffectedBy",
+            &Class::GetBodiesKinematicallyAffectedBy, py::arg("joint_indexes"),
+            cls_doc.GetBodiesKinematicallyAffectedBy.doc)
         .def("GetTopologyGraphvizString", &Class::GetTopologyGraphvizString,
             cls_doc.GetTopologyGraphvizString.doc)
         .def("get_force_element", &Class::get_force_element,
