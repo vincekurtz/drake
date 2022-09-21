@@ -1,5 +1,7 @@
 #pragma once
 
+#include <vector>
+
 #include "drake/common/drake_copyable.h"
 #include "drake/traj_opt/convergence_criteria_tolerances.h"
 
@@ -105,6 +107,8 @@ struct SolverParameters {
   // Augmented Lagrangian parameters
   bool augmented_lagrangian = false;
   bool update_init_guess = true;
+  bool overwrite_unactuated_dof = false;
+  std::vector<int> unactuated_dof_indices;
   int max_major_iterations = 5;
   double lambda0 = 0;
   double mu0 = 1e1;

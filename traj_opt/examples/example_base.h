@@ -82,7 +82,7 @@ class TrajOptExample {
    *
    * @param options parameters loaded from yaml
    * @param solver_params parameters for the optimizer that we'll set
-   * @param unactuated_dof the vector of unactuated DOF indices 
+   * @param unactuated_dof the vector of unactuated DOF indices
    */
   void SetSolverParameters(const TrajOptExampleParams& options,
                            SolverParameters* solver_params,

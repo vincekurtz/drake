@@ -212,16 +212,29 @@ void TrajOptExample::SetProblemDefinition(
     }
   }
 
-  // Get the actuation matrix for the plant
-  // TODO(vincekurtz): deal with the fact that B is not well-defined for some
-  // systems, such as the block pusher and floating box examples.
-  MatrixXd B = plant.MakeActuationMatrix();
-  // Derive the indices of the unactuated DOF from the actuation matrix
-  for (int i = 0; i < plant.num_velocities(); ++i) {
-    // Get the index if the actuation matrix does not select any actuators
-    if (B.row(i).sum() == 0) {
-      opt_prob->unactuated_dof.push_back(i);
+  // Use the provided unactuated DOF indices if available
+  // Otherwise, find the indices for the unactuated degrees of freedom
+  if (options.overwrite_unactuated_dof) {
+    opt_prob->unactuated_dof = options.unactuated_dof_indices;
+  } else {
+    // Get the actuation matrix for the plant
+    // TODO(vincekurtz): deal with the fact that B is not well-defined for
+    // some systems, such as the block pusher and floating box examples.
+    MatrixXd B = plant.MakeActuationMatrix();
+    // Derive the indices of the unactuated DOF from the actuation matrix
+    for (int i = 0; i < plant.num_velocities(); ++i) {
+      // Get the index if the actuation matrix does not select any actuators
+      if (B.row(i).sum() == 0) {
+        opt_prob->unactuated_dof.push_back(i);
+      }
     }
+  }
+  // Print out the resulting indices
+  if (options.verbose) {
+    std::cout << "Unactuated DOF indices: ";
+    for (int i = 0; i < static_cast<int>(opt_prob->unactuated_dof.size()); ++i)
+      std::cout << opt_prob->unactuated_dof[i] << " ";
+    std::cout << std::endl;
   }
 }
 
