@@ -63,8 +63,11 @@ struct TrajectoryOptimizerStats {
   // Augmented Lagrangian (major) iteration times
   std::vector<double> major_iteration_times;
 
-  // Constraint violations for major iterations
+  // Constraint violation per major iterations
   std::vector<double> max_unactuation_violations;
+
+  // Final position error per major iteration
+  std::vector<double> final_pos_errors;
 
   // Number of minor iterations per major iteration
   std::vector<int> num_minor_iterations;
