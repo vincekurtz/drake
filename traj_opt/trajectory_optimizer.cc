@@ -280,11 +280,11 @@ void TrajectoryOptimizer<T>::CalcContactForceContribution(
   INSTRUMENT_FUNCTION("Computes contact forces.");
 
   using std::abs;
+  using std::exp;
+  using std::log;
   using std::max;
   using std::pow;
   using std::sqrt;
-  using std::log;
-  using std::exp;
 
   // Compliant contact parameters. stiffness_exponent = 3/2 corresponds to Hertz
   // model for spherical contact. stiffness_exponent = 1.0 corresponds to a
@@ -389,7 +389,7 @@ void TrajectoryOptimizer<T>::CalcContactForceContribution(
           compliant_fn = -F / delta * pair.distance;
         } else {
           compliant_fn = F / delta / smoothing_factor *
-                        log(1 + exp(-smoothing_factor * pair.distance));
+                         log(1 + exp(-smoothing_factor * pair.distance));
         }
       } else {
         compliant_fn = F * pow(-pair.distance / delta, stiffness_exponent);
@@ -1294,9 +1294,10 @@ void TrajectoryOptimizer<T>::CalcGradient(
   // exist
   taum_term = tau[num_steps() - 1].transpose() * 2 * prob_.R * dt *
               dtau_dqp[num_steps() - 1];
-  qt_term = (q[num_steps()] - prob_.q_nom[num_steps()]).transpose() * 2 * prob_.Qf_q;
-  vt_term = (v[num_steps()] - prob_.v_nom[num_steps()]).transpose() * 2 * prob_.Qf_v *
-            dvt_dqt[num_steps()];
+  qt_term =
+      (q[num_steps()] - prob_.q_nom[num_steps()]).transpose() * 2 * prob_.Qf_q;
+  vt_term = (v[num_steps()] - prob_.v_nom[num_steps()]).transpose() * 2 *
+            prob_.Qf_v * dvt_dqt[num_steps()];
 
   // Contribution from the unactuation constraints
   if (params_.augmented_lagrangian) {
@@ -2102,7 +2103,8 @@ SolverFlag TrajectoryOptimizer<double>::SolveGaussNewton(
   if (params_.method == SolverMethod::kLinesearch) {
     return SolveWithLinesearch(state, scratch_state, q_guess, solution, stats);
   } else if (params_.method == SolverMethod::kTrustRegion) {
-    return SolveWithTrustRegion(state, scratch_state, q_guess, solution, stats, reason);
+    return SolveWithTrustRegion(state, scratch_state, q_guess, solution, stats,
+                                reason);
   } else {
     throw std::runtime_error("Unsupported solver strategy!");
   }
@@ -2527,9 +2529,10 @@ ConvergenceReason TrajectoryOptimizer<T>::VerifyConvergenceCriteria(
 }
 
 template <typename T>
-SolverFlag TrajectoryOptimizer<T>::Solve(
-    const std::vector<VectorX<T>>&, TrajectoryOptimizerSolution<T>*,
-    TrajectoryOptimizerStats<T>*, ConvergenceReason*) const {
+SolverFlag TrajectoryOptimizer<T>::Solve(const std::vector<VectorX<T>>&,
+                                         TrajectoryOptimizerSolution<T>*,
+                                         TrajectoryOptimizerStats<T>*,
+                                         ConvergenceReason*) const {
   throw std::runtime_error(
       "TrajectoryOptimizer::Solve only supports T=double.");
 }
