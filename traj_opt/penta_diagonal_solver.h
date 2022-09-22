@@ -103,7 +103,7 @@ class PentaDiagonalFactorization {
     return solver.info() == Eigen::Success;
   }
 
-  bool SolverSucceeded(const Eigen::PartialPivLU<BlockType>& solver) {
+  bool SolverSucceeded(const Eigen::PartialPivLU<BlockType>&) {
     return true;  // This solver always succeeds.
   }
 
