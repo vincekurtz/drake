@@ -53,6 +53,17 @@ drake_cc_library(
 )
 
 drake_cc_library(
+    name = "penta_diagonal_to_petsc_matrix",
+    srcs = ["penta_diagonal_to_petsc_matrix.cc"],
+    hdrs = ["penta_diagonal_to_petsc_matrix.h"],
+    deps = [
+        "//common:essential",
+        ":penta_diagonal_matrix",
+        "//multibody/fem:petsc_symmetric_block_sparse_matrix",
+    ],
+)
+
+drake_cc_library(
     name = "trajectory_optimizer",
     srcs = ["trajectory_optimizer.cc"],
     hdrs = [
@@ -132,7 +143,19 @@ drake_cc_googletest(
     deps = [
         ":penta_diagonal_matrix",
         ":penta_diagonal_solver",
+        ":penta_diagonal_to_petsc_matrix",
+        "//multibody/fem:petsc_symmetric_block_sparse_matrix",
         "//common/test_utilities:eigen_matrix_compare",
+    ],
+)
+
+drake_cc_googletest(
+    name = "penta_diagonal_to_petsc_matrix_test",
+    deps = [
+        ":penta_diagonal_to_petsc_matrix",
+        ":penta_diagonal_matrix",
+        "//common/test_utilities:eigen_matrix_compare",
+        "//multibody/fem:petsc_symmetric_block_sparse_matrix",
     ],
 )
 
