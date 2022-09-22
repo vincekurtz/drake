@@ -252,11 +252,11 @@ void TrajectoryOptimizer<T>::CalcContactForceContribution(
   INSTRUMENT_FUNCTION("Computes contact forces.");
 
   using std::abs;
+  using std::exp;
+  using std::log;
   using std::max;
   using std::pow;
   using std::sqrt;
-  using std::log;
-  using std::exp;
 
   // Compliant contact parameters. stiffness_exponent = 3/2 corresponds to Hertz
   // model for spherical contact. stiffness_exponent = 1.0 corresponds to a
@@ -360,7 +360,7 @@ void TrajectoryOptimizer<T>::CalcContactForceContribution(
           compliant_fn = -F / delta * pair.distance;
         } else {
           compliant_fn = F / delta / smoothing_factor *
-                        log(1 + exp(-smoothing_factor * pair.distance));
+                         log(1 + exp(-smoothing_factor * pair.distance));
         }
       } else {
         compliant_fn = F * pow(-pair.distance / delta, stiffness_exponent);
@@ -1676,7 +1676,7 @@ void TrajectoryOptimizer<T>::SaveLinesearchResidual(
     const std::string filename) const {
   double alpha_min = -0.2;
   double alpha_max = 1.2;
-  double dalpha = 0.001;
+  double dalpha = 0.01;
 
   std::ofstream data_file;
   data_file.open(filename);
@@ -2252,9 +2252,11 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
 
   // Define printout data
   const std::string separator_bar =
-      "-------------------------------------------------------------------";
+      "------------------------------------------------------------------------"
+      "--------";
   const std::string printout_labels =
-      "|  iter  |   cost   |    Δ    |    ρ    |  time (s)  |  |g|/cost  |";
+      "|  iter  |   cost   |    Δ    |    ρ    |  time (s)  |  |g|/cost  | "
+      "dL_dq/cost |";
 
   double previous_cost = EvalCost(state);
   while (k < params_.max_iterations) {
@@ -2264,6 +2266,13 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
     // Verify that dq is a descent direction
     const VectorXd& g = EvalGradient(state);
     DRAKE_DEMAND(dq.transpose() * g < 0);
+
+    // Compute some quantities for logging.
+    // N.B. These should be computed before q is updated.
+    const double cost = EvalCost(state);
+    const double dL_dqH = g.dot(dqH) / cost;
+    const double dL_dq = g.dot(dq) / cost;
+    const double q_norm = state.norm();
 
     // Compute the trust region ratio
     rho = CalcTrustRatio(state, dq, &scratch_state);
@@ -2312,22 +2321,18 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
         std::cout << separator_bar << std::endl;
       }
       std::cout << fmt::format(
-          "| {:>6} | {:>8.3g} | {:>7.2} | {:>7.1} | {:>10.5} | {:>10.5} |\n", k,
-          EvalCost(state), Delta, rho, iter_time.count(),
-          EvalGradient(state).norm() / EvalCost(state));
+          "| {:>6} | {:>8.3g} | {:>7.2} | {:>7.1} | {:>10.5} | {:>10.5} | "
+          "{:>10.4} |\n",
+          k, cost, Delta, rho, iter_time.count(), g.norm() / cost, dL_dq);
     }
-
-    const double cost = EvalCost(state);
-    const double dL_dqH = g.dot(dqH) / cost;
-    const double dL_dq = g.dot(dq) / cost;
 
     // Record statistics from this iteration
     stats->push_data(iter_time.count(),  // iteration time
-                     EvalCost(state),    // cost
+                     cost,               // cost
                      0,                  // linesearch iterations
                      NAN,                // linesearch parameter
                      Delta,              // trust region size
-                     state.norm(),       // q norm
+                     q_norm,             // q norm
                      dq.norm(),          // step size
                      dqH.norm(),         // Unconstrained step size
                      rho,                // trust region ratio
