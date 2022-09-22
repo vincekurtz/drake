@@ -143,6 +143,8 @@ drake_cc_googletest(
     deps = [
         ":penta_diagonal_matrix",
         ":penta_diagonal_solver",
+        ":penta_diagonal_to_petsc_matrix",
+        "//multibody/fem:petsc_symmetric_block_sparse_matrix",
         "//common/test_utilities:eigen_matrix_compare",
     ],
 )
@@ -153,7 +155,7 @@ drake_cc_googletest(
         ":penta_diagonal_to_petsc_matrix",
         ":penta_diagonal_matrix",
         "//common/test_utilities:eigen_matrix_compare",
-        "//multibody/fem:petsc_symmetric_block_sparse_matrix",        
+        "//multibody/fem:petsc_symmetric_block_sparse_matrix",
     ],
 )
 
