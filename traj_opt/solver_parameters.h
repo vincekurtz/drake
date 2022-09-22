@@ -63,6 +63,12 @@ struct SolverParameters {
   // debugging info, like the condition number, at each iteration
   bool print_debug_data = false;
 
+  // Only for debugging. When `true`, the computation with sparse algebra is
+  // checked against a dense LDLT computation. This is an expensive check and
+  // must be avoided unless we are trying to debug loss of precision due to
+  // round-off errors or similar problems.
+  bool debug_compare_against_dense{false};
+
   // Flag for whether to record linesearch data to a file at each iteration (for
   // later plotting). This saves a file called "linesearch_data_[k].csv" for
   // each iteration, where k is the iteration number. This file can then be
