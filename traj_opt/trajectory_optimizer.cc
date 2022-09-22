@@ -1881,7 +1881,7 @@ std::tuple<double, int> TrajectoryOptimizer<double>::SecantLinesearch(
   
   double alpha_prime;  // linesearch parameter at the midpoint
   double dL_prime;     // gradient at the midpoint
-  double cost_prime;   // cost at the midpoint
+  double cost_prime = cost_ub;   // cost at the midpoint
   while (i < params_.max_linesearch_iterations) {
     // Interpolate between the upper and lower bounds to find a new alpha
     alpha_prime = alpha_lb - dL_lb * (alpha_ub - alpha_lb) / (dL_ub - dL_lb);
@@ -1899,10 +1899,11 @@ std::tuple<double, int> TrajectoryOptimizer<double>::SecantLinesearch(
 
     // Check for convergence
     // TODO(vincekurtz) use some more principled convergence criteria
-    if ((alpha_ub - alpha_lb < 1e-2) || (alpha_prime - alpha_lb < 1e-2) ||
-        (alpha_ub - alpha_prime < 1e-2) || (abs(dL_prime) < 1e-2)) {
-      DRAKE_DEMAND(cost_prime < EvalCost(state));  // the cost must go down
-      return {alpha_prime, i};
+    if ((alpha_ub - alpha_lb < 1e-5) || (alpha_prime - alpha_lb < 1e-5) ||
+        (alpha_ub - alpha_prime < 1e-5) || (abs(dL_prime) < 1e-5)) {
+      if (cost_prime < EvalCost(state)) {
+        return {alpha_prime, i};
+      }
     }
 
     // Update the upper and lower bounds
@@ -1921,11 +1922,10 @@ std::tuple<double, int> TrajectoryOptimizer<double>::SecantLinesearch(
     ++i;
   }
 
-  // We should not get to this point. If this is the case, the maximum
-  // linesearch iterations have been exceeded. We will not throw right away,
-  // however, since we might want to make some linesearch plots for debugging in
-  // this case.
-  return {NAN, i};
+  // Even if we've run out of iterations, the result might be good enough to use. 
+  // Check that the cost goes down. If so, return with i-1 so that max iterations isn't triggered.
+  DRAKE_DEMAND(cost_prime < EvalCost(state));  // the cost must go down
+  return {alpha_prime, i-1};
 }
 
 template <typename T>
