@@ -11,7 +11,11 @@ enum LinesearchMethod {
   kArmijo,
 
   // Backtracking linesearch that tries to find a local minimum
-  kBacktracking
+  kBacktracking,
+
+  // Secant method linesearch that uses bracketing to try to hone in on a local
+  // minimum with ∂L/∂α=0
+  kSecant
 };
 
 enum SolverMethod { kLinesearch, kTrustRegion };

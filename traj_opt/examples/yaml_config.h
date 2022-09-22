@@ -100,7 +100,7 @@ struct TrajOptExampleParams {
   // Convergence tolerances
   ConvergenceCriteriaTolerances tolerances;
 
-  // Linesearch method, "backtracking" or "armijo"
+  // Linesearch method, "backtracking" or "armijo" or "secant"
   std::string linesearch{"armijo"};
 
   // Optimization method, "linesearch" or "trust_region"

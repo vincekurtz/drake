@@ -25,7 +25,8 @@ num_steps : 50    # number of timesteps
 
 # Solver parameters
 max_iters : 500             # maximum Gauss-Newton iterations
-method : "trust_region"     # solver method, {linesearch, trust_region}
+method : "linesearch"     # solver method, {linesearch, trust_region}
+linesearch : "backtracking"
 
 # Convergence thresholds
 tolerances:

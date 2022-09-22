@@ -204,6 +204,8 @@ void TrajOptExample::SetSolverParameters(
     solver_params->linesearch_method = LinesearchMethod::kBacktracking;
   } else if (options.linesearch == "armijo") {
     solver_params->linesearch_method = LinesearchMethod::kArmijo;
+  } else if (options.linesearch == "secant") {
+    solver_params->linesearch_method = LinesearchMethod::kSecant;
   } else {
     throw std::runtime_error(
         fmt::format("Unknown linesearch method '{}'", options.linesearch));

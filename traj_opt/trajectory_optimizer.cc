@@ -1718,6 +1718,9 @@ std::tuple<double, int> TrajectoryOptimizer<T>::Linesearch(
     return ArmijoLinesearch(state, dq, scratch_state);
   } else if (params_.linesearch_method == LinesearchMethod::kBacktracking) {
     return BacktrackingLinesearch(state, dq, scratch_state);
+  } else if (params_.linesearch_method == LinesearchMethod::kSecant) {
+    std::cout << "secant method" << std::endl;
+    return BacktrackingLinesearch(state, dq, scratch_state);
   } else {
     throw std::runtime_error("Unknown linesearch method");
   }
@@ -1832,6 +1835,19 @@ std::tuple<double, int> TrajectoryOptimizer<T>::ArmijoLinesearch(
            (i < params_.max_linesearch_iterations));
 
   return {alpha, i};
+}
+
+template <typename T>
+std::tuple<double, int> TrajectoryOptimizer<T>::SecantLinesearch(
+    const TrajectoryOptimizerState<T>& state, const VectorX<T>& dq,
+    TrajectoryOptimizerState<T>* scratch_state) const {
+  using std::abs;
+
+  // Compute the cost and gradient
+  const T L = EvalCost(state);
+  const VectorX<T>& g = EvalGradient(state);
+
+  return {}
 }
 
 template <typename T>

@@ -31,8 +31,8 @@ num_steps : 40    # number of timesteps
 
 # Solver parameters
 max_iters : 200             # maximum Gauss-Newton iterations
-method : "trust_region"     # solver method, {linesearch, trust_region}
-linesearch : "armijo"       # linesearch strategy, {armino, backtracking}
+method : "linesearch"       # solver method, {linesearch, trust_region}
+linesearch : "secant"       # linesearch strategy, {armino, backtracking, secant}
 proximal_operator : false   # whether to add a proximal operator cost term
 rho_proximal : 1e-8         # the proximal cost multiplier
 

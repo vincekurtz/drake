@@ -705,6 +705,15 @@ class TrajectoryOptimizer {
   std::tuple<double, int> ArmijoLinesearch(
       const TrajectoryOptimizerState<T>& state, const VectorX<T>& dq,
       TrajectoryOptimizerState<T>* scratch_state) const;
+  
+  /**
+   * Secant method linesearch that attempts to find alpha such that
+   *
+   *    dL/dalpha = g(q+dq*alpha)*(q+dq*alpha) = 0
+   */
+  std::tuple<double, int> SecantLinesearch(
+      const TrajectoryOptimizerState<T>& state, const VectorX<T>& dq,
+      TrajectoryOptimizerState<T>* scratch_state) const;
 
   /**
    * Compute the trust ratio
