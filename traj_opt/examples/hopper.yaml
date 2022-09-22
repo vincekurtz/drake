@@ -24,7 +24,7 @@ time_step : 0.04   # Discretization timestep (seconds)
 num_steps : 50    # number of timesteps
 
 # Solver parameters
-max_iters : 5000             # maximum Gauss-Newton iterations
+max_iters : 500             # maximum Gauss-Newton iterations
 method : "trust_region"     # solver method, {linesearch, trust_region}
 
 # Convergence thresholds
@@ -41,12 +41,12 @@ tolerances:
 gradients_method: "central_differences"
 
 # Playback/visualization parameters
-play_target_trajectory : true
-play_initial_guess : true
+play_target_trajectory : false
+play_initial_guess : false
 play_optimal_trajectory : true
 
 # Debugging parameters
-linesearch_plot_every_iteration : false
+linesearch_plot_every_iteration : true
 print_debug_data : false
 save_solver_stats_csv : true
 

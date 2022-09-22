@@ -2286,6 +2286,12 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
       SaveIterationData(k, Delta, rho, dq(1), state);
     }
 
+    // DEBUG: save linesearch plot data
+    if (params_.linesearch_plot_every_iteration) {
+      SaveLinesearchResidual(state, dqH, &scratch_state,
+                             fmt::format("linesearch_data_{}.csv", k));
+    }
+
     // If the ratio is large enough, accept the change
     if (rho > eta) {
       // Update the coefficients for the proximal operator cost
