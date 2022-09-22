@@ -1932,14 +1932,21 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
   // gradients computation negligible.
   VectorXd& pH = state.workspace.q_size_tmp2;
 
-  // Use dense algebra rather than our pentadiagonal solver to avoid a bug that
-  // results in dq'g > 0 (search direction is not descent direction.)
-  // TODO(vincekurtz): debug the sparse solver and use sparse algebra again.
-  pH = H.MakeDense().ldlt().solve(-g / Delta);
-  // pH = -g / Delta;  // normalize by Δ
-  // PentaDiagonalFactorization Hchol(H);
-  // DRAKE_DEMAND(Hchol.status() == PentaDiagonalFactorizationStatus::kSuccess);
-  // Hchol.SolveInPlace(&pH);
+  pH = -g / Delta;  // normalize by Δ
+  PentaDiagonalFactorization Hchol(H);
+  DRAKE_DEMAND(Hchol.status() == PentaDiagonalFactorizationStatus::kSuccess);
+  Hchol.SolveInPlace(&pH);
+
+  if (params_.debug_compare_against_dense) {
+    // From experiments in penta_diagonal_solver_test.cc
+    // (PentaDiagonalMatrixTest.SolvePentaDiagonal), LDLT is the most stable
+    // solver to round-off errors. We therefore use it as a reference solution
+    // for debugging.
+    const VectorXd pH_dense = H.MakeDense().ldlt().solve(-g / Delta);
+    std::cout << fmt::format("Sparse vs. Dense error: {}\n",
+                             (pH - pH_dense).norm() / pH_dense.norm());
+  }
+
   *dqH = pH * Delta;
 
   // Compute the unconstrained minimizer of m(δq) = L(q) + g(q)'*δq + 1/2
