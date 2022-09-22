@@ -6,12 +6,12 @@
 #include <gtest/gtest.h>
 
 #include "drake/common/test_utilities/eigen_matrix_compare.h"
+#include "drake/multibody/fem/petsc_symmetric_block_sparse_matrix.h"
 #include "drake/traj_opt/penta_diagonal_matrix.h"
 #include "drake/traj_opt/penta_diagonal_to_petsc_matrix.h"
-#include "drake/multibody/fem/petsc_symmetric_block_sparse_matrix.h"
 
-using drake::multibody::fem::internal::PetscSymmetricBlockSparseMatrix;
 using drake::multibody::fem::internal::PetscSolverStatus;
+using drake::multibody::fem::internal::PetscSymmetricBlockSparseMatrix;
 using std::chrono::steady_clock;
 
 using Eigen::MatrixXd;
@@ -357,55 +357,44 @@ GTEST_TEST(PentaDiagonalMatrixTest, SolvePentaDiagonal) {
   std::cout << "b error: " << (b - b2).norm() / b.norm() << std::endl;
 
   // Solution with dense algebra
+  steady_clock::time_point start = steady_clock::now();
   const auto ldlt = Hdense.ldlt();
   const VectorXd x_ldlt = ldlt.solve(b);
+  steady_clock::time_point end = steady_clock::now();
   std::cout << "D(ldlt): " << ldlt.vectorD().transpose() << std::endl;
   std::cout << "P(ldlt):\n"
             << ldlt.transpositionsP().indices().transpose() << std::endl;
+  double wall_clock_time = std::chrono::duration<double>(end - start).count();
+  fmt::print(
+      "LDLT.\n  Wall clock: {:.4g} seconds. error: {}\n",
+      wall_clock_time, (x_ldlt - x_gt).norm() / x_gt.norm());
 
+  start = steady_clock::now();
   const VectorXd x_llt = Hdense.llt().solve(b);
+  end = steady_clock::now();
+  wall_clock_time = std::chrono::duration<double>(end - start).count();
+  fmt::print(
+      "LLT.\n  Wall clock: {:.4g} seconds. error: {}\n",
+      wall_clock_time, (x_llt - x_gt).norm() / x_gt.norm());
+
+  start = steady_clock::now();
   const VectorXd x_lu = Hdense.partialPivLu().solve(b);
-
-  std::cout << "LU(partial piv.) error: " << (x_lu - x_gt).norm() / x_gt.norm()
-            << std::endl;
-  std::cout << "LLT error: " << (x_llt - x_gt).norm() / x_gt.norm()
-            << std::endl;
-  std::cout << "LDLT error: " << (x_ldlt - x_gt).norm() / x_gt.norm()
-            << std::endl;
-
-  // Solve the permuted system instead to see if stability affects round-off
-  // errors.
-  const MatrixXd perm = Hdense.partialPivLu().permutationP() *
-                        MatrixXd::Identity(Hdense.rows(), Hdense.cols());
-  const MatrixXd H_tilde = perm * Hdense * perm.transpose();
-  const VectorXd b_tilde = perm * b;
-  const VectorXd x_tilde = H_tilde.partialPivLu().solve(b_tilde);
-  // N.B. The experiments below with a permuted sparse matrix do not work
-  // because we must ensure the permutation is applied blockwise, something that
-  // we cannot guarantee with the permutation obtained with Eigen's LU.
-#if 0   
-  const PentaDiagonalMatrix<double> H_tilde_sparse =
-      PentaDiagonalMatrix<double>::MakeSymmetricFromLowerDense(
-          H_tilde, num_blocks, block_size);
-  PentaDiagonalFactorization Hlu_tilde(H_tilde_sparse);
-  EXPECT_EQ(Hlu_tilde.status(), PentaDiagonalFactorizationStatus::kSuccess);
-  VectorXd x_tilde = b_tilde;
-  Hlu_tilde.SolveInPlace(&x_tilde);
-#endif
-  const VectorXd x2 = perm.transpose() * x_tilde;
-  std::cout << "(permuted) error: " << (x2 - x_gt).norm() / x_gt.norm()
-            << std::endl;
+  end = steady_clock::now();
+  wall_clock_time = std::chrono::duration<double>(end - start).count();
+  fmt::print(
+      "LU (partial piv.)\n  Wall clock: {:.4g} seconds. error: {}\n",
+      wall_clock_time, (x_llt - x_gt).norm() / x_gt.norm());
 
   VectorXd x_sparse = b;
-  // Solution with ours pentadiagonal solver.
-  steady_clock::time_point start = steady_clock::now();
+  // Solution with our pentadiagonal solver.
+  start = steady_clock::now();
   PentaDiagonalFactorization Hlu(H);
   EXPECT_EQ(Hlu.status(), PentaDiagonalFactorizationStatus::kSuccess);
   Hlu.SolveInPlace(&x_sparse);
-  steady_clock::time_point end = steady_clock::now();
-  double wall_clock_time = std::chrono::duration<double>(end - start).count();
+  end = steady_clock::now();
+  wall_clock_time = std::chrono::duration<double>(end - start).count();
   fmt::print(
-      "PentaDiagonalFactorization. Wall clock: {:.4g} seconds. error: {}\n",
+      "PentaDiagonalFactorization.\n  Wall clock: {:.4g} seconds. error: {}\n",
       wall_clock_time, (x_sparse - x_gt).norm() / x_gt.norm());
 
   // Solution with PetsC solver.
@@ -413,7 +402,7 @@ GTEST_TEST(PentaDiagonalMatrixTest, SolvePentaDiagonal) {
   auto Hpetsc = PentaDiagonalToPetscMatrix(H);
   end = steady_clock::now();
   wall_clock_time = std::chrono::duration<double>(end - start).count();
-  fmt::print("PentaDiagonalToPetscMatrix(). Wall clock: {:.4g} seconds.\n",
+  fmt::print("PentaDiagonalToPetscMatrix().\n  Wall clock: {:.4g} seconds.\n",
              wall_clock_time);
   Hpetsc->set_relative_tolerance(1.0e-16);
 
@@ -433,7 +422,7 @@ GTEST_TEST(PentaDiagonalMatrixTest, SolvePentaDiagonal) {
       &x_petsc_chol);
   end = steady_clock::now();
   wall_clock_time = std::chrono::duration<double>(end - start).count();
-  fmt::print("Petsc Chol.   Wall clock: {:.4g} seconds. error: {}\n",
+  fmt::print("Petsc Chol.\n  Wall clock: {:.4g} seconds. error: {}\n",
              wall_clock_time, (x_petsc_chol - x_gt).norm() / x_gt.norm());
   EXPECT_EQ(status, PetscSolverStatus::kSuccess);
 
@@ -445,7 +434,7 @@ GTEST_TEST(PentaDiagonalMatrixTest, SolvePentaDiagonal) {
       b, &x_petsc_minres);
   end = steady_clock::now();
   wall_clock_time = std::chrono::duration<double>(end - start).count();
-  fmt::print("Petsc MinRes. Wall clock: {:.4g} seconds. error: {}\n",
+  fmt::print("Petsc MinRes.\n  Wall clock: {:.4g} seconds. error: {}\n",
              wall_clock_time, (x_petsc_minres - x_gt).norm() / x_gt.norm());
   EXPECT_EQ(status, PetscSolverStatus::kSuccess);
 
@@ -457,14 +446,9 @@ GTEST_TEST(PentaDiagonalMatrixTest, SolvePentaDiagonal) {
       b, &x_petsc_cg);
   end = steady_clock::now();
   wall_clock_time = std::chrono::duration<double>(end - start).count();
-  fmt::print("Petsc CG.     Wall clock: {:.4g} seconds. error: {}\n",
+  fmt::print("Petsc CG.\n  Wall clock: {:.4g} seconds. error: {}\n",
              wall_clock_time, (x_petsc_cg - x_gt).norm() / x_gt.norm());
   EXPECT_EQ(status, PetscSolverStatus::kSuccess);
-
-  // const double kTolerance = std::numeric_limits<double>::epsilon() * size;
-  // EXPECT_TRUE(
-  //     CompareMatrices(x, x_expected, kTolerance,
-  //     MatrixCompareType::relative));
 }
 
 // Solve H*x = b, where H has a high condition number
@@ -473,28 +457,27 @@ GTEST_TEST(PentaDiagonalMatrixTest, ConditionNumber) {
   const int num_blocks = 30;
   const int size = num_blocks * block_size;
 
-
   std::cout << "Condition number, dense error, sparse error" << std::endl;
   for (double scale_factor = 1e1; scale_factor < 1e20; scale_factor *= 10) {
-    // Generate a matrix H 
+    // Generate a matrix H
     const MatrixXd A = 1e4 * MatrixXd::Random(size, size);
     const MatrixXd P = MatrixXd::Identity(size, size) + A.transpose() * A;
     PentaDiagonalMatrix<double> H =
         PentaDiagonalMatrix<double>::MakeSymmetricFromLowerDense(P, num_blocks,
-                                                                block_size);
+                                                                 block_size);
     MatrixXd Hdense = H.MakeDense();
 
     // Modify H so it has the desired condition number
     Eigen::JacobiSVD<MatrixXd> svd(Hdense,
-                                  Eigen::ComputeThinU | Eigen::ComputeThinV);
+                                   Eigen::ComputeThinU | Eigen::ComputeThinV);
     const MatrixXd U = svd.matrixU();
     const MatrixXd V = svd.matrixV();
     VectorXd S = svd.singularValues();
     const double S_0 = S(0);
     const double S_end = S(size - 1);
-    S = S_0 *
-        (VectorXd::Ones(size) -
-        ((scale_factor - 1) / scale_factor) * (S_0 * VectorXd::Ones(size) - S) / (S_0 - S_end));
+    S = S_0 * (VectorXd::Ones(size) - ((scale_factor - 1) / scale_factor) *
+                                          (S_0 * VectorXd::Ones(size) - S) /
+                                          (S_0 - S_end));
 
     const MatrixXd H_reconstructed = U * S.asDiagonal() * V.transpose();
     H = PentaDiagonalMatrix<double>::MakeSymmetricFromLowerDense(
@@ -522,12 +505,12 @@ GTEST_TEST(PentaDiagonalMatrixTest, ConditionNumber) {
     const double sparse_error = (x_gt - x_sparse).norm();
     std::cout << fmt::format("{}, {}, {}\n", cond, dense_error, sparse_error);
 
-    const auto ldlt = Hdense.ldlt();    
-    std::cout << "Dmin(ldlt): " << ldlt.vectorD().transpose().minCoeff() << std::endl;
-    std::cout << "Dmax(ldlt): " << ldlt.vectorD().transpose().maxCoeff() << std::endl;
+    const auto ldlt = Hdense.ldlt();
+    std::cout << "Dmin(ldlt): " << ldlt.vectorD().transpose().minCoeff()
+              << std::endl;
+    std::cout << "Dmax(ldlt): " << ldlt.vectorD().transpose().maxCoeff()
+              << std::endl;
   }
-
-
 }
 
 }  // namespace internal
