@@ -30,7 +30,7 @@ time_step : 0.05   # Discretization timestep (seconds)
 num_steps : 40    # number of timesteps
 
 # Solver parameters
-max_iters : 200             # maximum Gauss-Newton iterations
+max_iters : 20              # maximum Gauss-Newton iterations
 method : "linesearch"       # solver method, {linesearch, trust_region}
 linesearch : "secant"       # linesearch strategy, {armino, backtracking, secant}
 proximal_operator : false   # whether to add a proximal operator cost term
@@ -56,6 +56,6 @@ play_optimal_trajectory : true
 
 # Debugging parameters
 verbose : true
-linesearch_plot_every_iteration : false
+linesearch_plot_every_iteration : true
 print_debug_data : false
 save_solver_stats_csv : true

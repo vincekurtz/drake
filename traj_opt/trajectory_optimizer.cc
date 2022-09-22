@@ -1719,8 +1719,7 @@ std::tuple<double, int> TrajectoryOptimizer<T>::Linesearch(
   } else if (params_.linesearch_method == LinesearchMethod::kBacktracking) {
     return BacktrackingLinesearch(state, dq, scratch_state);
   } else if (params_.linesearch_method == LinesearchMethod::kSecant) {
-    std::cout << "secant method" << std::endl;
-    return BacktrackingLinesearch(state, dq, scratch_state);
+    return SecantLinesearch(state, dq, scratch_state);
   } else {
     throw std::runtime_error("Unknown linesearch method");
   }
@@ -1839,15 +1838,94 @@ std::tuple<double, int> TrajectoryOptimizer<T>::ArmijoLinesearch(
 
 template <typename T>
 std::tuple<double, int> TrajectoryOptimizer<T>::SecantLinesearch(
-    const TrajectoryOptimizerState<T>& state, const VectorX<T>& dq,
-    TrajectoryOptimizerState<T>* scratch_state) const {
-  using std::abs;
+    const TrajectoryOptimizerState<T>&, const VectorX<T>&,
+    TrajectoryOptimizerState<T>*) const {
+  throw std::runtime_error(
+      "TrajectoryOptimizer::SecantLinesearch only supports T=double.");
+}
 
-  // Compute the cost and gradient
-  const T L = EvalCost(state);
-  const VectorX<T>& g = EvalGradient(state);
+template <>
+std::tuple<double, int> TrajectoryOptimizer<double>::SecantLinesearch(
+    const TrajectoryOptimizerState<double>& state, const VectorXd& dq,
+    TrajectoryOptimizerState<double>* scratch_state) const {
+  // We'll store the linesearch parameter (alpha), gradient w.r.t. alpha (dL),
+  // and cost for an upper and lower bound on the linesearch parameter. These
+  // bounds will then be tightened until we get to a value of alpha with dL = 0.
+  double alpha_lb = 0;
+  double dL_lb = EvalGradient(state).dot(dq);
+  double cost_lb = EvalCost(state);
+  
+  double alpha_ub = 1;
+  scratch_state->set_q(state.q());
+  scratch_state->AddToQ(alpha_ub * dq);
+  double dL_ub = EvalGradient(*scratch_state).dot(dq);
+  double cost_ub = EvalCost(*scratch_state);
 
-  return {}
+  // Some sanity checks
+  DRAKE_DEMAND(dL_lb < 0);
+  if (dL_ub < 0) {
+    if (cost_ub < cost_lb) {
+      // Cost is still decreasing at alpha=1, so we can just take the full step
+      return {alpha_ub, 0};
+    } else {
+      throw std::runtime_error(
+          "TrajectoryOptimizer::SecantLinesearch failed. Cost is decreasing at "
+          "alpha=1, but it is higher than we started, so we don't have a good "
+          "upper bound. In this case another linesearch strategy is probably a "
+          "better choice.");
+    }
+  }
+
+  int i = 1;  // iteration counter. We start at i=1 because we'll check for
+              // convergence immediately after each update.
+  
+  double alpha_prime;  // linesearch parameter at the midpoint
+  double dL_prime;     // gradient at the midpoint
+  double cost_prime;   // cost at the midpoint
+  while (i < params_.max_linesearch_iterations) {
+    // Interpolate between the upper and lower bounds to find a new alpha
+    alpha_prime = alpha_lb - dL_lb * (alpha_ub - alpha_lb) / (dL_ub - dL_lb);
+    scratch_state->set_q(state.q());
+    scratch_state->AddToQ(alpha_prime * dq);
+    dL_prime = EvalGradient(*scratch_state).dot(dq);
+    cost_prime = EvalCost(*scratch_state);
+
+    // Print stuff
+    std::cout << i << std::endl;
+    std::cout << fmt::format("Lower: alpha={}, dL={}\n", alpha_lb, dL_lb);
+    std::cout << fmt::format("New  : alpha={}, dL={}\n", alpha_prime, dL_prime);
+    std::cout << fmt::format("Upper: alpha={}, dL={}\n", alpha_ub, dL_ub);
+    std::cout << std::endl;
+
+    // Check for convergence
+    // TODO(vincekurtz) use some more principled convergence criteria
+    if ((alpha_ub - alpha_lb < 1e-2) || (alpha_prime - alpha_lb < 1e-2) ||
+        (alpha_ub - alpha_prime < 1e-2) || (abs(dL_prime) < 1e-2)) {
+      DRAKE_DEMAND(cost_prime < EvalCost(state));  // the cost must go down
+      return {alpha_prime, i};
+    }
+
+    // Update the upper and lower bounds
+    if (dL_prime < 0) {
+      // We have a new lower bound
+      alpha_lb = alpha_prime;
+      dL_lb = dL_prime;
+      cost_lb = cost_prime;
+    } else {
+      // We have a new upper bound
+      alpha_ub = alpha_prime;
+      dL_ub = dL_prime;
+      cost_ub = cost_prime;
+    }
+
+    ++i;
+  }
+
+  // We should not get to this point. If this is the case, the maximum
+  // linesearch iterations have been exceeded. We will not throw right away,
+  // however, since we might want to make some linesearch plots for debugging in
+  // this case.
+  return {NAN, i};
 }
 
 template <typename T>
