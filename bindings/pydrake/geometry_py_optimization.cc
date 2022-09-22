@@ -122,11 +122,12 @@ void DefineGeometryOptimization(py::module m) {
         .def("A", &HPolyhedron::A, cls_doc.A.doc)
         .def("b", &HPolyhedron::b, cls_doc.b.doc)
         .def("ContainedIn", &HPolyhedron::ContainedIn, py::arg("other"),
-            cls_doc.ContainedIn.doc)
+            py::arg("tol") = 1E-9, cls_doc.ContainedIn.doc)
         .def("Intersection", &HPolyhedron::Intersection, py::arg("other"),
-            py::arg("check_for_redundancy") = false, cls_doc.Intersection.doc)
+            py::arg("check_for_redundancy") = false, py::arg("tol") = 1E-9,
+            cls_doc.Intersection.doc)
         .def("ReduceInequalities", &HPolyhedron::ReduceInequalities,
-            cls_doc.ReduceInequalities.doc)
+            py::arg("tol") = 1E-9, cls_doc.ReduceInequalities.doc)
         .def("MaximumVolumeInscribedEllipsoid",
             &HPolyhedron::MaximumVolumeInscribedEllipsoid,
             cls_doc.MaximumVolumeInscribedEllipsoid.doc)
@@ -345,14 +346,35 @@ void DefineGeometryOptimization(py::module m) {
         .def_readwrite("convex_relaxation",
             &GraphOfConvexSetsOptions::convex_relaxation,
             cls_doc.convex_relaxation.doc)
+        .def_readwrite("preprocessing",
+            &GraphOfConvexSetsOptions::preprocessing, cls_doc.preprocessing.doc)
+        .def_readwrite("max_rounded_paths",
+            &GraphOfConvexSetsOptions::max_rounded_paths,
+            cls_doc.max_rounded_paths.doc)
+        .def_readwrite("max_rounding_trials",
+            &GraphOfConvexSetsOptions::max_rounding_trials,
+            cls_doc.max_rounding_trials.doc)
+        .def_readwrite("flow_tolerance",
+            &GraphOfConvexSetsOptions::flow_tolerance,
+            cls_doc.flow_tolerance.doc)
+        .def_readwrite("rounding_seed",
+            &GraphOfConvexSetsOptions::rounding_seed, cls_doc.rounding_seed.doc)
         .def("__repr__", [](const GraphOfConvexSetsOptions& self) {
           return py::str(
               "GraphOfConvexSetsOptions("
               "convex_relaxation={}, "
+              "preprocessing={}, "
+              "max_rounded_paths={}, "
+              "max_rounding_trials={}, "
+              "flow_tolerance={}, "
+              "rounding_seed={}, "
               "solver={}, "
               "solver_options={}, "
               ")")
-              .format(self.convex_relaxation, self.solver, self.solver_options);
+              .format(self.convex_relaxation, self.preprocessing,
+                  self.max_rounded_paths, self.max_rounding_trials,
+                  self.flow_tolerance, self.rounding_seed, self.solver,
+                  self.solver_options);
         });
 
     DefReadWriteKeepAlive(&gcs_options, "solver",
@@ -426,6 +448,9 @@ void DefineGeometryOptimization(py::module m) {
                   return out;
                 },
                 cls_doc.Edges.doc)
+            .def("ClearAllPhiConstraints",
+                &GraphOfConvexSets::ClearAllPhiConstraints,
+                cls_doc.ClearAllPhiConstraints.doc)
             .def("GetGraphvizString", &GraphOfConvexSets::GetGraphvizString,
                 py::arg("result") = std::nullopt, py::arg("show_slacks") = true,
                 py::arg("precision") = 3, py::arg("scientific") = false,
@@ -499,6 +524,30 @@ void DefineGeometryOptimization(py::module m) {
             vertex_doc.x.doc)
         .def("set", &GraphOfConvexSets::Vertex::set, py_rvp::reference_internal,
             vertex_doc.set.doc)
+        .def("AddCost",
+            py::overload_cast<const symbolic::Expression&>(
+                &GraphOfConvexSets::Vertex::AddCost),
+            py::arg("e"), vertex_doc.AddCost.doc_expression)
+        .def("AddCost",
+            py::overload_cast<const solvers::Binding<solvers::Cost>&>(
+                &GraphOfConvexSets::Vertex::AddCost),
+            py::arg("binding"), vertex_doc.AddCost.doc_binding)
+        .def("AddConstraint",
+            overload_cast_explicit<solvers::Binding<solvers::Constraint>,
+                const symbolic::Formula&>(
+                &GraphOfConvexSets::Vertex::AddConstraint),
+            py::arg("f"), vertex_doc.AddConstraint.doc_formula)
+        .def("AddConstraint",
+            overload_cast_explicit<solvers::Binding<solvers::Constraint>,
+                const solvers::Binding<solvers::Constraint>&>(
+                &GraphOfConvexSets::Vertex::AddConstraint),
+            py::arg("binding"), vertex_doc.AddCost.doc_binding)
+        .def("GetCosts", &GraphOfConvexSets::Vertex::GetCosts,
+            vertex_doc.GetCosts.doc)
+        .def("GetConstraints", &GraphOfConvexSets::Vertex::GetConstraints,
+            vertex_doc.GetConstraints.doc)
+        .def("GetSolutionCost", &GraphOfConvexSets::Vertex::GetSolutionCost,
+            py::arg("result"), vertex_doc.GetSolutionCost.doc)
         .def("GetSolution", &GraphOfConvexSets::Vertex::GetSolution,
             py::arg("result"), vertex_doc.GetSolution.doc);
 

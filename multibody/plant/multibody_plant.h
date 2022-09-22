@@ -3350,7 +3350,7 @@ class MultibodyPlant : public internal::MultibodyTreeSystem<T> {
   /// spatial velocity Jacobian in frame A with respect to "speeds" 𝑠.
   /// <pre>
   ///      J𝑠_V_ABp ≜ [ ∂(V_ABp)/∂𝑠₁,  ...  ∂(V_ABp)/∂𝑠ₙ ]    (n is j or k)
-  ///      V_ABp = J𝑠_V_ABp ⋅ 𝑠          V_ABp is linear in 𝑠 ≜ [𝑠₁ ... 𝑠ₙ]ᵀ
+  ///      V_ABp = J𝑠_V_ABp ⋅ 𝑠          V_ABp is linear in 𝑠 ≜ [𝑠₁ ... 𝑠ₙ]ᵀ
   /// </pre>
   /// `V_ABp` is Bp's spatial velocity in frame A and "speeds" 𝑠 is either
   /// q̇ ≜ [q̇₁ ... q̇ⱼ]ᵀ (time-derivatives of j generalized positions) or
@@ -3404,7 +3404,7 @@ class MultibodyPlant : public internal::MultibodyTreeSystem<T> {
   /// with respect to "speeds" 𝑠.
   /// <pre>
   ///      J𝑠_w_AB ≜ [ ∂(w_AB)/∂𝑠₁,  ...  ∂(w_AB)/∂𝑠ₙ ]    (n is j or k)
-  ///      w_AB = J𝑠_w_AB ⋅ 𝑠          w_AB is linear in 𝑠 ≜ [𝑠₁ ... 𝑠ₙ]ᵀ
+  ///      w_AB = J𝑠_w_AB ⋅ 𝑠          w_AB is linear in 𝑠 ≜ [𝑠₁ ... 𝑠ₙ]ᵀ
   /// </pre>
   /// `w_AB` is B's angular velocity in frame A and "speeds" 𝑠 is either
   /// q̇ ≜ [q̇₁ ... q̇ⱼ]ᵀ (time-derivatives of j generalized positions) or
@@ -3441,7 +3441,7 @@ class MultibodyPlant : public internal::MultibodyTreeSystem<T> {
   /// translational velocity Jacobian in frame A with respect to "speeds" 𝑠.
   /// <pre>
   ///      J𝑠_v_ABi ≜ [ ∂(v_ABi)/∂𝑠₁,  ...  ∂(v_ABi)/∂𝑠ₙ ]    (n is j or k)
-  ///      v_ABi = J𝑠_v_ABi ⋅ 𝑠          v_ABi is linear in 𝑠 ≜ [𝑠₁ ... 𝑠ₙ]ᵀ
+  ///      v_ABi = J𝑠_v_ABi ⋅ 𝑠          v_ABi is linear in 𝑠 ≜ [𝑠₁ ... 𝑠ₙ]ᵀ
   /// </pre>
   /// `v_ABi` is Bi's translational velocity in frame A and "speeds" 𝑠 is either
   /// q̇ ≜ [q̇₁ ... q̇ⱼ]ᵀ (time-derivatives of j generalized positions) or
@@ -3475,6 +3475,7 @@ class MultibodyPlant : public internal::MultibodyTreeSystem<T> {
   /// [∂(v_ABi)/∂q̇₁,  ...  ∂(v_ABi)/∂q̇ⱼ] = [∂(p_AoBi)/∂q₁,  ...  ∂(p_AoBi)/∂qⱼ]
   /// </pre>
   /// Note: Each partial derivative of p_AoBi is taken in frame A.
+  /// @see CalcJacobianPositionVector() for details on Jq_p_AoBi.
   void CalcJacobianTranslationalVelocity(
       const systems::Context<T>& context, JacobianWrtVariable with_respect_to,
       const Frame<T>& frame_B, const Eigen::Ref<const Matrix3X<T>>& p_BoBi_B,
@@ -3487,6 +3488,54 @@ class MultibodyPlant : public internal::MultibodyTreeSystem<T> {
     internal_tree().CalcJacobianTranslationalVelocity(
         context, with_respect_to, frame_B, frame_B, p_BoBi_B, frame_A, frame_E,
         Js_v_ABi_E);
+  }
+
+  /// For each point Bi affixed/welded to a frame B, calculates Jq_p_AoBi, Bi's
+  /// position vector Jacobian in frame A with respect to the generalized
+  /// positions q ≜ [q₁ ... qₙ]ᵀ as
+  /// <pre>
+  ///      Jq_p_AoBi ≜ [ ᴬ∂(p_AoBi)/∂q₁,  ...  ᴬ∂(p_AoBi)/∂qₙ ]
+  /// </pre>
+  /// where p_AoBi is Bi's position vector from point Ao (frame A's origin) and
+  /// ᴬ∂(p_AoBi)/∂qᵣ denotes the partial derivative in frame A of p_AoBi with
+  /// respect to the generalized position qᵣ, where qᵣ is one of q₁ ... qₙ.
+  /// @param[in] context The state of the multibody system.
+  /// @param[in] frame_B The frame on which point Bi is affixed/welded.
+  /// @param[in] p_BoBi_B A position vector or list of k position vectors from
+  /// Bo (frame_B's origin) to points Bi (Bi is regarded as affixed to B), where
+  /// each position vector is expressed in frame_B.
+  /// @param[in] frame_A The frame in which partial derivatives are calculated
+  /// and the frame in which point Ao is affixed.
+  /// @param[in] frame_E The frame in which the Jacobian Jq_p_AoBi is expressed
+  /// on output.
+  /// @param[out] Jq_p_AoBi_E Point Bi's position vector Jacobian in frame A
+  /// with generalized positions q, expressed in frame E. Jq_p_AoBi_E is a
+  /// `3*k x n` matrix, where k is the number of points Bi and n is the number
+  /// of elements in q.  The Jacobian is a function of only generalized
+  /// positions q (which are pulled from the context).
+  /// @throws std::exception if Jq_p_AoBi_E is nullptr or not sized `3*k x n`.
+  /// @note Jq̇_v_ABi = Jq_p_AoBi.  In other words, point Bi's velocity Jacobian
+  /// in frame A with respect to q̇ is equal to point Bi's position vector
+  /// Jacobian in frame A with respect to q.
+  /// <pre>
+  /// [∂(v_ABi)/∂q̇₁, ... ∂(v_ABi)/∂q̇ₙ] = [ᴬ∂(p_AoBi)/∂q₁, ... ᴬ∂(p_AoBi)/∂qₙ]
+  /// </pre>
+  /// @see CalcJacobianTranslationalVelocity() for details on Jq̇_v_ABi.
+  /// Note: Jq_p_AaBi = Jq_p_AoBi, where point Aa is _any_ point fixed/welded to
+  /// frame A, i.e., this calculation's result is the same if point Ao is
+  /// replaced with any point fixed on frame A.
+  void CalcJacobianPositionVector(
+      const systems::Context<T>& context,
+      const Frame<T>& frame_B, const Eigen::Ref<const Matrix3X<T>>& p_BoBi_B,
+      const Frame<T>& frame_A, const Frame<T>& frame_E,
+      EigenPtr<MatrixX<T>> Jq_p_AoBi_E) const {
+    // TODO(mitiguy) Consider providing the Jacobian-times-vector operation.
+    //  Sometimes it is all that is needed and more efficient to compute.
+    this->ValidateContext(context);
+    DRAKE_DEMAND(Jq_p_AoBi_E != nullptr);
+    internal_tree().CalcJacobianTranslationalVelocity(
+        context, JacobianWrtVariable::kQDot, frame_B, frame_B, p_BoBi_B,
+        frame_A, frame_E, Jq_p_AoBi_E);
   }
 
   /// Calculates J𝑠_v_ACcm_E, point Ccm's translational velocity Jacobian in
@@ -3845,6 +3894,18 @@ class MultibodyPlant : public internal::MultibodyTreeSystem<T> {
   /// bodies in any prescribed order.
   /// @throws std::exception if `body` is not part of this plant.
   std::vector<const Body<T>*> GetBodiesWeldedTo(const Body<T>& body) const;
+
+  /// Returns all bodies whose kinematics are transitively affected by the given
+  /// vector of joints. The affected bodies are returned in increasing order of
+  /// body indexes. Note that this is a kinematic relationship rather than a
+  /// dynamic one. For example, if one of the inboard joints is a free (6dof)
+  /// joint, the kinematic influence is still felt even though dynamically
+  /// there would be no influence on the outboard body.
+  /// This function can be only be called post-finalize, see Finalize().
+  /// @throws std::exception if any of the given joint has an invalid index,
+  /// doesn't correspond to a mobilizer, or is welded.
+  std::vector<BodyIndex> GetBodiesKinematicallyAffectedBy(
+      const std::vector<JointIndex>& joint_indexes) const;
 
   /// Returns the number of joints in the model.
   /// @see AddJoint().

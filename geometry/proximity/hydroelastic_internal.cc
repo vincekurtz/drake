@@ -1,5 +1,7 @@
 #include "drake/geometry/proximity/hydroelastic_internal.h"
 
+#include <algorithm>
+#include <filesystem>
 #include <string>
 
 #include <fmt/format.h>
@@ -14,6 +16,8 @@
 #include "drake/geometry/proximity/make_cylinder_mesh.h"
 #include "drake/geometry/proximity/make_ellipsoid_field.h"
 #include "drake/geometry/proximity/make_ellipsoid_mesh.h"
+#include "drake/geometry/proximity/make_mesh_field.h"
+#include "drake/geometry/proximity/make_mesh_from_vtk.h"
 #include "drake/geometry/proximity/make_sphere_field.h"
 #include "drake/geometry/proximity/make_sphere_mesh.h"
 #include "drake/geometry/proximity/obj_to_surface_mesh.h"
@@ -248,8 +252,24 @@ std::optional<RigidGeometry> MakeRigidRepresentation(
 std::optional<RigidGeometry> MakeRigidRepresentation(
     const Mesh& mesh_spec, const ProximityProperties&) {
   // Mesh does not use any properties.
-  auto mesh = make_unique<TriangleSurfaceMesh<double>>(
-      ReadObjToTriangleSurfaceMesh(mesh_spec.filename(), mesh_spec.scale()));
+  std::unique_ptr<TriangleSurfaceMesh<double>> mesh;
+
+  std::string extension =
+      std::filesystem::path(mesh_spec.filename()).extension();
+  std::transform(extension.begin(), extension.end(), extension.begin(),
+                 [](unsigned char c) { return std::tolower(c); });
+
+  if (extension == ".obj") {
+    mesh = make_unique<TriangleSurfaceMesh<double>>(
+        ReadObjToTriangleSurfaceMesh(mesh_spec.filename(), mesh_spec.scale()));
+  } else if (extension == ".vtk") {
+    mesh = make_unique<TriangleSurfaceMesh<double>>(
+        ConvertVolumeToSurfaceMesh(MakeVolumeMeshFromVtk<double>(mesh_spec)));
+  } else {
+    throw(std::runtime_error(fmt::format(
+        "hydroelastic::MakeRigidRepresentation(): unsupported mesh file: {}",
+        mesh_spec.filename())));
+  }
 
   return RigidGeometry(RigidMesh(move(mesh)));
 }
@@ -384,6 +404,23 @@ std::optional<SoftGeometry> MakeSoftRepresentation(
 
   return SoftGeometry(SoftMesh(move(mesh), move(pressure)));
 }
+
+std::optional<SoftGeometry> MakeSoftRepresentation(
+    const Mesh& mesh_specification, const ProximityProperties& props) {
+  PositiveDouble validator("Mesh", "soft");
+
+  auto mesh = make_unique<VolumeMesh<double>>(
+      MakeVolumeMeshFromVtk<double>(mesh_specification));
+
+  const double hydroelastic_modulus =
+      validator.Extract(props, kHydroGroup, kElastic);
+
+  auto pressure = make_unique<VolumeMeshFieldLinear<double, double>>(
+      MakeVolumeMeshPressureField(mesh.get(), hydroelastic_modulus));
+
+  return SoftGeometry(SoftMesh(move(mesh), move(pressure)));
+}
+
 
 }  // namespace hydroelastic
 }  // namespace internal

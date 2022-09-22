@@ -31,6 +31,32 @@ struct GraphOfConvexSetsOptions {
   relaxation is tight. */
   bool convex_relaxation{true};
 
+  /** Performs a preprocessing step to remove edges that cannot lie on the
+  path from source to target. In most cases, preprocessing causes a net
+  reduction in computation by reducing the size of the optimization solved.
+  Note that this preprocessing is not exact. There may be edges that cannot
+  lie on the path from source to target that this does not detect. */
+  bool preprocessing{false};
+
+  /** Maximum number of distinct paths to compare during random rounding; only
+  the lowest cost path is returned. If convex_relaxation is false or this is
+  less than or equal to zero, rounding is not performed. */
+  int max_rounded_paths{0};
+
+  /** Maximum number of trials to find a novel path during random rounding. If
+  convex_relaxation is false or max_rounded_paths is less than or equal to zero,
+  this option is ignored. */
+  int max_rounding_trials{100};
+
+  /** Tolerance for ignoring flow along a given edge during random rounding. If
+  convex_relaxation is false or max_rounded_paths is less than or equal to zero,
+  this option is ignored. */
+  double flow_tolerance{1e-5};
+
+  /** Random seed to use for random rounding. If convex_relaxation is false or
+  max_rounded_paths is less than or equal to zero, this option is ignored. */
+  int rounding_seed{0};
+
   /** Optimizer to be used to solve the shortest path optimization problem. If
   not set, the best solver for the given problem is selected. Note that if the
   solver cannot handle the type of optimization problem generated, the calling
@@ -105,6 +131,72 @@ class GraphOfConvexSets {
     /** Returns a const reference to the underlying ConvexSet. */
     const ConvexSet& set() const { return *set_; }
 
+    /** Adds a cost to this vertex, described by a symbolic::Expression @p e
+    containing *only* elements of x() as variables.  For technical reasons
+    relating to being able to "turn-off" the cost on inactive vertices, all
+    costs are eventually implemented with a slack variable and a constraint:
+    @verbatim
+    min g(x) ⇒ min ℓ, s.t. ℓ ≥ g(x)
+    @endverbatim
+    @note Linear costs lead to negative costs if decision variables are not
+    properly constrained. Users may want to check that the solution does not
+    contain negative costs.
+    @returns the pair <ℓ, g(x)>.
+    @throws std::exception if e.GetVariables() is not a subset of x().
+    @pydrake_mkdoc_identifier{expression}
+    */
+    std::pair<symbolic::Variable, solvers::Binding<solvers::Cost>> AddCost(
+        const symbolic::Expression& e);
+
+    /** Adds a cost to this vertex.  @p binding must contain *only* elements of
+    x() as variables. For technical reasons relating to being able to "turn-off"
+    the cost on inactive vertices, all costs are eventually implemented with a
+    slack variable and a constraint:
+    @verbatim
+    min g(x) ⇒ min ℓ, s.t. ℓ ≥ g(x)
+    @endverbatim
+    @note Linear costs lead to negative costs if decision variables are not
+    properly constrained. Users may want to check that the solution does not
+    contain negative costs.
+    @returns the pair <ℓ, g(x)>.
+    @throws std::exception if binding.variables() is not a subset of x().
+    @pydrake_mkdoc_identifier{binding}
+    */
+    std::pair<symbolic::Variable, solvers::Binding<solvers::Cost>> AddCost(
+        const solvers::Binding<solvers::Cost>& binding);
+
+    /** Adds a constraint to this vertex, described by a symbolic::Formula @p f
+    containing *only* elements of x() as variables.
+    @throws std::exception if f.GetFreeVariables() is not a subset of x().
+    @pydrake_mkdoc_identifier{formula}
+    */
+    solvers::Binding<solvers::Constraint> AddConstraint(
+        const symbolic::Formula& f);
+
+    /** Adds a constraint to this vertex.  @p binding must contain *only*
+    elements of x() as variables.
+    @throws std::exception if binding.variables() is not a subset of x().
+    @pydrake_mkdoc_identifier{binding}
+    */
+    solvers::Binding<solvers::Constraint> AddConstraint(
+        const solvers::Binding<solvers::Constraint>& binding);
+
+    /** Returns all costs on this vertex. */
+    const std::vector<solvers::Binding<solvers::Cost>>& GetCosts() const {
+      return costs_;
+    }
+
+    /** Returns all constraints on this vertex. */
+    const std::vector<solvers::Binding<solvers::Constraint>>& GetConstraints()
+        const {
+      return constraints_;
+    }
+
+    /** Returns the sum of the costs associated with this vertex in a
+    solvers::MathematicalProgramResult. */
+    double GetSolutionCost(
+        const solvers::MathematicalProgramResult& result) const;
+
     /** Returns the solution of x() in a MathematicalProgramResult.  This
     solution is NaN if the vertex is not in the shortest path (or if we are
     solving the the convex relaxation and the total flow through this vertex at
@@ -124,6 +216,10 @@ class GraphOfConvexSets {
     const std::unique_ptr<const ConvexSet> set_;
     const std::string name_{};
     const VectorX<symbolic::Variable> placeholder_x_{};
+    // Note: ell_[i] is associated with costs_[i].
+    solvers::VectorXDecisionVariable ell_{};
+    std::vector<solvers::Binding<solvers::Cost>> costs_{};
+    std::vector<solvers::Binding<solvers::Constraint>> constraints_{};
 
     friend class GraphOfConvexSets;
   };
@@ -179,7 +275,7 @@ class GraphOfConvexSets {
     @note Linear costs lead to negative costs if decision variables are not
     properly constrained. Users may want to check that the solution does not
     contain negative costs.
-    @returns the pair <ℓ, Binding<Cost>>.
+    @returns the pair <ℓ, g(xu, xv)>.
     @throws std::exception if e.GetVariables() is not a subset of xu() ∪ xv().
     @pydrake_mkdoc_identifier{expression}
     */
@@ -196,7 +292,7 @@ class GraphOfConvexSets {
     @note Linear costs lead to negative costs if decision variables are not
     properly constrained. Users may want to check that the solution does not
     contain negative costs.
-    @returns the pair <ℓ, Binding<Cost>>.
+    @returns the pair <ℓ, g(xu, xv)>.
     @throws std::exception if binding.variables() is not a subset of xu() ∪
     xv().
     @pydrake_mkdoc_identifier{binding}
@@ -204,7 +300,7 @@ class GraphOfConvexSets {
     std::pair<symbolic::Variable, solvers::Binding<solvers::Cost>> AddCost(
         const solvers::Binding<solvers::Cost>& binding);
 
-    /** Adds a cost to this edge, described by a symbolic::Formula @p f
+    /** Adds a constraint to this edge, described by a symbolic::Formula @p f
     containing *only* elements of xu() and xv() as variables.
     @throws std::exception if f.GetFreeVariables() is not a subset of xu() ∪
     xv().
@@ -345,6 +441,9 @@ class GraphOfConvexSets {
   @exclude_from_pydrake_mkdoc{This overload is not bound in pydrake.} */
   std::vector<const Edge*> Edges() const;
 
+  /** Removes all constraints added to any edge with AddPhiConstraint. */
+  void ClearAllPhiConstraints();
+
   /** Returns a Graphviz string describing the graph vertices and edges.  If
   `results` is supplied, then the graph will be annotated with the solution
   values.
@@ -442,6 +541,33 @@ class GraphOfConvexSets {
           std::nullopt) const;
 
  private:
+  /* Facilitates testing. */
+  friend class PreprocessShortestPathTest;
+
+  std::set<EdgeId> PreprocessShortestPath(VertexId source_id,
+                                          VertexId target_id) const;
+
+  // Adds a perspective constraint to the mathematical program to upper bound
+  // the cost below a slack variable, ℓ. Specifically given a cost g(x) to
+  // minimize, this method implements it with a slack variable and a constraint:
+  // min g(x) ⇒ min ℓ, s.t. ℓ ≥ ϕ g(ϕx)
+  // `vars` is a vector of variables to be used in the cost and constraint
+  // consisting of ℓ, ϕ, and ϕ times the variables in the original cost.
+  void AddPerspectiveCost(solvers::MathematicalProgram* prog,
+                          const solvers::Binding<solvers::Cost>& binding,
+                          const solvers::VectorXDecisionVariable& vars) const;
+
+  // Adds a perspective version of the constraint to the mathematical program.
+  // Specifically given a constraint h(x) ≤ b, this method implements its
+  // perspective:
+  // h(x) ≤ b ⇒ h(ϕx) ≤ ϕb
+  // vars` is a vector of variables to be used in the constraint consisting of
+  // ϕ, and ϕ times the variables in the original constraint.
+  void AddPerspectiveConstraint(
+      solvers::MathematicalProgram* prog,
+      const solvers::Binding<solvers::Constraint>& binding,
+      const solvers::VectorXDecisionVariable& vars) const;
+
   std::map<VertexId, std::unique_ptr<Vertex>> vertices_{};
   std::map<EdgeId, std::unique_ptr<Edge>> edges_{};
 };

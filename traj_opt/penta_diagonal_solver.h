@@ -98,6 +98,15 @@ class PentaDiagonalFactorization {
 
   void Factorize(const PentaDiagonalMatrix<double>& M);
 
+  // Overloads to check the success of different solver types.
+  bool SolverSucceeded(const Eigen::LDLT<BlockType>& solver) {
+    return solver.info() == Eigen::Success;
+  }
+
+  bool SolverSucceeded(const Eigen::PartialPivLU<BlockType>&) {
+    return true;  // This solver always succeeds.
+  }
+
   Factorization factorization_;
   Eigen::VectorXd r_;  // Convenient storage for the Solve() stage.
   PentaDiagonalFactorizationStatus status_{
@@ -169,10 +178,10 @@ void PentaDiagonalFactorization<kBlockSize>::Factorize(
     // Factorize Gi and reuse it.
     BlockSolver& Ginv_i = Ginv[i];
     Ginv_i.compute(Gi);
-    //if (Ginv_i.info() != Eigen::Success) {
-    //  status_ = PentaDiagonalFactorizationStatus::kFailure;
-    //  return;
-    //}
+    if (!SolverSucceeded(Ginv_i)) {
+      status_ = PentaDiagonalFactorizationStatus::kFailure;
+      return;
+    }
 
     // TODO(amcastro-tri): can I call .noalias() here?
     Yi = Ginv_i.solve(Yi);

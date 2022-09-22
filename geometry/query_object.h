@@ -7,7 +7,7 @@
 
 #include "drake/common/drake_deprecated.h"
 #include "drake/geometry/query_results/contact_surface.h"
-#include "drake/geometry/query_results/deformable_rigid_contact.h"
+#include "drake/geometry/query_results/deformable_contact.h"
 #include "drake/geometry/query_results/penetration_as_point_pair.h"
 #include "drake/geometry/query_results/signed_distance_pair.h"
 #include "drake/geometry/query_results/signed_distance_to_point.h"
@@ -394,21 +394,17 @@ class QueryObject {
       std::vector<ContactSurface<T>>* surfaces,
       std::vector<PenetrationAsPointPair<T>>* point_pairs) const;
 
-  /** Reports contact information between all deformable geometries against all
-   rigid (non-deformable) geometries. This function only supports double as the
-   scalar type.
-   @param[out] deformable_rigid_contact
-     Contains all deformable rigid contact data on output. Any data passed in is
-     cleared before the computation. On output, it has size equal to the number
-     of deformable geometries and sorted by their geometry ids in increasing
-     order.
-   @pre deformable_rigid_contact != nullptr.
+  /** Reports contact information among all deformable geometries. This function
+   only supports double as the scalar type.
+   @param[out] deformable_contact
+     Contains all deformable contact data on output. Any data passed in is
+     cleared before the computation.
+   @pre deformable_contact != nullptr.
    @experimental */
   template <typename T1 = T>
   typename std::enable_if_t<std::is_same_v<T1, double>, void>
-  ComputeDeformableRigidContact(
-      std::vector<internal::DeformableRigidContact<T>>*
-          deformable_rigid_contact) const;
+  ComputeDeformableContact(
+      internal::DeformableContact<T>* deformable_contact) const;
 
   /** Applies a conservative culling mechanism to create a subset of all
    possible geometry pairs based on non-zero intersections. A geometry pair
@@ -604,8 +600,10 @@ class QueryObject {
    Refer to @ref query_object_compute_pairwise_distance_table
    "the table for ComputeSignedDistancePairwiseClosestPoints()" for details.
 
-   @throws std::exception if either geometry id is invalid, the pair (A, B) has
-                          been marked as filtered, or according to the scalar
+   @throws std::exception if either geometry id is invalid (e.g., doesn't refer
+                          to an existing geometry, lacking proximity role,
+                          etc.), the pair (A, B) has been marked as filtered, or
+                          otherwise unsupported as indicated by the the scalar
                           support table.
    @warning For Mesh shapes, their convex hulls are used in this query. It is
             *not* computationally efficient or particularly accurate.  */

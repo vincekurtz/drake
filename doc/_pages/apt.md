@@ -71,7 +71,6 @@ Most content installs to `/opt/drake`, so setting the following environment
 variables may be useful:
 
   ```bash
-  export LD_LIBRARY_PATH="/opt/drake/lib${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
   export PATH="/opt/drake/bin${PATH:+:${PATH}}"
   export PYTHONPATH="/opt/drake/lib/python$(python3 -c 'import sys; print("{0}.{1}".format(*sys.version_info))')/site-packages${PYTHONPATH:+:${PYTHONPATH}}"
   ```
@@ -99,5 +98,5 @@ directly:
 
   ```bash
   wget https://drake-packages.csail.mit.edu/drake/nightly/drake-dev_latest-1_amd64-focal.deb
-  sudo apt-get install --no-install-recommends ./drake-latest-focal.deb
+  sudo apt-get install --no-install-recommends ./drake-dev_latest-1_amd64-focal.deb
   ```
