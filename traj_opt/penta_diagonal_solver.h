@@ -38,7 +38,7 @@ class PentaDiagonalFactorization {
   using BlockType = Eigen::Matrix<double, kBlockSize, kBlockSize>;
   using BlockSolver = Eigen::PartialPivLU<BlockType>;
   // Using this solver leads to large round-off errors.
-  //using BlockSolver = Eigen::LDLT<BlockType>;
+  // using BlockSolver = Eigen::LDLT<BlockType>;
 
   /// Peforms the factorization of M to solve the system of equations M⋅x = b.
   /// This constructor only throws if the matrix is not symmetric. Call status()

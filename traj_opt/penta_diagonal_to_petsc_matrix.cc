@@ -1,5 +1,7 @@
 #include "drake/traj_opt/penta_diagonal_to_petsc_matrix.h"
 
+#include <vector>
+
 using drake::multibody::fem::internal::PetscSymmetricBlockSparseMatrix;
 using Eigen::MatrixXd;
 

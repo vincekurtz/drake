@@ -15,6 +15,6 @@ already called on the returned matrix. */
 std::unique_ptr<multibody::fem::internal::PetscSymmetricBlockSparseMatrix>
 PentaDiagonalToPetscMatrix(const PentaDiagonalMatrix<double>& A);
 
-}
+}  // namespace internal
 }  // namespace traj_opt
 }  // namespace drake
