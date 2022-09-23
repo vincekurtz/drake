@@ -1860,7 +1860,7 @@ std::tuple<double, int> TrajectoryOptimizer<double>::SecantLinesearch(
   double dL_lb = EvalGradient(state).dot(dq);
   double cost_lb = EvalCost(state);
   
-  double alpha_ub = 1;
+  double alpha_ub = 1.0;
   scratch_state->set_q(state.q());
   scratch_state->AddToQ(alpha_ub * dq);
   double dL_ub = EvalGradient(*scratch_state).dot(dq);
@@ -1870,7 +1870,7 @@ std::tuple<double, int> TrajectoryOptimizer<double>::SecantLinesearch(
   DRAKE_DEMAND(dL_lb < 0);  // we need a descent direction
   if (dL_ub < 0) {
     // Cost is still decreasing at alpha=1, so we can just take the full step
-    return {1.0, 0};
+    return {alpha_ub, 0};
   }
 
   // Early exit if dL is essentially zero
@@ -1904,8 +1904,8 @@ std::tuple<double, int> TrajectoryOptimizer<double>::SecantLinesearch(
 
     // Check for convergence
     // TODO(vincekurtz) use some more principled convergence criteria
-    if ((alpha_ub - alpha_lb < 1e-5) || (alpha_prime - alpha_lb < 1e-5) ||
-        (alpha_ub - alpha_prime < 1e-5) || (abs(dL_prime) < 1e-5)) {
+    if ((abs(dL_prime) < 1e-5)) {
+      std::cout << fmt::format("alpha = {}, ls_iters = {}, dL = {}\n", alpha_prime, i, dL_prime);
       return {alpha_prime, i};
     }
 
@@ -2466,7 +2466,6 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
           scratch_state.set_proximal_operator_data(state.q(),
                                                    EvalHessian(state));
         }
-        std::cout << fmt::format("alpha = {}, ls_iters = {}\n", alpha, ls_iters);
         dq *= alpha;
         state.AddToQ(dq);
       }
