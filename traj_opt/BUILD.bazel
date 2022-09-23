@@ -74,6 +74,7 @@ drake_cc_library(
         ":inverse_dynamics_partials",
         ":penta_diagonal_matrix",
         ":penta_diagonal_solver",
+        ":penta_diagonal_to_petsc_matrix",
         ":problem_definition",
         ":solver_parameters",
         ":trajectory_optimizer_solution",
@@ -83,6 +84,7 @@ drake_cc_library(
         "//common:essential",
         "//common:profiler",
         "//geometry:scene_graph_inspector",
+        "//multibody/fem:petsc_symmetric_block_sparse_matrix",
         "//multibody/plant",
     ],
 )

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "drake/common/drake_copyable.h"
+#include "drake/multibody/fem/petsc_symmetric_block_sparse_matrix.h"
 #include "drake/traj_opt/convergence_criteria_tolerances.h"
 
 namespace drake {
@@ -33,6 +34,26 @@ enum GradientsMethod {
 struct SolverParameters {
   DRAKE_DEFAULT_COPY_AND_MOVE_AND_ASSIGN(SolverParameters);
 
+  enum LinearSolverType {
+    // Dense Eigen::LDLT solver.
+    kDenseLdlt,
+    // Pentadiagonal LU solver.
+    kPentaDiagonalLu,
+    // PETSc solver.
+    kPetsc,
+  };
+
+  struct PetscSolverPatameters {
+    using SolverType = drake::multibody::fem::internal::
+        PetscSymmetricBlockSparseMatrix::SolverType;
+    using PreconditionerType = drake::multibody::fem::internal::
+        PetscSymmetricBlockSparseMatrix::PreconditionerType;
+    double relative_tolerance{1.0e-12};
+    SolverType solver_type{SolverType::kConjugateGradient};
+    PreconditionerType preconditioner_type{
+        PreconditionerType::kIncompleteCholesky};
+  };
+
   ConvergenceCriteriaTolerances convergence_tolerances;
 
   SolverParameters() = default;
@@ -51,6 +72,12 @@ struct SolverParameters {
   int max_linesearch_iterations = 50;
 
   GradientsMethod gradients_method{kForwardDifferences};
+
+  // Select the linear solver to be used in the Gauss-Newton step computation.
+  LinearSolverType linear_solver{LinearSolverType::kPentaDiagonalLu};
+
+  // Parameters for the PETSc solver. Ignored if linear_solver != kPetsc.
+  PetscSolverPatameters petsc_parameters{};
 
   // Flag for whether to print out iteration data
   bool verbose = true;

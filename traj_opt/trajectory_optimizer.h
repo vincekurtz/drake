@@ -767,6 +767,11 @@ class TrajectoryOptimizer {
    */
   T SolveDoglegQuadratic(const T& a, const T& b, const T& c) const;
 
+  /* Helper to solve ths system H⋅x = b with a solver as specified with
+  SolverParameters. On output b is overwritten with x. */
+  void SolveLinearSystemInPlace(const PentaDiagonalMatrix<T>& H,
+                                VectorX<T>* b) const;
+
   ConvergenceReason VerifyConvergenceCriteria(
       const TrajectoryOptimizerState<T>& state, const T& previous_cost,
       const VectorX<T>& dq) const;
