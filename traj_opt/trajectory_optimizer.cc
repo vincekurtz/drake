@@ -1871,7 +1871,6 @@ std::tuple<double, int> TrajectoryOptimizer<double>::SecantLinesearch(
   if (dL_ub < 0) {
     // Cost is still decreasing at alpha=1, so we can just take the full step
     return {1.0, 0};
-    (void) cost_lb;
   }
 
   // Early exit if dL is essentially zero
@@ -1885,6 +1884,9 @@ std::tuple<double, int> TrajectoryOptimizer<double>::SecantLinesearch(
   double alpha_prime = NAN;  // linesearch parameter at the midpoint
   double dL_prime = NAN;     // gradient at the midpoint
   double cost_prime = cost_ub;   // cost at the midpoint
+  (void) cost_lb;
+  (void) cost_ub;
+  (void) cost_prime; // TODO: remove?
   while (i < params_.max_linesearch_iterations) {
     // Interpolate between the upper and lower bounds to find a new alpha
     alpha_prime = alpha_lb - dL_lb * (alpha_ub - alpha_lb) / (dL_ub - dL_lb);
@@ -1904,9 +1906,7 @@ std::tuple<double, int> TrajectoryOptimizer<double>::SecantLinesearch(
     // TODO(vincekurtz) use some more principled convergence criteria
     if ((alpha_ub - alpha_lb < 1e-5) || (alpha_prime - alpha_lb < 1e-5) ||
         (alpha_ub - alpha_prime < 1e-5) || (abs(dL_prime) < 1e-5)) {
-      if (cost_prime < EvalCost(state)) {
-        return {alpha_prime, i};
-      }
+      return {alpha_prime, i};
     }
 
     // Update the upper and lower bounds
