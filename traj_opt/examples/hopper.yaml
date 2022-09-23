@@ -41,17 +41,8 @@ tolerances:
 # {forward_differences, central_differences, central_differences4, autodiff}
 gradients_method: "central_differences"
 
+# Linear solver for H*dq = -g. One of {pentadiagonal_lu, dense_ldlt, petsc}
 linear_solver: "pentadiagonal_lu"
-#linear_solver: "dense_ldlt"
-#linear_solver: "petsc"
-
-petsc_rel_tolerance: 1.0e-6
-
-# {cg, direct, minres}
-petsc_solver: minres
-
-# none, chol, ichol
-petsc_preconditioner: ichol
 
 # Playback/visualization parameters
 play_target_trajectory : false
@@ -59,7 +50,7 @@ play_initial_guess : false
 play_optimal_trajectory : true
 
 # Debugging parameters
-linesearch_plot_every_iteration : true
+linesearch_plot_every_iteration : false
 print_debug_data : false
 save_solver_stats_csv : true
 

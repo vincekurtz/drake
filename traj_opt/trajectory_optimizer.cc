@@ -2384,6 +2384,12 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
   const double eta = 0.0;        // Trust ratio threshold - we accept steps if
                                  // the trust ratio is above this threshold
 
+  // Parameters for switching to secant linesearch
+  const double Delta_ls = 1e-2;   // Activate linesearch when Δ is below this
+  const double rho_min_ls = -10;  // Reject the step without linesearch (and
+                                  // reduce Δ) when the trust ratio is below
+                                  // this threshold
+
   // Variables that we'll update throughout the main loop
   int k = 0;                  // iteration counter
   double Delta = Delta0;      // trust region size
@@ -2427,32 +2433,59 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
       SaveIterationData(k, Delta, rho, dq(1), state);
     }
 
-    // DEBUG: save linesearch plot data
+    // save linesearch plot data, if requested
     if (params_.linesearch_plot_every_iteration) {
-      SaveLinesearchResidual(state, dqH, &scratch_state,
-                             fmt::format("linesearch_data_dqH_{}.csv", k));
       SaveLinesearchResidual(state, dq, &scratch_state,
-                             fmt::format("linesearch_data_dq_{}.csv", k));
+                             fmt::format("linesearch_data_{}.csv", k));
     }
 
-    // If the ratio is large enough, accept the change
-    if (rho > eta) {
-      // Update the coefficients for the proximal operator cost
-      if (params_.proximal_operator) {
-        state.set_proximal_operator_data(state.q(), EvalHessian(state));
-        scratch_state.set_proximal_operator_data(state.q(), EvalHessian(state));
+    if (Delta < Delta_ls) {
+      // Perform secant-method linesearch
+      if (rho >= 1) {
+        // Accept the step right away
+        if (params_.proximal_operator) {
+          state.set_proximal_operator_data(state.q(), EvalHessian(state));
+          scratch_state.set_proximal_operator_data(state.q(),
+                                                   EvalHessian(state));
+        }
+        state.AddToQ(dq);  // q += dq
+
+      } else if (rho > rho_min_ls) {
+        // Do secant-method linesearch
+        auto [alpha, ls_iters] = SecantLinesearch(state, dq, &scratch_state);
+        (void) ls_iters;
+        if (params_.proximal_operator) {
+          state.set_proximal_operator_data(state.q(), EvalHessian(state));
+          scratch_state.set_proximal_operator_data(state.q(),
+                                                   EvalHessian(state));
+        }
+        state.AddToQ(alpha * dq);
       }
+      // Else (rho < rho_min_ls) the trust ratio is very small, indicating that
+      // the trust region is still too large and secant linesearch won't perform
+      // well. In this case we reject the step and will keep reducing the trust
+      // region.
 
-      state.AddToQ(dq);  // q += dq
+    } else {  // Do the normal trust region thing
+      // If the ratio is large enough, accept the change
+      if (rho > eta) {
+        // Update the coefficients for the proximal operator cost
+        if (params_.proximal_operator) {
+          state.set_proximal_operator_data(state.q(), EvalHessian(state));
+          scratch_state.set_proximal_operator_data(state.q(), EvalHessian(state));
+        }
+
+        state.AddToQ(dq);  // q += dq
+      }
+      // Else (rho <= eta), the trust region ratio is too small to accept dq, so
+      // we'll need to so keep reducing the trust region. Note that the trust
+      // region will be reduced in this case, since eta < 0.25.
+
+      // N.B. if this is the case (q_{k+1} = q_k), we haven't touched state, so we
+      // should be reusing the cached gradient and Hessian in the next iteration.
+      // TODO(vincekurtz): should we be caching the factorization of the Hessian,
+      // as well as the Hessian itself?
     }
-    // Else (rho <= eta), the trust region ratio is too small to accept dq, so
-    // we'll need to so keep reducing the trust region. Note that the trust
-    // region will be reduced in this case, since eta < 0.25.
-
-    // N.B. if this is the case (q_{k+1} = q_k), we haven't touched state, so we
-    // should be reusing the cached gradient and Hessian in the next iteration.
-    // TODO(vincekurtz): should we be caching the factorization of the Hessian,
-    // as well as the Hessian itself?
 
     // Compute iteration timing
     // N.B. this is in kind of a weird place because we want to record

@@ -22,9 +22,7 @@ if len(sys.argv) == 1:
     filename = "linesearch_data.csv"
 elif len(sys.argv) == 2:
     # iteration specified
-    #filename = f"linesearch_data_{sys.argv[1]}.csv"
-    filename = f"linesearch_data_dqH_{sys.argv[1]}.csv"
-    filename = f"linesearch_data_dq_{sys.argv[1]}.csv"
+    filename = f"linesearch_data_{sys.argv[1]}.csv"
 else:
     print("Usage: python plot_linesearch_residual.py [iteration_number]")
     sys.exit()
