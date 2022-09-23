@@ -12,6 +12,11 @@
 #include "drake/multibody/math/spatial_algebra.h"
 #include "drake/systems/framework/diagram.h"
 #include "drake/traj_opt/penta_diagonal_solver.h"
+#include "drake/traj_opt/penta_diagonal_to_petsc_matrix.h"
+
+using drake::multibody::fem::internal::PetscSolverStatus;
+using drake::multibody::fem::internal::PetscSymmetricBlockSparseMatrix;
+
 #define PRINT_VAR(a) std::cout << #a ": " << a << std::endl;
 #define PRINT_VARn(a) std::cout << #a ":\n" << a << std::endl;
 
@@ -1993,6 +1998,45 @@ T TrajectoryOptimizer<T>::SolveDoglegQuadratic(const T& a, const T& b,
 }
 
 template <typename T>
+void TrajectoryOptimizer<T>::SolveLinearSystemInPlace(
+    const PentaDiagonalMatrix<T>&, VectorX<T>*) const {
+  // Only T=double is supported here, since most of our solvers only support
+  // double.
+  throw std::runtime_error(
+      "TrajectoryOptimizer::SolveLinearSystemInPlace() only supports T=double");
+}
+
+template <>
+void TrajectoryOptimizer<double>::SolveLinearSystemInPlace(
+    const PentaDiagonalMatrix<double>& H, VectorX<double>* b) const {
+  switch (params_.linear_solver) {
+    case SolverParameters::LinearSolverType::kPentaDiagonalLu: {
+      PentaDiagonalFactorization Hlu(H);
+      DRAKE_DEMAND(Hlu.status() == PentaDiagonalFactorizationStatus::kSuccess);
+      Hlu.SolveInPlace(b);
+      break;
+    }
+    case SolverParameters::LinearSolverType::kDenseLdlt: {
+      const MatrixX<double> Hdense = H.MakeDense();
+      const auto& Hldlt = Hdense.ldlt();
+      *b = Hldlt.solve(*b);
+      DRAKE_DEMAND(Hldlt.info() == Eigen::Success);
+      break;
+    }
+    case SolverParameters::LinearSolverType::kPetsc: {
+      auto Hpetsc = internal::PentaDiagonalToPetscMatrix(H);
+      Hpetsc->set_relative_tolerance(
+          params_.petsc_parameters.relative_tolerance);
+      PetscSolverStatus status =
+          Hpetsc->SolveInPlace(params_.petsc_parameters.solver_type,
+                               params_.petsc_parameters.preconditioner_type, b);
+      DRAKE_DEMAND(status == PetscSolverStatus::kSuccess);
+      break;
+    }
+  }
+}
+
+template <typename T>
 bool TrajectoryOptimizer<T>::CalcDoglegPoint(const TrajectoryOptimizerState<T>&,
                                              const double, VectorX<T>*,
                                              VectorX<T>*) const {
@@ -2025,9 +2069,7 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
   VectorXd& pH = state.workspace.q_size_tmp2;
 
   pH = -g / Delta;  // normalize by Δ
-  PentaDiagonalFactorization Hchol(H);
-  DRAKE_DEMAND(Hchol.status() == PentaDiagonalFactorizationStatus::kSuccess);
-  Hchol.SolveInPlace(&pH);
+  SolveLinearSystemInPlace(H, &pH);
 
   if (params_.debug_compare_against_dense) {
     // From experiments in penta_diagonal_solver_test.cc

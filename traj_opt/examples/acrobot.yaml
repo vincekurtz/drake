@@ -49,6 +49,18 @@ tolerances:
 # {forward_differences, central_differences, central_differences4, autodiff}
 gradients_method: "central_differences"
 
+linear_solver: "pentadiagonal_lu"
+#linear_solver: "dense_ldlt"
+#linear_solver: "petsc"
+
+petsc_rel_tolerance: 1.0e-4
+
+# {cg, direct, minres}
+petsc_solver: cg
+
+# none, chol, ichol
+petsc_preconditioner: chol
+
 # Playback/visualization parameters
 play_target_trajectory : false
 play_initial_guess : false
