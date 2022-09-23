@@ -88,6 +88,7 @@ ax[3,1].set_ylabel("Linesearch Iters")
 
 ax[4,1].plot(iters, data["alpha"])
 ax[4,1].set_ylabel(r"Linesearch Param $\alpha$")
+ax[4,1].set_ylim((-0.05,1.05))
 
 ax[4,0].set_xlabel("Iteration")
 ax[4,0].xaxis.set_major_locator(MaxNLocator(integer=True))

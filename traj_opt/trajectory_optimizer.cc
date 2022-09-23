@@ -2386,7 +2386,7 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
 
   // Parameters for switching to secant linesearch
   const double Delta_ls = 1e-2;   // Activate linesearch when Δ is below this
-  const double rho_min_ls = -10;  // Reject the step without linesearch (and
+  const double rho_min_ls = -1e16;  // Reject the step without linesearch (and
                                   // reduce Δ) when the trust ratio is below
                                   // this threshold
 
@@ -2545,15 +2545,17 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
       break;
     }
 
-    // Update the size of the trust-region, if necessary
-    if (rho < 0.25) {
-      // If the ratio is small, our quadratic approximation is bad, so reduce
-      // the trust region
-      Delta *= 0.25;
-    } else if ((rho > 0.75) && tr_constraint_active) {
-      // If the ratio is large and we're at the boundary of the trust
-      // region, increase the size of the trust region.
-      Delta = min(2 * Delta, Delta_max);
+    if (Delta >= Delta_ls) {
+      // Update the size of the trust-region, if necessary
+      if (rho < 0.25) {
+        // If the ratio is small, our quadratic approximation is bad, so reduce
+        // the trust region
+        Delta *= 0.25;
+      } else if ((rho > 0.75) && tr_constraint_active) {
+        // If the ratio is large and we're at the boundary of the trust
+        // region, increase the size of the trust region.
+        Delta = min(2 * Delta, Delta_max);
+      }
     }
 
     ++k;
