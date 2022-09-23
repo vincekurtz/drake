@@ -1894,11 +1894,11 @@ std::tuple<double, int> TrajectoryOptimizer<double>::SecantLinesearch(
     cost_prime = EvalCost(*scratch_state);
 
     // Print stuff
-    std::cout << i << std::endl;
-    std::cout << fmt::format("Lower: alpha={}, dL={}\n", alpha_lb, dL_lb);
-    std::cout << fmt::format("New  : alpha={}, dL={}\n", alpha_prime, dL_prime);
-    std::cout << fmt::format("Upper: alpha={}, dL={}\n", alpha_ub, dL_ub);
-    std::cout << std::endl;
+    //std::cout << i << std::endl;
+    //std::cout << fmt::format("Lower: alpha={}, dL={}\n", alpha_lb, dL_lb);
+    //std::cout << fmt::format("New  : alpha={}, dL={}\n", alpha_prime, dL_prime);
+    //std::cout << fmt::format("Upper: alpha={}, dL={}\n", alpha_ub, dL_ub);
+    //std::cout << std::endl;
 
     // Check for convergence
     // TODO(vincekurtz) use some more principled convergence criteria
@@ -2463,6 +2463,7 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
           scratch_state.set_proximal_operator_data(state.q(),
                                                    EvalHessian(state));
         }
+        std::cout << fmt::format("alpha = {}, ls_iters = {}\n", alpha, ls_iters);
         dq *= alpha;
         state.AddToQ(dq);
       }
