@@ -1862,18 +1862,16 @@ std::tuple<double, int> TrajectoryOptimizer<double>::SecantLinesearch(
   double cost_ub = EvalCost(*scratch_state);
 
   // Some sanity checks
-  DRAKE_DEMAND(dL_lb < 0);
+  DRAKE_DEMAND(dL_lb < 0);  // we need a descent direction
   if (dL_ub < 0) {
-    if (cost_ub < cost_lb) {
-      // Cost is still decreasing at alpha=1, so we can just take the full step
-      return {alpha_ub, 0};
-    } else {
-      throw std::runtime_error(
-          "TrajectoryOptimizer::SecantLinesearch failed. Cost is decreasing at "
-          "alpha=1, but it is higher than we started, so we don't have a good "
-          "upper bound. In this case another linesearch strategy is probably a "
-          "better choice.");
-    }
+    // Cost is still decreasing at alpha=1, so we can just take the full step
+    return {1.0, 0};
+    (void) cost_lb;
+  }
+
+  // Early exit if dL is essentially zero
+  if (abs(dL_lb) < 10 * std::numeric_limits<double>::epsilon()) {
+    return {0.0, 0};
   }
 
   int i = 1;  // iteration counter. We start at i=1 because we'll check for
@@ -2390,7 +2388,9 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
     // DEBUG: save linesearch plot data
     if (params_.linesearch_plot_every_iteration) {
       SaveLinesearchResidual(state, dqH, &scratch_state,
-                             fmt::format("linesearch_data_{}.csv", k));
+                             fmt::format("linesearch_data_dqH_{}.csv", k));
+      SaveLinesearchResidual(state, dq, &scratch_state,
+                             fmt::format("linesearch_data_dq_{}.csv", k));
     }
 
     // If the ratio is large enough, accept the change

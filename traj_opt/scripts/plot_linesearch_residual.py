@@ -22,7 +22,9 @@ if len(sys.argv) == 1:
     filename = "linesearch_data.csv"
 elif len(sys.argv) == 2:
     # iteration specified
-    filename = f"linesearch_data_{sys.argv[1]}.csv"
+    #filename = f"linesearch_data_{sys.argv[1]}.csv"
+    filename = f"linesearch_data_dqH_{sys.argv[1]}.csv"
+    filename = f"linesearch_data_dq_{sys.argv[1]}.csv"
 else:
     print("Usage: python plot_linesearch_residual.py [iteration_number]")
     sys.exit()
@@ -32,7 +34,7 @@ else:
 # exist is if either (1) linesearch fails or (2) you edit 
 # TrajectoryOptimizer::Solve to save the linesearch residual at a particular
 # iteration.
-data_file = drake_root + "/bazel-out/k8-opt/bin/traj_opt/examples/acrobot.runfiles/drake/" + filename
+data_file = drake_root + "/bazel-out/k8-opt/bin/traj_opt/examples/hopper.runfiles/drake/" + filename
 data = np.genfromtxt(data_file, delimiter=',', names=True)
 alpha = data["alpha"]
 cost = data["cost"]
