@@ -76,7 +76,7 @@ struct SolverParameters {
   // Select the linear solver to be used in the Gauss-Newton step computation.
   LinearSolverType linear_solver{LinearSolverType::kPentaDiagonalLu};
 
-  // Parameters for the PETSc solver. Ignored of linear_solver != kPetsc.
+  // Parameters for the PETSc solver. Ignored if linear_solver != kPetsc.
   PetscSolverPatameters petsc_parameters{};
 
   // Flag for whether to print out iteration data
