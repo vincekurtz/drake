@@ -1,8 +1,8 @@
 #pragma once
 
 #include "drake/common/drake_copyable.h"
-#include "drake/traj_opt/convergence_criteria_tolerances.h"
 #include "drake/multibody/fem/petsc_symmetric_block_sparse_matrix.h"
+#include "drake/traj_opt/convergence_criteria_tolerances.h"
 
 namespace drake {
 namespace traj_opt {

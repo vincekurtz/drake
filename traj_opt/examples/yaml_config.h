@@ -69,7 +69,7 @@ struct TrajOptExampleParams {
     a->Visit(DRAKE_NVP(linear_solver));
     a->Visit(DRAKE_NVP(petsc_rel_tolerance));
     a->Visit(DRAKE_NVP(petsc_solver));
-    a->Visit(DRAKE_NVP(petsc_preconditioner));    
+    a->Visit(DRAKE_NVP(petsc_preconditioner));
   }
   // Initial state
   VectorXd q_init;
