@@ -1681,7 +1681,7 @@ void TrajectoryOptimizer<T>::SaveLinesearchResidual(
     const std::string filename) const {
   double alpha_min = -0.2;
   double alpha_max = 1.2;
-  double dalpha = 0.01;
+  double dalpha = 0.001;
 
   std::ofstream data_file;
   data_file.open(filename);
@@ -1882,8 +1882,8 @@ std::tuple<double, int> TrajectoryOptimizer<double>::SecantLinesearch(
   int i = 1;  // iteration counter. We start at i=1 because we'll check for
               // convergence immediately after each update.
   
-  double alpha_prime;  // linesearch parameter at the midpoint
-  double dL_prime;     // gradient at the midpoint
+  double alpha_prime = NAN;  // linesearch parameter at the midpoint
+  double dL_prime = NAN;     // gradient at the midpoint
   double cost_prime = cost_ub;   // cost at the midpoint
   while (i < params_.max_linesearch_iterations) {
     // Interpolate between the upper and lower bounds to find a new alpha
@@ -1925,10 +1925,13 @@ std::tuple<double, int> TrajectoryOptimizer<double>::SecantLinesearch(
     ++i;
   }
 
-  // Even if we've run out of iterations, the result might be good enough to use. 
-  // Check that the cost goes down. If so, return with i-1 so that max iterations isn't triggered.
-  DRAKE_DEMAND(cost_prime < EvalCost(state));  // the cost must go down
-  return {alpha_prime, i-1};
+  std::cout << "Linesearch iteration: " << i << std::endl;
+  std::cout << fmt::format("Lower: alpha={}, dL={}, cost={}\n", alpha_lb, dL_lb, cost_lb);
+  std::cout << fmt::format("New  : alpha={}, dL={}, cost={}\n", alpha_prime, dL_prime, cost_prime);
+  std::cout << fmt::format("Upper: alpha={}, dL={}, cost={}\n", alpha_ub, dL_ub, cost_ub);
+  std::cout << std::endl;
+  SaveLinesearchResidual(state, dq, scratch_state);
+  throw std::runtime_error("TrajectoryOptimizer::SecantLinesearch(): max linesearch iterations exceeded.");
 }
 
 template <typename T>
@@ -2385,7 +2388,7 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
                                  // the trust ratio is above this threshold
 
   // Parameters for switching to secant linesearch
-  const double Delta_ls = 1e-2;   // Activate linesearch when Δ is below this
+  const double Delta_ls = 1e-4;   // Activate linesearch when Δ is below this
   const double rho_min_ls = -1e16;  // Reject the step without linesearch (and
                                   // reduce Δ) when the trust ratio is below
                                   // this threshold
