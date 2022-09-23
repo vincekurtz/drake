@@ -2396,6 +2396,8 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
   double rho;                 // trust region ratio
   bool tr_constraint_active;  // flag for whether the trust region constraint is
                               // active
+  double alpha = NAN;         // linesearch parameter
+  int ls_iters = 0;           // number of linesearch iterations
 
   // Define printout data
   const std::string separator_bar =
@@ -2450,16 +2452,19 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
         }
         state.AddToQ(dq);  // q += dq
 
+        alpha = 1.0;
+        ls_iters = 0;
+
       } else if (rho > rho_min_ls) {
         // Do secant-method linesearch
-        auto [alpha, ls_iters] = SecantLinesearch(state, dq, &scratch_state);
-        (void) ls_iters;
+        std::tie(alpha, ls_iters) = SecantLinesearch(state, dq, &scratch_state);
         if (params_.proximal_operator) {
           state.set_proximal_operator_data(state.q(), EvalHessian(state));
           scratch_state.set_proximal_operator_data(state.q(),
                                                    EvalHessian(state));
         }
-        state.AddToQ(alpha * dq);
+        dq *= alpha;
+        state.AddToQ(dq);
       }
       // Else (rho < rho_min_ls) the trust ratio is very small, indicating that
       // the trust region is still too large and secant linesearch won't perform
@@ -2477,6 +2482,7 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
 
         state.AddToQ(dq);  // q += dq
       }
+
       // Else (rho <= eta), the trust region ratio is too small to accept dq, so
       // we'll need to so keep reducing the trust region. Note that the trust
       // region will be reduced in this case, since eta < 0.25.
@@ -2485,6 +2491,9 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
       // should be reusing the cached gradient and Hessian in the next iteration.
       // TODO(vincekurtz): should we be caching the factorization of the Hessian,
       // as well as the Hessian itself?
+      
+      alpha = NAN;
+      ls_iters = 0;
     }
 
     // Compute iteration timing
@@ -2511,8 +2520,8 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
     // Record statistics from this iteration
     stats->push_data(iter_time.count(),  // iteration time
                      cost,               // cost
-                     0,                  // linesearch iterations
-                     NAN,                // linesearch parameter
+                     ls_iters,                  // linesearch iterations
+                     alpha,                // linesearch parameter
                      Delta,              // trust region size
                      q_norm,             // q norm
                      dq.norm(),          // step size
