@@ -3,6 +3,16 @@ import matplotlib.pyplot as plt
 import numpy as np
 import os
 
+##
+#
+# Script to plot the impact of the unactuation penalty on the
+# constraint violation and the cost change. The data are obtained
+# by enabling augmented_lagrangian and disabling update_init_guess
+# as well as commenting out the lambda update in trajectory_optimizer.cc
+# and setting the corresponding R values to zero.
+#
+##
+
 # Select examples to be processed
 examples = [
     '2dof_spinner',
