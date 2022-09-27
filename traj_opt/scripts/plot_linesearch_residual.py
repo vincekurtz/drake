@@ -32,7 +32,7 @@ else:
 # exist is if either (1) linesearch fails or (2) you edit 
 # TrajectoryOptimizer::Solve to save the linesearch residual at a particular
 # iteration.
-data_file = drake_root + "/bazel-out/k8-opt/bin/traj_opt/examples/spinner.runfiles/drake/" + filename
+data_file = drake_root + "/bazel-out/k8-opt/bin/traj_opt/examples/hopper.runfiles/drake/" + filename
 data = np.genfromtxt(data_file, delimiter=',', names=True)
 alpha = data["alpha"]
 cost = data["cost"]
@@ -40,12 +40,13 @@ gradient = data["gradient"]
 L_prime = data["L_prime"]
 dq = data["dq"]
 
-plt.figure()
-plt.plot(alpha, cost)
-plt.axvline(0.0, linestyle='--', color='grey', linewidth=1)
-plt.axvline(1.0, linestyle='--', color='grey', linewidth=1)
-plt.xlabel(r"Linesearch Parameter $\alpha$")
-plt.ylabel(r"Cost $L(q+\alpha\Delta q) - L(q)$")
+fig, ax = plt.subplots(2,1,sharex=True)
+
+ax[0].plot(alpha, cost)
+ax[0].axvline(0.0, linestyle='--', color='grey', linewidth=1)
+ax[0].axvline(1.0, linestyle='--', color='grey', linewidth=1)
+ax[0].set_xlabel(r"Linesearch Parameter $\alpha$")
+ax[0].set_ylabel(r"Cost $L(q+\alpha\Delta q) - L(q)$")
 
 #plt.figure()
 #plt.plot(alpha, gradient)
@@ -54,13 +55,12 @@ plt.ylabel(r"Cost $L(q+\alpha\Delta q) - L(q)$")
 #plt.xlabel(r"Linesearch Parameter $\alpha$")
 #plt.ylabel(r"Norm of Gradient $\|g\|$")
 
-plt.figure()
-plt.plot(alpha, L_prime)
-plt.axvline(0.0, linestyle='--', color='grey', linewidth=1)
-plt.axvline(1.0, linestyle='--', color='grey', linewidth=1)
-plt.axhline(0.0, linestyle='--', color='grey', linewidth=1)
-plt.xlabel(r"Linesearch Parameter $\alpha$")
-plt.ylabel(r"$L' = g' \Delta q$")
+ax[1].plot(alpha, L_prime)
+ax[1].axvline(0.0, linestyle='--', color='grey', linewidth=1)
+ax[1].axvline(1.0, linestyle='--', color='grey', linewidth=1)
+ax[1].axhline(0.0, linestyle='--', color='grey', linewidth=1)
+ax[1].set_xlabel(r"Linesearch Parameter $\alpha$")
+ax[1].set_ylabel(r"$L' = g' \Delta q$")
 
 plt.show()
 
