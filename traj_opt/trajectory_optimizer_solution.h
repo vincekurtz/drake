@@ -66,7 +66,7 @@ struct TrajectoryOptimizerStats {
   // Constraint violation per major iterations
   std::vector<double> max_unactuation_violations;
 
-  // Final position error per major iteration
+  // Final position cost per major iteration
   std::vector<double> final_pos_costs;
 
   // Number of minor iterations per major iteration
@@ -157,7 +157,7 @@ struct TrajectoryOptimizerStats {
   }
 
   /**
-   * Save the solution to a CSV file that we cn process and make plots from
+   * Save the solution to a CSV file that we can process and make plots from
    * later.
    *
    * @param filename filename for the csv file that we'll write to
@@ -181,6 +181,33 @@ struct TrajectoryOptimizerStats {
           linesearch_alphas[i], trust_region_radii[i], q_norms[i], dq_norms[i],
           dqH_norms[i], trust_ratios[i], gradient_norms[i], dL_dqHs[i],
           dL_dqs[i]);
+    }
+
+    // Close the file
+    data_file.close();
+  }
+
+  /**
+   * Save major iteration data to a CSV file that we can process and make plots from
+   * later.
+   *
+   * @param filename filename for the csv file that we'll write to
+   */
+  void SaveMajorToCsv(std::string fname) const {
+    // Set file to write to
+    std::ofstream data_file;
+    data_file.open(fname);
+
+    // Write a header
+    data_file << "iter, cost, violation, num_iters, time, reason\n";
+
+    const int num_iters = major_iteration_times.size();
+    for (int i = 0; i < num_iters; ++i) {
+      // Write the data
+      data_file << fmt::format(
+          "{}, {}, {}, {}, {}, {}\n", i, final_pos_costs[i],
+          max_unactuation_violations[i], num_minor_iterations[i],
+          major_iteration_times[i], major_convergence_reasons[i]);
     }
 
     // Close the file

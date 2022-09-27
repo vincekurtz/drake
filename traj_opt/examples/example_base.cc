@@ -70,7 +70,7 @@ void TrajOptExample::SolveTrajectoryOptimization(
                 << stats.num_minor_iterations[i]
                 << " minor iterations.\n\tmax. violation: "
                 << stats.max_unactuation_violations[i]
-                << ", final position error: " << stats.final_pos_costs[i]
+                << ", final position cost: " << stats.final_pos_costs[i]
                 << "\n\tconvergence reason: "
                 << DecodeConvergenceReasons(stats.major_convergence_reasons[i])
                 << std::endl;
@@ -79,6 +79,9 @@ void TrajOptExample::SolveTrajectoryOptimization(
     std::cout << "Convergence reason: "
               << DecodeConvergenceReasons(reason) + ".\n";
   }
+
+  // Save the major iteration data into a CSV file
+  stats.SaveMajorToCsv("al_solver_stats.csv");
 
   // Report maximum torques on all DoFs
   VectorXd tau_max = VectorXd::Zero(nv);
