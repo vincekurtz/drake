@@ -2586,17 +2586,17 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
     auto max_violation = violations.lpNorm<Eigen::Infinity>();
     stats->max_unactuation_violations.push_back(max_violation);
 
-    // Report constraint violation and final position error
+    // Report constraint violation and final position cost
     if (params_.verbose)
       std::cout << "\nMax. violation: " << max_violation
-                << "\nFinal position error: " << final_pos_cost << "\n\n";
+                << "\nFinal position cost: " << final_pos_cost << "\n\n";
+
+    // Record the convergence reason for the Gauss-Newton solver
+    stats->major_convergence_reasons.push_back(*reason);
 
     // Terminate if augmented Lagrangian is disabled
     // TODO(aykut): Consider terminating if the solver failed
     if (!params_.augmented_lagrangian) return status;
-
-    // Record the convergence reason for the Gauss-Newton solver
-    stats->major_convergence_reasons.push_back(*reason);
 
     // Check for constraint satisfaction w.r.t. a tolerance
     if (max_violation < params_.constraint_tol) {
