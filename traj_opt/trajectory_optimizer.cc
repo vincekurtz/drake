@@ -2611,12 +2611,6 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
     if (i < params_.max_major_iterations - 1) {
       // Update the Lagrange multipliers
       state.lambda_[i + 1] = state.lambda_[i] - state.mu_[i] * violations;
-      if (params_.verbose) {
-        for (int j = 0; j < num_eq_constraints(); ++j) {
-          std::cout << "lambda " << j << ": " << state.lambda_[i](j)
-                    << "\t-->  " << state.lambda_[i + 1](j) << std::endl;
-        }
-      }
 
       // Update the penalty parameter
       state.mu_[i + 1] = params_.mu_expand_coef * state.mu_[i];
