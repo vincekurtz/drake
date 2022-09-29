@@ -5,6 +5,10 @@ import os
 
 from problem_properties import R, nominal_cost
 
+# Set font sizes for the plots
+plt.rc('axes', labelsize=12)
+plt.rc('legend', fontsize=11)
+
 ##
 #
 # Script to plot the data obtained from the augmented Lagrangian
@@ -17,15 +21,17 @@ from problem_properties import R, nominal_cost
 
 # Select the log directory located at:
 # drake/bazel-out/k8-opt/bin/traj_opt/examples/analysis/
-# LOG_DIR = "al_default/"
+LOG_DIR = "al_default/"
 # LOG_DIR = "al_custom_tol/"
 # LOG_DIR = "al_mu0_1e2/"
 # LOG_DIR = "al_mu0_1e3/"
 # LOG_DIR = "al_mu0_1e4/"
-LOG_DIR = "al_mu0_1e5/"
+# LOG_DIR = "al_mu0_1e5/"
 
-# Corresponding initial penalty value for the AL solver
-MU0 = 1e5
+# Set the corresponding initial penalty
+MU0 = 1e0
+if LOG_DIR.startswith("al_mu0"):
+    MU0 = float(LOG_DIR[-4:-1])
 
 # x axis selection
 # 0: log10 of the unactuation penalty
@@ -114,6 +120,7 @@ for ex in examples:
 # Plot the data
 fig, axs = plt.subplots(2, 1, figsize=(8, 8))
 colors = plt.cm.jet(np.linspace(0, 1, num_examples))
+max_violation = 0.0
 for i, ex in enumerate(examples):
     # Convert the example data into numpy array
     ex_num_iters = len(iters[ex])
@@ -150,22 +157,27 @@ for i, ex in enumerate(examples):
     axs[0].plot(x_data, ex_violation, color=colors[i], marker='.', label=ex)
     axs[1].plot(x_data, ex_cost, color=colors[i], marker='.')
 
+    # Note the maximum violation for limiting the y axis
+    if np.max(ex_violation) > max_violation:
+        max_violation = np.max(ex_violation)
+    if np.max(bl_violation) > max_violation:
+        max_violation = np.max(bl_violation)
 # Set axis limits and add grid
 for ax in axs:
     ax.set_xlim(left=0)
-    ax.set_ylim(bottom=0)
     ax.grid()
-axs[1].set_ylim(top=1)
+axs[0].set_ylim(bottom=-0.1*max_violation)
+axs[1].set_ylim(bottom=-0.02, top=1.02)
 # Set axis positions
-axs[0].set_position([0.075, 0.56, 0.62, 0.4])
-axs[1].set_position([0.075, 0.1, 0.62, 0.4])
+axs[0].set_position([0.1, 0.52, 0.57, 0.45])
+axs[1].set_position([0.1, 0.06, 0.57, 0.45])
 # Set labels and titles
 axs[0].set_ylabel('Unactuation violation')
 axs[0].set_xticklabels([])
 axs[1].set_ylabel('Normalized final position cost')
-axs[0].set_title(f"Data: {LOG_DIR}")
+axs[0].set_title(f"Log directory: {LOG_DIR}")
 # Add legend
-lgnd = axs[0].legend(bbox_to_anchor=(1, 0.5), loc='center left',
-                     frameon=False)
+axs[0].legend(bbox_to_anchor=(0.99, 0.5), loc='center left',
+              frameon=False)
 # Show the figure
 plt.show()

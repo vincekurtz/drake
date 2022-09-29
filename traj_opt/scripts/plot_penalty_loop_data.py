@@ -3,6 +3,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 import os
 
+# Set font sizes for the plots
+plt.rc('axes', labelsize=12)
+plt.rc('legend', fontsize=11)
+
 ##
 #
 # Script to plot the impact of the unactuation penalty on the
@@ -70,22 +74,21 @@ for i, ex in enumerate(examples):
     ex_violation /= np.max(ex_violation)
     ex_cost /= np.max(ex_cost)
     # Plot
-    axs[0].plot(penalty_vals, ex_violation, color=colors[i], marker='.')
-    axs[1].plot(penalty_vals, ex_cost, color=colors[i], marker='.')
-    # Scale the axes
-    axs[0].set_xscale('log')
-    axs[1].set_xscale('log')
-    # axs[0].set_yscale('log')
-    # axs[1].set_yscale('log')
-    # Add labels
-    axs[0].set_ylabel('Normalized unactuation violation')
-    axs[0].set_xticklabels([])
-    axs[1].set_ylabel('Normalized final position cost')
-    axs[1].set_xlabel('log(unactuation penalty)')
-    # Add legend
-    axs[0].legend(examples, bbox_to_anchor=(1, 0.8), frameon=False)
-    # Add grid
-    axs[0].grid()
-    axs[1].grid()
-fig.tight_layout()
+    axs[0].plot(np.log10(penalty_vals), ex_violation, color=colors[i], marker='.')
+    axs[1].plot(np.log10(penalty_vals), ex_cost, color=colors[i], marker='.')
+# Add grid
+for ax in axs:
+    ax.grid()
+# Set axis positions
+axs[0].set_position([0.08, 0.52, 0.59, 0.45])
+axs[1].set_position([0.08, 0.06, 0.59, 0.45])
+# Add labels
+axs[0].set_ylabel('Normalized unactuation violation')
+axs[0].set_xticklabels([])
+axs[1].set_ylabel('Normalized final position cost')
+axs[1].set_xlabel('log10(Unactuation penalty)')
+# Add legend
+axs[0].legend(examples, bbox_to_anchor=(0.99, 0.5), loc='center left',
+              frameon=False)
+# Show the figure
 plt.show()
