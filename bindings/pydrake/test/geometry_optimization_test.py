@@ -121,9 +121,9 @@ class TestGeometryOptimization(unittest.TestCase):
         h_half_box = mut.HPolyhedron.MakeBox(
             lb=[-0.5, -0.5, -0.5], ub=[0.5, 0.5, 0.5])
         self.assertTrue(h_half_box.ContainedIn
-                        (other=h_unit_box))
-        h_half_box2 = h_half_box.Intersection(other=h_unit_box,
-                                              check_for_redundancy=True)
+                        (other=h_unit_box, tol=1E-9))
+        h_half_box2 = h_half_box.Intersection(
+            other=h_unit_box, check_for_redundancy=True, tol=1E-9)
         self.assertIsInstance(h_half_box2, mut.HPolyhedron)
         self.assertEqual(h_half_box2.ambient_dimension(), 3)
         np.testing.assert_array_almost_equal(
@@ -137,7 +137,8 @@ class TestGeometryOptimization(unittest.TestCase):
             other=h_unit_box,
             check_for_redundancy=False)
         # Check that the ReduceInequalities binding works.
-        h_half_box3 = h_half_box_intersect_unit_box.ReduceInequalities()
+        h_half_box3 = h_half_box_intersect_unit_box.ReduceInequalities(
+            tol=1E-9)
 
     def test_hyper_ellipsoid(self):
         ellipsoid = mut.Hyperellipsoid(A=self.A, center=self.b)
@@ -410,6 +411,17 @@ class TestGeometryOptimization(unittest.TestCase):
         self.assertFalse(region.PointInSet([3.0]))
 
     def test_graph_of_convex_sets(self):
+        options = mut.GraphOfConvexSetsOptions()
+        options.convex_relaxation = True
+        options.preprocessing = False
+        options.max_rounded_paths = 2
+        options.max_rounding_trials = 5
+        options.flow_tolerance = 1e-6
+        options.rounding_seed = 1
+        options.solver = ClpSolver()
+        options.solver_options = SolverOptions()
+        self.assertIn("convex_relaxation", repr(options))
+
         spp = mut.GraphOfConvexSets()
         source = spp.AddVertex(set=mut.Point([0.1]), name="source")
         target = spp.AddVertex(set=mut.Point([0.2]), name="target")
@@ -458,13 +470,27 @@ class TestGeometryOptimization(unittest.TestCase):
             result=result, show_slacks=True, precision=2, scientific=False))
 
         # Vertex
+        self.assertAlmostEqual(
+            source.GetSolutionCost(result=result), 0.0, 1e-6)
+        np.testing.assert_array_almost_equal(
+            source.GetSolution(result), [0.1], 1e-6)
         self.assertIsInstance(source.id(), mut.GraphOfConvexSets.VertexId)
         self.assertEqual(source.ambient_dimension(), 1)
         self.assertEqual(source.name(), "source")
         self.assertIsInstance(source.x()[0], Variable)
         self.assertIsInstance(source.set(), mut.Point)
-        np.testing.assert_array_almost_equal(
-            source.GetSolution(result), [0.1], 1e-6)
+        var, binding = source.AddCost(e=1.0+source.x()[0])
+        self.assertIsInstance(var, Variable)
+        self.assertIsInstance(binding, Binding[Cost])
+        var, binding = source.AddCost(binding=binding)
+        self.assertIsInstance(var, Variable)
+        self.assertIsInstance(binding, Binding[Cost])
+        self.assertEqual(len(source.GetCosts()), 2)
+        binding = source.AddConstraint(f=(source.x()[0] <= 1.0))
+        self.assertIsInstance(binding, Binding[Constraint])
+        binding = source.AddConstraint(binding=binding)
+        self.assertIsInstance(binding, Binding[Constraint])
+        self.assertEqual(len(source.GetConstraints()), 2)
 
         # Edge
         self.assertAlmostEqual(edge0.GetSolutionCost(result=result), 0.0, 1e-6)
@@ -493,6 +519,8 @@ class TestGeometryOptimization(unittest.TestCase):
         self.assertEqual(len(edge0.GetConstraints()), 2)
         edge0.AddPhiConstraint(phi_value=False)
         edge0.ClearPhiConstraints()
+        edge1.AddPhiConstraint(phi_value=True)
+        spp.ClearAllPhiConstraints()
 
         # Remove Edges
         self.assertEqual(len(spp.Edges()), 2)

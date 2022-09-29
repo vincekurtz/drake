@@ -18,6 +18,7 @@ load("@drake//tools/workspace/common_robotics_utilities:repository.bzl", "common
 load("@drake//tools/workspace/commons_io:repository.bzl", "commons_io_repository")  # noqa
 load("@drake//tools/workspace/conex:repository.bzl", "conex_repository")
 load("@drake//tools/workspace/csdp:repository.bzl", "csdp_repository")
+load("@drake//tools/workspace/curl_internal:repository.bzl", "curl_internal_repository")  # noqa
 load("@drake//tools/workspace/double_conversion:repository.bzl", "double_conversion_repository")  # noqa
 load("@drake//tools/workspace/doxygen:repository.bzl", "doxygen_repository")
 load("@drake//tools/workspace/dm_control_internal:repository.bzl", "dm_control_internal_repository")  # noqa
@@ -62,6 +63,7 @@ load("@drake//tools/workspace/msgpack:repository.bzl", "msgpack_repository")
 load("@drake//tools/workspace/msgpack_lite_js:repository.bzl", "msgpack_lite_js_repository")  # noqa
 load("@drake//tools/workspace/mypy_extensions_internal:repository.bzl", "mypy_extensions_internal_repository")  # noqa
 load("@drake//tools/workspace/mypy_internal:repository.bzl", "mypy_internal_repository")  # noqa
+load("@drake//tools/workspace/nanoflann_internal:repository.bzl", "nanoflann_internal_repository")  # noqa
 load("@drake//tools/workspace/net_sf_jchart2d:repository.bzl", "net_sf_jchart2d_repository")  # noqa
 load("@drake//tools/workspace/nlopt:repository.bzl", "nlopt_repository")
 load("@drake//tools/workspace/nlopt_internal:repository.bzl", "nlopt_internal_repository")  # noqa
@@ -92,6 +94,7 @@ load("@drake//tools/workspace/styleguide:repository.bzl", "styleguide_repository
 load("@drake//tools/workspace/suitesparse:repository.bzl", "suitesparse_repository")  # noqa
 load("@drake//tools/workspace/tinyobjloader:repository.bzl", "tinyobjloader_repository")  # noqa
 load("@drake//tools/workspace/tinyxml2:repository.bzl", "tinyxml2_repository")
+load("@drake//tools/workspace/tinyxml2_internal:repository.bzl", "tinyxml2_internal_repository")  # noqa
 load("@drake//tools/workspace/tomli_internal:repository.bzl", "tomli_internal_repository")  # noqa
 load("@drake//tools/workspace/typing_extensions_internal:repository.bzl", "typing_extensions_internal_repository")  # noqa
 load("@drake//tools/workspace/uritemplate_py_internal:repository.bzl", "uritemplate_py_internal_repository")  # noqa
@@ -150,6 +153,8 @@ def add_default_repositories(excludes = [], mirrors = DEFAULT_MIRRORS):
         conex_repository(name = "conex", mirrors = mirrors)
     if "csdp" not in excludes:
         csdp_repository(name = "csdp", mirrors = mirrors)
+    if "curl_internal" not in excludes:
+        curl_internal_repository(name = "curl_internal", mirrors = mirrors)
     if "double_conversion" not in excludes:
         double_conversion_repository(name = "double_conversion")
     if "doxygen" not in excludes:
@@ -273,6 +278,8 @@ def add_default_repositories(excludes = [], mirrors = DEFAULT_MIRRORS):
         mypy_extensions_internal_repository(name = "mypy_extensions_internal", mirrors = mirrors)  # noqa
     if "mypy_internal" not in excludes:
         mypy_internal_repository(name = "mypy_internal", mirrors = mirrors)
+    if "nanoflann_internal" not in excludes:
+        nanoflann_internal_repository(name = "nanoflann_internal", mirrors = mirrors)  # noqa
     if "net_sf_jchart2d" not in excludes:
         net_sf_jchart2d_repository(name = "net_sf_jchart2d", mirrors = mirrors)
     if "nlopt" not in excludes:
@@ -353,6 +360,8 @@ def add_default_repositories(excludes = [], mirrors = DEFAULT_MIRRORS):
         tinyobjloader_repository(name = "tinyobjloader", mirrors = mirrors)
     if "tinyxml2" not in excludes:
         tinyxml2_repository(name = "tinyxml2")
+    if "tinyxml2_internal" not in excludes:
+        tinyxml2_internal_repository(name = "tinyxml2_internal", mirrors = mirrors)  # noqa
     if "tomli_internal" not in excludes:
         tomli_internal_repository(name = "tomli_internal", mirrors = mirrors)
     if "typing_extensions_internal" not in excludes:

@@ -350,6 +350,12 @@ class TrajectoryOptimizerState {
     invalidate_cache();
   }
 
+  // Augmented Lagrangian parameters
+  std::vector<Eigen::VectorXd> lambda_;
+  std::vector<double> mu_;
+  Eigen::VectorXd lambda_iter_;
+  double mu_iter_;
+
   // Set all the cache invalidation flags to false
   void invalidate_cache() {
     cache_.trajectory_data.up_to_date = false;
@@ -363,12 +369,6 @@ class TrajectoryOptimizerState {
     cache_.sdf_data.up_to_date = false;
     cache_.n_plus_up_to_date = false;
   }
-
-  // Augmented Lagrangian parameters
-  std::vector<Eigen::VectorXd> lambda_;
-  std::vector<double> mu_;
-  Eigen::VectorXd lambda_iter_;
-  double mu_iter_;
 
  private:
   // Number of timesteps in the optimization problem

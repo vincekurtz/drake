@@ -141,7 +141,8 @@ GTEST_TEST(ProximityEngineTests, AddDynamicGeometry) {
 // it's supported or not (note: this test doesn't depend on the choice of
 // rigid/compliant -- for each shape, we pick an arbitrary compliance type,
 // preferring one that is supported over one that is not. Otherwise, the
-// compliance choice is immaterial.)
+// compliance choice is immaterial.) One exception is that the rigid Mesh and
+// the compliant Mesh use two different kinds of files, so we test both of them.
 GTEST_TEST(ProximityEngineTests, ProcessHydroelasticProperties) {
   ProximityEngine<double> engine;
   // All of the geometries will have a scale comparable to edge_length, so that
@@ -217,6 +218,17 @@ GTEST_TEST(ProximityEngineTests, ProcessHydroelasticProperties) {
     engine.AddDynamicGeometry(mesh, {}, mesh_id, rigid_properties);
     EXPECT_EQ(ProximityEngineTester::hydroelastic_type(mesh_id, engine),
               HydroelasticType::kRigid);
+  }
+
+  // Case: compliant mesh.
+  {
+    Mesh mesh{
+        drake::FindResourceOrThrow("drake/geometry/test/non_convex_mesh.vtk"),
+        1.0 /* scale */};
+    const GeometryId mesh_id = GeometryId::get_new_id();
+    engine.AddDynamicGeometry(mesh, {}, mesh_id, soft_properties);
+    EXPECT_EQ(ProximityEngineTester::hydroelastic_type(mesh_id, engine),
+              HydroelasticType::kSoft);
   }
 
   // Case: rigid convex.
@@ -452,6 +464,17 @@ GTEST_TEST(ProximityEngineTests, MeshSupportAsConvex) {
       EXPECT_FALSE(engine.HasCollisions());
     }
   }
+}
+
+// Tests that passing VTK file in Mesh for Point contact will throw.
+GTEST_TEST(ProximityEngineTests, VtkForPointContactThrow) {
+  ProximityEngine<double> engine;
+  const Mesh vtk_mesh{
+      drake::FindResourceOrThrow("drake/geometry/test/non_convex_mesh.vtk")};
+  DRAKE_EXPECT_THROWS_MESSAGE(
+      engine.AddAnchoredGeometry(vtk_mesh, RigidTransformd::Identity(),
+                                 GeometryId::get_new_id()),
+      "ProximityEngine: expect an Obj file for non-hydroelastics but get.*");
 }
 
 // Tests simple addition of anchored geometry.
@@ -4655,7 +4678,7 @@ TEST_F(ProximityEngineDeformableContactTest, UpdateDeformablePositions) {
 
 // Verify that ProximityEngine is properly invoking the lower-level collision
 // query code by verifying a few necessary conditions.
-TEST_F(ProximityEngineDeformableContactTest, ComputeDeformableRigidContact) {
+TEST_F(ProximityEngineDeformableContactTest, ComputeDeformableContact) {
   const GeometryId deformable_id = AddDeformableSphere();
 
   // Add a rigid sphere partially overlapping the deformable sphere.
@@ -4664,12 +4687,13 @@ TEST_F(ProximityEngineDeformableContactTest, ComputeDeformableRigidContact) {
   engine_.AddDynamicGeometry(Sphere(kSphereRadius), {}, rigid_id, props);
 
   // Verify the two spheres are in contact.
-  std::vector<DeformableRigidContact<double>> contact_data;
-  engine_.ComputeDeformableRigidContact(&contact_data);
-  ASSERT_EQ(contact_data.size(), 1);
-  EXPECT_EQ(contact_data[0].deformable_id(), deformable_id);
-  ASSERT_EQ(contact_data[0].rigid_ids().size(), 1);
-  EXPECT_EQ(contact_data[0].rigid_ids()[0], rigid_id);
+  DeformableContact<double> contact_data;
+  engine_.ComputeDeformableContact(&contact_data);
+  ASSERT_EQ(contact_data.contact_surfaces().size(), 1);
+  DeformableContactSurface<double> contact_surface =
+      contact_data.contact_surfaces()[0];
+  EXPECT_EQ(contact_surface.id_A(), deformable_id);
+  EXPECT_EQ(contact_surface.id_B(), rigid_id);
 
   // Move the deformable geometry away so that the two geometries are no longer
   // in contact.
@@ -4681,9 +4705,8 @@ TEST_F(ProximityEngineDeformableContactTest, ComputeDeformableRigidContact) {
     q_WD.segment<3>(3 * i) = mesh.vertex(i) + offset_W;
   }
   engine_.UpdateDeformableVertexPositions({{deformable_id, q_WD}});
-  engine_.ComputeDeformableRigidContact(&contact_data);
-  ASSERT_EQ(contact_data.size(), 1);
-  EXPECT_EQ(contact_data[0].rigid_ids().size(), 0);
+  engine_.ComputeDeformableContact(&contact_data);
+  ASSERT_EQ(contact_data.contact_surfaces().size(), 0);
 
   // Shift the rigid geometry by the same offset and they are again in
   // contact.
@@ -4691,11 +4714,11 @@ TEST_F(ProximityEngineDeformableContactTest, ComputeDeformableRigidContact) {
       geometry_id_to_world_poses;
   geometry_id_to_world_poses.insert({rigid_id, RigidTransformd(offset_W)});
   engine_.UpdateWorldPoses(geometry_id_to_world_poses);
-  engine_.ComputeDeformableRigidContact(&contact_data);
-  ASSERT_EQ(contact_data.size(), 1);
-  EXPECT_EQ(contact_data[0].deformable_id(), deformable_id);
-  ASSERT_EQ(contact_data[0].rigid_ids().size(), 1);
-  EXPECT_EQ(contact_data[0].rigid_ids()[0], rigid_id);
+  engine_.ComputeDeformableContact(&contact_data);
+  ASSERT_EQ(contact_data.contact_surfaces().size(), 1);
+  contact_surface = contact_data.contact_surfaces()[0];
+  EXPECT_EQ(contact_surface.id_A(), deformable_id);
+  EXPECT_EQ(contact_surface.id_B(), rigid_id);
 }
 
 }  // namespace

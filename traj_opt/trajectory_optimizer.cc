@@ -12,6 +12,11 @@
 #include "drake/multibody/math/spatial_algebra.h"
 #include "drake/systems/framework/diagram.h"
 #include "drake/traj_opt/penta_diagonal_solver.h"
+#include "drake/traj_opt/penta_diagonal_to_petsc_matrix.h"
+
+using drake::multibody::fem::internal::PetscSolverStatus;
+using drake::multibody::fem::internal::PetscSymmetricBlockSparseMatrix;
+
 #define PRINT_VAR(a) std::cout << #a ": " << a << std::endl;
 #define PRINT_VARn(a) std::cout << #a ":\n" << a << std::endl;
 
@@ -1767,7 +1772,7 @@ void TrajectoryOptimizer<T>::SaveLinesearchResidual(
     const std::string filename) const {
   double alpha_min = -0.2;
   double alpha_max = 1.2;
-  double dalpha = 0.001;
+  double dalpha = 0.01;
 
   std::ofstream data_file;
   data_file.open(filename);
@@ -1993,6 +1998,45 @@ T TrajectoryOptimizer<T>::SolveDoglegQuadratic(const T& a, const T& b,
 }
 
 template <typename T>
+void TrajectoryOptimizer<T>::SolveLinearSystemInPlace(
+    const PentaDiagonalMatrix<T>&, VectorX<T>*) const {
+  // Only T=double is supported here, since most of our solvers only support
+  // double.
+  throw std::runtime_error(
+      "TrajectoryOptimizer::SolveLinearSystemInPlace() only supports T=double");
+}
+
+template <>
+void TrajectoryOptimizer<double>::SolveLinearSystemInPlace(
+    const PentaDiagonalMatrix<double>& H, VectorX<double>* b) const {
+  switch (params_.linear_solver) {
+    case SolverParameters::LinearSolverType::kPentaDiagonalLu: {
+      PentaDiagonalFactorization Hlu(H);
+      DRAKE_DEMAND(Hlu.status() == PentaDiagonalFactorizationStatus::kSuccess);
+      Hlu.SolveInPlace(b);
+      break;
+    }
+    case SolverParameters::LinearSolverType::kDenseLdlt: {
+      const MatrixX<double> Hdense = H.MakeDense();
+      const auto& Hldlt = Hdense.ldlt();
+      *b = Hldlt.solve(*b);
+      DRAKE_DEMAND(Hldlt.info() == Eigen::Success);
+      break;
+    }
+    case SolverParameters::LinearSolverType::kPetsc: {
+      auto Hpetsc = internal::PentaDiagonalToPetscMatrix(H);
+      Hpetsc->set_relative_tolerance(
+          params_.petsc_parameters.relative_tolerance);
+      PetscSolverStatus status =
+          Hpetsc->SolveInPlace(params_.petsc_parameters.solver_type,
+                               params_.petsc_parameters.preconditioner_type, b);
+      DRAKE_DEMAND(status == PetscSolverStatus::kSuccess);
+      break;
+    }
+  }
+}
+
+template <typename T>
 bool TrajectoryOptimizer<T>::CalcDoglegPoint(const TrajectoryOptimizerState<T>&,
                                              const double, VectorX<T>*,
                                              VectorX<T>*) const {
@@ -2024,14 +2068,19 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
   // gradients computation negligible.
   VectorXd& pH = state.workspace.q_size_tmp2;
 
-  // Use dense algebra rather than our pentadiagonal solver to avoid a bug that
-  // results in dq'g > 0 (search direction is not descent direction.)
-  // TODO(vincekurtz): debug the sparse solver and use sparse algebra again.
-  pH = H.MakeDense().ldlt().solve(-g / Delta);
-  // pH = -g / Delta;  // normalize by Δ
-  // PentaDiagonalFactorization Hchol(H);
-  // DRAKE_DEMAND(Hchol.status() == PentaDiagonalFactorizationStatus::kSuccess);
-  // Hchol.SolveInPlace(&pH);
+  pH = -g / Delta;  // normalize by Δ
+  SolveLinearSystemInPlace(H, &pH);
+
+  if (params_.debug_compare_against_dense) {
+    // From experiments in penta_diagonal_solver_test.cc
+    // (PentaDiagonalMatrixTest.SolvePentaDiagonal), LDLT is the most stable
+    // solver to round-off errors. We therefore use it as a reference solution
+    // for debugging.
+    const VectorXd pH_dense = H.MakeDense().ldlt().solve(-g / Delta);
+    std::cout << fmt::format("Sparse vs. Dense error: {}\n",
+                             (pH - pH_dense).norm() / pH_dense.norm());
+  }
+
   *dqH = pH * Delta;
 
   // Compute the unconstrained minimizer of m(δq) = L(q) + g(q)'*δq + 1/2
@@ -2349,9 +2398,11 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
 
   // Define printout data
   const std::string separator_bar =
-      "-------------------------------------------------------------------";
+      "------------------------------------------------------------------------"
+      "--------";
   const std::string printout_labels =
-      "|  iter  |   cost   |    Δ    |    ρ    |  time (s)  |  |g|/cost  |";
+      "|  iter  |   cost   |    Δ    |    ρ    |  time (s)  |  |g|/cost  | "
+      "dL_dq/cost |";
 
   double previous_cost = EvalCost(*state);
   while (k < params_.max_iterations) {
@@ -2361,6 +2412,13 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
     // Verify that dq is a descent direction
     const VectorXd& g = EvalGradient(*state);
     DRAKE_DEMAND(dq.transpose() * g < 0);
+
+    // Compute some quantities for logging.
+    // N.B. These should be computed before q is updated.
+    const double cost = EvalCost(*state);
+    const double dL_dqH = g.dot(dqH) / cost;
+    const double dL_dq = g.dot(dq) / cost;
+    const double q_norm = state->norm();
 
     // Compute the trust region ratio
     rho = CalcTrustRatio(*state, dq, scratch_state);
@@ -2410,22 +2468,18 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
         std::cout << separator_bar << std::endl;
       }
       std::cout << fmt::format(
-          "| {:>6} | {:>8.3g} | {:>7.2} | {:>7.1} | {:>10.5} | {:>10.5} |\n", k,
-          EvalCost(*state), Delta, rho, iter_time.count(),
-          EvalGradient(*state).norm() / EvalCost(*state));
+          "| {:>6} | {:>8.3g} | {:>7.2} | {:>7.1} | {:>10.5} | {:>10.5} | "
+          "{:>10.4} |\n",
+          k, cost, Delta, rho, iter_time.count(), g.norm() / cost, dL_dq);
     }
-
-    const double cost = EvalCost(*state);
-    const double dL_dqH = g.dot(dqH) / cost;
-    const double dL_dq = g.dot(dq) / cost;
 
     // Record statistics from this iteration
     stats->push_data(iter_time.count(),  // iteration time
-                     EvalCost(*state),   // cost
+                     cost,               // cost
                      0,                  // linesearch iterations
                      NAN,                // linesearch parameter
                      Delta,              // trust region size
-                     (*state).norm(),    // q norm
+                     q_norm,             // q norm
                      dq.norm(),          // step size
                      dqH.norm(),         // Unconstrained step size
                      rho,                // trust region ratio

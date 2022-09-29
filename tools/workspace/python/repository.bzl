@@ -51,8 +51,11 @@ _VERSION_SUPPORT_MATRIX = {
     "ubuntu:20.04": ["3.8"],
     "ubuntu:22.04": ["3.10"],
     "macos": ["3.10"],
+    # NOTE: when updating supported wheel python versions:
+    # - Update URLs on doc/_pages/pip.md (`cpXY-cpXY` components), and
+    # - Tables on from_source.md and installation.md (python version number).
     "macos_wheel": ["3.10"],
-    "manylinux": ["3.8", "3.9"],
+    "manylinux": ["3.8", "3.9", "3.10"],
 }
 
 def repository_python_info(repository_ctx):
@@ -76,8 +79,7 @@ def repository_python_info(repository_ctx):
         # @drake//tools/py_toolchain:macos_py3_runtime
         python = repository_ctx.attr.macos_interpreter_path
         if not python:
-            arch_result = execute_or_fail(repository_ctx, ["/usr/bin/arch"])
-            if arch_result.stdout.strip() == "arm64":
+            if os_result.macos_arch_result == "arm64":
                 python = MACOS_ARM64_INTERPRETER_PATH
             else:
                 python = MACOS_I386_INTERPRETER_PATH

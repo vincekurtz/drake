@@ -1,7 +1,6 @@
 #pragma once
 
 #include <string>
-#include <vector>
 
 #include "drake/common/eigen_types.h"
 #include "drake/common/yaml/yaml_io.h"
@@ -67,6 +66,10 @@ struct TrajOptExampleParams {
     a->Visit(DRAKE_NVP(lineplot_q_max));
     a->Visit(DRAKE_NVP(tolerances));
     a->Visit(DRAKE_NVP(verbose));
+    a->Visit(DRAKE_NVP(linear_solver));
+    a->Visit(DRAKE_NVP(petsc_rel_tolerance));
+    a->Visit(DRAKE_NVP(petsc_solver));
+    a->Visit(DRAKE_NVP(petsc_preconditioner));
     a->Visit(DRAKE_NVP(augmented_lagrangian));
     a->Visit(DRAKE_NVP(update_init_guess));
     a->Visit(DRAKE_NVP(overwrite_unactuated_dof));
@@ -119,6 +122,19 @@ struct TrajOptExampleParams {
   // Method of computing gradients, "forward_differences",
   // "central_differences", "central_differences4" or "autodiff"
   std::string gradients_method{"forward_differences"};
+
+  // Linear solve type: dense_ldlt, pentadiagonal_lu, petsc.
+  std::string linear_solver{"pentadiagonal_lu"};
+
+  double petsc_rel_tolerance{1.0e-12};
+
+  // PETSc solver type: cg, direct, minres.
+  // Note. "direct" only works with petsc_preconditioner = chol.
+  std::string petsc_solver{"cg"};
+
+  // PETSc preconditioner type: none, chol, ichol.
+  // Note. "chol" only works with petsc_solver = direct.
+  std::string petsc_preconditioner{"ichol"};
 
   // Whether to add a proximal operator term to the cost (essentially adds to
   // the diagonal of the Hessian)

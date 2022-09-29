@@ -21,6 +21,7 @@ drake_cc_package_library(
         ":inverse_dynamics_partials",
         ":penta_diagonal_matrix",
         ":penta_diagonal_solver",
+        ":penta_diagonal_to_petsc_matrix",
         ":problem_definition",
         ":solver_parameters",
         ":trajectory_optimizer",
@@ -53,6 +54,17 @@ drake_cc_library(
 )
 
 drake_cc_library(
+    name = "penta_diagonal_to_petsc_matrix",
+    srcs = ["penta_diagonal_to_petsc_matrix.cc"],
+    hdrs = ["penta_diagonal_to_petsc_matrix.h"],
+    deps = [
+        ":penta_diagonal_matrix",
+        "//common:essential",
+        "//multibody/fem:petsc_symmetric_block_sparse_matrix",
+    ],
+)
+
+drake_cc_library(
     name = "trajectory_optimizer",
     srcs = ["trajectory_optimizer.cc"],
     hdrs = [
@@ -62,6 +74,7 @@ drake_cc_library(
         ":inverse_dynamics_partials",
         ":penta_diagonal_matrix",
         ":penta_diagonal_solver",
+        ":penta_diagonal_to_petsc_matrix",
         ":problem_definition",
         ":solver_parameters",
         ":trajectory_optimizer_solution",
@@ -71,6 +84,7 @@ drake_cc_library(
         "//common:essential",
         "//common:profiler",
         "//geometry:scene_graph_inspector",
+        "//multibody/fem:petsc_symmetric_block_sparse_matrix",
         "//multibody/plant",
     ],
 )
@@ -132,7 +146,19 @@ drake_cc_googletest(
     deps = [
         ":penta_diagonal_matrix",
         ":penta_diagonal_solver",
+        ":penta_diagonal_to_petsc_matrix",
         "//common/test_utilities:eigen_matrix_compare",
+        "//multibody/fem:petsc_symmetric_block_sparse_matrix",
+    ],
+)
+
+drake_cc_googletest(
+    name = "penta_diagonal_to_petsc_matrix_test",
+    deps = [
+        ":penta_diagonal_matrix",
+        ":penta_diagonal_to_petsc_matrix",
+        "//common/test_utilities:eigen_matrix_compare",
+        "//multibody/fem:petsc_symmetric_block_sparse_matrix",
     ],
 )
 
