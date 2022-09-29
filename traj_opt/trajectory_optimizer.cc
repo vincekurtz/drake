@@ -352,10 +352,17 @@ void TrajectoryOptimizer<T>::CalcContactForceContribution(
       const Vector3<T> vt = v_AcBc_W - vn * nhat;
 
       // Normal (compliant) component.
-      const T sign_vn = vn > 0 ? 1.0 : -1.0;
-      const T dissipation_factor = max(
-          0.0, 1.0 - pow(abs(vn / dissipation_velocity), dissipation_exponent) *
-                         sign_vn);
+      T dissipation_factor = 0.0;
+      if (vn < 0) {
+        dissipation_factor = 1 - vn / dissipation_velocity;
+      } else if (vn < 2 * dissipation_velocity) {
+        dissipation_factor = 1 / (4 * dissipation_velocity * dissipation_velocity) * (vn - 2 * dissipation_velocity) * (vn - 2 * dissipation_velocity);
+      }
+      (void) dissipation_exponent;
+      //const T sign_vn = vn > 0 ? 1.0 : -1.0;
+      //const T dissipation_factor = max(
+      //    0.0, 1.0 - pow(abs(vn / dissipation_velocity), dissipation_exponent) *
+      //                   sign_vn);
 
       T compliant_fn;
       if (params_.force_at_a_distance) {
@@ -1904,7 +1911,7 @@ std::tuple<double, int> TrajectoryOptimizer<double>::SecantLinesearch(
 
     // Check for convergence
     // TODO(vincekurtz) use some more principled convergence criteria
-    if ((abs(dL_prime) < 1e-5)) {
+    if ((abs(dL_prime) < 1e-5) || ((alpha_lb - alpha_ub) < 1e-5)) {
       std::cout << fmt::format("alpha = {}, ls_iters = {}, dL = {}\n", alpha_prime, i, dL_prime);
       return {alpha_prime, i};
     }
@@ -2388,7 +2395,7 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
                                  // the trust ratio is above this threshold
 
   // Parameters for switching to secant linesearch
-  const double Delta_ls = 1e-4;   // Activate linesearch when Δ is below this
+  const double Delta_ls = 1e-5;   // Activate linesearch when Δ is below this
   const double rho_min_ls = -1e16;  // Reject the step without linesearch (and
                                   // reduce Δ) when the trust ratio is below
                                   // this threshold

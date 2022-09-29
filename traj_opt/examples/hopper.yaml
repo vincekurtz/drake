@@ -39,7 +39,7 @@ tolerances:
 
 # Method used to compute gradients of inverse dynamics, one of
 # {forward_differences, central_differences, central_differences4, autodiff}
-gradients_method: "autodiff"
+gradients_method: "central_differences"
 
 # Linear solver for H*dq = -g. One of {pentadiagonal_lu, dense_ldlt, petsc}
 linear_solver: "pentadiagonal_lu"
@@ -58,14 +58,14 @@ save_solver_stats_csv : true
 F : 10.0         # force at delta meters of penetration
 delta : 0.01    # penetration distance with F newtons of normal force
 stiffness_exponent : 2.0      # Compliant law exponent.
-dissipation_exponent : 2.0   # Hunt & Crossley-like model. Law exponent.
+dissipation_exponent : 1.0   # Hunt & Crossley-like model. Law exponent.
 dissipation_velocity : 0.1  # Hunt & Crossley-like model parameter, in m/s.
 
 # Force at a distance parameters. If force at a distance is enabled,
 # we still use F and delta to determine compliance, but assume
 # stiffness_exponent = 1 and smooth out the contact forces according
 # to the given factor (lower is smoother).
-force_at_a_distance : true
+force_at_a_distance : false
 smoothing_factor : 500
 
 # Friction
