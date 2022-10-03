@@ -47,7 +47,7 @@ tolerances:
 
 # Method used to compute gradients of inverse dynamics, one of
 # {forward_differences, central_differences, central_differences4, autodiff}
-gradients_method: "autodiff"
+gradients_method: "central_differences"
 
 # Playback/visualization parameters
 play_target_trajectory : true
@@ -60,7 +60,7 @@ print_debug_data : false
 save_solver_stats_csv : true
 
 # Contact model parameters
-F : 10.0       # force at delta meters of penetration
+F : 1.0       # force at delta meters of penetration
 delta : 0.01  # penetration distance with F newtons of normal force
 stiffness_exponent : 1      # Compliant law exponent.
 dissipation_exponent : 1.0  # Hunt & Crossley-like model. Law exponent.
@@ -75,4 +75,4 @@ smoothing_factor : 100
 
 # Friction
 friction_coefficient : 0.5  # Coefficient of friction.
-stiction_velocity: 0.01     # Regularization velocity, in m/s.
+stiction_velocity: 0.05     # Regularization velocity, in m/s.

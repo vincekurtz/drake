@@ -24,7 +24,7 @@ time_step : 0.05   # Discretization timestep (seconds)
 num_steps : 40    # number of timesteps
 
 # Solver parameters
-max_iters : 1000             # maximum Gauss-Newton iterations
+max_iters : 1500             # maximum Gauss-Newton iterations
 method : "trust_region"     # solver method, {linesearch, trust_region}
 linesearch : "secant"
 
@@ -55,9 +55,9 @@ print_debug_data : false
 save_solver_stats_csv : true
 
 # Contact model parameters
-F : 10.0         # force at delta meters of penetration
-delta : 0.01    # penetration distance with F newtons of normal force
-stiffness_exponent : 2.0      # Compliant law exponent.
+F : 20.0         # force at delta meters of penetration
+delta : 0.02    # penetration distance with F newtons of normal force
+stiffness_exponent : 1.0      # Compliant law exponent.
 dissipation_exponent : 1.0   # Hunt & Crossley-like model. Law exponent.
 dissipation_velocity : 0.1  # Hunt & Crossley-like model parameter, in m/s.
 
