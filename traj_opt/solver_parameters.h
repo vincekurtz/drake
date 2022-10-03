@@ -137,11 +137,13 @@ struct SolverParameters {
   double lineplot_q_min = 0.0;
   double lineplot_q_max = 1.0;
 
+  // Parameters for overwriting unactuated DOF indices
+  bool overwrite_unactuated_dof = false;
+  std::vector<int> unactuated_dof_indices;
+
   // Augmented Lagrangian parameters
   bool augmented_lagrangian = false;
   bool update_init_guess = true;
-  bool overwrite_unactuated_dof = false;
-  std::vector<int> unactuated_dof_indices;
   int max_major_iterations = 5;
   double lambda0 = 0;
   double mu0 = 1e1;

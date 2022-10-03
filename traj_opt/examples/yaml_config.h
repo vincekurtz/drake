@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <vector>
 
 #include "drake/common/eigen_types.h"
 #include "drake/common/yaml/yaml_io.h"
@@ -70,10 +71,10 @@ struct TrajOptExampleParams {
     a->Visit(DRAKE_NVP(petsc_rel_tolerance));
     a->Visit(DRAKE_NVP(petsc_solver));
     a->Visit(DRAKE_NVP(petsc_preconditioner));
-    a->Visit(DRAKE_NVP(augmented_lagrangian));
-    a->Visit(DRAKE_NVP(update_init_guess));
     a->Visit(DRAKE_NVP(overwrite_unactuated_dof));
     a->Visit(DRAKE_NVP(unactuated_dof_indices));
+    a->Visit(DRAKE_NVP(augmented_lagrangian));
+    a->Visit(DRAKE_NVP(update_init_guess));
     a->Visit(DRAKE_NVP(max_major_iterations));
     a->Visit(DRAKE_NVP(lambda0));
     a->Visit(DRAKE_NVP(mu0));
@@ -182,11 +183,13 @@ struct TrajOptExampleParams {
   double lineplot_q_min = 0;
   double lineplot_q_max = 1;
 
+  // Parameters for overwriting unactuated DOF indices
+  bool overwrite_unactuated_dof = false;
+  std::vector<int> unactuated_dof_indices;
+
   // Augmented Lagrangian solver parameters
   bool augmented_lagrangian = false;
   bool update_init_guess = true;
-  bool overwrite_unactuated_dof = false;
-  std::vector<int> unactuated_dof_indices;
   int max_major_iterations = 5;
   double lambda0 = 0;
   double mu0 = 1e1;
