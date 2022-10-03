@@ -375,7 +375,16 @@ void TrajectoryOptimizer<T>::CalcContactForceContribution(
                          log(1 + exp(-smoothing_factor * pair.distance));
         }
       } else {
-        compliant_fn = F * pow(-pair.distance / delta, stiffness_exponent);
+        //compliant_fn = F * pow(-pair.distance / delta, stiffness_exponent);
+        (void) stiffness_exponent;
+        const T x = -pair.distance / delta;
+        if (x < 0) {
+          compliant_fn = 0;
+        } else if (x < 1) {
+          compliant_fn = F * x * x;
+        } else {
+          compliant_fn = F * (2 * x - 1);
+        }
       }
       const T fn = compliant_fn * dissipation_factor;
 
@@ -1880,11 +1889,6 @@ std::tuple<double, int> TrajectoryOptimizer<double>::SecantLinesearch(
     return {alpha_ub, 0};
   }
 
-  // Early exit if dL is essentially zero
-  if (abs(dL_lb) < 10 * std::numeric_limits<double>::epsilon()) {
-    return {0.0, 0};
-  }
-
   int i = 1;  // iteration counter. We start at i=1 because we'll check for
               // convergence immediately after each update.
   
@@ -1911,7 +1915,7 @@ std::tuple<double, int> TrajectoryOptimizer<double>::SecantLinesearch(
 
     // Check for convergence
     // TODO(vincekurtz) use some more principled convergence criteria
-    if ((abs(dL_prime) < 1e-5) || ((alpha_lb - alpha_ub) < 1e-5)) {
+    if (abs(dL_prime) < 1e-5) {
       std::cout << fmt::format("alpha = {}, ls_iters = {}, dL = {}\n", alpha_prime, i, dL_prime);
       return {alpha_prime, i};
     }
@@ -1932,6 +1936,7 @@ std::tuple<double, int> TrajectoryOptimizer<double>::SecantLinesearch(
     ++i;
   }
 
+  std::cout << "Secant linesearch failed." << std::endl;
   std::cout << "Linesearch iteration: " << i << std::endl;
   std::cout << fmt::format("Lower: alpha={}, dL={}, cost={}\n", alpha_lb, dL_lb, cost_lb);
   std::cout << fmt::format("New  : alpha={}, dL={}, cost={}\n", alpha_prime, dL_prime, cost_prime);
@@ -2395,7 +2400,7 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
                                  // the trust ratio is above this threshold
 
   // Parameters for switching to secant linesearch
-  const double Delta_ls = 1e-5;   // Activate linesearch when Δ is below this
+  const double Delta_ls = 1e-15;   // Activate linesearch when Δ is below this
   const double rho_min_ls = -1e16;  // Reject the step without linesearch (and
                                   // reduce Δ) when the trust ratio is below
                                   // this threshold
