@@ -52,6 +52,8 @@ ax[1,0].legend()
 ax[2,0].plot(iters, data["grad_norm"] / data["cost"])
 ax[2,0].set_ylabel("$||g|| / cost$")
 ax[2,0].set_yscale("log")
+ax[2,0].axhline(1e-6, linestyle='--', color='grey', label=1e-6)
+ax[2,0].legend()
 
 ax[3,0].plot(iters, data["grad_norm"])
 ax[3,0].set_ylabel("$||g||$")

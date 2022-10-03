@@ -2400,7 +2400,7 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
                                  // the trust ratio is above this threshold
 
   // Parameters for switching to secant linesearch
-  const double Delta_ls = 1e-15;   // Activate linesearch when Δ is below this
+  const double Delta_ls = 1e-5;   // Activate linesearch when Δ is below this
   const double rho_min_ls = -1e16;  // Reject the step without linesearch (and
                                   // reduce Δ) when the trust ratio is below
                                   // this threshold
