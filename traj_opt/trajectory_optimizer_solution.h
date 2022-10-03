@@ -188,8 +188,8 @@ struct TrajectoryOptimizerStats {
   }
 
   /**
-   * Save major iteration data to a CSV file that we can process and make plots from
-   * later.
+   * Save major iteration data to a CSV file that we can process and make plots
+   * from later.
    *
    * @param filename filename for the csv file that we'll write to
    */
