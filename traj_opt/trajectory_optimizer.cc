@@ -1948,7 +1948,6 @@ T TrajectoryOptimizer<T>::CalcTrustRatio(
   scratch_state->AddToQ(dq);
   const T L_old = EvalCost(state);           // L(q)
   const T L_new = EvalCost(*scratch_state);  // L(q + dq)
-
   const T actual_reduction = L_old - L_new;
 
   // Threshold for determining when the actual and predicted reduction in cost
