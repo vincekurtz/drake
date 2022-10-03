@@ -435,8 +435,6 @@ class TestGeometryOptimization(unittest.TestCase):
         self.assertIsInstance(
             spp.SolveShortestPath(source=source, target=target),
             MathematicalProgramResult)
-        options = mut.GraphOfConvexSetsOptions()
-        options.solver = ClpSolver()
         self.assertIsInstance(spp.SolveShortestPath(
             source_id=source.id(), target_id=target.id(), options=options),
             MathematicalProgramResult)

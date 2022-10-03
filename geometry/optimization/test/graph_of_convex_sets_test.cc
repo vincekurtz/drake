@@ -594,8 +594,6 @@ TEST_F(ThreePoints, QuadraticCost5) {
 
   DRAKE_EXPECT_THROWS_MESSAGE(g_.SolveShortestPath(*source_, *target_, options),
                               ".* must be strictly non-negative.*");
-<<<<<<< HEAD
-=======
 }
 
 // Costs must be strictly positive.
@@ -605,7 +603,6 @@ TEST_F(ThreePoints, QuadraticCost6) {
 
   DRAKE_EXPECT_THROWS_MESSAGE(g_.SolveShortestPath(*source_, *target_, options),
                               ".* must be strictly non-negative.*");
->>>>>>> Vince/traj_opt
 }
 
 TEST_F(ThreePoints, L1NormCost) {
