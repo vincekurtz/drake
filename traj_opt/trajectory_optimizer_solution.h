@@ -64,28 +64,28 @@ struct TrajectoryOptimizerStats {
   std::vector<double> major_iteration_times;
 
   // Constraint violation per major iterations
-  std::vector<double> max_unactuation_violations;
+  std::vector<double> major_max_violations;
 
   // Final position cost per major iteration
-  std::vector<double> final_pos_costs;
+  std::vector<double> major_final_pos_costs;
 
-  // Number of minor iterations per major iteration
-  std::vector<int> num_minor_iterations;
+  // Number of Gauss-Newton iterations per major iteration
+  std::vector<int> major_num_gn_iterations;
 
   // Convergence reasons for major iterations
   std::vector<ConvergenceReason> major_convergence_reasons;
 
-  // Time for each Gauss-Newton (minor) iteration
+  // Time for each Gauss-Newton iteration
   std::vector<double> iteration_times;
 
-  // Cost at each Gauss-Newton (minor) iteration
+  // Cost at each Gauss-Newton iteration
   std::vector<T> iteration_costs;
 
   // Number of linesearch iterations, or number of times the trust-region was
-  // modified, for each outer iteration
+  // modified, for each Gauss-Newton iteration
   std::vector<int> linesearch_iterations;
 
-  // Linsearch parameter alpha for each iteration
+  // Linesearch parameter alpha for each iteration
   std::vector<double> linesearch_alphas;
 
   // Trust region radius Δ for each iteration
@@ -205,8 +205,8 @@ struct TrajectoryOptimizerStats {
     for (int i = 0; i < num_iters; ++i) {
       // Write the data
       data_file << fmt::format(
-          "{}, {}, {}, {}, {}, {}\n", i, final_pos_costs[i],
-          max_unactuation_violations[i], num_minor_iterations[i],
+          "{}, {}, {}, {}, {}, {}\n", i, major_final_pos_costs[i],
+          major_max_violations[i], major_num_gn_iterations[i],
           major_iteration_times[i], major_convergence_reasons[i]);
     }
 

@@ -2329,7 +2329,7 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithLinesearch(
   stats->major_iteration_times.push_back(solve_time.count());
 
   // Record the number of iterations
-  stats->num_minor_iterations.push_back(k + 1);
+  stats->major_num_gn_iterations.push_back(k + 1);
 
   // Record the solution
   solution->q = state->q();
@@ -2524,7 +2524,7 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
   stats->major_iteration_times.push_back(solve_time.count());
 
   // Record the number of iterations
-  stats->num_minor_iterations.push_back(k + 1);
+  stats->major_num_gn_iterations.push_back(k + 1);
 
   // Record the solution
   solution->q = state->q();
@@ -2633,12 +2633,12 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
     // Evaluate the final position cost for the solution
     VectorXd qf_err = prob_.q_nom[num_steps()] - state.q()[num_steps()];
     double final_pos_cost = qf_err.transpose() * prob_.Qf_q * qf_err;
-    stats->final_pos_costs.push_back(final_pos_cost);
+    stats->major_final_pos_costs.push_back(final_pos_cost);
 
     // Evaluate the constraint violations
     auto violations = CalcConstraintViolations(solution->tau);
     auto max_violation = violations.lpNorm<Eigen::Infinity>();
-    stats->max_unactuation_violations.push_back(max_violation);
+    stats->major_max_violations.push_back(max_violation);
 
     // Report constraint violation and final position cost
     if (params_.verbose)

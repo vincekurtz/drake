@@ -67,10 +67,10 @@ void TrajOptExample::SolveTrajectoryOptimization(
          ++i) {
       std::cout << "Major iteration " << i << " was solved in "
                 << stats.major_iteration_times[i] << " s and in "
-                << stats.num_minor_iterations[i]
+                << stats.major_num_gn_iterations[i]
                 << " minor iterations.\n\tmax. violation: "
-                << stats.max_unactuation_violations[i]
-                << ", final position cost: " << stats.final_pos_costs[i]
+                << stats.major_max_violations[i]
+                << ", final position cost: " << stats.major_final_pos_costs[i]
                 << "\n\tconvergence reason: "
                 << DecodeConvergenceReasons(stats.major_convergence_reasons[i])
                 << std::endl;
