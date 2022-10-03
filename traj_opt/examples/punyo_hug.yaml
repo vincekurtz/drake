@@ -87,7 +87,7 @@ time_step : 0.05    # Discretization timestep (seconds)
 num_steps : 40      # number of timesteps
 
 # Solver parameters
-max_iters : 500            # maximum Gauss-Newton iterations
+max_iters : 1000            # maximum Gauss-Newton iterations
 method : "trust_region"     # solver method, {linesearch, trust_region}
 
 # Convergence thresholds
@@ -118,7 +118,7 @@ F : 1.0       # force at delta meters of penetration
 delta : 0.01  # penetration distance with F newtons of normal force
 stiffness_exponent : 1      # Compliant law exponent.
 dissipation_exponent : 1.0  # Hunt & Crossley-like model. Law exponent.
-dissipation_velocity : 0.01  # Hunt & Crossley-like model parameter, in m/s.
+dissipation_velocity : 1e16  # Hunt & Crossley-like model parameter, in m/s.
 
 # Force at a distance parameters. If force at a distance is enabled,
 # we still use F and delta to determine compliance, but assume
@@ -128,5 +128,5 @@ force_at_a_distance : false
 smoothing_factor : 140
 
 # Friction
-friction_coefficient : 0.5  # Coefficient of friction.
+friction_coefficient : 0.0  # Coefficient of friction.
 stiction_velocity: 0.05     # Regularization velocity, in m/s.
