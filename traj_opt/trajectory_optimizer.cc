@@ -1697,7 +1697,7 @@ void TrajectoryOptimizer<T>::SaveLinesearchResidual(
     const std::string filename) const {
   double alpha_min = -0.2;
   double alpha_max = 1.2;
-  double dalpha = 0.001;
+  double dalpha = 0.05;
 
   std::ofstream data_file;
   data_file.open(filename);
