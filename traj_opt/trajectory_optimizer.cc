@@ -353,12 +353,15 @@ void TrajectoryOptimizer<T>::CalcContactForceContribution(
             (vn - 2 * dissipation_velocity) * (vn - 2 * dissipation_velocity);
       }
 
+      // (Compliant) force in the normal direction increases linearly at a rate
+      // of 2F/delta Newtons per meter, with some smoothing that may or may not
+      // allow for force at a distance.
       T compliant_fn;
       if (params_.force_at_a_distance) {
         if (pair.distance / delta < -100) {
           // If the exponent is going to be very large, replace with the
           // functional limit as smoothing_factor goes to infinity.
-          compliant_fn = - 2 * F / delta * pair.distance;
+          compliant_fn = -2 * F / delta * pair.distance;
         } else {
           compliant_fn = 2 * F * log(1 + exp(-1 / delta * pair.distance));
         }
