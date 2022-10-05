@@ -51,7 +51,6 @@ struct TrajOptExampleParams {
     a->Visit(DRAKE_NVP(delta));
     a->Visit(DRAKE_NVP(stiffness_exponent));
     a->Visit(DRAKE_NVP(dissipation_velocity));
-    a->Visit(DRAKE_NVP(dissipation_exponent));
     a->Visit(DRAKE_NVP(stiction_velocity));
     a->Visit(DRAKE_NVP(friction_coefficient));
     a->Visit(DRAKE_NVP(force_at_a_distance));
@@ -152,7 +151,6 @@ struct TrajOptExampleParams {
   double delta = 0.01;
   double stiffness_exponent = 2;
   double dissipation_velocity = 0.1;
-  double dissipation_exponent = 1.0;
   double stiction_velocity = 0.05;
   double friction_coefficient = 0.0;
 

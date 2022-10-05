@@ -263,17 +263,11 @@ void TrajectoryOptimizer<T>::CalcContactForceContribution(
   using std::pow;
   using std::sqrt;
 
-  // Compliant contact parameters. stiffness_exponent = 3/2 corresponds to Hertz
-  // model for spherical contact. stiffness_exponent = 1.0 corresponds to a
-  // linear spring force with stiffness F/delta.
+  // Compliant contact parameters
   const double F = params_.F;
   const double delta = params_.delta;
   const double stiffness_exponent = params_.stiffness_exponent;
   const double smoothing_factor = params_.smoothing_factor;
-
-  // (Normal) Dissipation. dissipation_exponent = 1.0 corresponds to the Hunt &
-  // Crossley model of dissipation.
-  const double dissipation_exponent = params_.dissipation_exponent;
   const double dissipation_velocity = params_.dissipation_velocity;
 
   // Friction parameters.
@@ -351,11 +345,15 @@ void TrajectoryOptimizer<T>::CalcContactForceContribution(
       const T vn = nhat.dot(v_AcBc_W);
       const Vector3<T> vt = v_AcBc_W - vn * nhat;
 
-      // Normal (compliant) component.
-      const T sign_vn = vn > 0 ? 1.0 : -1.0;
-      const T dissipation_factor = max(
-          0.0, 1.0 - pow(abs(vn / dissipation_velocity), dissipation_exponent) *
-                         sign_vn);
+      // Normal dissipation follows a smoothed Hunt and Crossley model
+      T dissipation_factor = 0.0;
+      if (vn < 0) {
+        dissipation_factor = 1 - vn / dissipation_velocity;
+      } else if (vn < 2 * dissipation_velocity) {
+        dissipation_factor =
+            1 / (4 * dissipation_velocity * dissipation_velocity) *
+            (vn - 2 * dissipation_velocity) * (vn - 2 * dissipation_velocity);
+      }
 
       T compliant_fn;
       if (params_.force_at_a_distance) {
