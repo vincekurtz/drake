@@ -49,7 +49,6 @@ struct TrajOptExampleParams {
     a->Visit(DRAKE_NVP(save_solver_stats_csv));
     a->Visit(DRAKE_NVP(F));
     a->Visit(DRAKE_NVP(delta));
-    a->Visit(DRAKE_NVP(stiffness_exponent));
     a->Visit(DRAKE_NVP(dissipation_velocity));
     a->Visit(DRAKE_NVP(stiction_velocity));
     a->Visit(DRAKE_NVP(friction_coefficient));
@@ -149,7 +148,6 @@ struct TrajOptExampleParams {
   // Contact model parameters
   double F = 1.0;
   double delta = 0.01;
-  double stiffness_exponent = 2;
   double dissipation_velocity = 0.1;
   double stiction_velocity = 0.05;
   double friction_coefficient = 0.0;

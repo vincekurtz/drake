@@ -266,7 +266,6 @@ void TrajectoryOptimizer<T>::CalcContactForceContribution(
   // Compliant contact parameters
   const double F = params_.F;
   const double delta = params_.delta;
-  const double stiffness_exponent = params_.stiffness_exponent;
   const double smoothing_factor = params_.smoothing_factor;
   const double dissipation_velocity = params_.dissipation_velocity;
 
@@ -366,7 +365,14 @@ void TrajectoryOptimizer<T>::CalcContactForceContribution(
                          log(1 + exp(-smoothing_factor * pair.distance));
         }
       } else {
-        compliant_fn = F * pow(-pair.distance / delta, stiffness_exponent);
+        const T x = -pair.distance / delta;
+        if (x < 0) {
+          compliant_fn = 0;
+        } else if (x < 1) {
+          compliant_fn = F * x * x;
+        } else {
+          compliant_fn = F * (2 * x - 1);
+        }
       }
       const T fn = compliant_fn * dissipation_factor;
 
