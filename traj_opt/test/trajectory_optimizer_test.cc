@@ -194,7 +194,6 @@ GTEST_TEST(TrajectoryOptimizerTest, ContactGradientMethods) {
   SolverParameters solver_params;
   solver_params.F = 1.0;
   solver_params.delta = 0.01;
-  solver_params.stiffness_exponent = 2.0;
   solver_params.dissipation_velocity = 0.1;
   solver_params.friction_coefficient = 0.5;
 
