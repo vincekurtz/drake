@@ -201,17 +201,15 @@ T TrajectoryOptimizer<T>::CalcCost(
 }
 
 template <typename T>
-VectorX<T> TrajectoryOptimizer<T>::CalcConstraintViolations(
-    const TrajectoryOptimizerState<T>& state) const {
+void TrajectoryOptimizer<T>::CalcConstraintViolations(
+    const TrajectoryOptimizerState<T>& state, VectorX<T>* violations) const {
   const std::vector<VectorX<T>>& tau = EvalTau(state);
-  VectorX<T> violations(num_eq_constraints());
   for (int t = 0; t < num_steps(); ++t) {
     for (int j = 0; j < num_unactuated_dof(); ++j) {
-      violations[t * num_unactuated_dof() + j] =
+      (*violations)(t * num_unactuated_dof() + j) =
           tau[t][prob_.unactuated_dof[j]];
     }
   }
-  return violations;
 }
 
 template <typename T>
@@ -2603,6 +2601,8 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
   TrajectoryOptimizerState<double> state = CreateState();
   // Allocate a separate state variable for linesearch/trust-region computations
   TrajectoryOptimizerState<double> scratch_state = CreateState();
+  // Initialize the vector of equality constraint violations
+  VectorXd violations = VectorXd::Zero(num_eq_constraints());
 
   // Outer loop
   for (int i = 0; i < params_.max_major_iterations; ++i) {
@@ -2636,7 +2636,7 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
     stats->major_final_pos_costs.push_back(final_pos_cost);
 
     // Evaluate the constraint violations
-    auto violations = CalcConstraintViolations(state);
+    CalcConstraintViolations(state, &violations);
     auto max_violation = violations.lpNorm<Eigen::Infinity>();
     stats->major_max_violations.push_back(max_violation);
 
@@ -2655,7 +2655,7 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
     // Check for constraint satisfaction w.r.t. a tolerance
     if (max_violation < params_.constraint_tol) {
       std::cout << "\nStopping b/c the max. constraint violation "
-                << violations.lpNorm<Eigen::Infinity>()
+                << max_violation
                 << " is smaller than the constraint satisfaction tolerance "
                 << params_.constraint_tol << "\n\n";
       return status;
