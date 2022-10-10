@@ -122,19 +122,6 @@ TrajectoryOptimizer<T>::TrajectoryOptimizer(const Diagram<T>* diagram,
 }
 
 template <typename T>
-VectorX<T> TrajectoryOptimizer<T>::CalcConstraintViolations(
-    const std::vector<VectorX<T>>& tau) const {
-  VectorX<T> violations(num_eq_constraints());
-  for (int t = 0; t < num_steps(); ++t) {
-    for (int j = 0; j < num_unactuated_dof(); ++j) {
-      violations[t * num_unactuated_dof() + j] =
-          tau[t][prob_.unactuated_dof[j]];
-    }
-  }
-  return violations;
-}
-
-template <typename T>
 const T TrajectoryOptimizer<T>::EvalCost(
     const TrajectoryOptimizerState<T>& state) const {
   if (!state.cache().cost_up_to_date) {
@@ -211,6 +198,20 @@ T TrajectoryOptimizer<T>::CalcCost(
   cost += T(v_err.transpose() * prob_.Qf_v * v_err);
 
   return cost;
+}
+
+template <typename T>
+VectorX<T> TrajectoryOptimizer<T>::CalcConstraintViolations(
+    const TrajectoryOptimizerState<T>& state) const {
+  const std::vector<VectorX<T>>& tau = EvalTau(state);
+  VectorX<T> violations(num_eq_constraints());
+  for (int t = 0; t < num_steps(); ++t) {
+    for (int j = 0; j < num_unactuated_dof(); ++j) {
+      violations[t * num_unactuated_dof() + j] =
+          tau[t][prob_.unactuated_dof[j]];
+    }
+  }
+  return violations;
 }
 
 template <typename T>
@@ -2635,7 +2636,7 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
     stats->major_final_pos_costs.push_back(final_pos_cost);
 
     // Evaluate the constraint violations
-    auto violations = CalcConstraintViolations(solution->tau);
+    auto violations = CalcConstraintViolations(state);
     auto max_violation = violations.lpNorm<Eigen::Infinity>();
     stats->major_max_violations.push_back(max_violation);
 

@@ -463,10 +463,11 @@ class TrajectoryOptimizer {
    * (currently corresponds to the vector of forces acting upon unactuated
    * DOF)
    *
-   * @param tau sequence of generalized forces (consistent with q and v)
+   * @param state state variable storing q, v, tau, etc. for each time step
    * @return vector of double, equality constraint violations
    */
-  VectorX<T> CalcConstraintViolations(const std::vector<VectorX<T>>& tau) const;
+  VectorX<T> CalcConstraintViolations(
+      const TrajectoryOptimizerState<T>& state) const;
 
   /**
    * Compute a sequence of generalized velocities v from a sequence of
