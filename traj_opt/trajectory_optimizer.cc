@@ -162,7 +162,6 @@ T TrajectoryOptimizer<T>::CalcCost(
     const std::vector<VectorX<T>>& tau, const VectorXd& lambda, const double mu,
     TrajectoryOptimizerWorkspace<T>* workspace) const {
   T cost = 0;
-  T augmented_cost = 0;
   VectorX<T>& q_err = workspace->q_size_tmp1;
   VectorX<T>& v_err = workspace->v_size_tmp1;
 
@@ -177,15 +176,12 @@ T TrajectoryOptimizer<T>::CalcCost(
     if (params_.augmented_lagrangian) {
       for (int j = 0; j < num_unactuated_dof(); ++j) {
         int dof_id = prob_.unactuated_dof[j];
-        augmented_cost +=
+        cost +=
             -lambda[t * num_unactuated_dof() + j] * T(tau[t][dof_id]) +
             mu / 2 * (T(tau[t][dof_id] * tau[t][dof_id]));
       }
     }
   }
-
-  // Add the augmented cost to the unconstrained cost
-  cost += augmented_cost;
 
   // Scale running cost by dt (so the optimization problem we're solving doesn't
   // change so dramatically when we change the time step).
