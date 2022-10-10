@@ -266,10 +266,11 @@ class TrajectoryOptimizer {
       const TrajectoryOptimizerState<T>& state) const;
 
   /**
-   * Evaluate the total (unconstrained) cost of the optimization problem,
+   * Evaluate the total cost of the optimization problem,
    *
    *     L(q) = x_err(T)'*Qf*x_err(T)
-   *                + dt*sum_{t=0}^{T-1} x_err(t)'*Q*x_err(t) + u(t)'*R*u(t),
+   *                + dt*sum_{t=0}^{T-1} (x_err(t)'*Q*x_err(t) + u(t)'*R*u(t)
+   *                + mu/2*||c(t)||^2 - sum_{i=0}^{NC} (lambda(t,i) * c(t,i))),
    *
    * where:
    *      x_err(t) = x(t) - x_nom is the state error,
@@ -278,10 +279,15 @@ class TrajectoryOptimizer {
    *      u(t) are control inputs, and we assume (for now) that u(t) = tau(t),
    *      Q{f} = diag([Qq{f}, Qv{f}]) are a block diagonal PSD state-error
    *       weighting matrices,
-   *      R is a PSD control weighting matrix.
+   *      R is a PSD control weighting matrix,
+   *      lambda is the vector of Lagrange multipliers,
+   *      mu is the penalty parameter,
+   *      c is the vector of equality constraint violations, and
+   *      NC is the number of equality constraints.
    *
-   * A cached version of this cost is stored in the state. If the cache is up to
-   * date, simply return that cost.
+   * Note that the the third line is effective iff the augmented Lagrangian
+   * solver is enabled. A cached version of this cost is stored in the state. If
+   * the cache is up to date, simply return that cost.
    *
    * @param state optimizer state
    * @return const double, total cost
@@ -437,7 +443,7 @@ class TrajectoryOptimizer {
    *      lambda is the vector of Lagrange multipliers,
    *      mu is the penalty parameter,
    *      c is the vector of equality constraint violations, and
-   *      NEC is the number of equality constraints.
+   *      NC is the number of equality constraints.
    *
    * Note that the the third line is effective iff the augmented Lagrangian
    * solver is enabled. A cached version of this cost is stored in the state. If
