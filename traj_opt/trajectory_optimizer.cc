@@ -137,7 +137,7 @@ T TrajectoryOptimizer<T>::CalcCost(
   INSTRUMENT_FUNCTION("Computes the total cost.");
   const std::vector<VectorX<T>>& v = EvalV(state);
   const std::vector<VectorX<T>>& tau = EvalTau(state);
-  T cost = CalcCost(state.q(), v, tau, state.lambda_iter_, state.mu_iter_,
+  T cost = CalcCost(state.q(), v, tau, state.al_lambda_, state.al_mu_,
                     &state.workspace);
 
   // Add a proximal operator term to the cost, if requested
@@ -176,9 +176,8 @@ T TrajectoryOptimizer<T>::CalcCost(
     if (params_.augmented_lagrangian) {
       for (int j = 0; j < num_unactuated_dof(); ++j) {
         int dof_id = prob_.unactuated_dof[j];
-        cost +=
-            -lambda[t * num_unactuated_dof() + j] * T(tau[t][dof_id]) +
-            mu / 2 * (T(tau[t][dof_id] * tau[t][dof_id]));
+        cost += -lambda[t * num_unactuated_dof() + j] * T(tau[t][dof_id]) +
+                mu / 2 * (T(tau[t][dof_id] * tau[t][dof_id]));
       }
     }
   }
@@ -300,9 +299,8 @@ void TrajectoryOptimizer<T>::CalcContactForceContribution(
   const double dissipation_velocity = params_.dissipation_velocity;
 
   // Friction parameters.
-  const double vs = params_.stiction_velocity;  // Regularization.
-  const double mu_friction =
-      params_.friction_coefficient;  // Coefficient of friction.
+  const double vs = params_.stiction_velocity;     // Regularization.
+  const double mu = params_.friction_coefficient;  // Coefficient of friction.
 
   // Get signed distance pairs
   const geometry::QueryObject<T>& query_object =
@@ -398,13 +396,13 @@ void TrajectoryOptimizer<T>::CalcContactForceContribution(
 
       // Tangential frictional component.
       // N.B. This model is algebraically equivalent to:
-      //  ft = -mu_friction*fn*sigmoid(||vt||/vs)*vt/||vt||.
+      //  ft = -mu*fn*sigmoid(||vt||/vs)*vt/||vt||.
       // with the algebraic sigmoid function defined as sigmoid(x) =
       // x/sqrt(1+x^2). The algebraic simplification is performed to avoid
       // division by zero when vt = 0 (or lost of precision when close to zero).
       const Vector3<T> that_regularized =
           -vt / sqrt(vs * vs + vt.squaredNorm());
-      const Vector3<T> ft_BC_W = that_regularized * mu_friction * fn;
+      const Vector3<T> ft_BC_W = that_regularized * mu * fn;
 
       // Total contact force on B at C, expressed in W.
       const Vector3<T> f_BC_W = nhat * fn + ft_BC_W;
@@ -1270,17 +1268,16 @@ void TrajectoryOptimizer<T>::CalcGradient(
     if (params_.augmented_lagrangian) {
       for (int j = 0; j < num_unactuated_dof(); ++j) {
         int dof_id = prob_.unactuated_dof[j];
-        taum_term += (-state.lambda_iter_[(t - 1) * num_unactuated_dof() + j] +
-                      state.mu_iter_ * tau[t - 1][dof_id]) *
+        taum_term += (-state.al_lambda_[(t - 1) * num_unactuated_dof() + j] +
+                      state.al_mu_ * tau[t - 1][dof_id]) *
                      (dt * dtau_dqp[t - 1].row(dof_id));
-        taut_term += (-state.lambda_iter_[t * num_unactuated_dof() + j] +
-                      state.mu_iter_ * tau[t][dof_id]) *
+        taut_term += (-state.al_lambda_[t * num_unactuated_dof() + j] +
+                      state.al_mu_ * tau[t][dof_id]) *
                      (dt * dtau_dqt[t].row(dof_id));
         if (t < num_steps() - 1) {
-          taup_term +=
-              (-state.lambda_iter_[(t + 1) * num_unactuated_dof() + j] +
-               state.mu_iter_ * tau[t + 1][dof_id]) *
-              (dt * dtau_dqm[t + 1].row(dof_id));
+          taup_term += (-state.al_lambda_[(t + 1) * num_unactuated_dof() + j] +
+                        state.al_mu_ * tau[t + 1][dof_id]) *
+                       (dt * dtau_dqm[t + 1].row(dof_id));
         }
       }
     }
@@ -1304,8 +1301,8 @@ void TrajectoryOptimizer<T>::CalcGradient(
     for (int j = 0; j < num_unactuated_dof(); ++j) {
       int dof_id = prob_.unactuated_dof[j];
       taum_term +=
-          (-state.lambda_iter_[(num_steps() - 1) * num_unactuated_dof() + j] +
-           state.mu_iter_ * tau[num_steps() - 1][dof_id]) *
+          (-state.al_lambda_[(num_steps() - 1) * num_unactuated_dof() + j] +
+           state.al_mu_ * tau[num_steps() - 1][dof_id]) *
           (dt * dtau_dqp[num_steps() - 1].row(dof_id));
     }
   }
@@ -1349,7 +1346,7 @@ void TrajectoryOptimizer<T>::CalcHessian(
   const MatrixX<T> R = 2 * prob_.R * dt;
   const MatrixX<T> Qf_q = 2 * prob_.Qf_q;
   const MatrixX<T> Qf_v = 2 * prob_.Qf_v;
-  const double mu_hessian = state.mu_iter_ * dt;
+  const double mu_hessian = state.al_mu_ * dt;
 
   const VelocityPartials<T>& v_partials = EvalVelocityPartials(state);
   const InverseDynamicsPartials<T>& id_partials =
@@ -2612,10 +2609,8 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
             << std::endl;
       }
       // Assign augmented Lagrangian parameters
-      state.lambda_iter_ = state.lambda_[i];
-      state.mu_iter_ = state.mu_[i];
-      scratch_state.lambda_iter_ = state.lambda_iter_;
-      scratch_state.mu_iter_ = state.mu_iter_;
+      scratch_state.al_lambda_ = state.al_lambda_;
+      scratch_state.al_mu_ = state.al_mu_;
     }
 
     // Solve the sub-problem
@@ -2656,12 +2651,13 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
     // Update the augmented Lagrangian parameters
     if (i < params_.max_major_iterations - 1) {
       // Update the Lagrange multipliers
-      state.lambda_[i + 1] = state.lambda_[i] - state.mu_[i] * violations;
+      state.al_lambda_ -= state.al_mu_ * violations;
 
       // Update the penalty parameter
-      state.mu_[i + 1] = params_.mu_expand_coef * state.mu_[i];
+      double mu_prev = state.al_mu_;
+      state.al_mu_ *= params_.mu_expand_coef;
       if (params_.verbose)
-        std::cout << "\nmu: " << state.mu_[i] << "\t-->  " << state.mu_[i + 1]
+        std::cout << "\nmu: " << mu_prev << "\t-->  " << state.al_mu_
                   << std::endl;
 
       // Update the initial guess

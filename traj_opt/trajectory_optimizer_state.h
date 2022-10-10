@@ -226,11 +226,8 @@ class TrajectoryOptimizerState {
     proximal_operator_data_.H_diag.assign(num_steps + 1, VectorX<T>::Zero(nq));
 
     // Initialize the augmented Lagrangian parameters
-    lambda_.resize(params.max_major_iterations);
-    mu_.resize(params.max_major_iterations, params.mu0);
-    for (int i = 0; i < params.max_major_iterations; ++i) {
-      lambda_[i] = params.lambda0 * Eigen::VectorXd::Ones(num_eq_constraints);
-    }
+    al_mu_ = params.mu0;
+    al_lambda_ = params.lambda0 * Eigen::VectorXd::Ones(num_eq_constraints);
   }
 
   // TrajectoryOptimizer state for a `plant` model within `diagram`.
@@ -248,11 +245,8 @@ class TrajectoryOptimizerState {
     proximal_operator_data_.H_diag.assign(num_steps + 1, VectorX<T>::Zero(nq));
 
     // Initialize the augmented Lagrangian parameters
-    lambda_.resize(params.max_major_iterations);
-    mu_.resize(params.max_major_iterations, params.mu0);
-    for (int i = 0; i < params.max_major_iterations; ++i) {
-      lambda_[i] = params.lambda0 * Eigen::VectorXd::Ones(num_eq_constraints);
-    }
+    al_mu_ = params.mu0;
+    al_lambda_ = params.lambda0 * Eigen::VectorXd::Ones(num_eq_constraints);
   }
 
   /**
@@ -351,10 +345,8 @@ class TrajectoryOptimizerState {
   }
 
   // Augmented Lagrangian parameters
-  std::vector<Eigen::VectorXd> lambda_;
-  std::vector<double> mu_;
-  Eigen::VectorXd lambda_iter_;
-  double mu_iter_;
+  Eigen::VectorXd al_lambda_;
+  double al_mu_;
 
  private:
   // Number of timesteps in the optimization problem
