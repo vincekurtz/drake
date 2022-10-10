@@ -95,27 +95,7 @@ void TrajOptExample::SolveTrajectoryOptimization(
     }
   }
   std::cout << std::endl;
-  std::cout << "Max torques: " << tau_max.transpose() << std::endl;
-
-  // Report maximum actuated and unactuated torques
-  double tau_max_unactuated = 0;
-  double tau_max_actuated = 0;
-  for (int i = 0; i < nv; ++i) {
-    if (std::binary_search(opt_prob.unactuated_dof.begin(),
-                           opt_prob.unactuated_dof.end(), i)) {
-      if (tau_max(i) > tau_max_unactuated) {
-        tau_max_unactuated = tau_max(i);
-      }
-    } else {
-      if (tau_max(i) > tau_max_actuated) {
-        tau_max_actuated = tau_max(i);
-      }
-    }
-  }
-
-  std::cout << std::endl;
-  std::cout << "Max actuated torque   : " << tau_max_actuated << std::endl;
-  std::cout << "Max unactuated torque : " << tau_max_unactuated << std::endl;
+  std::cout << "Max. joint forces : " << tau_max.transpose() << std::endl;
 
   // Report desired and final state
   std::cout << std::endl;

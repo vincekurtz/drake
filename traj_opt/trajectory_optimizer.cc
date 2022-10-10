@@ -2634,7 +2634,7 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
 
     // Report constraint violation and final position cost
     if (params_.verbose)
-      std::cout << "\nMax. violation: " << max_violation
+      std::cout << "\nMax. unactuated joint force: " << max_violation
                 << "\nFinal position cost: " << final_pos_cost << "\n\n";
 
     // Record the convergence reason for the Gauss-Newton solver
