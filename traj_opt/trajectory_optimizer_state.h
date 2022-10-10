@@ -356,20 +356,6 @@ class TrajectoryOptimizerState {
   Eigen::VectorXd lambda_iter_;
   double mu_iter_;
 
-  // Set all the cache invalidation flags to false
-  void invalidate_cache() {
-    cache_.trajectory_data.up_to_date = false;
-    cache_.inverse_dynamics_cache.up_to_date = false;
-    cache_.derivatives_data.up_to_date = false;
-    cache_.cost_up_to_date = false;
-    cache_.gradient_up_to_date = false;
-    cache_.hessian_up_to_date = false;
-    cache_.contact_jacobian_data.up_to_date = false;
-    if (cache_.context_cache) cache_.context_cache->up_to_date = false;
-    cache_.sdf_data.up_to_date = false;
-    cache_.n_plus_up_to_date = false;
-  }
-
  private:
   // Number of timesteps in the optimization problem
   const int num_steps_;
@@ -390,6 +376,20 @@ class TrajectoryOptimizerState {
   // Storage for all other quantities that are computed from q, and are useful
   // for our calculations
   mutable TrajectoryOptimizerCache<T> cache_;
+
+  // Set all the cache invalidation flags to false
+  void invalidate_cache() {
+    cache_.trajectory_data.up_to_date = false;
+    cache_.inverse_dynamics_cache.up_to_date = false;
+    cache_.derivatives_data.up_to_date = false;
+    cache_.cost_up_to_date = false;
+    cache_.gradient_up_to_date = false;
+    cache_.hessian_up_to_date = false;
+    cache_.contact_jacobian_data.up_to_date = false;
+    if (cache_.context_cache) cache_.context_cache->up_to_date = false;
+    cache_.sdf_data.up_to_date = false;
+    cache_.n_plus_up_to_date = false;
+  }
 };
 
 }  // namespace traj_opt

@@ -2618,10 +2618,6 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
       scratch_state.mu_iter_ = state.mu_iter_;
     }
 
-    // Invalidate the state cache
-    state.invalidate_cache();
-    scratch_state.invalidate_cache();
-
     // Solve the sub-problem
     status = SolveGaussNewton(&state, &scratch_state, q_init, solution, stats,
                               reason);
