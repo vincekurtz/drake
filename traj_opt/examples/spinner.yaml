@@ -73,4 +73,4 @@ force_at_a_distance : false
 
 # Friction
 friction_coefficient : 0.5  # Coefficient of friction.
-stiction_velocity: 0.03     # Regularization velocity, in m/s.
+stiction_velocity: 0.05     # Regularization velocity, in m/s.

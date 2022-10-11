@@ -2048,15 +2048,45 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
     const TrajectoryOptimizerState<double>& state, const double Delta,
     VectorXd* dq, VectorXd* dqH) const {
   INSTRUMENT_FUNCTION("Find search direction with dogleg method.");
-
-  if (params_.scale_trust_region) {
-    std::cout << "scale trust region" << std::endl;
-  }
-
+    
   const VectorXd& g = EvalGradient(state);
   const PentaDiagonalMatrix<double>& H = EvalHessian(state);
 
-  return CalcDoglegPoint(state, H, g, Delta, dq, dqH);
+  if (params_.scale_trust_region) {
+    // Use an elliptical trust region ‖ D δq ‖ ≤ Δ. We do this by solving the
+    // original trust region subproblem with a rescaled gradient and Hessian
+    // (following Nocedal and Wright, Numerical Optimization, Ch. 4.5)
+
+    // TODO: avoid heap allocations here
+    const VectorXd D = 0.5*VectorXd::Ones(g.size());
+    const VectorXd Dinv = D.cwiseInverse();
+    
+    // TODO: use all sparse algebra
+    const MatrixXd H_dense = H.MakeDense();
+    const MatrixXd H_scaled_dense = Dinv.asDiagonal() * H_dense * Dinv.asDiagonal();
+    const PentaDiagonalMatrix<double> H_scaled =
+        PentaDiagonalMatrix<double>::MakeSymmetricFromLowerDense(
+            H_scaled_dense, H.block_rows(), H.block_size());
+    const VectorXd g_scaled = Dinv.asDiagonal() * g;
+
+    VectorXd dq_scaled(dq->size());
+    VectorXd dqH_scaled(dqH->size());
+
+    // Solve the (spherical) trust region subproblem in scaled coordinates
+    (void) H_scaled;
+    bool result = CalcDoglegPoint(state, H, g_scaled, Delta, &dq_scaled,
+                                  &dqH_scaled);
+
+    // Transform the step to the original coordinates
+    *dq = D.asDiagonal() * dq_scaled;
+    *dqH = D.asDiagonal() * dqH_scaled;
+
+    return result;
+
+  } else {
+    // Use a spherical trust region
+    return CalcDoglegPoint(state, H, g, Delta, dq, dqH);
+  }
 }
 
 template <typename T>
@@ -2314,7 +2344,7 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
   std::chrono::duration<double> solve_time;
 
   // Trust region parameters
-  const double Delta_max = 1.0;  // Maximum trust region size
+  const double Delta_max = 1e16;  // Maximum trust region size
   const double Delta0 = 1e0;     // Initial trust region size
   const double eta = 0.0;        // Trust ratio threshold - we accept steps if
                                  // the trust ratio is above this threshold
