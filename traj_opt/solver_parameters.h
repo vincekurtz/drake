@@ -138,6 +138,10 @@ struct SolverParameters {
   double lineplot_q_max = 1.0;
 
   // Parameters for overwriting unactuated DOF indices
+  // If the overwrite parameter is set, the indices set by the user in the yaml
+  // file are considered. Otherwise, the indices obtained through the actuation
+  // matrix, B, are used. This feature is useful for model instances with
+  // fictitious underaction, such as the block_push example.
   bool overwrite_unactuated_dof = false;
   std::vector<int> unactuated_dof_indices;
 
