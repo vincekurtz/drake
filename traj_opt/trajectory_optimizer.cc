@@ -2049,6 +2049,10 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
     VectorXd* dq, VectorXd* dqH) const {
   INSTRUMENT_FUNCTION("Find search direction with dogleg method.");
 
+  if (params_.scale_trust_region) {
+    std::cout << "scale trust region" << std::endl;
+  }
+
   const VectorXd& g = EvalGradient(state);
   const PentaDiagonalMatrix<double>& H = EvalHessian(state);
 

@@ -67,6 +67,7 @@ struct TrajOptExampleParams {
     a->Visit(DRAKE_NVP(petsc_rel_tolerance));
     a->Visit(DRAKE_NVP(petsc_solver));
     a->Visit(DRAKE_NVP(petsc_preconditioner));
+    a->Visit(DRAKE_NVP(scale_trust_region));
   }
   // Initial state
   VectorXd q_init;
@@ -106,6 +107,9 @@ struct TrajOptExampleParams {
 
   // Optimization method, "linesearch" or "trust_region"
   std::string method;
+
+  // Flag for using a rescaled non-spherical trust region
+  bool scale_trust_region{false};
 
   // Method of computing gradients, "forward_differences",
   // "central_differences", "central_differences4" or "autodiff"

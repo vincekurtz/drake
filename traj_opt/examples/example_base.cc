@@ -278,6 +278,7 @@ void TrajOptExample::SetSolverParameters(
                                          options.petsc_preconditioner));
   }
 
+  solver_params->scale_trust_region = options.scale_trust_region;
   solver_params->max_iterations = options.max_iters;
   solver_params->max_linesearch_iterations = 60;
   solver_params->print_debug_data = options.print_debug_data;
