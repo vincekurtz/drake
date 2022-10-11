@@ -747,6 +747,25 @@ class TrajectoryOptimizer {
                        VectorX<T>* dqH) const;
 
   /**
+   * Helper function for computing the dogleg step that takes the Hessian and
+   * gradient as options. This enables rescaling to use a non-spherical trust
+   * region.
+   *
+   * @param state the optimizer state, used to access workspace scratch variables
+   * @param H the hessian
+   * @param g the gradient
+   * @param Delta the trust region size
+   * @param dq the dogleg step (change in decision variables)
+   * @param dqH the Newton step
+   * @return true if the step intersects the trust region
+   * @return false if the step is in the interior of the trust region
+   */
+  bool CalcDoglegPoint(const TrajectoryOptimizerState<T>& state,
+                       const PentaDiagonalMatrix<T>& H, const VectorX<T>& g,
+                       const double Delta, VectorX<T>* dq,
+                       VectorX<T>* dqH) const;
+
+  /**
    * Solve the scalar quadratic equation
    *
    *    a x² + b x + c = 0

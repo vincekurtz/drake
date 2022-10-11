@@ -1951,23 +1951,19 @@ void TrajectoryOptimizer<double>::SolveLinearSystemInPlace(
 
 template <typename T>
 bool TrajectoryOptimizer<T>::CalcDoglegPoint(const TrajectoryOptimizerState<T>&,
-                                             const double, VectorX<T>*,
-                                             VectorX<T>*) const {
-  // Only T=double is supported here, since pentadigonal matrix factorization is
-  // (sometimes) required to compute the dogleg point.
+                                             const PentaDiagonalMatrix<T>&,
+                                             const VectorX<T>&, const double,
+                                             VectorX<T>*, VectorX<T>*) const {
   throw std::runtime_error(
       "TrajectoryOptimizer::CalcDoglegPoint only supports T=double");
 }
 
 template <>
 bool TrajectoryOptimizer<double>::CalcDoglegPoint(
-    const TrajectoryOptimizerState<double>& state, const double Delta,
+    const TrajectoryOptimizerState<double>& state,
+    const PentaDiagonalMatrix<double>& H, const VectorXd& g, const double Delta,
     VectorXd* dq, VectorXd* dqH) const {
-  INSTRUMENT_FUNCTION("Find search direction with dogleg method.");
-
   // N.B. We'll rescale pU and pH by Δ to avoid roundoff error
-  const VectorXd& g = EvalGradient(state);
-  const PentaDiagonalMatrix<double>& H = EvalHessian(state);
   VectorXd& Hg = state.workspace.q_times_num_steps_size_tmp;
   H.MultiplyBy(g, &Hg);
   const double gHg = g.transpose() * Hg;
@@ -2035,6 +2031,28 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
   *dq = (pU + s * (pH - pU)) * Delta;
 
   return true;  // the trust region constraint is active
+}
+
+template <typename T>
+bool TrajectoryOptimizer<T>::CalcDoglegPoint(const TrajectoryOptimizerState<T>&,
+                                             const double, VectorX<T>*,
+                                             VectorX<T>*) const {
+  // Only T=double is supported here, since pentadigonal matrix factorization is
+  // (sometimes) required to compute the dogleg point.
+  throw std::runtime_error(
+      "TrajectoryOptimizer::CalcDoglegPoint only supports T=double");
+}
+
+template <>
+bool TrajectoryOptimizer<double>::CalcDoglegPoint(
+    const TrajectoryOptimizerState<double>& state, const double Delta,
+    VectorXd* dq, VectorXd* dqH) const {
+  INSTRUMENT_FUNCTION("Find search direction with dogleg method.");
+
+  const VectorXd& g = EvalGradient(state);
+  const PentaDiagonalMatrix<double>& H = EvalHessian(state);
+
+  return CalcDoglegPoint(state, H, g, Delta, dq, dqH);
 }
 
 template <typename T>
