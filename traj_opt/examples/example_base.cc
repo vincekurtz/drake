@@ -213,8 +213,8 @@ void TrajOptExample::SetProblemDefinition(
       }
     }
   }
-  // Print out the resulting indices
-  if (options.verbose) {
+  // Print out the resulting indices, if any
+  if (options.verbose && !opt_prob->unactuated_dof.empty()) {
     std::cout << "Unactuated DOF indices: ";
     for (int i = 0; i < static_cast<int>(opt_prob->unactuated_dof.size()); ++i)
       std::cout << opt_prob->unactuated_dof[i] << " ";
@@ -263,8 +263,7 @@ void TrajOptExample::SetSolverParameters(
     solver_params->linear_solver =
         SolverParameters::LinearSolverType::kDenseLdlt;
   } else if (options.linear_solver == "petsc") {
-    solver_params->linear_solver =
-        SolverParameters::LinearSolverType::kPetsc;
+    solver_params->linear_solver = SolverParameters::LinearSolverType::kPetsc;
   } else {
     throw std::runtime_error(
         fmt::format("Unknown linear solver '{}'", options.linear_solver));
@@ -316,11 +315,13 @@ void TrajOptExample::SetSolverParameters(
 
   // Augmented Lagrangian solver parameters
   solver_params->augmented_lagrangian = options.augmented_lagrangian;
-  if (unactuated_dof.empty()) {
-    solver_params->augmented_lagrangian = false;
+  // Require underactuation if the solver is enabled
+  if (solver_params->augmented_lagrangian) {
+    DRAKE_DEMAND(!unactuated_dof.empty());
   }
   solver_params->update_init_guess = options.update_init_guess;
   solver_params->max_major_iterations = options.max_major_iterations;
+  // Overwrite the maximum number of major iterations if the solver is disabled
   if (!options.augmented_lagrangian) {
     solver_params->max_major_iterations = 1;
   }
