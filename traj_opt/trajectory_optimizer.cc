@@ -2056,13 +2056,14 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
     // Use an elliptical trust region ‖ D δq ‖ ≤ Δ. We do this by solving the
     // original trust region subproblem with a rescaled gradient and Hessian
     // (following Nocedal and Wright, Numerical Optimization, Ch. 4.5)
-
-    // TODO: avoid heap allocations here
-    const VectorXd D = 0.5*VectorXd::Ones(g.size());
-    const VectorXd Dinv = D.cwiseInverse();
     
     // TODO: use all sparse algebra
     const MatrixXd H_dense = H.MakeDense();
+
+    // TODO: avoid heap allocations via workspace
+    const VectorXd D = H_dense.diagonal().cwiseSqrt();
+    const VectorXd Dinv = D.cwiseInverse();
+
     const MatrixXd H_scaled_dense = Dinv.asDiagonal() * H_dense * Dinv.asDiagonal();
     const PentaDiagonalMatrix<double> H_scaled =
         PentaDiagonalMatrix<double>::MakeSymmetricFromLowerDense(
@@ -2073,13 +2074,12 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
     VectorXd dqH_scaled(dqH->size());
 
     // Solve the (spherical) trust region subproblem in scaled coordinates
-    (void) H_scaled;
-    bool result = CalcDoglegPoint(state, H, g_scaled, Delta, &dq_scaled,
+    bool result = CalcDoglegPoint(state, H_scaled, g_scaled, Delta, &dq_scaled,
                                   &dqH_scaled);
 
     // Transform the step to the original coordinates
-    *dq = D.asDiagonal() * dq_scaled;
-    *dqH = D.asDiagonal() * dqH_scaled;
+    *dq = Dinv.asDiagonal() * dq_scaled;
+    *dqH = Dinv.asDiagonal() * dqH_scaled;
 
     return result;
 
@@ -2345,7 +2345,7 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
 
   // Trust region parameters
   const double Delta_max = 1e16;  // Maximum trust region size
-  const double Delta0 = 1e0;     // Initial trust region size
+  const double Delta0 = 1e-1;     // Initial trust region size
   const double eta = 0.0;        // Trust ratio threshold - we accept steps if
                                  // the trust ratio is above this threshold
 
