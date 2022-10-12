@@ -33,6 +33,9 @@ tolerances:
   abs_cost_reduction: 1e-6
 
 # Augmented Lagrangian (AL) solver parameters
+# To get back to the version w/o the AL solver, please (i) toggle the R matrices above,
+# (ii) comment out the relaxed convergance tolerances, and (iii) disable the
+# `augmented_lagrangian` parameter below.
 augmented_lagrangian: true  # enable/disable the AL solver
 update_init_guess: true     # use the Gauss-Newton solution as the initial guess
 max_major_iterations: 5     # the maximum number of AL iterations
