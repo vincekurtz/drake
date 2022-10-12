@@ -14,7 +14,8 @@ q_guess : [-0.15, 0.0, 0.1,  1.0, 0.0, 0.0, 0.0,   0.0, 0.0, 0.096]
 Qq : [0, 0, 0,      1, 1, 1, 1,   1, 1, 1]  # Running cost
 Qv : [10, 10, 10,   10, 10, 10,   10, 10, 10]
 
-R : [1e-1, 1e-1, 1e-1,   1e3, 1e3, 1e3,   1e3, 1e3, 1e3]
+# R : [1e-1, 1e-1, 1e-1,   1e3, 1e3, 1e3,   1e3, 1e3, 1e3] # Effort cost w/o the AL solver
+R : [1e-1, 1e-1, 1e-1,   0, 0, 0,   0, 0, 0]
 
 Qfq : [0, 0, 0,   10, 10, 10, 10,   50, 50, 50]  # Terminal cost
 Qfv : [1, 1, 1,        1, 1, 1,      1, 1, 1]
@@ -26,15 +27,23 @@ num_steps : 40     # number of timesteps
 # Solver parameters
 max_iters : 500             # maximum Gauss-Newton iterations
 method : "trust_region"     # solver method, {linesearch, trust_region}
+# Relaxed convergance tolerances for the augmented Lagrangian solver
+tolerances:
+  rel_cost_reduction: 1e-3
+  abs_cost_reduction: 1e-6
 
-# Convergence thresholds
-tolerances:                
-  rel_cost_reduction: 1.0e-6
-  abs_cost_reduction: 0.0
-  rel_gradient_along_dq: 0.0
-  abs_gradient_along_dq: 0.0
-  rel_state_change: 0.0
-  abs_state_change: 0.0
+# Overwrite unactuated DOF indices to create fictitious underactuation
+overwrite_unactuated_dof: true
+unactuated_dof_indices: [3, 4, 5, 6, 7, 8]
+
+# Augmented Lagrangian (AL) solver parameters
+augmented_lagrangian: true  # enable/disable the AL solver
+update_init_guess: true     # use the Gauss-Newton solution as the initial guess
+max_major_iterations: 5     # the maximum number of AL iterations
+lambda0: 0.0                # the initial Lagrange multiplier value
+mu0: 1e2                    # the initial penalty parameter value
+mu_expand_coef: 1e1         # the expansion multiplier for the penalty parameter
+constraint_tol: 1e-2        # constraint satisfaction tolerance on the infinity norm
 
 # Method used to compute gradients of inverse dynamics, one of
 # {forward_differences, central_differences, central_differences4, autodiff}
@@ -46,6 +55,7 @@ play_initial_guess : true
 play_optimal_trajectory : true
 
 # Debugging parameters
+verbose : true
 linesearch_plot_every_iteration : false
 print_debug_data : false
 save_solver_stats_csv : true
