@@ -20,8 +20,7 @@ q_guess : [1.3,-0.1]
 # [finger 1, finger 2, spinner]
 Qq : [0.0, 0.1]  # Running cost
 Qv : [1.0, 0.1]
-# R : [1e0, 1e6] # Effort cost w/o the AL solver
-R : [1e0, 0]
+R : [1e0, 1e6]
 
 Qfq : [0.0, 10.0]  # Terminal cost
 Qfv : [0.1, 1.0]

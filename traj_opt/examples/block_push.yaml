@@ -14,8 +14,7 @@ q_guess : [-0.15, 0.0, 0.1,  1.0, 0.0, 0.0, 0.0,   0.0, 0.0, 0.096]
 Qq : [0, 0, 0,      1, 1, 1, 1,   1, 1, 1]  # Running cost
 Qv : [10, 10, 10,   10, 10, 10,   10, 10, 10]
 
-# R : [1e-1, 1e-1, 1e-1,   1e3, 1e3, 1e3,   1e3, 1e3, 1e3] # Effort cost w/o the AL solver
-R : [1e-1, 1e-1, 1e-1,   0, 0, 0,   0, 0, 0]
+R : [1e-1, 1e-1, 1e-1,   1e3, 1e3, 1e3,   1e3, 1e3, 1e3]
 
 Qfq : [0, 0, 0,   10, 10, 10, 10,   50, 50, 50]  # Terminal cost
 Qfv : [1, 1, 1,        1, 1, 1,      1, 1, 1]
@@ -32,7 +31,7 @@ tolerances:
   rel_cost_reduction: 1e-3
   abs_cost_reduction: 1e-6
 
-# Overwrite unactuated DOF indices to create fictitious underactuation
+# Overwrite unactuated DoF indices to create fictitious underactuation
 overwrite_unactuated_dof: true
 unactuated_dof_indices: [3, 4, 5, 6, 7, 8]
 
