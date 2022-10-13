@@ -83,7 +83,7 @@ void TrajOptExample::SolveTrajectoryOptimization(
   // Save the major iteration data into a CSV file
   stats.SaveMajorToCsv("al_solver_stats.csv");
 
-  // Report maximum torques on all DoFs
+  // Report maximum torques on all DoF
   VectorXd tau_max = VectorXd::Zero(nv);
   VectorXd abs_tau_t = VectorXd::Zero(nv);
   for (int t = 0; t < options.num_steps; ++t) {
@@ -185,19 +185,19 @@ void TrajOptExample::SetProblemDefinition(
   opt_prob->v_nom.push_back(opt_prob->v_init);
   for (int t = 1; t <= options.num_steps; ++t) {
     if (options.q_init.size() == options.v_init.size()) {
-      // No quaternion DoFs, so compute v_nom from q_nom
+      // No quaternion DoF, so compute v_nom from q_nom
       opt_prob->v_nom.push_back((opt_prob->q_nom[t] - opt_prob->q_nom[t - 1]) /
                                 options.time_step);
     } else {
-      // Set v_nom = v_init for systems with quaternion DoFs
+      // Set v_nom = v_init for systems with quaternion DoF
       // TODO(vincekurtz): enable better specification of v_nom for
       // floating-base systems
       opt_prob->v_nom.push_back(opt_prob->v_init);
     }
   }
 
-  // Use the provided unactuated DOF indices if available
-  // Otherwise, find the indices for the unactuated degrees of freedom
+  // Use the provided unactuated DoF indices if available
+  // Otherwise, find the indices for the unactuated DoF
   if (options.overwrite_unactuated_dof) {
     opt_prob->unactuated_dof = options.unactuated_dof_indices;
   } else {
@@ -205,7 +205,7 @@ void TrajOptExample::SetProblemDefinition(
     // TODO(vincekurtz): deal with the fact that B is not well-defined for
     // some systems, such as the block pusher and floating box examples.
     MatrixXd B = plant.MakeActuationMatrix();
-    // Derive the indices of the unactuated DOF from the actuation matrix
+    // Derive the indices of the unactuated DoF from the actuation matrix
     for (int i = 0; i < plant.num_velocities(); ++i) {
       // Get the index if the actuation matrix does not select any actuators
       if (B.row(i).sum() == 0) {
@@ -215,10 +215,24 @@ void TrajOptExample::SetProblemDefinition(
   }
   // Print out the resulting indices, if any
   if (options.verbose && !opt_prob->unactuated_dof.empty()) {
-    std::cout << "Unactuated DOF indices: ";
+    std::cout << "Unactuated DoF indices: ";
     for (int i = 0; i < static_cast<int>(opt_prob->unactuated_dof.size()); ++i)
       std::cout << opt_prob->unactuated_dof[i] << " ";
     std::cout << std::endl;
+  }
+
+  // Suppress the effort penalties for unactuated DoF when the augmented
+  // Lagrangian solver is enabled
+  if (options.augmented_lagrangian) {
+    for (auto i : opt_prob->unactuated_dof) {
+      if (opt_prob->R(i, i) > 0) {
+        if (options.verbose) {
+          std::cout << "Suppressing the R term for the unactuated DoF " << i
+                    << " to accommodate the augmented Lagrangian solver\n";
+        }
+        opt_prob->R(i, i) = 0.0;
+      }
+    }
   }
 }
 
