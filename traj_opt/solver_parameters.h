@@ -148,6 +148,7 @@ struct SolverParameters {
   // Augmented Lagrangian parameters
   bool augmented_lagrangian = false;
   bool update_init_guess = true;
+  bool relax_gn_conv_tol = true;
   int max_major_iterations = 5;
   double lambda0 = 0;
   double mu0 = 1e1;

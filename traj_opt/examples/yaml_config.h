@@ -75,6 +75,7 @@ struct TrajOptExampleParams {
     a->Visit(DRAKE_NVP(unactuated_dof_indices));
     a->Visit(DRAKE_NVP(augmented_lagrangian));
     a->Visit(DRAKE_NVP(update_init_guess));
+    a->Visit(DRAKE_NVP(relax_gn_conv_tol));
     a->Visit(DRAKE_NVP(max_major_iterations));
     a->Visit(DRAKE_NVP(lambda0));
     a->Visit(DRAKE_NVP(mu0));
@@ -190,6 +191,7 @@ struct TrajOptExampleParams {
   // Augmented Lagrangian solver parameters
   bool augmented_lagrangian = false;
   bool update_init_guess = true;
+  bool relax_gn_conv_tol = true;
   int max_major_iterations = 5;
   double lambda0 = 0;
   double mu0 = 1e1;

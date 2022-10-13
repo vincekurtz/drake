@@ -334,15 +334,27 @@ void TrajOptExample::SetSolverParameters(
     DRAKE_DEMAND(!unactuated_dof.empty());
   }
   solver_params->update_init_guess = options.update_init_guess;
+  solver_params->relax_gn_conv_tol = options.relax_gn_conv_tol;
   solver_params->max_major_iterations = options.max_major_iterations;
   // Overwrite the maximum number of major iterations if the solver is disabled
-  if (!options.augmented_lagrangian) {
+  if (!solver_params->augmented_lagrangian) {
     solver_params->max_major_iterations = 1;
   }
   solver_params->lambda0 = options.lambda0;
   solver_params->mu0 = options.mu0;
   solver_params->mu_expand_coef = options.mu_expand_coef;
   solver_params->constraint_tol = options.constraint_tol;
+  // Relax the Gauss-Newton convergence tolerances if opted
+  // NOTE: This assumes that the user-set tolerances are tighter than these
+  // values.
+  if (solver_params->augmented_lagrangian && solver_params->relax_gn_conv_tol) {
+    if (options.verbose) {
+      std::cout << "Overwriting the relative and absolute cost reduction "
+                   "tolerances by 1e-3 and 1e-6\n";
+    }
+    solver_params->convergence_tolerances.rel_cost_reduction = 1e-3;
+    solver_params->convergence_tolerances.abs_cost_reduction = 1e-6;
+  }
 
   // Set contact parameters
   // TODO(vincekurtz): figure out a better place to set these
