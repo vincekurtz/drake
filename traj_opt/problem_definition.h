@@ -57,7 +57,7 @@ struct ProblemDefinition {
   // Target generalized velocities at each time step
   std::vector<VectorXd> v_nom;
 
-  // Indices of the unactuated DOF
+  // Indices of the unactuated DoF
   std::vector<int> unactuated_dof;
 };
 

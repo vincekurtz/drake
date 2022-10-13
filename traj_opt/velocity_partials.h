@@ -11,7 +11,7 @@ namespace traj_opt {
  * Struct storing gradients of generalized velocities (v) with respect to
  * generalized positions (q).
  *
- * TODO(vincekurtz): extend to quaternion DoFs, where these quantities are
+ * TODO(vincekurtz): extend to quaternion DoF, where these quantities are
  * different for each timestep, and include a factor of N+(q).
  */
 template <typename T>

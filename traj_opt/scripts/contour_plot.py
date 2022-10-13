@@ -2,7 +2,7 @@
 
 ##
 #
-# Make a plot of the cost landscape for a super simple system with two DoFs and
+# Make a plot of the cost landscape for a super simple system with two DoF and
 # one timestep (2 total decision variables).
 #
 ##

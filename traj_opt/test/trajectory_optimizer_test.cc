@@ -105,9 +105,9 @@ using systems::DiagramBuilder;
 using test::LimitMalloc;
 
 /**
- * Test optimization for a simple system with quaternion DoFs.
+ * Test optimization for a simple system with quaternion DoF.
  */
-GTEST_TEST(TrajectoryOptimizerTest, QuaternionDofs) {
+GTEST_TEST(TrajectoryOptimizerTest, QuaternionDof) {
   // Set up a simple example system
   const double dt = 1e-2;
   DiagramBuilder<double> builder;
@@ -1429,7 +1429,7 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcVelocities) {
 }
 
 // Unit tests the computation of contact Jacobians performed by the optimizer.
-// This very simple case consists of a 2D (3 DOFs) sphere in contact with the
+// This very simple case consists of a 2D (3 DoF) sphere in contact with the
 // ground. We verify the optimizer computes the correct Jacobian at all time
 // steps.
 GTEST_TEST(TrajectoryOptimizerTest, ContactJacobians) {

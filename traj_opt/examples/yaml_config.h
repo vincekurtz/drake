@@ -183,7 +183,7 @@ struct TrajOptExampleParams {
   double lineplot_q_min = 0;
   double lineplot_q_max = 1;
 
-  // Parameters for overwriting unactuated DOF indices
+  // Parameters for overwriting unactuated DoF indices
   bool overwrite_unactuated_dof = false;
   std::vector<int> unactuated_dof_indices;
 

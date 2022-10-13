@@ -89,9 +89,9 @@ class TrajectoryOptimizer {
   int num_steps() const { return prob_.num_steps; }
 
   /**
-   * Convienience function to get the number of unactuated DOF in the system.
+   * Convienience function to get the number of unactuated DoF in the system.
    *
-   * @return int the number of unactuated DOF.
+   * @return int the number of unactuated DoF.
    */
   int num_unactuated_dof() const {
     return static_cast<int>(prob_.unactuated_dof.size());
@@ -473,7 +473,7 @@ class TrajectoryOptimizer {
   /**
    * Compute the violations of equality constraints in the form of c(x) = 0
    * (currently corresponds to the vector of forces acting upon unactuated
-   * DOF)
+   * DoF)
    *
    * @param state state variable storing q, v, tau, etc. for each time step
    * @param violations the vector of equality constraint violations

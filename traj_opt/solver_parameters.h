@@ -137,7 +137,7 @@ struct SolverParameters {
   double lineplot_q_min = 0.0;
   double lineplot_q_max = 1.0;
 
-  // Parameters for overwriting unactuated DOF indices
+  // Parameters for overwriting unactuated DoF indices
   // If the overwrite parameter is set, the indices set by the user in the yaml
   // file are considered. Otherwise, the indices obtained through the actuation
   // matrix, B, are used. This feature is useful for model instances with
