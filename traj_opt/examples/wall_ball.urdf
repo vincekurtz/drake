@@ -18,14 +18,14 @@
       <inertia ixx="0" ixy="0" ixz="0" iyy="0" iyz="0" izz="0"/>
     </inertial>
     <visual>
-      <origin xyz="0 0 0"/>
+      <origin xyz="0 0 -0.09" rpy="0 1.57 0"/>
       <geometry>
         <box size="0.1 1.0 1.0"/>
       </geometry>
       <material name="green"/>
     </visual>
     <collision>
-      <origin xyz="0 0 0"/>
+      <origin xyz="0 0 -0.09" rpy="0 1.57 0"/>
       <geometry>
         <box size="0.1 1.0 1.0"/>
       </geometry>
