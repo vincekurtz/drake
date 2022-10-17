@@ -180,6 +180,23 @@ drake_cc_binary(
 )
 
 drake_cc_binary(
+    name = "airhockey",
+    srcs = ["airhockey.cc"],
+    add_test_rule = 1,
+    data = [
+        ":airhockey.yaml",
+    ],
+    test_rule_args = [],
+    deps = [
+        ":example_base",
+        "//common:find_resource",
+        "//common:profiler",
+        "//multibody/parsing",
+        "//multibody/plant",
+    ],
+)
+
+drake_cc_binary(
     name = "spinner",
     srcs = ["spinner.cc"],
     add_test_rule = 1,
