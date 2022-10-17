@@ -95,15 +95,15 @@ ax1.set_ylabel("Cost (minus baseline)")
 ax1.xaxis.set_tick_params(labelbottom=True)
 
 # Overlay values of (q,L) at each iteration
-ax1.plot(q_iter, L_iter - np.min(L), 'rx')
+#ax1.plot(q_iter, L_iter - np.min(L), 'rx')
 #for i in range(len(q_iter)):
 #    ax1.annotate(i, (q_iter[i], L_iter[i] - np.min(L)))
 
 # Vertical lines show q at this iteration, 
 # trust region Δ, and candidate change Δq
-ax1.axvline(q_iter[iter], color='red', linestyle='--')
-ax1.axvspan(q_iter[iter]-delta[iter], q_iter[iter]+delta[iter], color='grey', alpha=0.2)
-ax1.axvline(q_iter[iter]+delta_q[iter], color='blue', linestyle='--')
+#ax1.axvline(q_iter[iter], color='red', linestyle='--')
+#ax1.axvspan(q_iter[iter]-delta[iter], q_iter[iter]+delta[iter], color='grey', alpha=0.2)
+#ax1.axvline(q_iter[iter]+delta_q[iter], color='blue', linestyle='--')
 ax1.set_xlim((np.min(q), np.max(q)))
 ax1.set_ylim((0, np.max(L)-np.min(L)))
 
