@@ -356,16 +356,18 @@ void TrajectoryOptimizer<T>::CalcContactForceContribution(
       // of 2F/delta Newtons per meter, with some smoothing that may or may not
       // allow for force at a distance.
       T compliant_fn;
+      const T x = - pair.distance / delta;
       if (params_.force_at_a_distance) {
-        if (pair.distance / delta < -100) {
+        if (x >= 37) {
           // If the exponent is going to be very large, replace with the
           // functional limit as smoothing_factor goes to infinity.
-          compliant_fn = -2 * F / delta * pair.distance;
+          // N.B. x = 37 is the first integer such that exp(x)+1 = exp(x) in
+          // double precision
+          compliant_fn = 2 * F  * x;
         } else {
-          compliant_fn = 2 * F * log(1 + exp(-1 / delta * pair.distance));
+          compliant_fn = 2 * F * log(1 + exp(x));
         }
       } else {
-        const T x = -pair.distance / delta;
         if (x < 0) {
           compliant_fn = 0;
         } else if (x < 1) {
