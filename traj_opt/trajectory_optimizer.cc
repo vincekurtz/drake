@@ -345,12 +345,11 @@ void TrajectoryOptimizer<T>::CalcContactForceContribution(
 
       // Normal dissipation follows a smoothed Hunt and Crossley model
       T dissipation_factor = 0.0;
-      if (vn < 0) {
-        dissipation_factor = 1 - vn / dissipation_velocity;
-      } else if (vn < 2 * dissipation_velocity) {
-        dissipation_factor =
-            1 / (4 * dissipation_velocity * dissipation_velocity) *
-            (vn - 2 * dissipation_velocity) * (vn - 2 * dissipation_velocity);
+      const T s = vn / dissipation_velocity;
+      if (s < 0) {
+        dissipation_factor = 1 - s;
+      } else if (s < 2) {
+        dissipation_factor = (s - 2) * (s - 2) / 4;
       }
 
       // (Compliant) force in the normal direction increases linearly at a rate
