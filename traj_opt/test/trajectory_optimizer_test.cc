@@ -1569,9 +1569,9 @@ GTEST_TEST(TrajectoryOptimizerTest, LeastSquaresResidual) {
   VectorXd r(2 * (num_steps + 1) + 2 * (num_steps + 1) + 2 * num_steps);
   TrajectoryOptimizerTester::CalcLeastSquaresResidual(optimizer, state, &r);
 
+  // Check that this residual gives the correct cost
   const double true_cost = optimizer.EvalCost(state);
   const double least_squares_cost = 0.5 * r.dot(r);
-
   const double kTolerance = std::numeric_limits<double>::epsilon();
   EXPECT_NEAR(least_squares_cost, true_cost, kTolerance);
 
