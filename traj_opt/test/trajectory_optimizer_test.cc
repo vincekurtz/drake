@@ -91,6 +91,12 @@ class TrajectoryOptimizerTester {
       const TrajectoryOptimizerState<double>& state, VectorXd* r) {
     optimizer.CalcLeastSquaresResidual(state, r);
   }
+  
+  static void CalcLeastSquaresJacobian(
+      const TrajectoryOptimizer<double>& optimizer,
+      const TrajectoryOptimizerState<double>& state, MatrixXd* J) {
+    optimizer.CalcLeastSquaresJacobian(state, J);
+  }
 };
 
 namespace internal {
@@ -1523,7 +1529,7 @@ GTEST_TEST(TrajectoryOptimizerTest, ContactJacobians) {
   }
 }
 
-GTEST_TEST(TrajectoryOptimizerTest, LeastSquaresResidual) {
+GTEST_TEST(TrajectoryOptimizerTest, LeastSquares) {
   // Define an optimization problem for the acrobot
   const int num_steps = 2;
   const double dt = 1e-2;
@@ -1572,12 +1578,29 @@ GTEST_TEST(TrajectoryOptimizerTest, LeastSquaresResidual) {
   // Check that this residual gives the correct cost
   const double true_cost = optimizer.EvalCost(state);
   const double least_squares_cost = 0.5 * r.dot(r);
-  const double kTolerance = std::numeric_limits<double>::epsilon();
-  EXPECT_NEAR(least_squares_cost, true_cost, kTolerance);
+  EXPECT_NEAR(least_squares_cost, true_cost,
+              std::numeric_limits<double>::epsilon());
 
-  PRINT_VARn(r.transpose());
-  PRINT_VARn(true_cost);
-  PRINT_VARn(least_squares_cost);
+  // Construct the least squares jacobian
+  MatrixXd J(r.size(), (num_steps+1)*2);
+  TrajectoryOptimizerTester::CalcLeastSquaresJacobian(optimizer, state, &J);
+
+  // Check that this jacobian is consistent with the gradient
+  const VectorXd& g_true = optimizer.EvalGradient(state);
+  const VectorXd g_least_squares = J.transpose() * r;
+
+  const double kTolerance = sqrt(std::numeric_limits<double>::epsilon());
+  EXPECT_TRUE(CompareMatrices(g_least_squares, g_true, kTolerance,
+                              MatrixCompareType::relative));
+
+  // Check that this jacobian is consistent with the Hessian
+  const MatrixXd H_true = optimizer.EvalHessian(state).MakeDense();
+  const MatrixXd H_least_squares = J.transpose() * J;
+  const int nq = plant.num_positions();
+  EXPECT_TRUE(CompareMatrices(
+      H_true.bottomRightCorner(num_steps * nq, num_steps * nq),
+      H_least_squares.bottomRightCorner(num_steps * nq, num_steps * nq),
+      kTolerance, MatrixCompareType::relative));
 }
 
 }  // namespace internal

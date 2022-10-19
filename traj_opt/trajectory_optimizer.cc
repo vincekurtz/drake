@@ -93,7 +93,9 @@ TrajectoryOptimizer<T>::TrajectoryOptimizer(const Diagram<T>* diagram,
 
   // Create an autodiff optimizer if we need exact gradients
   if constexpr (std::is_same_v<T, double>) {
-    if (params_.gradients_method == GradientsMethod::kAutoDiff) {
+    //if (params_.gradients_method == GradientsMethod::kAutoDiff) {
+    // DEBUG: always create an autodiff optimizer, for CalcLeastSquaresJacobian
+    if (true) {
       diagram_ad_ = systems::System<double>::ToAutoDiffXd(*diagram);
       plant_ad_ = dynamic_cast<const MultibodyPlant<AutoDiffXd>*>(
           &diagram_ad_->GetSubsystemByName(plant->get_name()));
@@ -2071,6 +2073,51 @@ void TrajectoryOptimizer<T>::CalcLeastSquaresResidual(
   }
   r->segment(N * (nq + 2 * nv), nq) = Qf_q_sqrt * (q[N] - prob_.q_nom[N]);
   r->segment(N * (nq + 2 * nv) + nq, nv) = Qf_v_sqrt * (v[N] - prob_.v_nom[N]);
+}
+
+template <typename T>
+void TrajectoryOptimizer<T>::CalcLeastSquaresJacobian(
+    const TrajectoryOptimizerState<T>&, MatrixX<T>*) const {
+  throw std::runtime_error(
+      "TrajectoryOptimizer::CalcLeastSquaresJacobian only supports T=double.");
+}
+
+template <>
+void TrajectoryOptimizer<double>::CalcLeastSquaresJacobian(
+    const TrajectoryOptimizerState<double>& state, MatrixXd* J) const {
+  // Check size of J
+  const int nq = plant().num_positions();
+  const int nv = plant().num_velocities();
+  const int N = num_steps();
+  const int num_vars = nq * (N + 1);
+  const int num_residuals = (nq + nv) * (N + 1) + nv * N;
+  DRAKE_DEMAND(J->rows() == num_residuals);
+  DRAKE_DEMAND(J->cols() == num_vars);
+
+  // Allocate autodiff q and r
+  std::vector<VectorX<AutoDiffXd>> q_ad(N + 1, VectorX<AutoDiffXd>(nq));
+  VectorX<AutoDiffXd> r_ad(num_residuals);
+
+  // Initialize q_ad
+  int ad_idx = 0;  // index for autodiff variables
+  const std::vector<VectorXd>& q = state.q();
+  for (int t = 0; t <= N; ++t) {
+    for (int i = 0; i < nq; ++i) {
+      q_ad[t].segment<1>(i) =
+          math::InitializeAutoDiff(q[t].segment<1>(i), num_vars, ad_idx);
+      ++ad_idx;
+    }
+  }
+
+  // Compute r_ad(q_ad)
+  state_ad_->set_q(q_ad);
+  optimizer_ad_->CalcLeastSquaresResidual(*state_ad_, &r_ad);
+
+  // Get the autodiff gradient
+  *J = math::ExtractGradient(r_ad);
+
+  // Remove terms related to q0, since q0 is fixed and not a decision variable
+  J->leftCols(nq).setZero();
 }
 
 template <typename T>

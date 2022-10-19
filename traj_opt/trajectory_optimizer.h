@@ -759,6 +759,17 @@ class TrajectoryOptimizer {
                                 VectorX<T>* r) const;
 
   /**
+   * Compute the least squares Jacobian 
+   * 
+   *    J(q) = ∂r(q)/∂q
+   * 
+   * @param state the optimizer state containing q
+   * @param J the (dense) least squares Jacobian.
+   */
+  void CalcLeastSquaresJacobian(const TrajectoryOptimizerState<T>& state,
+                                MatrixX<T>* J) const;
+
+  /**
    * Solve the scalar quadratic equation
    *
    *    a x² + b x + c = 0
