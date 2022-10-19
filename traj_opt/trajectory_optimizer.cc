@@ -2304,9 +2304,6 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
   bool tr_constraint_active;  // flag for whether the trust region constraint is
                               // active
 
-  // DEBUG
-  VectorXd last_dq(dq);
-
   // Define printout data
   const std::string separator_bar =
       "------------------------------------------------------------------------"
@@ -2343,25 +2340,8 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
       SaveIterationData(k, Delta, rho, dq(1), state);
     }
 
-    bool accept_upward_step{false};
-    if (k > 0)  {
-      // DEBUG: get angle between iteration steps
-      const double beta = dq.dot(last_dq) / dq.norm() / last_dq.norm();
-      last_dq = dq;
-
-      accept_upward_step = ((1 - beta) * EvalCost(state) <= stats->iteration_costs[k-1]);
-
-      if ((rho <= eta) && accept_upward_step) {
-        std::cout << "DING!" << std::endl;
-        std::cout << beta << std::endl;
-        std::cout << accept_upward_step << std::endl;
-      }
-    }
-    
-
-
     // If the ratio is large enough, accept the change
-    if ((rho > eta) || accept_upward_step) {
+    if (rho > eta) {
       // Update the coefficients for the proximal operator cost
       if (params_.proximal_operator) {
         state.set_proximal_operator_data(state.q(), EvalHessian(state));
