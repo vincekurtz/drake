@@ -747,6 +747,18 @@ class TrajectoryOptimizer {
                        VectorX<T>* dqH) const;
 
   /**
+   * Compute the least squares residual r(q) such that the total cost of the
+   * unconstrained probelm is given by
+   *
+   *    L(q) = 1/2 ∑ rᵢ(q)²
+   *
+   * @param state the optimizer state containing q
+   * @param r the least squares residual
+   */
+  void CalcLeastSquaresResidual(const TrajectoryOptimizerState<T>& state,
+                                VectorX<T>* r) const;
+
+  /**
    * Solve the scalar quadratic equation
    *
    *    a x² + b x + c = 0

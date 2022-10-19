@@ -2038,6 +2038,21 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
 }
 
 template <typename T>
+void TrajectoryOptimizer<T>::CalcLeastSquaresResidual(
+    const TrajectoryOptimizerState<T>& state, VectorX<T>* r) const {
+  // TODO(vincekurtz): add an EvalLeastSquaresResidual method and add r(q) to
+  // the state
+
+  // Check that r is the correct size
+  const int nq = plant().num_positions();
+  const int nv = plant().num_velocities();
+  const int N = num_steps();
+  DRAKE_DEMAND(r->size() == (nq + nv) * (N + 1) + nv * N);
+
+  (void)state;
+}
+
+template <typename T>
 SolverFlag TrajectoryOptimizer<T>::Solve(const std::vector<VectorX<T>>&,
                                          TrajectoryOptimizerSolution<T>*,
                                          TrajectoryOptimizerStats<T>*,
