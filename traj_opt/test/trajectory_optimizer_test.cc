@@ -20,6 +20,9 @@
 #include "drake/traj_opt/trajectory_optimizer_workspace.h"
 #include "drake/traj_opt/velocity_partials.h"
 
+#define PRINT_VAR(a) std::cout << #a ": " << a << std::endl;
+#define PRINT_VARn(a) std::cout << #a ":\n" << a << std::endl;
+
 namespace drake {
 namespace traj_opt {
 
@@ -1522,7 +1525,7 @@ GTEST_TEST(TrajectoryOptimizerTest, ContactJacobians) {
 
 GTEST_TEST(TrajectoryOptimizerTest, LeastSquaresResidual) {
   // Define an optimization problem for the acrobot
-  const int num_steps = 5;
+  const int num_steps = 2;
   const double dt = 1e-2;
 
   ProblemDefinition opt_prob;
@@ -1565,6 +1568,16 @@ GTEST_TEST(TrajectoryOptimizerTest, LeastSquaresResidual) {
 
   VectorXd r(2 * (num_steps + 1) + 2 * (num_steps + 1) + 2 * num_steps);
   TrajectoryOptimizerTester::CalcLeastSquaresResidual(optimizer, state, &r);
+
+  const double true_cost = optimizer.EvalCost(state);
+  const double least_squares_cost = 0.5 * r.dot(r);
+
+  const double kTolerance = std::numeric_limits<double>::epsilon();
+  EXPECT_NEAR(least_squares_cost, true_cost, kTolerance);
+
+  PRINT_VARn(r.transpose());
+  PRINT_VARn(true_cost);
+  PRINT_VARn(least_squares_cost);
 }
 
 }  // namespace internal

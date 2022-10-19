@@ -2049,7 +2049,28 @@ void TrajectoryOptimizer<T>::CalcLeastSquaresResidual(
   const int N = num_steps();
   DRAKE_DEMAND(r->size() == (nq + nv) * (N + 1) + nv * N);
 
-  (void)state;
+  // Get state and input at each timestep
+  const std::vector<VectorX<T>>& q = state.q();
+  const std::vector<VectorX<T>>& v = EvalV(state);
+  const std::vector<VectorX<T>>& tau = EvalTau(state);
+
+  // Get cost weights. N.B. the factor of 2 is needed so that the total cost is
+  // given by 1/2 ∑ rᵢ(q)²
+  const MatrixXd Qq_sqrt = (2 * time_step() * prob_.Qq).cwiseSqrt();
+  const MatrixXd Qv_sqrt = (2 * time_step() * prob_.Qv).cwiseSqrt();
+  const MatrixXd R_sqrt = (2 * time_step() * prob_.R).cwiseSqrt();
+  const MatrixXd Qf_q_sqrt = (2 * prob_.Qf_q).cwiseSqrt();
+  const MatrixXd Qf_v_sqrt = (2 * prob_.Qf_v).cwiseSqrt();
+
+  // Fill in the values of the residual
+  for (int t=0; t<N; ++t) {
+    const int start_idx = t * (nq + 2 * nv);
+    r->segment(start_idx, nq) = Qq_sqrt * (q[t] - prob_.q_nom[t]);
+    r->segment(start_idx + nq, nv) = Qv_sqrt * (v[t] - prob_.v_nom[t]);
+    r->segment(start_idx + nq + nv, nv) = R_sqrt * tau[t];
+  }
+  r->segment(N * (nq + 2 * nv), nq) = Qf_q_sqrt * (q[N] - prob_.q_nom[N]);
+  r->segment(N * (nq + 2 * nv) + nq, nv) = Qf_v_sqrt * (v[N] - prob_.v_nom[N]);
 }
 
 template <typename T>
