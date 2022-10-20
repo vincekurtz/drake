@@ -1531,7 +1531,7 @@ GTEST_TEST(TrajectoryOptimizerTest, ContactJacobians) {
 
 GTEST_TEST(TrajectoryOptimizerTest, LeastSquares) {
   // Define an optimization problem for the acrobot
-  const int num_steps = 2;
+  const int num_steps = 5;
   const double dt = 1e-2;
 
   ProblemDefinition opt_prob;

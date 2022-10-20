@@ -1933,9 +1933,10 @@ void TrajectoryOptimizer<double>::SolveLinearSystemInPlace(
     }
     case SolverParameters::LinearSolverType::kDenseLdlt: {
       const MatrixX<double> Hdense = H.MakeDense();
-      const auto& Hldlt = Hdense.ldlt();
-      *b = Hldlt.solve(*b);
-      DRAKE_DEMAND(Hldlt.info() == Eigen::Success);
+      //const auto& Hldlt = Hdense.ldlt();
+      //*b = Hldlt.solve(*b);
+      //DRAKE_DEMAND(Hldlt.info() == Eigen::Success);
+      *b = Hdense.inverse() * (*b);
       break;
     }
     case SolverParameters::LinearSolverType::kPetsc: {
@@ -1948,6 +1949,51 @@ void TrajectoryOptimizer<double>::SolveLinearSystemInPlace(
       DRAKE_DEMAND(status == PetscSolverStatus::kSuccess);
       break;
     }
+  }
+}
+
+template <typename T>
+bool TrajectoryOptimizer<T>::CalcDoglegDenseL(const TrajectoryOptimizerState<T>&,
+                                             const double, MatrixX<T>*) const {
+  throw std::runtime_error(
+      "TrajectoryOptimizer::CalcDoglegDenseL only supports T=double");
+}
+
+template <>
+bool TrajectoryOptimizer<double>::CalcDoglegDenseL(
+    const TrajectoryOptimizerState<double>& state, const double Delta,
+    MatrixXd* L) const {
+  
+  const VectorXd& g = EvalGradient(state);
+  const MatrixXd H = EvalHessian(state).MakeDense();
+  const MatrixXd Hinv = H.inverse();
+
+  const VectorXd pH = - Hinv * (g / Delta);
+  const VectorXd pU = - g.dot(g) / (g.transpose() * H * g) * (g / Delta);
+
+  if (pU.norm() > 1.0) {
+    // Inner dog leg
+    *L = g.dot(g) / (g.transpose() * H * g) * Delta *
+         MatrixXd::Identity(H.rows(), H.cols());
+
+    return true;
+
+  } else if (pH.norm() > 1.0) {
+    // Outer dog leg
+    const double a = (pH - pU).dot(pH - pU);
+    const double b = 2 * pU.dot(pH - pU);
+    const double c = pU.dot(pU) - 1.0;
+    const double s = SolveDoglegQuadratic(a, b, c);
+
+    const MatrixXd I = MatrixXd::Identity(H.rows(), H.cols());
+    *L = (1-s) * g.dot(g) / (g.transpose() * H * g) * I + s * Hinv;
+
+    return true;
+
+  } else {
+    // Full newton step
+    *L = Hinv;
+    return false;
   }
 }
 
@@ -2397,11 +2443,15 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
 
   double previous_cost = EvalCost(state);
   while (k < params_.max_iterations) {
+    const VectorXd& g = EvalGradient(state);
+
     // Obtain the candiate update dq
-    tr_constraint_active = CalcDoglegPoint(state, Delta, &dq, &dqH);
+    //tr_constraint_active = CalcDoglegPoint(state, Delta, &dq, &dqH);
+    MatrixXd L(g.size(), g.size());
+    tr_constraint_active = CalcDoglegDenseL(state, Delta, &L);
+    dq = - L * g;
 
     // Verify that dq is a descent direction
-    const VectorXd& g = EvalGradient(state);
     DRAKE_DEMAND(dq.transpose() * g < 0);
 
     // Compute some quantities for logging.

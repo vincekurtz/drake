@@ -746,6 +746,11 @@ class TrajectoryOptimizer {
                        const double Delta, VectorX<T>* dq,
                        VectorX<T>* dqH) const;
 
+  // Testing only: compute a dense matrix L(q) such that the dogleg step is
+  // given by δq=L*g
+  bool CalcDoglegDenseL(const TrajectoryOptimizerState<T>& state,
+                        const double Delta, MatrixX<T>* L) const;
+
   /**
    * Compute the least squares residual r(q) such that the total cost of the
    * unconstrained probelm is given by
