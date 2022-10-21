@@ -94,7 +94,8 @@ TrajectoryOptimizer<T>::TrajectoryOptimizer(const Diagram<T>* diagram,
   // Create an autodiff optimizer if we need exact gradients
   if constexpr (std::is_same_v<T, double>) {
     // if (params_.gradients_method == GradientsMethod::kAutoDiff) {
-    //  DEBUG: always create an autodiff optimizer, for CalcLeastSquaresJacobian
+    // DEBUG: always create an autodiff optimizer, for CalcLeastSquaresJacobian
+    // TODO: compute least squares jacobian analytically
     if (true) {
       diagram_ad_ = systems::System<double>::ToAutoDiffXd(*diagram);
       plant_ad_ = dynamic_cast<const MultibodyPlant<AutoDiffXd>*>(
@@ -1963,6 +1964,7 @@ template <>
 bool TrajectoryOptimizer<double>::MultiplyByDoglegMatrix(
     const TrajectoryOptimizerState<double>& state, const double Delta,
     const VectorXd& x, VectorXd* y) const {
+  // TODO: verify size of x and y
   const VectorXd& g = EvalGradient(state);
   const MatrixXd H = EvalHessian(state).MakeDense();
 
@@ -2117,6 +2119,42 @@ void TrajectoryOptimizer<T>::CalcLeastSquaresResidual(
   }
   r->segment(N * (nq + 2 * nv), nq) = Qf_q_sqrt * (q[N] - prob_.q_nom[N]);
   r->segment(N * (nq + 2 * nv) + nq, nv) = Qf_v_sqrt * (v[N] - prob_.v_nom[N]);
+}
+
+template <typename T>
+void TrajectoryOptimizer<T>::CalcLeastSquaresResidualSecondDerivative(
+    const TrajectoryOptimizerState<T>& state, const VectorX<T>& dq,
+    TrajectoryOptimizerState<T>* scratch_state, VectorX<T>* ddr) const {
+  const int nq = plant().num_positions();
+  const int nv = plant().num_velocities();
+  const int N = num_steps();
+  const int r_size = (nq + nv) * (N + 1) + nv * N;
+  DRAKE_DEMAND(ddr->size() == r_size);
+
+  // N.B. A relatively large finite-difference step is recommended by Transtrum
+  // and Sethna, "Improvements to the LM algorithm for nonlinear least-squares
+  // minimization", 2012.
+  const double h = 0.001;  
+
+  // TODO: use workspace to avoid heap allocations
+  VectorX<T> r(r_size);
+  VectorX<T> r_plus(r_size);
+  VectorX<T> r_minus(r_size);
+
+  // r(q)
+  CalcLeastSquaresResidual(state, &r);
+
+  // r(q+h*dq)
+  scratch_state->set_q(state.q());
+  scratch_state->AddToQ(h * dq);
+  CalcLeastSquaresResidual(*scratch_state, &r_plus);
+  
+  // r(q-h*dq)
+  scratch_state->set_q(state.q());
+  scratch_state->AddToQ(-h * dq);
+  CalcLeastSquaresResidual(*scratch_state, &r_minus);
+
+  *ddr = (r_plus - 2 * r + r_minus) / (h * h);
 }
 
 template <typename T>
@@ -2444,11 +2482,35 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
     const VectorXd& g = EvalGradient(state);
 
     // Obtain the candiate update dq
-    tr_constraint_active = CalcDoglegPoint(state, Delta, &dq, &dqH);
-    // tr_constraint_active = MultiplyByDoglegMatrix(state, Delta, -g, &dq);
+    // tr_constraint_active = CalcDoglegPoint(state, Delta, &dq, &dqH);
+    tr_constraint_active = MultiplyByDoglegMatrix(state, Delta, -g, &dq);
+
+    // Acceleration correction
+    // TODO: remove heap allocations
+    const int nq = plant().num_positions();
+    const int nv = plant().num_velocities();
+    const int N = num_steps();
+    const int r_size = (nq + nv) * (N + 1) + nv * N;
+    VectorXd ddr(r_size);
+    MatrixXd J(r_size, g.size());
+    VectorXd ddg(g.size());
+    VectorXd dq_accel(g.size());
+    
+    CalcLeastSquaresResidualSecondDerivative(state, dq, &scratch_state, &ddr);
+    CalcLeastSquaresJacobian(state, &J);
+    ddg = J.transpose() * ddr;
+    MultiplyByDoglegMatrix(state, Delta, ddg, &dq_accel);
+    dq_accel *= -0.5;
+
+    const double ratio = 2 * dq_accel.norm() / dq.norm();
+    PRINT_VARn(ratio);
+    if (ratio <= 0.75) {
+      // TODO: consider reducing trust region size if dq_accel is too big
+      dq += dq_accel;
+    }
 
     // Verify that dq is a descent direction
-    DRAKE_DEMAND(dq.transpose() * g < 0);
+    //DRAKE_DEMAND(dq.transpose() * g < 0);
 
     // Compute some quantities for logging.
     // N.B. These should be computed before q is updated.

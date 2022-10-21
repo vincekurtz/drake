@@ -776,6 +776,23 @@ class TrajectoryOptimizer {
                                 VectorX<T>* r) const;
 
   /**
+   * Compute the second derivative of the least squares residual r(q) along the
+   * given search direction,
+   *
+   *    ddr = (r(q+h*dq) - d*r(q) + r(q-h*dq) ) / h^2
+   *
+   * where h is the finite-difference step size.
+   *
+   * @param state optimizer state containing q
+   * @param dq the search direction along which to compute the second derivative
+   * @param scratch_state optimizer state for storing q+/-h*dq
+   * @param ddr the second derivative of the least squares residual
+   */
+  void CalcLeastSquaresResidualSecondDerivative(
+      const TrajectoryOptimizerState<T>& state, const VectorX<T>& dq,
+      TrajectoryOptimizerState<T>* scratch_state, VectorX<T>* ddr) const;
+
+  /**
    * Compute the least squares Jacobian
    *
    *    J(q) = ∂r(q)/∂q
