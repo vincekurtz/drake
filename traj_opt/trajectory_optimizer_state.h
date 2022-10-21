@@ -249,12 +249,18 @@ class TrajectoryOptimizerState {
     al_lambda_ = params.lambda0 * Eigen::VectorXd::Ones(num_eq_constraints);
   }
 
-  /**
-   * Getter for the sequence of generalized positions.
-   *
-   * @return const std::vector<VectorX<T>>& q
-   */
+  /** Getter for the sequence of generalized positions. */
   const std::vector<VectorX<T>>& q() const { return q_; }
+
+  /** Mutable reference to the sequence of generalized positions.
+   @warning This method invalidates the cache. However be careful about holding
+   onto the returned reference for too long, since updates to the values stored
+   in this state through this reference will not cause cache invalidation.
+   Consider using set_q() whenever possible instead. */
+  std::vector<VectorX<T>>& mutable_q() {
+    invalidate_cache();
+    return q_;
+  }
 
   /**
    * Setter for the sequence of generalized positions. Invalidates the cache.

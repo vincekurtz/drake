@@ -919,6 +919,9 @@ class TrajectoryOptimizer {
       const int iter_num, const double Delta, const VectorX<T>& dq,
       const TrajectoryOptimizerState<T>& state) const;
 
+  /* This methods normalizes all quaternions stored in state. */
+  void NormalizeQuaternions(TrajectoryOptimizerState<T>* state) const;
+
   // Diagram of containing the plant_ model and scene graph. Needed to allocate
   // context resources.
   const Diagram<T>* diagram_{nullptr};

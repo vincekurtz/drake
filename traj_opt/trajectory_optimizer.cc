@@ -2251,6 +2251,7 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithLinesearch(
 
     // Update the decision variables
     state->AddToQ(alpha * dq);
+    if (params_.normalize_quaternions) NormalizeQuaternions(state);
 
     // Update the stored decision variables for the proximal operator cost
     if (params_.proximal_operator) {
@@ -2433,6 +2434,7 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
       }
 
       state->AddToQ(dq);  // q += dq
+      if (params_.normalize_quaternions) NormalizeQuaternions(state);
     }
     // Else (rho <= eta), the trust region ratio is too small to accept dq, so
     // we'll need to so keep reducing the trust region. Note that the trust
@@ -2667,6 +2669,24 @@ SolverFlag TrajectoryOptimizer<double>::Solve(
 
   std::cout << "Reached the maximum number of major iterations\n";
   return status;
+}
+
+template <typename T>
+void TrajectoryOptimizer<T>::NormalizeQuaternions(
+    TrajectoryOptimizerState<T>* state) const {
+  std::vector<VectorX<T>>& q = state->mutable_q();
+  DRAKE_DEMAND(static_cast<int>(q.size()) == (num_steps() + 1));
+  // TODO(amcastro-tri): Store floating body indexes and avoid calling
+  // GetFloatingBaseBodies().
+  for (const BodyIndex& index : plant().GetFloatingBaseBodies()) {
+    const Body<T>& body = plant().get_body(index);
+    const int q_start = body.floating_positions_start();
+    DRAKE_DEMAND(body.has_quaternion_dofs());
+    for (int t = 0; t <= num_steps(); ++t) {
+      auto body_qs = q[t].template segment<4>(q_start);
+      body_qs.normalize();
+    }
+  }
 }
 
 }  // namespace traj_opt
