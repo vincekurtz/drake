@@ -93,8 +93,8 @@ TrajectoryOptimizer<T>::TrajectoryOptimizer(const Diagram<T>* diagram,
 
   // Create an autodiff optimizer if we need exact gradients
   if constexpr (std::is_same_v<T, double>) {
-    //if (params_.gradients_method == GradientsMethod::kAutoDiff) {
-    // DEBUG: always create an autodiff optimizer, for CalcLeastSquaresJacobian
+    // if (params_.gradients_method == GradientsMethod::kAutoDiff) {
+    //  DEBUG: always create an autodiff optimizer, for CalcLeastSquaresJacobian
     if (true) {
       diagram_ad_ = systems::System<double>::ToAutoDiffXd(*diagram);
       plant_ad_ = dynamic_cast<const MultibodyPlant<AutoDiffXd>*>(
@@ -1933,10 +1933,9 @@ void TrajectoryOptimizer<double>::SolveLinearSystemInPlace(
     }
     case SolverParameters::LinearSolverType::kDenseLdlt: {
       const MatrixX<double> Hdense = H.MakeDense();
-      //const auto& Hldlt = Hdense.ldlt();
-      //*b = Hldlt.solve(*b);
-      //DRAKE_DEMAND(Hldlt.info() == Eigen::Success);
-      *b = Hdense.inverse() * (*b);
+      const auto& Hldlt = Hdense.ldlt();
+      *b = Hldlt.solve(*b);
+      DRAKE_DEMAND(Hldlt.info() == Eigen::Success);
       break;
     }
     case SolverParameters::LinearSolverType::kPetsc: {
@@ -1953,29 +1952,27 @@ void TrajectoryOptimizer<double>::SolveLinearSystemInPlace(
 }
 
 template <typename T>
-bool TrajectoryOptimizer<T>::CalcDoglegDenseL(const TrajectoryOptimizerState<T>&,
-                                             const double, MatrixX<T>*) const {
+bool TrajectoryOptimizer<T>::MultiplyByDoglegMatrix(
+    const TrajectoryOptimizerState<T>&, const double, const VectorX<T>&,
+    VectorX<T>*) const {
   throw std::runtime_error(
-      "TrajectoryOptimizer::CalcDoglegDenseL only supports T=double");
+      "TrajectoryOptimizer::MultiplyByDoglegMatrix only supports T=double");
 }
 
 template <>
-bool TrajectoryOptimizer<double>::CalcDoglegDenseL(
+bool TrajectoryOptimizer<double>::MultiplyByDoglegMatrix(
     const TrajectoryOptimizerState<double>& state, const double Delta,
-    MatrixXd* L) const {
-  
+    const VectorXd& x, VectorXd* y) const {
   const VectorXd& g = EvalGradient(state);
   const MatrixXd H = EvalHessian(state).MakeDense();
-  const MatrixXd Hinv = H.inverse();
 
-  const VectorXd pH = - Hinv * (g / Delta);
-  const VectorXd pU = - g.dot(g) / (g.transpose() * H * g) * (g / Delta);
+  const VectorXd pH = -H.ldlt().solve(g / Delta);
+  const double gg_gHg = g.dot(g) / (g.transpose() * H * g);
+  const VectorXd pU = -gg_gHg * (g / Delta);
 
   if (pU.norm() > 1.0) {
     // Inner dog leg
-    *L = g.dot(g) / (g.transpose() * H * g) * Delta *
-         MatrixXd::Identity(H.rows(), H.cols());
-
+    *y = gg_gHg * Delta * x;
     return true;
 
   } else if (pH.norm() > 1.0) {
@@ -1985,14 +1982,15 @@ bool TrajectoryOptimizer<double>::CalcDoglegDenseL(
     const double c = pU.dot(pU) - 1.0;
     const double s = SolveDoglegQuadratic(a, b, c);
 
-    const MatrixXd I = MatrixXd::Identity(H.rows(), H.cols());
-    *L = (1-s) * g.dot(g) / (g.transpose() * H * g) * I + s * Hinv;
+    *y = (gg_gHg * (x / Delta) +
+          s * (H.ldlt().solve(x / Delta) - gg_gHg * (x / Delta))) *
+         Delta;
 
     return true;
 
   } else {
     // Full newton step
-    *L = Hinv;
+    *y = H.ldlt().solve(x / Delta) * Delta;
     return false;
   }
 }
@@ -2111,7 +2109,7 @@ void TrajectoryOptimizer<T>::CalcLeastSquaresResidual(
   const MatrixXd Qf_v_sqrt = (2 * prob_.Qf_v).cwiseSqrt();
 
   // Fill in the values of the residual
-  for (int t=0; t<N; ++t) {
+  for (int t = 0; t < N; ++t) {
     const int start_idx = t * (nq + 2 * nv);
     r->segment(start_idx, nq) = Qq_sqrt * (q[t] - prob_.q_nom[t]);
     r->segment(start_idx + nq, nv) = Qv_sqrt * (v[t] - prob_.v_nom[t]);
@@ -2446,10 +2444,8 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
     const VectorXd& g = EvalGradient(state);
 
     // Obtain the candiate update dq
-    //tr_constraint_active = CalcDoglegPoint(state, Delta, &dq, &dqH);
-    MatrixXd L(g.size(), g.size());
-    tr_constraint_active = CalcDoglegDenseL(state, Delta, &L);
-    dq = - L * g;
+    tr_constraint_active = CalcDoglegPoint(state, Delta, &dq, &dqH);
+    // tr_constraint_active = MultiplyByDoglegMatrix(state, Delta, -g, &dq);
 
     // Verify that dq is a descent direction
     DRAKE_DEMAND(dq.transpose() * g < 0);

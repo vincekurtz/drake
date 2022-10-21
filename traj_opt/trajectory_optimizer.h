@@ -746,10 +746,22 @@ class TrajectoryOptimizer {
                        const double Delta, VectorX<T>* dq,
                        VectorX<T>* dqH) const;
 
-  // Testing only: compute a dense matrix L(q) such that the dogleg step is
-  // given by δq=L*g
-  bool CalcDoglegDenseL(const TrajectoryOptimizerState<T>& state,
-                        const double Delta, MatrixX<T>* L) const;
+  /**
+   * Multiply the given vector (x) by the dogleg matrix L, where L is defined
+   * such that
+   *
+   *   δq=-L*g
+   *
+   * @param state optimizer state containing q
+   * @param Delta trust region radius
+   * @param x the vector to multiply by
+   * @param y the produced vector y = L*x
+   * @return true if the step intersects the trust region
+   * @return false if the step is in the interior of the trust region
+   */
+  bool MultiplyByDoglegMatrix(const TrajectoryOptimizerState<T>& state,
+                              const double Delta, const VectorX<T>& x,
+                              VectorX<T>* y) const;
 
   /**
    * Compute the least squares residual r(q) such that the total cost of the
@@ -764,10 +776,10 @@ class TrajectoryOptimizer {
                                 VectorX<T>* r) const;
 
   /**
-   * Compute the least squares Jacobian 
-   * 
+   * Compute the least squares Jacobian
+   *
    *    J(q) = ∂r(q)/∂q
-   * 
+   *
    * @param state the optimizer state containing q
    * @param J the (dense) least squares Jacobian.
    */

@@ -91,7 +91,7 @@ class TrajectoryOptimizerTester {
       const TrajectoryOptimizerState<double>& state, VectorXd* r) {
     optimizer.CalcLeastSquaresResidual(state, r);
   }
-  
+
   static void CalcLeastSquaresJacobian(
       const TrajectoryOptimizer<double>& optimizer,
       const TrajectoryOptimizerState<double>& state, MatrixXd* J) {
@@ -1582,14 +1582,14 @@ GTEST_TEST(TrajectoryOptimizerTest, LeastSquares) {
               std::numeric_limits<double>::epsilon());
 
   // Construct the least squares jacobian
-  MatrixXd J(r.size(), (num_steps+1)*2);
+  MatrixXd J(r.size(), (num_steps + 1) * 2);
   TrajectoryOptimizerTester::CalcLeastSquaresJacobian(optimizer, state, &J);
 
   // Check that this jacobian is consistent with the gradient
   const VectorXd& g_true = optimizer.EvalGradient(state);
   const VectorXd g_least_squares = J.transpose() * r;
 
-  const double kTolerance = sqrt(std::numeric_limits<double>::epsilon());
+  const double kTolerance = 10*sqrt(std::numeric_limits<double>::epsilon());
   EXPECT_TRUE(CompareMatrices(g_least_squares, g_true, kTolerance,
                               MatrixCompareType::relative));
 
