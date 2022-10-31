@@ -2469,6 +2469,11 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
   bool tr_constraint_active;  // flag for whether the trust region constraint is
                               // active
 
+  // Flags for changing the size of of the trust region and accepting a step
+  bool shrink_trust_region;
+  bool grow_trust_region;
+  bool accept_step;
+
   // Define printout data
   const std::string separator_bar =
       "------------------------------------------------------------------------"
@@ -2479,6 +2484,9 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
 
   double previous_cost = EvalCost(state);
   while (k < params_.max_iterations) {
+    shrink_trust_region = false;
+    grow_trust_region = false;
+    accept_step = false;
     const VectorXd& g = EvalGradient(state);
 
     // Obtain the candiate update dq
@@ -2487,27 +2495,27 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
 
     // Acceleration correction
     // TODO: remove heap allocations
-    const int nq = plant().num_positions();
-    const int nv = plant().num_velocities();
-    const int N = num_steps();
-    const int r_size = (nq + nv) * (N + 1) + nv * N;
-    VectorXd ddr(r_size);
-    MatrixXd J(r_size, g.size());
-    VectorXd ddg(g.size());
-    VectorXd dq_accel(g.size());
+    //const int nq = plant().num_positions();
+    //const int nv = plant().num_velocities();
+    //const int N = num_steps();
+    //const int r_size = (nq + nv) * (N + 1) + nv * N;
+    //VectorXd ddr(r_size);
+    //MatrixXd J(r_size, g.size());
+    //VectorXd ddg(g.size());
+    //VectorXd dq_accel(g.size());
     
-    CalcLeastSquaresResidualSecondDerivative(state, dq, &scratch_state, &ddr);
-    CalcLeastSquaresJacobian(state, &J);
-    ddg = J.transpose() * ddr;
-    MultiplyByDoglegMatrix(state, Delta, ddg, &dq_accel);
-    dq_accel *= -0.5;
+    //CalcLeastSquaresResidualSecondDerivative(state, dq, &scratch_state, &ddr);
+    //CalcLeastSquaresJacobian(state, &J);
+    //ddg = J.transpose() * ddr;
+    //MultiplyByDoglegMatrix(state, Delta, ddg, &dq_accel);
+    //dq_accel *= -0.5;
 
-    const double ratio = 2 * dq_accel.norm() / dq.norm();
-    PRINT_VARn(ratio);
-    if (ratio <= 0.75) {
-      // TODO: consider reducing trust region size if dq_accel is too big
-      dq += dq_accel;
-    }
+    //const double ratio = 2 * dq_accel.norm() / dq.norm();
+    //PRINT_VARn(ratio);
+    //if (ratio <= 0.75) {
+    //  // TODO: consider reducing trust region size if dq_accel is too big
+    //  dq += dq_accel;
+    //}
 
     // Verify that dq is a descent direction
     //DRAKE_DEMAND(dq.transpose() * g < 0);
@@ -2522,6 +2530,17 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
     // Compute the trust region ratio
     rho = CalcTrustRatio(state, dq, &scratch_state);
 
+    // Decide what to do: accept or reject the step, shrink, grow, or keep the
+    // trust region radius
+    if (rho > eta) {
+      accept_step = true;
+    }
+    if (rho < 0.25) {
+      shrink_trust_region = true;
+    } else if ((rho > 0.75) && tr_constraint_active) {
+      grow_trust_region = true;
+    }
+
     // Save data related to our quadratic approximation (for the first two
     // variables)
     if (params_.save_contour_data) {
@@ -2530,25 +2549,6 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
     if (params_.save_lineplot_data) {
       SaveIterationData(k, Delta, rho, dq(1), state);
     }
-
-    // If the ratio is large enough, accept the change
-    if (rho > eta) {
-      // Update the coefficients for the proximal operator cost
-      if (params_.proximal_operator) {
-        state.set_proximal_operator_data(state.q(), EvalHessian(state));
-        scratch_state.set_proximal_operator_data(state.q(), EvalHessian(state));
-      }
-
-      state.AddToQ(dq);  // q += dq
-    }
-    // Else (rho <= eta), the trust region ratio is too small to accept dq, so
-    // we'll need to so keep reducing the trust region. Note that the trust
-    // region will be reduced in this case, since eta < 0.25.
-
-    // N.B. if this is the case (q_{k+1} = q_k), we haven't touched state, so we
-    // should be reusing the cached gradient and Hessian in the next iteration.
-    // TODO(vincekurtz): should we be caching the factorization of the Hessian,
-    // as well as the Hessian itself?
 
     // Compute iteration timing
     // N.B. this is in kind of a weird place because we want to record
@@ -2584,11 +2584,26 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
                      g.norm(),           // gradient size
                      dL_dqH,             // Gradient along dqH
                      dL_dq);             // Gradient along dq
+    
+    if (accept_step) {
+      // Update the coefficients for the proximal operator cost
+      if (params_.proximal_operator) {
+        state.set_proximal_operator_data(state.q(), EvalHessian(state));
+        scratch_state.set_proximal_operator_data(state.q(), EvalHessian(state));
+      }
 
+      state.AddToQ(dq);  // q += dq
+    }
+    // N.B. if we don't accept the step (q_{k+1} = q_k), we haven't touched
+    // state, so we should be reusing the cached gradient and Hessian in the
+    // next iteration.
+    // TODO(vincekurtz): should we be caching the factorization of the Hessian,
+    // as well as the Hessian itself?
+    
     // Only check convergence criteria for valid steps.
     ConvergenceReason reason{
         ConvergenceReason::kNoConvergenceCriteriaSatisfied};
-    if (rho > eta) {
+    if (accept_step) {
       reason = VerifyConvergenceCriteria(state, previous_cost, dq);
       previous_cost = EvalCost(state);
       if (reason_out) *reason_out = reason;
@@ -2599,15 +2614,16 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
     }
 
     // Update the size of the trust-region, if necessary
-    if (rho < 0.25) {
-      // If the ratio is small, our quadratic approximation is bad, so reduce
-      // the trust region
+    if (shrink_trust_region) {
       Delta *= 0.25;
-    } else if ((rho > 0.75) && tr_constraint_active) {
-      // If the ratio is large and we're at the boundary of the trust
-      // region, increase the size of the trust region.
+    } else if (grow_trust_region) {
       Delta = min(2 * Delta, Delta_max);
     }
+
+    // Verify that our acceptance choice and changes to the trust region size make
+    // sense together.
+    DRAKE_DEMAND(!(shrink_trust_region && grow_trust_region));
+    DRAKE_DEMAND(accept_step || shrink_trust_region);
 
     ++k;
   }
