@@ -2493,32 +2493,34 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
     // tr_constraint_active = CalcDoglegPoint(state, Delta, &dq, &dqH);
     tr_constraint_active = MultiplyByDoglegMatrix(state, Delta, -g, &dq);
 
+    // Verify that dq is a descent direction. Note that this should hold before
+    // the acceleration correction is applied, but may or may not hold
+    // afterwards.
+    DRAKE_DEMAND(dq.transpose() * g < 0);
+
     // Acceleration correction
     // TODO: remove heap allocations
-    //const int nq = plant().num_positions();
-    //const int nv = plant().num_velocities();
-    //const int N = num_steps();
-    //const int r_size = (nq + nv) * (N + 1) + nv * N;
-    //VectorXd ddr(r_size);
-    //MatrixXd J(r_size, g.size());
-    //VectorXd ddg(g.size());
-    //VectorXd dq_accel(g.size());
+    const int nq = plant().num_positions();
+    const int nv = plant().num_velocities();
+    const int N = num_steps();
+    const int r_size = (nq + nv) * (N + 1) + nv * N;
+    VectorXd ddr(r_size);
+    MatrixXd J(r_size, g.size());
+    VectorXd ddg(g.size());
+    VectorXd dq_accel(g.size());
     
-    //CalcLeastSquaresResidualSecondDerivative(state, dq, &scratch_state, &ddr);
-    //CalcLeastSquaresJacobian(state, &J);
-    //ddg = J.transpose() * ddr;
-    //MultiplyByDoglegMatrix(state, Delta, ddg, &dq_accel);
-    //dq_accel *= -0.5;
+    CalcLeastSquaresResidualSecondDerivative(state, dq, &scratch_state, &ddr);
+    CalcLeastSquaresJacobian(state, &J);
+    ddg = J.transpose() * ddr;
+    MultiplyByDoglegMatrix(state, Delta, ddg, &dq_accel);
+    dq_accel *= -0.5;
 
-    //const double ratio = 2 * dq_accel.norm() / dq.norm();
-    //PRINT_VARn(ratio);
-    //if (ratio <= 0.75) {
-    //  // TODO: consider reducing trust region size if dq_accel is too big
-    //  dq += dq_accel;
-    //}
-
-    // Verify that dq is a descent direction
-    //DRAKE_DEMAND(dq.transpose() * g < 0);
+    const double ratio = 2 * dq_accel.norm() / dq.norm();
+    PRINT_VARn(ratio);
+    if ((ratio <= 0.75) && (k < 300)) {
+      // TODO: consider reducing trust region size if dq_accel is too big
+      dq += dq_accel;
+    }
 
     // Compute some quantities for logging.
     // N.B. These should be computed before q is updated.
@@ -2540,6 +2542,12 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
     } else if ((rho > 0.75) && tr_constraint_active) {
       grow_trust_region = true;
     }
+
+    //if (ratio >= 0.75) {
+    //  accept_step = false;
+    //  shrink_trust_region = true;
+    //  grow_trust_region = false;
+    //}
 
     // Save data related to our quadratic approximation (for the first two
     // variables)
@@ -2584,6 +2592,16 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
                      g.norm(),           // gradient size
                      dL_dqH,             // Gradient along dqH
                      dL_dq);             // Gradient along dq
+    
+    // Only accept steps that reduce the cost
+    // TODO: consider allowing some uphill steps
+    //scratch_state.set_q(state.q());
+    //scratch_state.AddToQ(dq);
+    //if (EvalCost(scratch_state) > previous_cost) {
+    //  std::cout << "rejected step due to cost" << std::endl;
+    //  accept_step = false;
+    //  shrink_trust_region = true;
+    //}
     
     if (accept_step) {
       // Update the coefficients for the proximal operator cost
