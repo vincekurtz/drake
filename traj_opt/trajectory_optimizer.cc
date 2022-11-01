@@ -266,6 +266,7 @@ void TrajectoryOptimizer<T>::CalcContactForceContribution(
   // Compliant contact parameters
   const double F = params_.F;
   const double delta = params_.delta;
+  const double sigma = params_.smoothing_factor;
   const double dissipation_velocity = params_.dissipation_velocity;
 
   // Friction parameters.
@@ -345,28 +346,29 @@ void TrajectoryOptimizer<T>::CalcContactForceContribution(
 
       // Normal dissipation follows a smoothed Hunt and Crossley model
       T dissipation_factor = 0.0;
-      if (vn < 0) {
-        dissipation_factor = 1 - vn / dissipation_velocity;
-      } else if (vn < 2 * dissipation_velocity) {
-        dissipation_factor =
-            1 / (4 * dissipation_velocity * dissipation_velocity) *
-            (vn - 2 * dissipation_velocity) * (vn - 2 * dissipation_velocity);
+      const T s = vn / dissipation_velocity;
+      if (s < 0) {
+        dissipation_factor = 1 - s;
+      } else if (s < 2) {
+        dissipation_factor = (s - 2) * (s - 2) / 4;
       }
 
       // (Compliant) force in the normal direction increases linearly at a rate
       // of 2F/delta Newtons per meter, with some smoothing that may or may not
       // allow for force at a distance.
       T compliant_fn;
+      const T x = - pair.distance / delta;
       if (params_.force_at_a_distance) {
-        if (pair.distance / delta < -100) {
+        if (x / sigma >= 37) {
           // If the exponent is going to be very large, replace with the
-          // functional limit as smoothing_factor goes to infinity.
-          compliant_fn = -2 * F / delta * pair.distance;
+          // functional limit.
+          // N.B. x = 37 is the first integer such that exp(x)+1 = exp(x) in
+          // double precision.
+          compliant_fn = 2 * F * x;
         } else {
-          compliant_fn = 2 * F * log(1 + exp(-1 / delta * pair.distance));
+          compliant_fn = 2 * F * sigma * log(1 + exp(x / sigma));
         }
       } else {
-        const T x = -pair.distance / delta;
         if (x < 0) {
           compliant_fn = 0;
         } else if (x < 1) {
