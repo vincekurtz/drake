@@ -289,6 +289,11 @@ void TrajOptExample::SetSolverParameters(
   solver_params->proximal_operator = options.proximal_operator;
   solver_params->rho_proximal = options.rho_proximal;
 
+  // Geodesic acceleration
+  solver_params->geodesic_acceleration = options.geodesic_acceleration;
+  solver_params->allow_some_uphill_steps = options.allow_some_uphill_steps;
+  solver_params->allow_all_uphill_steps = options.allow_all_uphill_steps;
+
   // Set contact parameters
   // TODO(vincekurtz): figure out a better place to set these
   solver_params->F = options.F;

@@ -109,6 +109,11 @@ struct SolverParameters {
   // Scale factor for the proximal operator cost
   double rho_proximal = 1e-8;
 
+  // Geodesic acceleration parameters
+  bool geodesic_acceleration = false;
+  bool allow_some_uphill_steps = false;
+  bool allow_all_uphill_steps = false;
+
   // Contact model parameters
   // TODO(vincekurtz): this is definitely the wrong place to specify the contact
   // model - figure out the right place and put these parameters there

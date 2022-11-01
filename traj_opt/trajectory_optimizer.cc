@@ -2441,6 +2441,7 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
   // Allocate the update vector q_{k+1} = q_k + dq
   VectorXd dq(plant().num_positions() * (num_steps() + 1));
   VectorXd dqH(dq.size());
+  VectorXd last_dq(dq.size());
 
   // Set up a file to record iteration data for a contour plot
   if (params_.save_contour_data) {
@@ -2498,28 +2499,30 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
     // afterwards.
     DRAKE_DEMAND(dq.transpose() * g < 0);
 
-    // Acceleration correction
-    // TODO: remove heap allocations
-    const int nq = plant().num_positions();
-    const int nv = plant().num_velocities();
-    const int N = num_steps();
-    const int r_size = (nq + nv) * (N + 1) + nv * N;
-    VectorXd ddr(r_size);
-    MatrixXd J(r_size, g.size());
-    VectorXd ddg(g.size());
     VectorXd dq_accel(g.size());
-    
-    CalcLeastSquaresResidualSecondDerivative(state, dq, &scratch_state, &ddr);
-    CalcLeastSquaresJacobian(state, &J);
-    ddg = J.transpose() * ddr;
-    MultiplyByDoglegMatrix(state, Delta, ddg, &dq_accel);
-    dq_accel *= -0.5;
+    if (params_.geodesic_acceleration) {
+      // Acceleration correction
+      // TODO: remove heap allocations
+      const int nq = plant().num_positions();
+      const int nv = plant().num_velocities();
+      const int N = num_steps();
+      const int r_size = (nq + nv) * (N + 1) + nv * N;
+      VectorXd ddr(r_size);
+      MatrixXd J(r_size, g.size());
+      VectorXd ddg(g.size());
+      
+      CalcLeastSquaresResidualSecondDerivative(state, dq, &scratch_state, &ddr);
+      CalcLeastSquaresJacobian(state, &J);
+      ddg = J.transpose() * ddr;
+      MultiplyByDoglegMatrix(state, Delta, ddg, &dq_accel);
+      dq_accel *= -0.5;
 
-    const double ratio = 2 * dq_accel.norm() / dq.norm();
-    PRINT_VARn(ratio);
-    if ((ratio <= 0.75) && (k < 300)) {
-      // TODO: consider reducing trust region size if dq_accel is too big
-      dq += dq_accel;
+      const double ratio = 2 * dq_accel.norm() / dq.norm();
+      PRINT_VARn(ratio);
+      if (ratio <= 0.75) {
+        // TODO: consider reducing trust region size if dq_accel is too big
+        dq += dq_accel;
+      }
     }
 
     // Compute some quantities for logging.
@@ -2592,17 +2595,51 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
                      g.norm(),           // gradient size
                      dL_dqH,             // Gradient along dqH
                      dL_dq);             // Gradient along dq
-    
-    // Only accept steps that reduce the cost
-    // TODO: consider allowing some uphill steps
-    //scratch_state.set_q(state.q());
-    //scratch_state.AddToQ(dq);
-    //if (EvalCost(scratch_state) > previous_cost) {
-    //  std::cout << "rejected step due to cost" << std::endl;
-    //  accept_step = false;
-    //  shrink_trust_region = true;
-    //}
-    
+
+    if (!params_.allow_all_uphill_steps) {
+      scratch_state.set_q(state.q());
+      scratch_state.AddToQ(dq);
+      if (params_.allow_some_uphill_steps) {
+        // Use the "bold" acceptance criterion to accept some uphill steps if
+        // they are in basically the same direction as the previous step.
+
+        // Cosine of angle between this step and the last accepted step
+        const double beta = dq.dot(last_dq) / dq.norm() / last_dq.norm();
+
+        if ((EvalCost(scratch_state) <= previous_cost) ||
+            ((1 - beta) * EvalCost(scratch_state) <= previous_cost)) {
+          accept_step = true;
+        } else {
+          std::cout << "rejected step" << std::endl;
+          PRINT_VARn(beta);
+          PRINT_VARn(EvalCost(scratch_state));
+          PRINT_VARn(previous_cost);
+          accept_step = false;
+          grow_trust_region = false;
+          shrink_trust_region = true;
+        }
+      } else {
+        // Only accept steps that reduce the cost
+        if (EvalCost(scratch_state) <= previous_cost) {
+          accept_step = true;
+        } else {
+          std::cout << "rejected step: reverting to original dq" << std::endl;
+
+          dq -= dq_accel;
+          accept_step = false;
+          rho = CalcTrustRatio(state, dq, &scratch_state);
+          if (rho > eta) {
+            accept_step = true;
+          }
+          if (rho < 0.25) {
+            shrink_trust_region = true;
+          } else if ((rho > 0.75) && tr_constraint_active) {
+            grow_trust_region = true;
+          }
+        }
+      }
+    }
+
     if (accept_step) {
       // Update the coefficients for the proximal operator cost
       if (params_.proximal_operator) {
@@ -2611,6 +2648,7 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
       }
 
       state.AddToQ(dq);  // q += dq
+      last_dq = dq;
     }
     // N.B. if we don't accept the step (q_{k+1} = q_k), we haven't touched
     // state, so we should be reusing the cached gradient and Hessian in the

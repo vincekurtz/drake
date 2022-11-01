@@ -67,6 +67,9 @@ struct TrajOptExampleParams {
     a->Visit(DRAKE_NVP(petsc_rel_tolerance));
     a->Visit(DRAKE_NVP(petsc_solver));
     a->Visit(DRAKE_NVP(petsc_preconditioner));
+    a->Visit(DRAKE_NVP(geodesic_acceleration));
+    a->Visit(DRAKE_NVP(allow_some_uphill_steps));
+    a->Visit(DRAKE_NVP(allow_all_uphill_steps));
   }
   // Initial state
   VectorXd q_init;
@@ -128,6 +131,15 @@ struct TrajOptExampleParams {
   // the diagonal of the Hessian)
   bool proximal_operator = false;
   double rho_proximal = 1e-8;
+
+  // Whether to use an additional second-order acceleration term
+  bool geodesic_acceleration = false;
+
+  // Whether to allow occasional cost-increasing steps when the angle between
+  // successive steps is small (the "bold" acceptance criterion) or all uphill
+  // steps.
+  bool allow_some_uphill_steps = false;
+  bool allow_all_uphill_steps = false;
 
   // Flags for playing back the target trajectory, initital guess, and optimal
   // trajectory on the visualizer
