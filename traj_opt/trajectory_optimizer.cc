@@ -2134,7 +2134,7 @@ void TrajectoryOptimizer<T>::CalcLeastSquaresResidualSecondDerivative(
   // N.B. A relatively large finite-difference step is recommended by Transtrum
   // and Sethna, "Improvements to the LM algorithm for nonlinear least-squares
   // minimization", 2012.
-  const double h = 0.001;  
+  const double h = 0.0001;  
 
   // TODO: use workspace to avoid heap allocations
   VectorX<T> r(r_size);
@@ -2610,32 +2610,44 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
             ((1 - beta) * EvalCost(scratch_state) <= previous_cost)) {
           accept_step = true;
         } else {
-          std::cout << "rejected step" << std::endl;
-          PRINT_VARn(beta);
-          PRINT_VARn(EvalCost(scratch_state));
-          PRINT_VARn(previous_cost);
           accept_step = false;
           grow_trust_region = false;
           shrink_trust_region = true;
+          //std::cout << "rejected step: reverting to original dq" << std::endl;
+
+          //dq -= dq_accel;
+          //accept_step = false;
+          //rho = CalcTrustRatio(state, dq, &scratch_state);
+          //if (rho > eta) {
+          //  accept_step = true;
+          //}
+          //if (rho < 0.25) {
+          //  shrink_trust_region = true;
+          //} else if ((rho > 0.75) && tr_constraint_active) {
+          //  grow_trust_region = true;
+          //}
         }
       } else {
         // Only accept steps that reduce the cost
         if (EvalCost(scratch_state) <= previous_cost) {
           accept_step = true;
         } else {
-          std::cout << "rejected step: reverting to original dq" << std::endl;
-
-          dq -= dq_accel;
           accept_step = false;
-          rho = CalcTrustRatio(state, dq, &scratch_state);
-          if (rho > eta) {
-            accept_step = true;
-          }
-          if (rho < 0.25) {
-            shrink_trust_region = true;
-          } else if ((rho > 0.75) && tr_constraint_active) {
-            grow_trust_region = true;
-          }
+          grow_trust_region = false;
+          shrink_trust_region = true;
+          //std::cout << "rejected step: reverting to original dq" << std::endl;
+
+          //dq -= dq_accel;
+          //accept_step = false;
+          //rho = CalcTrustRatio(state, dq, &scratch_state);
+          //if (rho > eta) {
+          //  accept_step = true;
+          //}
+          //if (rho < 0.25) {
+          //  shrink_trust_region = true;
+          //} else if ((rho > 0.75) && tr_constraint_active) {
+          //  grow_trust_region = true;
+          //}
         }
       }
     }

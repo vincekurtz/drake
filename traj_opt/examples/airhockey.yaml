@@ -41,8 +41,8 @@ tolerances:
   rel_state_change: 0
   abs_state_change: 0
 
-geodesic_acceleration : true
-allow_all_uphill_steps : false
+geodesic_acceleration : false
+allow_all_uphill_steps : true
 allow_some_uphill_steps : false
 
 # Method used to compute gradients of inverse dynamics, one of
@@ -74,4 +74,4 @@ force_at_a_distance : false
 
 # Friction
 friction_coefficient : 0.5  # Coefficient of friction.
-stiction_velocity: 0.01     # Regularization velocity, in m/s.
+stiction_velocity: 10000.01     # Regularization velocity, in m/s.

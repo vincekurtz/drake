@@ -24,7 +24,7 @@ data_file_root = drake_root + "/bazel-out/k8-opt/bin/traj_opt/examples/airhockey
 # Make plots
 fig, ax = plt.subplots(2,1,sharex=True,figsize=(8,9))
 
-fig.suptitle("airhockey example, vs=0.01, delta=0.01")
+fig.suptitle("airhockey example, vs=0.005, delta=0.005")
 
 # Read data from the files and format nicely
 scenarios = ["accel_no_uphill_no", "accel_yes_uphill_all", "accel_yes_uphill_some", "accel_yes_uphill_no"]
@@ -43,6 +43,6 @@ for scenario in scenarios:
 
 ax[1].set_xlabel("Iteration")
 ax[1].xaxis.set_major_locator(MaxNLocator(integer=True))
-plt.legend()
+ax[0].legend()
 
 plt.show()
