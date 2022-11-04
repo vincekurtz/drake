@@ -95,7 +95,7 @@ relax_gn_conv_tol: true     # use pre-determined convergance tolerances for GN
 max_major_iterations: 5     # the maximum number of AL iterations
 lambda0: 0.0                # the initial Lagrange multiplier value
 mu0: 1e2                    # the initial penalty parameter value
-mu_expand_coef: 1e1         # the expansion multiplier for the penalty parameter
+mu_expand_coef: 1.5         # the expansion multiplier for the penalty parameter
 constraint_tol: 1e-2        # constraint satisfaction tolerance on the infinity norm
 
 # Method used to compute gradients of inverse dynamics, one of
