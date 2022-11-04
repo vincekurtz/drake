@@ -134,20 +134,22 @@ template <typename T>
 T TrajectoryOptimizer<T>::CalcCost(
     const TrajectoryOptimizerState<T>& state) const {
   INSTRUMENT_FUNCTION("Computes the total cost.");
+  const std::vector<VectorX<T>>& q = EvalQ(state);
+  const std::vector<VectorX<T>>& k = EvalK(state);
   const std::vector<VectorX<T>>& v = EvalV(state);
   const std::vector<VectorX<T>>& tau = EvalTau(state);
-  T cost = CalcCost(state.q(), v, tau, &state.workspace);
+  T cost = CalcCost(q, k, v, tau, &state.workspace);
 
   // Add a proximal operator term to the cost, if requested
   if (params_.proximal_operator) {
-    const std::vector<VectorX<T>>& q = state.q();
-    const std::vector<VectorX<T>>& q_last =
-        state.proximal_operator_data().q_last;
+    const std::vector<VectorX<T>>& y = state.y();
+    const std::vector<VectorX<T>>& y_last =
+        state.proximal_operator_data().y_last;
     const std::vector<VectorX<T>>& H_diag =
         state.proximal_operator_data().H_diag;
     for (int t = 0; t <= num_steps(); ++t) {
-      cost += T(0.5 * params_.rho_proximal * (q[t] - q_last[t]).transpose() *
-                H_diag[t].asDiagonal() * (q[t] - q_last[t]));
+      cost += T(0.5 * params_.rho_proximal * (y[t] - y_last[t]).transpose() *
+                H_diag[t].asDiagonal() * (y[t] - y_last[t]));
     }
   }
 
@@ -156,12 +158,17 @@ T TrajectoryOptimizer<T>::CalcCost(
 
 template <typename T>
 T TrajectoryOptimizer<T>::CalcCost(
-    const std::vector<VectorX<T>>& q, const std::vector<VectorX<T>>& v,
+    const std::vector<VectorX<T>>& q, 
+    const std::vector<VectorX<T>>& k,
+    const std::vector<VectorX<T>>& v,
     const std::vector<VectorX<T>>& tau,
     TrajectoryOptimizerWorkspace<T>* workspace) const {
   T cost = 0;
   VectorX<T>& q_err = workspace->q_size_tmp1;
   VectorX<T>& v_err = workspace->v_size_tmp1;
+
+  // TODO(vincekurtz): add virtual force contribution
+  (void) k;
 
   // Running cost
   for (int t = 0; t < num_steps(); ++t) {
@@ -224,15 +231,16 @@ void TrajectoryOptimizer<T>::CalcInverseDynamics(
 
   for (int t = 0; t < num_steps(); ++t) {
     const Context<T>& context_tp = EvalPlantContext(state, t + 1);
+    const std::vector<VectorX<T>>& k = EvalK(state);
     // All dynamics terms are treated implicitly, i.e.,
-    // tau[t] = M(q[t+1]) * a[t] - k(q[t+1],v[t+1]) - f_ext[t+1]
-    CalcInverseDynamicsSingleTimeStep(context_tp, a[t], workspace, &tau->at(t));
+    // tau[t] = M(q[t+1]) * a[t] - C(q[t+1],v[t+1]) - f_ext[t+1]
+    CalcInverseDynamicsSingleTimeStep(context_tp, a[t], k[t], workspace, &tau->at(t));
   }
 }
 
 template <typename T>
 void TrajectoryOptimizer<T>::CalcInverseDynamicsSingleTimeStep(
-    const Context<T>& context, const VectorX<T>& a,
+    const Context<T>& context, const VectorX<T>& a, const VectorX<T>& k,
     TrajectoryOptimizerWorkspace<T>* workspace, VectorX<T>* tau) const {
   INSTRUMENT_FUNCTION("Computes inverse dynamics.");
 
@@ -244,7 +252,7 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsSingleTimeStep(
     // TODO(vincekurtz): perform this check earlier, and maybe print some
     // warnings to stdout if we're not connected (we do want to be able to run
     // problems w/o contact sometimes)
-    CalcContactForceContribution(context, &workspace->f_ext);
+    CalcContactForceContribution(context, k, &workspace->f_ext);
   }
 
   // Inverse dynamics computes tau = M*a - k(q,v) - f_ext
@@ -253,8 +261,12 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsSingleTimeStep(
 
 template <typename T>
 void TrajectoryOptimizer<T>::CalcContactForceContribution(
-    const Context<T>& context, MultibodyForces<T>* forces) const {
+    const Context<T>& context, const VectorX<T>& k,
+    MultibodyForces<T>* forces) const {
   INSTRUMENT_FUNCTION("Computes contact forces.");
+
+  // TODO(vincekurtz): add virtual force contribution
+  (void) k;
 
   using std::abs;
   using std::exp;
@@ -565,7 +577,7 @@ template <typename T>
 void TrajectoryOptimizer<T>::CalcInverseDynamicsPartials(
     const TrajectoryOptimizerState<T>& state,
     InverseDynamicsPartials<T>* id_partials) const {
-  INSTRUMENT_FUNCTION("Computes dtau/dq.");
+  INSTRUMENT_FUNCTION("Computes dtau/dy.");
   switch (params_.gradients_method) {
     case GradientsMethod::kForwardDifferences: {
       CalcInverseDynamicsPartialsFiniteDiff(state, id_partials);
@@ -609,15 +621,20 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsFiniteDiff(
   DRAKE_DEMAND(id_partials->size() == num_steps());
 
   // Get the trajectory data
-  const std::vector<VectorX<T>>& q = state.q();
+  const std::vector<VectorX<T>>& q = EvalQ(state);
+  const std::vector<VectorX<T>>& k = EvalK(state);
   const std::vector<VectorX<T>>& v = EvalV(state);
   const std::vector<VectorX<T>>& a = EvalA(state);
   const std::vector<VectorX<T>>& tau = EvalTau(state);
 
   // Get references to the partials that we'll be setting
-  std::vector<MatrixX<T>>& dtau_dqm = id_partials->dtau_dqm;
-  std::vector<MatrixX<T>>& dtau_dqt = id_partials->dtau_dqt;
-  std::vector<MatrixX<T>>& dtau_dqp = id_partials->dtau_dqp;
+  std::vector<MatrixX<T>>& dtau_dym = id_partials->dtau_dym;
+  std::vector<MatrixX<T>>& dtau_dyt = id_partials->dtau_dyt;
+  std::vector<MatrixX<T>>& dtau_dyp = id_partials->dtau_dyp;
+
+  /////////////////////////////////////////////////////////////////////////////////////////////////////
+  // TODO: continue conversion from q-->y
+  /////////////////////////////////////////////////////////////////////////////////////////////////////
 
   // Get kinematic mapping matrices for each time step
   const std::vector<MatrixX<T>>& Nplus = EvalNplus(state);
