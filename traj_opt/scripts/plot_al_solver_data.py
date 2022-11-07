@@ -141,13 +141,13 @@ for i, ex in enumerate(examples):
 
     # Normalize y data
     # normalize_cost_by = np.max(ex_cost)
-    normalize_cost_by = nominal_cost[ex]
+    # normalize_cost_by = nominal_cost[ex]
     # normalize_violation_by = np.max(ex_violation)
     
     # ex_violation /= normalize_violation_by
-    ex_cost /= normalize_cost_by
+    # ex_cost /= normalize_cost_by
     # bl_violation /= normalize_violation_by
-    bl_cost /= normalize_cost_by
+    # bl_cost /= normalize_cost_by
     
     # Plot the baseline
     axs[0].plot(x_baseline, bl_violation, color=colors[i], marker='x')
@@ -167,14 +167,14 @@ for ax in axs:
     ax.set_xlim(left=0)
     ax.grid()
 axs[0].set_ylim(bottom=-0.1*max_violation)
-axs[1].set_ylim(bottom=-0.02, top=1.02)
+# axs[1].set_ylim(bottom=-0.02, top=1.02)
 # Set axis positions
 axs[0].set_position([0.1, 0.52, 0.57, 0.45])
 axs[1].set_position([0.1, 0.06, 0.57, 0.45])
 # Set labels and titles
 axs[0].set_ylabel('Unactuation violation')
 axs[0].set_xticklabels([])
-axs[1].set_ylabel('Normalized final position cost')
+axs[1].set_ylabel('Final position cost')
 axs[0].set_title(f"Log directory: {LOG_DIR}")
 # Add legend
 axs[0].legend(bbox_to_anchor=(0.99, 0.5), loc='center left',
