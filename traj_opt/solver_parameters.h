@@ -121,6 +121,9 @@ struct SolverParameters {
   bool force_at_a_distance{false};  // whether to allow force at a distance
   double smoothing_factor{0.01};    // force at a distance smoothing
 
+  // Virtual forces
+  bool virtual_forces{false};
+
   // Flags for making a contour plot with the first two decision variables.
   bool save_contour_data = false;
   double contour_q1_min = 0.0;

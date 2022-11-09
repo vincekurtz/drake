@@ -103,6 +103,7 @@ using multibody::RigidBody;
 using systems::DiagramBuilder;
 using test::LimitMalloc;
 
+#if 0
 /**
  * Test optimization for a simple system with quaternion DoFs.
  */
@@ -1238,6 +1239,7 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcCostFromState) {
   const double kTolerance = 100 * std::numeric_limits<double>::epsilon();
   EXPECT_NEAR(L, L_gt, kTolerance);
 }
+#endif
 
 /**
  * Test our computation of the total cost L(q)
@@ -1290,6 +1292,7 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcCost) {
   EXPECT_NEAR(L, L_gt, kTolerance);
 }
 
+#if 0
 /**
  * Test our computation of generalized forces
  *
@@ -1513,6 +1516,8 @@ GTEST_TEST(TrajectoryOptimizerTest, ContactJacobians) {
                                 MatrixCompareType::relative));
   }
 }
+
+#endif
 
 }  // namespace internal
 }  // namespace traj_opt

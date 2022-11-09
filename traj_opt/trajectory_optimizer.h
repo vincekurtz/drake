@@ -427,7 +427,7 @@ class TrajectoryOptimizer {
   T CalcCost(const TrajectoryOptimizerState<T>& state) const;
 
   /**
-   * Compute the total cost of the unconstrained problem.
+   * Compute the total cost of the unconstrained problem (with virtual forces).
    *
    * @param q sequence of generalized positions
    * @param k sequence of virtual force parameters
@@ -437,6 +437,21 @@ class TrajectoryOptimizer {
    * @return double, total cost
    */
   T CalcCost(const std::vector<VectorX<T>>& q, const std::vector<VectorX<T>>& k,
+             const std::vector<VectorX<T>>& v,
+             const std::vector<VectorX<T>>& tau,
+             TrajectoryOptimizerWorkspace<T>* workspace) const;
+
+  /**
+   * Compute the total cost of the unconstrained problem (without virtual
+   * forces).
+   *
+   * @param q sequence of generalized positions
+   * @param v sequence of generalized velocities (consistent with q)
+   * @param tau sequence of generalized forces (consistent with q, k, and v)
+   * @param workspace scratch space for intermediate computations
+   * @return double, total cost
+   */
+  T CalcCost(const std::vector<VectorX<T>>& q,
              const std::vector<VectorX<T>>& v,
              const std::vector<VectorX<T>>& tau,
              TrajectoryOptimizerWorkspace<T>* workspace) const;

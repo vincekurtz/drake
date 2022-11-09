@@ -139,16 +139,16 @@ struct TrajectoryOptimizerCache {
     DerivativesData(const int num_steps, const int nv, const int nq)
         : v_partials(num_steps, nv, nq), id_partials(num_steps, nv, nq) {}
 
-    // Storage for dv(t)/dq(t) and dv(t)/dq(t-1)
+    // Storage for dv(t)/dy(t) and dv(t)/dy(t-1)
     VelocityPartials<T> v_partials;
 
-    // Storage for dtau(t)/dq(t-1), dtau(t)/dq(t), and dtau(t)/dq(t+1)
+    // Storage for dtau(t)/dy(t-1), dtau(t)/dy(t), and dtau(t)/dy(t+1)
     InverseDynamicsPartials<T> id_partials;
 
     bool up_to_date{false};
   } derivatives_data;
 
-  // The total cost L(q)
+  // The total cost L(y)
   T cost;
   bool cost_up_to_date{false};
 
@@ -163,8 +163,8 @@ struct TrajectoryOptimizerCache {
 
 template <typename T>
 struct ProximalOperatorData {
-  // Decision variables (generalized positions) from the {k-1}^th iteration
-  std::vector<VectorX<T>> q_last;
+  // Decision variables from the {k-1}^th iteration
+  std::vector<VectorX<T>> y_last;
 
   // Diagonal of the Hessian from the {k-1}^th iteration. This is stored as a
   // vector of diagonals, where each diagonal corresponds to a block of size nq,
@@ -204,18 +204,16 @@ class TrajectoryOptimizerState {
    * Constructor which allocates things of the proper sizes.
    *
    * @param num_steps number of timesteps in the optimization problem
-   * @param nv number of multibody velocities
-   * @param nq number of multipody positions
+   * @param plant multibody plant that we're optimizing over
    */
   TrajectoryOptimizerState(const int num_steps, const MultibodyPlant<T>& plant)
       : workspace(num_steps, plant),
         num_steps_(num_steps),
-        nq_(plant.num_positions()),
+        ny_(plant.num_positions()),  // TODO: include virtual forces
         cache_(num_steps, plant.num_velocities(), plant.num_positions()) {
-    const int nq = plant.num_positions();
-    q_.assign(num_steps + 1, VectorX<T>(nq));
-    proximal_operator_data_.q_last.assign(num_steps + 1, VectorX<T>(nq));
-    proximal_operator_data_.H_diag.assign(num_steps + 1, VectorX<T>::Zero(nq));
+    y_.assign(num_steps + 1, VectorX<T>(ny_));
+    proximal_operator_data_.y_last.assign(num_steps + 1, VectorX<T>(ny_));
+    proximal_operator_data_.H_diag.assign(num_steps + 1, VectorX<T>::Zero(ny_));
   }
 
   // TrajectoryOptimizer state for a `plant` model within `diagram`.
@@ -223,54 +221,58 @@ class TrajectoryOptimizerState {
                            const MultibodyPlant<T>& plant)
       : workspace(num_steps, plant),
         num_steps_(num_steps),
-        nq_(plant.num_positions()),
+        ny_(plant.num_positions()),
         cache_(num_steps, diagram, plant) {
-    const int nq = plant.num_positions();
-    q_.assign(num_steps + 1, VectorX<T>(nq));
-    proximal_operator_data_.q_last.assign(num_steps + 1, VectorX<T>(nq));
-    proximal_operator_data_.H_diag.assign(num_steps + 1, VectorX<T>::Zero(nq));
+    y_.assign(num_steps + 1, VectorX<T>(ny_));
+    proximal_operator_data_.y_last.assign(num_steps + 1, VectorX<T>(ny_));
+    proximal_operator_data_.H_diag.assign(num_steps + 1, VectorX<T>::Zero(ny_));
   }
 
   /**
-   * Getter for the sequence of generalized positions.
+   * Getter for the decision variables y.
    *
-   * @return const std::vector<VectorX<T>>& q
+   * @return const std::vector<VectorX<T>>& y
    */
-  const std::vector<VectorX<T>>& q() const { return q_; }
+  const std::vector<VectorX<T>>& y() const { return y_; }
 
   /**
-   * Setter for the sequence of generalized positions. Invalidates the cache.
+   * Setter for the decision variables. Invalidates the cache.
    *
-   * @param q sequence of generalized positions at each time step
+   * @param y sequence of generalized positions and virtual force parameters at
+   * each time step
    */
-  void set_q(const std::vector<VectorX<T>>& q) {
-    q_ = q;
+  void SetY(const std::vector<VectorX<T>>& y) {
+    y_ = y;
     invalidate_cache();
   }
 
   /**
-   * Update the sequence of generalized positions, q, by adding
+   * Update the decisions variables, y, by adding
    *
-   *    q = q + dq,
+   *    y = y + dy,
    *
-   * where dq is a large vector which stacks changes in each q[t].
+   * where dy is a large vector which stacks changes in each y[t].
    *
-   * @param dq vector of changes in generalized positions
+   * @param dy vector of changes in generalized positions
    */
-  void AddToQ(const VectorX<T>& dq) {
-    DRAKE_DEMAND(dq.size() == nq_ * (num_steps_ + 1));
+  void AddToY(const VectorX<T>& dy) {
+    DRAKE_DEMAND(dy.size() == ny_ * (num_steps_ + 1));
     for (int t = 0; t <= num_steps_; ++t) {
-      q_[t] += dq.segment(t * nq_, nq_);
+      y_[t] += dy.segment(t * ny_, ny_);
     }
     invalidate_cache();
   }
 
-  // Norm of the q vector for all trajectories.
+  /**
+   * Norm of the vector of decision variables, y.
+   * 
+   * @return T ||y||
+   */
   T norm() const {
     using std::sqrt;
     T squared_norm = 0.0;
     for (int t = 0; t <= num_steps_; ++t) {
-      squared_norm += q_[t].squaredNorm();
+      squared_norm += y_[t].squaredNorm();
     }
     return sqrt(squared_norm);
   }
@@ -309,13 +311,13 @@ class TrajectoryOptimizerState {
    * Setter for the proximal operator data (decision variables and Hessian
    * diagonal from the previous iteration).
    *
-   * @param q  decision variables at iteration k-1
+   * @param y  decision variables at iteration k-1
    * @param H  the Hessian at iteration k-1
    */
-  void set_proximal_operator_data(const std::vector<VectorX<T>>& q,
+  void set_proximal_operator_data(const std::vector<VectorX<T>>& y,
                                   const PentaDiagonalMatrix<T>& H) {
     // Set previous decision variables
-    proximal_operator_data_.q_last = q;
+    proximal_operator_data_.y_last = y;
 
     // Set Hessian diagonal
     const std::vector<MatrixX<T>>& C = H.C();
@@ -330,14 +332,14 @@ class TrajectoryOptimizerState {
   // Number of timesteps in the optimization problem
   const int num_steps_;
 
-  // Number of multibody positions for this system
-  const int nq_;
+  // Number of decision variables for this system
+  const int ny_;
 
-  // Sequence of generalized velocities at each timestep,
-  // [q(0), q(1), ..., q(num_steps)]
+  // Sequence of decision variables velocities at each timestep,
+  // y = [q(0), k(1), q(1), k(2) ..., q(num_steps), k(num_steps)]
   // TODO(vincekurtz): consider storing as a single VectorX<T> for better memory
   // layout.
-  std::vector<VectorX<T>> q_;
+  std::vector<VectorX<T>> y_;
 
   // Struct to store the diagonal of the Hessian and the decision variables (q)
   // from the previous iteration

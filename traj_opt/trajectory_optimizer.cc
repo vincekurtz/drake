@@ -138,7 +138,13 @@ T TrajectoryOptimizer<T>::CalcCost(
   const std::vector<VectorX<T>>& k = EvalK(state);
   const std::vector<VectorX<T>>& v = EvalV(state);
   const std::vector<VectorX<T>>& tau = EvalTau(state);
-  T cost = CalcCost(q, k, v, tau, &state.workspace);
+
+  T cost;
+  if (params_.virtual_forces) {
+    cost = CalcCost(q, k, v, tau, &state.workspace);
+  } else {
+    cost = CalcCost(q, v, tau, &state.workspace);
+  }
 
   // Add a proximal operator term to the cost, if requested
   if (params_.proximal_operator) {
@@ -159,16 +165,12 @@ T TrajectoryOptimizer<T>::CalcCost(
 template <typename T>
 T TrajectoryOptimizer<T>::CalcCost(
     const std::vector<VectorX<T>>& q, 
-    const std::vector<VectorX<T>>& k,
     const std::vector<VectorX<T>>& v,
     const std::vector<VectorX<T>>& tau,
     TrajectoryOptimizerWorkspace<T>* workspace) const {
   T cost = 0;
   VectorX<T>& q_err = workspace->q_size_tmp1;
   VectorX<T>& v_err = workspace->v_size_tmp1;
-
-  // TODO(vincekurtz): add virtual force contribution
-  (void) k;
 
   // Running cost
   for (int t = 0; t < num_steps(); ++t) {
@@ -191,6 +193,24 @@ T TrajectoryOptimizer<T>::CalcCost(
 
   return cost;
 }
+
+template <typename T>
+T TrajectoryOptimizer<T>::CalcCost(
+    const std::vector<VectorX<T>>& q, 
+    const std::vector<VectorX<T>>& k,
+    const std::vector<VectorX<T>>& v,
+    const std::vector<VectorX<T>>& tau,
+    TrajectoryOptimizerWorkspace<T>* workspace) const {
+  (void) q;
+  (void) k;
+  (void) v;
+  (void) tau;
+  (void) workspace;
+  throw std::runtime_error(
+      "TrajectoryOptimizer::CalcCost not yet implemented with virtual forces");
+}
+
+#if 0
 
 template <typename T>
 void TrajectoryOptimizer<T>::CalcVelocities(
@@ -2503,6 +2523,7 @@ ConvergenceReason TrajectoryOptimizer<T>::VerifyConvergenceCriteria(
 
   return ConvergenceReason(reason);
 }
+#endif
 
 }  // namespace traj_opt
 }  // namespace drake
