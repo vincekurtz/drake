@@ -2428,7 +2428,7 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
   double previous_cost = EvalCost(state);
   while (k < params_.max_iterations) {
     // Obtain the candiate update dq
-    if (k < 200) {
+    if (k < 500) {
       B = EvalHessian(state).MakeDense();
     }
     //tr_constraint_active = CalcDoglegPoint(state, Delta, &dq, &dqH);
@@ -2469,25 +2469,30 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
       state.AddToQ(dq);  // q += dq
 
       // Update the BFGS Hessian approximation
-      // TODO: if this works, abstract as a separate function
+      // TODO: abstract as a separate function?
       const VectorXd& s = dq;
       // y = g(k+1) - g(k). This funny ordering ensures that we don't need to
       // store an extra copy of the gradient at the last step.
       VectorXd y = -g;
       y += EvalGradient(state);
 
-      // TODO: reduce trust region size if this doesn't hold
-      DRAKE_DEMAND(s.transpose() * y >= 0);
+      // This condition must hold in order for B to be positive definite. If it
+      // does not hold, we can make sure that it will by rejecting this step and
+      // reducing the trust region.
+      if (s.transpose() * y >= 0) {
+        B += -(B * s * s.transpose() * B) / (s.transpose() * B * s) +
+             (y * y.transpose()) / (y.transpose() * s);
 
-      B += -(B * s * s.transpose() * B) / (s.transpose() * B * s) +
-           (y * y.transpose()) / (y.transpose() * s);
+        // Overwrite the first rows/columns that have to do with the (fixed)
+        // initial condition
+        B.topRows(nq).setZero();
+        B.leftCols(nq).setZero();
+        B.topLeftCorner(nq, nq).setIdentity();
 
-      // Overwrite the first rows/columns that have to do with the (fixed)
-      // initial condition
-      B.topRows(nq).setZero();
-      B.leftCols(nq).setZero();
-      B.topLeftCorner(nq,nq).setIdentity();
-
+      } else {
+        state.AddToQ(-dq);  // reject the step
+        rho = -1.0;         // negative rho ensures we reduce the trust region
+      }
     }
     // Else (rho <= eta), the trust region ratio is too small to accept dq, so
     // we'll need to so keep reducing the trust region. Note that the trust
