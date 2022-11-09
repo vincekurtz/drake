@@ -726,6 +726,28 @@ class TrajectoryOptimizer {
   T CalcTrustRatio(const TrajectoryOptimizerState<T>& state,
                    const VectorX<T>& dq,
                    TrajectoryOptimizerState<T>* scratch_state) const;
+  /**
+   * Compute the trust ratio with a given Hessian approximation B:
+   *
+   *           L(q) - L(q + dq)
+   *    rho =  ----------------
+   *             m(0) - m(dq)
+   *
+   * which compares the actual reduction in cost to the reduction in cost
+   * predicted by the quadratic model
+   *
+   *    m(dq) = L + g'*dq + 1/2 dq'*B*dq
+   *
+   * @param state optimizer state containing q and everything computed from q
+   * @param B the hessian approximation to use
+   * @param dq change in q, stacked in one large vector
+   * @param scratch_state scratch state variable used to compute L(q+dq)
+   * @return T, the trust region ratio
+   */
+  T CalcTrustRatio(const TrajectoryOptimizerState<T>& state,
+                   const MatrixX<T>& B,
+                   const VectorX<T>& dq,
+                   TrajectoryOptimizerState<T>* scratch_state) const;
 
   /**
    * Compute the dogleg step δq, which approximates the solution to the
@@ -745,6 +767,25 @@ class TrajectoryOptimizer {
   bool CalcDoglegPoint(const TrajectoryOptimizerState<T>& state,
                        const double Delta, VectorX<T>* dq,
                        VectorX<T>* dqH) const;
+  
+  /**
+   * Compute the dogleg step δq, which approximates the solution to the
+   * trust-region sub-problem with the given Hessian approximation (B):
+   *
+   *   min_{δq} L(q) + g(q)'*δq + 1/2 δq'*B*δq
+   *   s.t.     ‖ δq ‖ <= Δ
+   *
+   * @param state the optimizer state
+   * @param B the (approximate) Hessian
+   * @param Delta the trust region size
+   * @param dq the dogleg step (change in decision variables)
+   * @param dqH the Newton step
+   * @return true if the step intersects the trust region
+   * @return false if the step is in the interior of the trust region
+   */
+  bool CalcDoglegPointApproxHessian(const TrajectoryOptimizerState<T>& state,
+                                    const MatrixXd& B, const double Delta,
+                                    VectorX<T>* dq, VectorX<T>* dqH) const;
 
   /**
    * Solve the scalar quadratic equation

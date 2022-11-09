@@ -1882,6 +1882,38 @@ T TrajectoryOptimizer<T>::CalcTrustRatio(
 }
 
 template <typename T>
+T TrajectoryOptimizer<T>::CalcTrustRatio(
+    const TrajectoryOptimizerState<T>& state, const MatrixX<T>& B,
+    const VectorX<T>& dq, TrajectoryOptimizerState<T>* scratch_state) const {
+  // Compute predicted reduction in cost
+  const VectorX<T>& g = EvalGradient(state);
+  const T gradient_term = g.dot(dq);
+  const T hessian_term = 0.5 * dq.transpose() * B * dq;
+  const T predicted_reduction = -gradient_term - hessian_term;
+
+  // Compute actual reduction in cost
+  scratch_state->set_q(state.q());
+  scratch_state->AddToQ(dq);
+  const T L_old = EvalCost(state);           // L(q)
+  const T L_new = EvalCost(*scratch_state);  // L(q + dq)
+  const T actual_reduction = L_old - L_new;
+
+  // Threshold for determining when the actual and predicted reduction in cost
+  // are essentially zero. This is determined by the approximate level of
+  // floating point error in our computation of the cost, L(q).
+  const double eps =
+      10 * std::numeric_limits<T>::epsilon() / time_step() / time_step();
+  if ((predicted_reduction < eps) && (actual_reduction < eps)) {
+    // Actual and predicted improvements are both essentially zero, so we set
+    // the trust ratio to a value such that the step will be accepted, but the
+    // size of the trust region will not change.
+    return 0.5;
+  }
+
+  return actual_reduction / predicted_reduction;
+}
+
+template <typename T>
 T TrajectoryOptimizer<T>::SolveDoglegQuadratic(const T& a, const T& b,
                                                const T& c) const {
   using std::sqrt;
@@ -1949,6 +1981,81 @@ void TrajectoryOptimizer<double>::SolveLinearSystemInPlace(
       break;
     }
   }
+}
+
+template <typename T>
+bool TrajectoryOptimizer<T>::CalcDoglegPointApproxHessian(
+    const TrajectoryOptimizerState<T>&, const MatrixXd&, const double,
+    VectorX<T>*, VectorX<T>*) const {
+  throw std::runtime_error(
+      "TrajectoryOptimizer::CalcDoglegPointApproxHessian only supports "
+      "T=double");
+}
+
+template <>
+bool TrajectoryOptimizer<double>::CalcDoglegPointApproxHessian(
+    const TrajectoryOptimizerState<double>& state, const MatrixXd& B,
+    const double Delta, VectorXd* dq, VectorXd* dqH) const {
+  INSTRUMENT_FUNCTION("Find search direction with dogleg method.");
+
+  // N.B. We'll rescale pU and pH by Δ to avoid roundoff error
+  const VectorXd& g = EvalGradient(state);
+  const double gHg = g.transpose() * B * g;
+
+  // Compute the full Gauss-Newton step
+  // N.B. We can avoid computing pH when pU is the dog-leg solution.
+  // However, we compute it here for logging stats since thus far the cost of
+  // computing pH is negligible compared to other costs (namely the computation
+  // of gradients of the inverse dynamics.)
+  // TODO(amcastro-tri): move this to after pU whenever we make the cost of
+  // gradients computation negligible.
+  VectorXd& pH = state.workspace.q_size_tmp2;
+
+  pH = -g / Delta;  // normalize by Δ
+  const auto& Hldlt = B.ldlt();
+  pH = Hldlt.solve(pH);
+
+  *dqH = pH * Delta;
+
+  // Compute the unconstrained minimizer of m(δq) = L(q) + g(q)'*δq + 1/2
+  // δq'*H(q)*δq along -g
+  VectorXd& pU = state.workspace.q_size_tmp1;
+  pU = -(g.dot(g) / gHg) * g / Delta;  // normalize by Δ
+
+  // Check if the trust region is smaller than this unconstrained minimizer
+  if (1.0 <= pU.norm()) {
+    // If so, δq is where the first leg of the dogleg path intersects the trust
+    // region.
+    *dq = (Delta / pU.norm()) * pU;
+    return true;  // the trust region constraint is active
+  }
+
+  // Check if the trust region is large enough to just take the full Newton step
+  if (1.0 >= pH.norm()) {
+    *dq = pH * Delta;
+    return false;  // the trust region constraint is not active
+  }
+
+  // Compute the intersection between the second leg of the dogleg path and the
+  // trust region. We'll do this by solving the (scalar) quadratic
+  //
+  //    ‖ pU + s( pH − pU ) ‖² = y²
+  //
+  // for s ∈ (0,1),
+  //
+  // and setting
+  //
+  //    δq = pU + s( pH − pU ).
+  //
+  // Note that we normalize by Δ to minimize roundoff error.
+  const double a = (pH - pU).dot(pH - pU);
+  const double b = 2 * pU.dot(pH - pU);
+  const double c = pU.dot(pU) - 1.0;
+  const double s = SolveDoglegQuadratic(a, b, c);
+
+  *dq = (pU + s * (pH - pU)) * Delta;
+
+  return true;  // the trust region constraint is active
 }
 
 template <typename T>
@@ -2276,7 +2383,8 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
   TrajectoryOptimizerState<double> scratch_state = CreateState();
 
   // Allocate the update vector q_{k+1} = q_k + dq
-  VectorXd dq(plant().num_positions() * (num_steps() + 1));
+  const int nq = plant().num_positions();
+  VectorXd dq(nq * (num_steps() + 1));
   VectorXd dqH(dq.size());
 
   // Set up a file to record iteration data for a contour plot
@@ -2306,6 +2414,9 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
   bool tr_constraint_active;  // flag for whether the trust region constraint is
                               // active
 
+  // Quasi-newton (BFGS) variables
+  MatrixXd B = EvalHessian(state).MakeDense();
+
   // Define printout data
   const std::string separator_bar =
       "------------------------------------------------------------------------"
@@ -2317,7 +2428,11 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
   double previous_cost = EvalCost(state);
   while (k < params_.max_iterations) {
     // Obtain the candiate update dq
-    tr_constraint_active = CalcDoglegPoint(state, Delta, &dq, &dqH);
+    if (k < 200) {
+      B = EvalHessian(state).MakeDense();
+    }
+    //tr_constraint_active = CalcDoglegPoint(state, Delta, &dq, &dqH);
+    tr_constraint_active = CalcDoglegPointApproxHessian(state, B, Delta, &dq, &dqH);
 
     // Verify that dq is a descent direction
     const VectorXd& g = EvalGradient(state);
@@ -2331,7 +2446,8 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
     const double q_norm = state.norm();
 
     // Compute the trust region ratio
-    rho = CalcTrustRatio(state, dq, &scratch_state);
+    //rho = CalcTrustRatio(state, dq, &scratch_state);
+    rho = CalcTrustRatio(state, B, dq, &scratch_state);
 
     // Save data related to our quadratic approximation (for the first two
     // variables)
@@ -2351,6 +2467,27 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
       }
 
       state.AddToQ(dq);  // q += dq
+
+      // Update the BFGS Hessian approximation
+      // TODO: if this works, abstract as a separate function
+      const VectorXd& s = dq;
+      // y = g(k+1) - g(k). This funny ordering ensures that we don't need to
+      // store an extra copy of the gradient at the last step.
+      VectorXd y = -g;
+      y += EvalGradient(state);
+
+      // TODO: reduce trust region size if this doesn't hold
+      DRAKE_DEMAND(s.transpose() * y >= 0);
+
+      B += -(B * s * s.transpose() * B) / (s.transpose() * B * s) +
+           (y * y.transpose()) / (y.transpose() * s);
+
+      // Overwrite the first rows/columns that have to do with the (fixed)
+      // initial condition
+      B.topRows(nq).setZero();
+      B.leftCols(nq).setZero();
+      B.topLeftCorner(nq,nq).setIdentity();
+
     }
     // Else (rho <= eta), the trust region ratio is too small to accept dq, so
     // we'll need to so keep reducing the trust region. Note that the trust
