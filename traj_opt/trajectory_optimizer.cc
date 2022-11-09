@@ -210,8 +210,6 @@ T TrajectoryOptimizer<T>::CalcCost(
       "TrajectoryOptimizer::CalcCost not yet implemented with virtual forces");
 }
 
-#if 0
-
 template <typename T>
 void TrajectoryOptimizer<T>::CalcVelocities(
     const std::vector<VectorX<T>>& q, const std::vector<MatrixX<T>>& Nplus,
@@ -237,6 +235,8 @@ void TrajectoryOptimizer<T>::CalcAccelerations(
     a->at(t) = (v[t + 1] - v[t]) / time_step();
   }
 }
+
+#if 0
 
 template <typename T>
 void TrajectoryOptimizer<T>::CalcInverseDynamics(
@@ -1415,13 +1415,15 @@ const PentaDiagonalMatrix<T>& TrajectoryOptimizer<T>::EvalHessian(
   return state.cache().hessian;
 }
 
+#endif
+
 template <typename T>
 void TrajectoryOptimizer<T>::CalcCacheTrajectoryData(
     const TrajectoryOptimizerState<T>& state) const {
   TrajectoryOptimizerCache<T>& cache = state.mutable_cache();
 
   // The generalized positions that everything is computed from
-  const std::vector<VectorX<T>>& q = state.q();
+  const std::vector<VectorX<T>>& q = EvalQ(state);
 
   // Compute corresponding generalized velocities
   std::vector<VectorX<T>>& v = cache.trajectory_data.v;
@@ -1435,6 +1437,8 @@ void TrajectoryOptimizer<T>::CalcCacheTrajectoryData(
   // Set cache invalidation flag
   cache.trajectory_data.up_to_date = true;
 }
+
+#if 0
 
 template <typename T>
 void TrajectoryOptimizer<T>::CalcInverseDynamicsCache(
@@ -1485,6 +1489,18 @@ const Context<T>& TrajectoryOptimizer<T>::EvalPlantContext(
   return *state.cache().context_cache->plant_contexts[t];
 }
 
+#endif
+
+template <typename T>
+const std::vector<VectorX<T>>& TrajectoryOptimizer<T>::EvalQ(
+    const TrajectoryOptimizerState<T>& state) const {
+  if (params_.virtual_forces) {
+    throw std::runtime_error("EvalQ not yet implemented with virtual forces");
+  } else {
+    return state.y();
+  }
+}
+
 template <typename T>
 const std::vector<VectorX<T>>& TrajectoryOptimizer<T>::EvalV(
     const TrajectoryOptimizerState<T>& state) const {
@@ -1498,6 +1514,8 @@ const std::vector<VectorX<T>>& TrajectoryOptimizer<T>::EvalA(
   if (!state.cache().trajectory_data.up_to_date) CalcCacheTrajectoryData(state);
   return state.cache().trajectory_data.a;
 }
+
+#if 0
 
 template <typename T>
 const std::vector<VectorX<T>>& TrajectoryOptimizer<T>::EvalTau(
@@ -1544,6 +1562,8 @@ TrajectoryOptimizer<T>::EvalInverseDynamicsPartials(
   return state.cache().derivatives_data.id_partials;
 }
 
+#endif
+
 template <typename T>
 const std::vector<MatrixX<T>>& TrajectoryOptimizer<T>::EvalNplus(
     const TrajectoryOptimizerState<T>& state) const {
@@ -1563,12 +1583,14 @@ void TrajectoryOptimizer<T>::CalcNplus(const TrajectoryOptimizerState<T>& state,
     // TODO(vincekurtz): consider using EvalPlantContext instead. In that case
     // we do need to be a bit careful, however, since EvalPlantContext requires
     // EvalV, which in turn requires EvalNplus.
-    plant().SetPositions(context_, state.q()[t]);
+    plant().SetPositions(context_, EvalQ(state)[t]);
 
     // Compute N+(q_t)
     plant().CalcNplusMatrix(*context_, &N_plus->at(t));
   }
 }
+
+#if 0
 
 template <typename T>
 void TrajectoryOptimizer<T>::SaveLinePlotDataFirstVariable(

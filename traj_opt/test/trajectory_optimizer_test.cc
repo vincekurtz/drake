@@ -1292,7 +1292,6 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcCost) {
   EXPECT_NEAR(L, L_gt, kTolerance);
 }
 
-#if 0
 /**
  * Test our computation of generalized forces
  *
@@ -1331,8 +1330,8 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumCalcInverseDynamics) {
   TrajectoryOptimizer<double> optimizer(diagram.get(), &plant, opt_prob);
   TrajectoryOptimizerState<double> state = optimizer.CreateState();
   TrajectoryOptimizerWorkspace<double> workspace(num_steps, plant);
-  state.set_q(q);
-
+  state.SetY(q);
+  
   const std::vector<VectorXd>& v = optimizer.EvalV(state);
 
   // Compute ground truth torque analytically using the
@@ -1355,26 +1354,30 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumCalcInverseDynamics) {
   }
 
   // Compute tau from q and v
+  const std::vector<VectorXd>& a = optimizer.EvalA(state);
   std::vector<VectorXd> tau(num_steps, VectorXd(1));
-  std::vector<VectorXd> a(num_steps, VectorXd(1));
-  {
-    // It appears, via trial and error, that CalcInverseDynamics makes exactly
-    // 15 allocations for this example.
-    // LimitMalloc guard({.max_num_allocations = 15});
-    // TODO(vincekurtz): track down whatever extra allocations we got from
-    // refactoring
-    TrajectoryOptimizerTester::CalcAccelerations(optimizer, v, &a);
-    TrajectoryOptimizerTester::CalcInverseDynamics(optimizer, state, a,
-                                                   &workspace, &tau);
-  }
 
-  // Check that our computed values match the true (recorded) ones
-  const double kToleranceTau = std::numeric_limits<double>::epsilon();
-  for (int t = 0; t < num_steps; ++t) {
-    EXPECT_TRUE(CompareMatrices(tau[t], tau_gt[t], kToleranceTau,
-                                MatrixCompareType::relative));
-  }
+  (void) v;
+  (void) a;
+  (void) tau;
+  //{
+  //  // It appears, via trial and error, that CalcInverseDynamics makes exactly
+  //  // 15 allocations for this example.
+  //  // LimitMalloc guard({.max_num_allocations = 15});
+  //  // TODO(vincekurtz): track down whatever extra allocations we got from
+  //  // refactoring
+  //  TrajectoryOptimizerTester::CalcInverseDynamics(optimizer, state, a,
+  //                                                 &workspace, &tau);
+  //}
+
+  //// Check that our computed values match the true (recorded) ones
+  //const double kToleranceTau = std::numeric_limits<double>::epsilon();
+  //for (int t = 0; t < num_steps; ++t) {
+  //  EXPECT_TRUE(CompareMatrices(tau[t], tau_gt[t], kToleranceTau,
+  //                              MatrixCompareType::relative));
+  //}
 }
+#if 0
 
 /**
  * Test our computation of generalized velocities
