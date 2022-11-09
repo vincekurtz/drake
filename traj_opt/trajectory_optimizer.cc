@@ -385,8 +385,15 @@ void TrajectoryOptimizer<T>::CalcContactForceContribution(
       // with the algebraic sigmoid function defined as sigmoid(x) =
       // x/sqrt(1+x^2). The algebraic simplification is performed to avoid
       // division by zero when vt = 0 (or lost of precision when close to zero).
-      const Vector3<T> that_regularized =
-          -vt / sqrt(vs * vs + vt.squaredNorm());
+      //const Vector3<T> that_regularized =
+      //    -vt / sqrt(vs * vs + vt.squaredNorm());
+
+      Vector3<T> that_regularized;
+      if (vt.norm() < vs) {
+        that_regularized = -vt / vs;
+      } else {
+        that_regularized = -vt / vt.norm();
+      }
       const Vector3<T> ft_BC_W = that_regularized * mu * fn;
 
       // Total contact force on B at C, expressed in W.
