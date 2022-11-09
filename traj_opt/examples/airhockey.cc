@@ -84,8 +84,9 @@ class AirHockeyExample : public TrajOptExample {
                                      Sphere(radius), "puck_collision",
                                      CoulombFriction<double>());
 
+    const Vector3d damping(0.1, 0.1, 0.1);
     plant->AddJoint<PlanarJoint>("puck_joint", plant->world_body(),
-                                 RigidTransformd(), puck, {}, Vector3d::Zero());
+                                 RigidTransformd(), puck, {}, damping);
   }
 };
 
