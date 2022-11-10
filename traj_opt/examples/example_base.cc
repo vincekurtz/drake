@@ -289,6 +289,8 @@ void TrajOptExample::SetSolverParameters(
   solver_params->proximal_operator = options.proximal_operator;
   solver_params->rho_proximal = options.rho_proximal;
 
+  solver_params->quasi_newton = options.quasi_newton;
+
   // Set contact parameters
   // TODO(vincekurtz): figure out a better place to set these
   solver_params->F = options.F;

@@ -2428,7 +2428,7 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
   double previous_cost = EvalCost(state);
   while (k < params_.max_iterations) {
     // Obtain the candiate update dq
-    if (k < 500) {
+    if ((!params_.quasi_newton) || (k < 500)) {
       B = EvalHessian(state).MakeDense();
     }
     //tr_constraint_active = CalcDoglegPoint(state, Delta, &dq, &dqH);

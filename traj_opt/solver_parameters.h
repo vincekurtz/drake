@@ -109,6 +109,9 @@ struct SolverParameters {
   // Scale factor for the proximal operator cost
   double rho_proximal = 1e-8;
 
+  // Quasi-newton Hessian approximation
+  bool quasi_newton = false;
+
   // Contact model parameters
   // TODO(vincekurtz): this is definitely the wrong place to specify the contact
   // model - figure out the right place and put these parameters there

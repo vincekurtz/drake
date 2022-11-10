@@ -68,6 +68,7 @@ struct TrajOptExampleParams {
     a->Visit(DRAKE_NVP(petsc_rel_tolerance));
     a->Visit(DRAKE_NVP(petsc_solver));
     a->Visit(DRAKE_NVP(petsc_preconditioner));
+    a->Visit(DRAKE_NVP(quasi_newton));
   }
   // Initial state
   VectorXd q_init;
@@ -129,6 +130,9 @@ struct TrajOptExampleParams {
   // the diagonal of the Hessian)
   bool proximal_operator = false;
   double rho_proximal = 1e-8;
+
+  // Whether to use a quasi-Newton Hessian approximation 
+  bool quasi_newton = false;
 
   // Flags for playing back the target trajectory, initital guess, and optimal
   // trajectory on the visualizer
