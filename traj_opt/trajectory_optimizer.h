@@ -808,6 +808,18 @@ class TrajectoryOptimizer {
    */
   T SolveDoglegQuadratic(const T& a, const T& b, const T& c) const;
 
+  /**
+   * Update the quasi-Newton approximation of the Hessian using a sparse BFGS
+   * variant.
+   *
+   * @param s change in decision variables
+   * @param y change in gradient
+   * @param B the Hessian approximation to update
+   */
+  void UpdateQuasiNewtonHessianApproximation(const VectorX<T>& s,
+                                             const VectorX<T>& y,
+                                             MatrixX<T>* B) const;
+
   /* Helper to solve ths system H⋅x = b with a solver as specified with
   SolverParameters. On output b is overwritten with x. */
   void SolveLinearSystemInPlace(const PentaDiagonalMatrix<T>& H,

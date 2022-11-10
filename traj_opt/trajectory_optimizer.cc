@@ -2155,6 +2155,22 @@ SolverFlag TrajectoryOptimizer<T>::Solve(const std::vector<VectorX<T>>&,
       "TrajectoryOptimizer::Solve only supports T=double.");
 }
 
+template <typename T>
+void TrajectoryOptimizer<T>::UpdateQuasiNewtonHessianApproximation(
+    const VectorX<T>& s, const VectorX<T>& y, MatrixX<T>* B_ptr) const {
+  MatrixX<T>& B = *B_ptr;
+  const int nq = plant().num_positions();
+
+  B += -(B * s * s.transpose() * B) / (s.transpose() * B * s) +
+        (y * y.transpose()) / (y.transpose() * s);
+
+  // Overwrite the first rows/columns that have to do with the (fixed)
+  // initial condition
+  B.topRows(nq).setZero();
+  B.leftCols(nq).setZero();
+  B.topLeftCorner(nq, nq).setIdentity();
+}
+
 template <>
 SolverFlag TrajectoryOptimizer<double>::Solve(
     const std::vector<VectorXd>& q_guess,
@@ -2469,7 +2485,6 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
       state.AddToQ(dq);  // q += dq
 
       // Update the BFGS Hessian approximation
-      // TODO: abstract as a separate function?
       const VectorXd& s = dq;
       // y = g(k+1) - g(k). This funny ordering ensures that we don't need to
       // store an extra copy of the gradient at the last step.
@@ -2480,15 +2495,7 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
       // does not hold, we can make sure that it will by rejecting this step and
       // reducing the trust region.
       if (s.transpose() * y >= 0) {
-        B += -(B * s * s.transpose() * B) / (s.transpose() * B * s) +
-             (y * y.transpose()) / (y.transpose() * s);
-
-        // Overwrite the first rows/columns that have to do with the (fixed)
-        // initial condition
-        B.topRows(nq).setZero();
-        B.leftCols(nq).setZero();
-        B.topLeftCorner(nq, nq).setIdentity();
-
+        UpdateQuasiNewtonHessianApproximation(s, y, &B);
       } else {
         state.AddToQ(-dq);  // reject the step
         rho = -1.0;         // negative rho ensures we reduce the trust region
