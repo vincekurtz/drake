@@ -2169,47 +2169,42 @@ void TrajectoryOptimizer<T>::UpdateQuasiNewtonHessianApproximation(
   MatrixX<T> H_approx = MatrixX<T>::Zero(B.rows(), B.cols());
 
   // Aliases
-  const double dt = time_step();
-  const MatrixX<T> Qq = 2 * prob_.Qq * dt;
-  const MatrixX<T> Qv = 2 * prob_.Qv * dt;
-  const MatrixX<T> R = 2 * prob_.R * dt;
+  //const double dt = time_step();
+  //const MatrixX<T> Qq = 2 * prob_.Qq * dt;
+  //const MatrixX<T> Qv = 2 * prob_.Qv * dt;
+  //const MatrixX<T> R = 2 * prob_.R * dt;
   //const MatrixX<T> Qf_q = 2 * prob_.Qf_q;
   //const MatrixX<T> Qf_v = 2 * prob_.Qf_v;
 
-  const VelocityPartials<T>& v_partials = EvalVelocityPartials(state);
-  const InverseDynamicsPartials<T>& id_partials =
-      EvalInverseDynamicsPartials(state);
-  const std::vector<MatrixX<T>>& dvt_dqt = v_partials.dvt_dqt;
-  const std::vector<MatrixX<T>>& dvt_dqm = v_partials.dvt_dqm;
-  const std::vector<MatrixX<T>>& dtau_dqp = id_partials.dtau_dqp;
-  const std::vector<MatrixX<T>>& dtau_dqt = id_partials.dtau_dqt;
-  const std::vector<MatrixX<T>>& dtau_dqm = id_partials.dtau_dqm;
+  //const VelocityPartials<T>& v_partials = EvalVelocityPartials(state);
+  //const InverseDynamicsPartials<T>& id_partials =
+  //    EvalInverseDynamicsPartials(state);
+  //const std::vector<MatrixX<T>>& dvt_dqt = v_partials.dvt_dqt;
+  //const std::vector<MatrixX<T>>& dvt_dqm = v_partials.dvt_dqm;
+  //const std::vector<MatrixX<T>>& dtau_dqp = id_partials.dtau_dqp;
+  //const std::vector<MatrixX<T>>& dtau_dqt = id_partials.dtau_dqt;
+  //const std::vector<MatrixX<T>>& dtau_dqm = id_partials.dtau_dqm;
 
-  // First timestep is identity
-  H_approx.topLeftCorner(nq, nq).setIdentity();
+  // First timestep
+  Eigen::Ref<MatrixX<T>> dlt0_dq = H_approx.block(0, 0, 2*nq, 2*nq);
+  dlt0_dq += MatrixX<T>::Ones(2*nq, 2*nq);
 
-  for (int t=2; t<num_steps()-1; ++t) {
+  for (int t=1; t<num_steps(); ++t) {
     // Compute the Hessian contribution for this time step, ∂²lₜ(q)/∂q²
     Eigen::Ref<MatrixX<T>> dlt_dq = H_approx.block(nq*(t-1), nq*(t-1), 3*nq, 3*nq);
 
-    // ∂²lₜ(q)/∂qₜ₋₁²
-    dlt_dq.block(0, 0, nq, nq) += dvt_dqm[t].transpose() * Qv * dvt_dqm[t] +
-                                  dtau_dqm[t].transpose() * R * dtau_dqm[t];
-
-    // ∂²lₜ(q)/∂qₜ²
-    dlt_dq.block(nq, nq, nq, nq) +=
-        Qq + dvt_dqt[t].transpose() * Qv * dvt_dqt[t] +
-        dtau_dqt[t].transpose() * R * dtau_dqt[t];
-
-    // ∂²lₜ(q)/∂qₜ₊₁²
-    dlt_dq.block(2*nq, 2*nq, nq, nq) += dtau_dqp[t].transpose() * R * dtau_dqp[t];
-
-    //
-
-    //
-
-    //
+    dlt_dq += MatrixX<T>::Ones(3*nq, 3*nq);  // placeholder
   }
+
+  // Last timestep
+  Eigen::Ref<MatrixX<T>> dlT_dq = H_approx.block(
+      nq * (num_steps() - 1), nq * (num_steps() - 1), 2 * nq, 2 * nq);
+  dlT_dq += MatrixX<T>::Ones(2*nq, 2*nq);
+  
+  // Zero-th timestep is identity
+  H_approx.topRows(nq).setZero();
+  H_approx.leftCols(nq).setZero();
+  H_approx.topLeftCorner(nq, nq).setIdentity();
 
   PRINT_VARn(H_approx);
   PRINT_VARn(H_gt);
