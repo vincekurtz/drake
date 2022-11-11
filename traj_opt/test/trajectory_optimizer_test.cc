@@ -1689,8 +1689,9 @@ GTEST_TEST(TrajectoryOptimizerTest, HessianForEachTimeStep) {
     }
   }
 
-  PRINT_VARn(H_sum);
-  PRINT_VARn(H_gt);
+  const double kTolerance = 100*std::numeric_limits<double>::epsilon();
+  EXPECT_TRUE(
+      CompareMatrices(H_sum, H_gt, kTolerance, MatrixCompareType::relative));
 }
 
 }  // namespace internal

@@ -2354,28 +2354,22 @@ void TrajectoryOptimizer<T>::CalcHessianForEachTimeStep(
   const int nq = plant().num_positions();
   DRAKE_DEMAND(static_cast<int>(hessians->size()) == (num_steps() + 1));
 
-  (void)state;
-
   // Some aliases
-  //const std::vector<VectorX<T>>& q = state.q();
-  //const std::vector<VectorX<T>>& v = EvalV(state);
-  //const std::vector<VectorX<T>>& tau = EvalTau(state);
+  const double dt = time_step();
+  const MatrixX<T> Qq = 2 * prob_.Qq * dt;
+  const MatrixX<T> Qv = 2 * prob_.Qv * dt;
+  const MatrixX<T> R = 2 * prob_.R * dt;
+  const MatrixX<T> Qf_q = 2 * prob_.Qf_q;
+  const MatrixX<T> Qf_v = 2 * prob_.Qf_v;
 
-  //const double dt = time_step();
-  //const MatrixX<T> Qq = 2 * prob_.Qq * dt;
-  //const MatrixX<T> Qv = 2 * prob_.Qv * dt;
-  //const MatrixX<T> R = 2 * prob_.R * dt;
-  //const MatrixX<T> Qf_q = 2 * prob_.Qf_q;
-  //const MatrixX<T> Qf_v = 2 * prob_.Qf_v;
-
-  //const VelocityPartials<T>& v_partials = EvalVelocityPartials(state);
-  //const InverseDynamicsPartials<T>& id_partials =
-  //    EvalInverseDynamicsPartials(state);
-  //const std::vector<MatrixX<T>>& dvt_dqt = v_partials.dvt_dqt;
-  //const std::vector<MatrixX<T>>& dvt_dqm = v_partials.dvt_dqm;
-  //const std::vector<MatrixX<T>>& dtaut_dqp = id_partials.dtau_dqp;
-  //const std::vector<MatrixX<T>>& dtaut_dqt = id_partials.dtau_dqt;
-  //const std::vector<MatrixX<T>>& dtaut_dqm = id_partials.dtau_dqm;
+  const VelocityPartials<T>& v_partials = EvalVelocityPartials(state);
+  const InverseDynamicsPartials<T>& id_partials =
+      EvalInverseDynamicsPartials(state);
+  const std::vector<MatrixX<T>>& dvt_dqt = v_partials.dvt_dqt;
+  const std::vector<MatrixX<T>>& dvt_dqm = v_partials.dvt_dqm;
+  const std::vector<MatrixX<T>>& dtaut_dqp = id_partials.dtau_dqp;
+  const std::vector<MatrixX<T>>& dtaut_dqt = id_partials.dtau_dqt;
+  const std::vector<MatrixX<T>>& dtaut_dqm = id_partials.dtau_dqm;
 
   // Compute ∇lₜ(q) for each time step
   for (int t = 0; t <= num_steps(); ++t) {
@@ -2383,38 +2377,49 @@ void TrajectoryOptimizer<T>::CalcHessianForEachTimeStep(
       // The only decision variables involved at t=0 are q_1
       DRAKE_DEMAND(hessians->at(t).rows() == nq);
       DRAKE_DEMAND(hessians->at(t).cols() == nq);
-
-      hessians->at(t).setOnes();
-      //hessians->at(t) = tau[t].transpose() * R * dtaut_dqp[t];
+      
+      // d^2 l / d qp^2
+      hessians->at(t).block(0, 0, nq, nq) = 
+          dtaut_dqp[t].transpose() * R * dtaut_dqp[t];
 
     } else if (t == 1) {
       // The only decision variables involved at t=1 are q_1 and q_2
       DRAKE_DEMAND(hessians->at(t).rows() == 2*nq);
       DRAKE_DEMAND(hessians->at(t).cols() == 2*nq);
       
-      hessians->at(t).setOnes();
-
-      //gradient->at(t).segment(0, nq) = 
-      //    (q[t] - prob_.q_nom[t]).transpose() * Qq +
-      //    (v[t] - prob_.v_nom[t]).transpose() * Qv * dvt_dqt[t] +
-      //    tau[t].transpose() * R * dtaut_dqt[t];
-
-      //gradient->at(t).segment(nq, nq) = 
-      //    tau[t].transpose() * R * dtaut_dqp[t];
+      // d^2 l / d qt^2
+      hessians->at(t).block(0, 0, nq, nq) = 
+          Qq + dvt_dqt[t].transpose() * Qv * dvt_dqt[t] +
+          dtaut_dqt[t].transpose() * R * dtaut_dqt[t];
+      
+      // d^2 l / d qp^2
+      hessians->at(t).block(nq, nq, nq, nq) = 
+          dtaut_dqp[t].transpose() * R * dtaut_dqp[t];
+      
+      // d^2 l / d qtqp
+      hessians->at(t).block(0, nq, nq, nq) = 
+          dtaut_dqt[t].transpose() * R * dtaut_dqp[t];
+      hessians->at(t).block(nq, 0, nq, nq) =
+          hessians->at(t).block(0, nq, nq, nq).transpose();
 
     } else if (t == num_steps()) {
       // The only decision variables involved at t=N are q_{N-1} and q_N
       DRAKE_DEMAND(hessians->at(t).rows() == 2*nq);
       DRAKE_DEMAND(hessians->at(t).cols() == 2*nq);
       
-      hessians->at(t).setOnes();
+      // d^2 l / d qm^2
+      hessians->at(t).block(0, 0, nq, nq) =
+          dvt_dqm[t].transpose() * Qf_v * dvt_dqm[t];
 
-      //gradient->at(t).segment(0, nq) +=
-      //    (v[t] - prob_.v_nom[t]).transpose() * Qf_v * dvt_dqm[t];
-
-      //gradient->at(t).segment(nq, nq) +=
-      //    (q[t] - prob_.q_nom[t]).transpose() * Qf_q +
-      //    (v[t] - prob_.v_nom[t]).transpose() * Qf_v * dvt_dqt[t];
+      // d^2 l / d qt^2
+      hessians->at(t).block(nq, nq, nq, nq) =
+          Qf_q + dvt_dqt[t].transpose() * Qf_v * dvt_dqt[t];
+      
+      // d^2 l / d qmqt
+      hessians->at(t).block(0, nq, nq, nq) =
+          dvt_dqm[t].transpose() * Qf_v * dvt_dqt[t];
+      hessians->at(t).block(nq, 0, nq, nq) =
+          hessians->at(t).block(0, nq, nq, nq).transpose();
 
     } else {
       // For most time steps, the cost is influenced by q_{t-1}, q_t, and
@@ -2422,19 +2427,39 @@ void TrajectoryOptimizer<T>::CalcHessianForEachTimeStep(
       DRAKE_DEMAND(hessians->at(t).rows() == 3*nq);
       DRAKE_DEMAND(hessians->at(t).cols() == 3*nq);
       
-      hessians->at(t).setOnes();
+      // d^2 l / d qm^2 
+      hessians->at(t).block(0, 0, nq, nq) =
+          dvt_dqm[t].transpose() * Qv * dvt_dqm[t] +
+          dtaut_dqm[t].transpose() * R * dtaut_dqm[t];
+
+      // d^2 l / d qt^2
+      hessians->at(t).block(nq, nq, nq, nq) =
+          Qq + dvt_dqt[t].transpose() * Qv * dvt_dqt[t] +
+          dtaut_dqt[t].transpose() * R * dtaut_dqt[t];
+
+      // d^2 l / d qp^2 
+      hessians->at(t).block(2*nq, 2*nq, nq, nq) =
+          dtaut_dqp[t].transpose() * R * dtaut_dqp[t];
       
-      //gradient->at(t).segment(0, nq) =
-      //    (v[t] - prob_.v_nom[t]).transpose() * Qv * dvt_dqm[t] +
-      //    tau[t].transpose() * R * dtaut_dqm[t];
-
-      //gradient->at(t).segment(nq, nq) =
-      //    (q[t] - prob_.q_nom[t]).transpose() * Qq +
-      //    (v[t] - prob_.v_nom[t]).transpose() * Qv * dvt_dqt[t] +
-      //    tau[t].transpose() * R * dtaut_dqt[t];
-
-      //gradient->at(t).segment(2*nq, nq) =
-      //    tau[t].transpose() * R * dtaut_dqp[t];
+      // d^2 l / d qmqt
+      hessians->at(t).block(0, nq, nq, nq) = 
+          dvt_dqm[t].transpose() * Qv * dvt_dqt[t] +
+          dtaut_dqm[t].transpose() * R * dtaut_dqt[t];
+      hessians->at(t).block(nq, 0, nq, nq) =
+          hessians->at(t).block(0, nq, nq, nq).transpose();
+      
+      // d^2 l / d qmqp
+      hessians->at(t).block(0, 2*nq, nq, nq) = 
+          dtaut_dqm[t].transpose() * R * dtaut_dqp[t];
+      hessians->at(t).block(2*nq, 0, nq, nq) =
+          hessians->at(t).block(0, 2*nq, nq, nq).transpose();
+      
+      // d^2 l / d qtqp
+      hessians->at(t).block(nq, 2*nq, nq, nq) = 
+          dtaut_dqt[t].transpose() * R * dtaut_dqp[t];
+      hessians->at(t).block(2*nq, nq, nq, nq) =
+          hessians->at(t).block(nq, 2*nq, nq, nq).transpose();
+      
     }
   }
 }
