@@ -2157,18 +2157,77 @@ SolverFlag TrajectoryOptimizer<T>::Solve(const std::vector<VectorX<T>>&,
 
 template <typename T>
 void TrajectoryOptimizer<T>::UpdateQuasiNewtonHessianApproximation(
-    const VectorX<T>& s, const VectorX<T>& y, MatrixX<T>* B_ptr) const {
+    const TrajectoryOptimizerState<T>& state, const VectorX<T>& s,
+    const VectorX<T>& y, MatrixX<T>* B_ptr) const {
   MatrixX<T>& B = *B_ptr;
   const int nq = plant().num_positions();
 
-  B += -(B * s * s.transpose() * B) / (s.transpose() * B * s) +
-        (y * y.transpose()) / (y.transpose() * s);
+  std::cout << "Testing Sparse Hessian Construction" << std::endl;
 
-  // Overwrite the first rows/columns that have to do with the (fixed)
-  // initial condition
-  B.topRows(nq).setZero();
-  B.leftCols(nq).setZero();
-  B.topLeftCorner(nq, nq).setIdentity();
+  // DEBUG: test element-wise Hessian construction
+  MatrixX<T> H_gt = EvalHessian(state).MakeDense();
+  MatrixX<T> H_approx = MatrixX<T>::Zero(B.rows(), B.cols());
+
+  // Aliases
+  const double dt = time_step();
+  const MatrixX<T> Qq = 2 * prob_.Qq * dt;
+  const MatrixX<T> Qv = 2 * prob_.Qv * dt;
+  const MatrixX<T> R = 2 * prob_.R * dt;
+  //const MatrixX<T> Qf_q = 2 * prob_.Qf_q;
+  //const MatrixX<T> Qf_v = 2 * prob_.Qf_v;
+
+  const VelocityPartials<T>& v_partials = EvalVelocityPartials(state);
+  const InverseDynamicsPartials<T>& id_partials =
+      EvalInverseDynamicsPartials(state);
+  const std::vector<MatrixX<T>>& dvt_dqt = v_partials.dvt_dqt;
+  const std::vector<MatrixX<T>>& dvt_dqm = v_partials.dvt_dqm;
+  const std::vector<MatrixX<T>>& dtau_dqp = id_partials.dtau_dqp;
+  const std::vector<MatrixX<T>>& dtau_dqt = id_partials.dtau_dqt;
+  const std::vector<MatrixX<T>>& dtau_dqm = id_partials.dtau_dqm;
+
+  // First timestep is identity
+  H_approx.topLeftCorner(nq, nq).setIdentity();
+
+  for (int t=2; t<num_steps()-1; ++t) {
+    // Compute the Hessian contribution for this time step, ∂²lₜ(q)/∂q²
+    Eigen::Ref<MatrixX<T>> dlt_dq = H_approx.block(nq*(t-1), nq*(t-1), 3*nq, 3*nq);
+
+    // ∂²lₜ(q)/∂qₜ₋₁²
+    dlt_dq.block(0, 0, nq, nq) += dvt_dqm[t].transpose() * Qv * dvt_dqm[t] +
+                                  dtau_dqm[t].transpose() * R * dtau_dqm[t];
+
+    // ∂²lₜ(q)/∂qₜ²
+    dlt_dq.block(nq, nq, nq, nq) +=
+        Qq + dvt_dqt[t].transpose() * Qv * dvt_dqt[t] +
+        dtau_dqt[t].transpose() * R * dtau_dqt[t];
+
+    // ∂²lₜ(q)/∂qₜ₊₁²
+    dlt_dq.block(2*nq, 2*nq, nq, nq) += dtau_dqp[t].transpose() * R * dtau_dqp[t];
+
+    //
+
+    //
+
+    //
+  }
+
+  PRINT_VARn(H_approx);
+  PRINT_VARn(H_gt);
+
+
+  (void)state;
+  (void)s;
+  (void)y;
+  (void)B;
+
+  //B += -(B * s * s.transpose() * B) / (s.transpose() * B * s) +
+  //      (y * y.transpose()) / (y.transpose() * s);
+
+  //// Overwrite the first rows/columns that have to do with the (fixed)
+  //// initial condition
+  //B.topRows(nq).setZero();
+  //B.leftCols(nq).setZero();
+  //B.topLeftCorner(nq, nq).setIdentity();
 }
 
 template <>
@@ -2495,7 +2554,7 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
       // does not hold, we can make sure that it will by rejecting this step and
       // reducing the trust region.
       if (s.transpose() * y >= 0) {
-        UpdateQuasiNewtonHessianApproximation(s, y, &B);
+        UpdateQuasiNewtonHessianApproximation(state, s, y, &B);
       } else {
         state.AddToQ(-dq);  // reject the step
         rho = -1.0;         // negative rho ensures we reduce the trust region

@@ -816,9 +816,9 @@ class TrajectoryOptimizer {
    * @param y change in gradient
    * @param B the Hessian approximation to update
    */
-  void UpdateQuasiNewtonHessianApproximation(const VectorX<T>& s,
-                                             const VectorX<T>& y,
-                                             MatrixX<T>* B) const;
+  void UpdateQuasiNewtonHessianApproximation(
+      const TrajectoryOptimizerState<T>& state, const VectorX<T>& s,
+      const VectorX<T>& y, MatrixX<T>* B) const;
 
   /* Helper to solve ths system H⋅x = b with a solver as specified with
   SolverParameters. On output b is overwritten with x. */
