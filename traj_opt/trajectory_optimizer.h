@@ -834,10 +834,27 @@ class TrajectoryOptimizer {
    * a decision variable and q_{T+1} does not exist.
    *
    * @param state optimizer state
-   * @param gradient vector of gradients, ∇lₜ(q), for each time step
+   * @param gradients vector of gradients, ∇lₜ(q), for each time step
    */
   void CalcGradientForEachTimeStep(const TrajectoryOptimizerState<T>& state,
-                                   std::vector<VectorX<T>>* gradient) const;
+                                   std::vector<VectorX<T>>* gradients) const;
+  
+  /**
+   * Compute the Hessian of the running cost at each timestep, ∇²lₜ(q), where
+   * the total cost is given by ∑ₜlₜ(q).
+   *
+   * Since lₜ(q) depends only on (qₜ₋₁, qₜ, qₜ₊₁), we store a sparse
+   * representation of this Hessian for each time step. For most timesteps,
+   * ∇²lₜ(q) is a matrix of size (3*nq x 3*nq).
+   *
+   * For the first and last timesteps we store smaller vectors, since q₀ is not
+   * a decision variable and q_{T+1} does not exist.
+   *
+   * @param state optimizer state
+   * @param hessians vector of Hessians, ∇²lₜ(q), for each time step
+   */
+  void CalcHessianForEachTimeStep(const TrajectoryOptimizerState<T>& state,
+                                   std::vector<MatrixX<T>>* hessians) const;
 
   /* Helper to solve ths system H⋅x = b with a solver as specified with
   SolverParameters. On output b is overwritten with x. */

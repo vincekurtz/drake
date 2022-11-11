@@ -2269,10 +2269,10 @@ void TrajectoryOptimizer<T>::UpdateQuasiNewtonHessianApproximation(
 template <typename T>
 void TrajectoryOptimizer<T>::CalcGradientForEachTimeStep(
     const TrajectoryOptimizerState<T>& state,
-    std::vector<VectorX<T>>* gradient) const {
+    std::vector<VectorX<T>>* gradients) const {
   // Initial sanity check on sizes
   const int nq = plant().num_positions();
-  DRAKE_DEMAND(static_cast<int>(gradient->size()) == (num_steps() + 1));
+  DRAKE_DEMAND(static_cast<int>(gradients->size()) == (num_steps() + 1));
 
   // Some aliases
   const std::vector<VectorX<T>>& q = state.q();
@@ -2299,49 +2299,142 @@ void TrajectoryOptimizer<T>::CalcGradientForEachTimeStep(
   for (int t = 0; t <= num_steps(); ++t) {
     if (t == 0) {
       // The only decision variables involved at t=0 are q_1
-      DRAKE_DEMAND(gradient->at(t).size() == nq);
+      DRAKE_DEMAND(gradients->at(t).size() == nq);
 
-      gradient->at(t) = tau[t].transpose() * R * dtaut_dqp[t];
+      gradients->at(t) = tau[t].transpose() * R * dtaut_dqp[t];
 
     } else if (t == 1) {
       // The only decision variables involved at t=1 are q_1 and q_2
-      DRAKE_DEMAND(gradient->at(t).size() == 2*nq);
+      DRAKE_DEMAND(gradients->at(t).size() == 2*nq);
 
-      gradient->at(t).segment(0, nq) = 
+      gradients->at(t).segment(0, nq) = 
           (q[t] - prob_.q_nom[t]).transpose() * Qq +
           (v[t] - prob_.v_nom[t]).transpose() * Qv * dvt_dqt[t] +
           tau[t].transpose() * R * dtaut_dqt[t];
 
-      gradient->at(t).segment(nq, nq) = 
+      gradients->at(t).segment(nq, nq) = 
           tau[t].transpose() * R * dtaut_dqp[t];
 
     } else if (t == num_steps()) {
       // The only decision variables involved at t=N are q_{N-1} and q_N
-      DRAKE_DEMAND(gradient->at(t).size() == 2*nq);
+      DRAKE_DEMAND(gradients->at(t).size() == 2*nq);
 
-      gradient->at(t).segment(0, nq) +=
+      gradients->at(t).segment(0, nq) +=
           (v[t] - prob_.v_nom[t]).transpose() * Qf_v * dvt_dqm[t];
 
-      gradient->at(t).segment(nq, nq) +=
+      gradients->at(t).segment(nq, nq) +=
           (q[t] - prob_.q_nom[t]).transpose() * Qf_q +
           (v[t] - prob_.v_nom[t]).transpose() * Qf_v * dvt_dqt[t];
 
     } else {
       // For most time steps, the cost is influenced by q_{t-1}, q_t, and
       // q_{t+1}
-      DRAKE_DEMAND(gradient->at(t).size() == 3*nq);
+      DRAKE_DEMAND(gradients->at(t).size() == 3*nq);
       
-      gradient->at(t).segment(0, nq) =
+      gradients->at(t).segment(0, nq) =
           (v[t] - prob_.v_nom[t]).transpose() * Qv * dvt_dqm[t] +
           tau[t].transpose() * R * dtaut_dqm[t];
 
-      gradient->at(t).segment(nq, nq) =
+      gradients->at(t).segment(nq, nq) =
           (q[t] - prob_.q_nom[t]).transpose() * Qq +
           (v[t] - prob_.v_nom[t]).transpose() * Qv * dvt_dqt[t] +
           tau[t].transpose() * R * dtaut_dqt[t];
 
-      gradient->at(t).segment(2*nq, nq) =
+      gradients->at(t).segment(2*nq, nq) =
           tau[t].transpose() * R * dtaut_dqp[t];
+    }
+  }
+}
+
+template <typename T>
+void TrajectoryOptimizer<T>::CalcHessianForEachTimeStep(
+    const TrajectoryOptimizerState<T>& state,
+    std::vector<MatrixX<T>>* hessians) const {
+  // Initial sanity check on sizes
+  const int nq = plant().num_positions();
+  DRAKE_DEMAND(static_cast<int>(hessians->size()) == (num_steps() + 1));
+
+  (void)state;
+
+  // Some aliases
+  //const std::vector<VectorX<T>>& q = state.q();
+  //const std::vector<VectorX<T>>& v = EvalV(state);
+  //const std::vector<VectorX<T>>& tau = EvalTau(state);
+
+  //const double dt = time_step();
+  //const MatrixX<T> Qq = 2 * prob_.Qq * dt;
+  //const MatrixX<T> Qv = 2 * prob_.Qv * dt;
+  //const MatrixX<T> R = 2 * prob_.R * dt;
+  //const MatrixX<T> Qf_q = 2 * prob_.Qf_q;
+  //const MatrixX<T> Qf_v = 2 * prob_.Qf_v;
+
+  //const VelocityPartials<T>& v_partials = EvalVelocityPartials(state);
+  //const InverseDynamicsPartials<T>& id_partials =
+  //    EvalInverseDynamicsPartials(state);
+  //const std::vector<MatrixX<T>>& dvt_dqt = v_partials.dvt_dqt;
+  //const std::vector<MatrixX<T>>& dvt_dqm = v_partials.dvt_dqm;
+  //const std::vector<MatrixX<T>>& dtaut_dqp = id_partials.dtau_dqp;
+  //const std::vector<MatrixX<T>>& dtaut_dqt = id_partials.dtau_dqt;
+  //const std::vector<MatrixX<T>>& dtaut_dqm = id_partials.dtau_dqm;
+
+  // Compute ∇lₜ(q) for each time step
+  for (int t = 0; t <= num_steps(); ++t) {
+    if (t == 0) {
+      // The only decision variables involved at t=0 are q_1
+      DRAKE_DEMAND(hessians->at(t).rows() == nq);
+      DRAKE_DEMAND(hessians->at(t).cols() == nq);
+
+      hessians->at(t).setOnes();
+      //hessians->at(t) = tau[t].transpose() * R * dtaut_dqp[t];
+
+    } else if (t == 1) {
+      // The only decision variables involved at t=1 are q_1 and q_2
+      DRAKE_DEMAND(hessians->at(t).rows() == 2*nq);
+      DRAKE_DEMAND(hessians->at(t).cols() == 2*nq);
+      
+      hessians->at(t).setOnes();
+
+      //gradient->at(t).segment(0, nq) = 
+      //    (q[t] - prob_.q_nom[t]).transpose() * Qq +
+      //    (v[t] - prob_.v_nom[t]).transpose() * Qv * dvt_dqt[t] +
+      //    tau[t].transpose() * R * dtaut_dqt[t];
+
+      //gradient->at(t).segment(nq, nq) = 
+      //    tau[t].transpose() * R * dtaut_dqp[t];
+
+    } else if (t == num_steps()) {
+      // The only decision variables involved at t=N are q_{N-1} and q_N
+      DRAKE_DEMAND(hessians->at(t).rows() == 2*nq);
+      DRAKE_DEMAND(hessians->at(t).cols() == 2*nq);
+      
+      hessians->at(t).setOnes();
+
+      //gradient->at(t).segment(0, nq) +=
+      //    (v[t] - prob_.v_nom[t]).transpose() * Qf_v * dvt_dqm[t];
+
+      //gradient->at(t).segment(nq, nq) +=
+      //    (q[t] - prob_.q_nom[t]).transpose() * Qf_q +
+      //    (v[t] - prob_.v_nom[t]).transpose() * Qf_v * dvt_dqt[t];
+
+    } else {
+      // For most time steps, the cost is influenced by q_{t-1}, q_t, and
+      // q_{t+1}
+      DRAKE_DEMAND(hessians->at(t).rows() == 3*nq);
+      DRAKE_DEMAND(hessians->at(t).cols() == 3*nq);
+      
+      hessians->at(t).setOnes();
+      
+      //gradient->at(t).segment(0, nq) =
+      //    (v[t] - prob_.v_nom[t]).transpose() * Qv * dvt_dqm[t] +
+      //    tau[t].transpose() * R * dtaut_dqm[t];
+
+      //gradient->at(t).segment(nq, nq) =
+      //    (q[t] - prob_.q_nom[t]).transpose() * Qq +
+      //    (v[t] - prob_.v_nom[t]).transpose() * Qv * dvt_dqt[t] +
+      //    tau[t].transpose() * R * dtaut_dqt[t];
+
+      //gradient->at(t).segment(2*nq, nq) =
+      //    tau[t].transpose() * R * dtaut_dqp[t];
     }
   }
 }
