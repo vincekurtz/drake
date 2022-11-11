@@ -82,6 +82,13 @@ class TrajectoryOptimizerTester {
                               const double Delta, VectorXd* dq, VectorXd* dqH) {
     return optimizer.CalcDoglegPoint(state, Delta, dq, dqH);
   }
+
+  static void CalcGradientForEachTimeStep(
+      const TrajectoryOptimizer<double>& optimizer,
+      const TrajectoryOptimizerState<double>& state,
+      std::vector<VectorXd>* gradient) {
+    optimizer.CalcGradientForEachTimeStep(state, gradient);
+  }
 };
 
 namespace internal {
@@ -1512,6 +1519,87 @@ GTEST_TEST(TrajectoryOptimizerTest, ContactJacobians) {
                                 std::numeric_limits<double>::epsilon(),
                                 MatrixCompareType::relative));
   }
+}
+
+// Check the computation of gradients for each timestep. These should sum to the
+// total gradient of the unconstrained cost.
+GTEST_TEST(TrajectoryOptimizerTest, GradientForEachTimeStep) {
+  // Set up a simple acrobot test problem
+  const int num_steps = 5;
+  const double dt = 1e-2;
+
+  ProblemDefinition opt_prob;
+  opt_prob.num_steps = num_steps;
+  opt_prob.q_init = Vector2d(0.1, 0.2);
+  opt_prob.v_init = Vector2d(-0.01, 0.03);
+  opt_prob.Qq = 0.1 * MatrixXd::Identity(2, 2);
+  opt_prob.Qv = 0.2 * MatrixXd::Identity(2, 2);
+  opt_prob.Qf_q = 0.3 * MatrixXd::Identity(2, 2);
+  opt_prob.Qf_v = 0.4 * MatrixXd::Identity(2, 2);
+  opt_prob.R = 0.01 * MatrixXd::Identity(2, 2);
+
+  for (int t = 0; t <= num_steps; ++t) {
+    opt_prob.q_nom.push_back(Vector2d(1.5, -0.1));
+    opt_prob.v_nom.push_back(Vector2d(0.2, 0.1));
+  }
+
+  DiagramBuilder<double> builder;
+  MultibodyPlantConfig config;
+  config.time_step = dt;
+  auto [plant, scene_graph] = multibody::AddMultibodyPlant(config, &builder);
+  const std::string urdf_file =
+      FindResourceOrThrow("drake/multibody/benchmarks/acrobot/acrobot.urdf");
+  Parser(&plant).AddAllModelsFromFile(urdf_file);
+  plant.Finalize();
+  auto diagram = builder.Build();
+
+  // Create an optimizer
+  TrajectoryOptimizer<double> optimizer(diagram.get(), &plant, opt_prob);
+  TrajectoryOptimizerState<double> state = optimizer.CreateState();
+
+  // Make some fake data
+  std::vector<VectorXd> q(num_steps + 1);
+  q[0] = opt_prob.q_init;
+  for (int t = 1; t <= num_steps; ++t) {
+    q[t] = q[t - 1] + dt * opt_prob.v_init;
+  }
+  state.set_q(q);
+
+  // Compute the gradient for each timestep
+  const int nq = plant.num_positions();
+  std::vector<VectorXd> gt;
+  for (int t = 0; t <= num_steps; ++t) {
+    int size = 3 * nq;
+    if (t == 0) {
+      size = nq;
+    } else if (t == 1) {
+      size = 2 * nq;
+    } else if (t == num_steps) {
+      size = 2 * nq;
+    }
+    gt.push_back(VectorXd(size));
+  }
+  TrajectoryOptimizerTester::CalcGradientForEachTimeStep(optimizer, state, &gt);
+
+  // Compare with the ground truth gradient of the unconstrained cost
+  const VectorXd& g_gt = optimizer.EvalGradient(state);
+
+  VectorXd g_sum = VectorXd::Zero(nq*(num_steps+1));
+  for (int t=0; t<= num_steps; ++t) {
+    if (t == 0) {
+      g_sum.segment(nq, nq) += gt[t];
+    } else if (t == 1) {
+      g_sum.segment(nq, 2*nq) += gt[t];
+    } else if (t < num_steps) {
+      g_sum.segment(nq*(t-1), 3*nq) += gt[t];
+    } else { 
+      g_sum.segment(nq*(t-1), 2*nq) += gt[t];
+    }
+  }
+
+  const double kTolerance = 100*std::numeric_limits<double>::epsilon();
+  EXPECT_TRUE(
+      CompareMatrices(g_sum, g_gt, kTolerance, MatrixCompareType::relative));
 }
 
 }  // namespace internal

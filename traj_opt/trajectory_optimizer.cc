@@ -2147,15 +2147,6 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
 }
 
 template <typename T>
-SolverFlag TrajectoryOptimizer<T>::Solve(const std::vector<VectorX<T>>&,
-                                         TrajectoryOptimizerSolution<T>*,
-                                         TrajectoryOptimizerStats<T>*,
-                                         ConvergenceReason*) const {
-  throw std::runtime_error(
-      "TrajectoryOptimizer::Solve only supports T=double.");
-}
-
-template <typename T>
 void TrajectoryOptimizer<T>::UpdateQuasiNewtonHessianApproximation(
     const TrajectoryOptimizerState<T>& state, const VectorX<T>& s,
     const VectorX<T>& y, MatrixX<T>* B_ptr) const {
@@ -2164,26 +2155,78 @@ void TrajectoryOptimizer<T>::UpdateQuasiNewtonHessianApproximation(
 
   std::cout << "Testing Sparse Hessian Construction" << std::endl;
 
-  // DEBUG: test element-wise Hessian construction
-  MatrixX<T> H_gt = EvalHessian(state).MakeDense();
-  MatrixX<T> H_approx = MatrixX<T>::Zero(B.rows(), B.cols());
+  // DEBUG: test element-wise gradient construction
+  const VectorX<T>& g_gt = EvalGradient(state);
+  VectorX<T> g_approx = VectorX<T>::Zero(g_gt.size());
 
   // Aliases
-  //const double dt = time_step();
-  //const MatrixX<T> Qq = 2 * prob_.Qq * dt;
-  //const MatrixX<T> Qv = 2 * prob_.Qv * dt;
-  //const MatrixX<T> R = 2 * prob_.R * dt;
-  //const MatrixX<T> Qf_q = 2 * prob_.Qf_q;
-  //const MatrixX<T> Qf_v = 2 * prob_.Qf_v;
+  const std::vector<VectorX<T>>& q = state.q();
+  const std::vector<VectorX<T>>& v = EvalV(state);
+  const std::vector<VectorX<T>>& tau = EvalTau(state);
 
-  //const VelocityPartials<T>& v_partials = EvalVelocityPartials(state);
-  //const InverseDynamicsPartials<T>& id_partials =
-  //    EvalInverseDynamicsPartials(state);
-  //const std::vector<MatrixX<T>>& dvt_dqt = v_partials.dvt_dqt;
-  //const std::vector<MatrixX<T>>& dvt_dqm = v_partials.dvt_dqm;
-  //const std::vector<MatrixX<T>>& dtau_dqp = id_partials.dtau_dqp;
-  //const std::vector<MatrixX<T>>& dtau_dqt = id_partials.dtau_dqt;
-  //const std::vector<MatrixX<T>>& dtau_dqm = id_partials.dtau_dqm;
+  const double dt = time_step();
+  const MatrixX<T> Qq = 2 * prob_.Qq * dt;
+  const MatrixX<T> Qv = 2 * prob_.Qv * dt;
+  const MatrixX<T> R = 2 * prob_.R * dt;
+  const MatrixX<T> Qf_q = 2 * prob_.Qf_q;
+  const MatrixX<T> Qf_v = 2 * prob_.Qf_v;
+
+  const VelocityPartials<T>& v_partials = EvalVelocityPartials(state);
+  const InverseDynamicsPartials<T>& id_partials =
+      EvalInverseDynamicsPartials(state);
+  const std::vector<MatrixX<T>>& dvt_dqt = v_partials.dvt_dqt;
+  const std::vector<MatrixX<T>>& dvt_dqm = v_partials.dvt_dqm;
+  const std::vector<MatrixX<T>>& dtaut_dqp = id_partials.dtau_dqp;
+  const std::vector<MatrixX<T>>& dtaut_dqt = id_partials.dtau_dqt;
+  const std::vector<MatrixX<T>>& dtaut_dqm = id_partials.dtau_dqm;
+
+  for (int t=0; t<=num_steps(); ++t) {
+    if (t == 0) {
+      // First step is different
+      Eigen::Ref<VectorX<T>> dlt_dq = g_approx.segment(0, 2*nq);
+      
+      dlt_dq.segment(nq, nq) =
+          tau[t].transpose() * R * dtaut_dqp[t];
+
+      PRINT_VARn(dlt_dq.segment(nq, nq));
+
+    } else if (t < num_steps()) {
+      Eigen::Ref<VectorX<T>> dlt_dq = g_approx.segment(nq*(t-1), 3*nq);
+
+      dlt_dq.segment(0, nq) +=
+          (v[t] - prob_.v_nom[t]).transpose() * Qv * dvt_dqm[t] +
+          tau[t].transpose() * R * dtaut_dqm[t];
+
+      dlt_dq.segment(nq, nq) +=
+          (q[t] - prob_.q_nom[t]).transpose() * Qq +
+          (v[t] - prob_.v_nom[t]).transpose() * Qv * dvt_dqt[t] +
+          tau[t].transpose() * R * dtaut_dqt[t];
+
+      dlt_dq.segment(2*nq, nq) +=
+          tau[t].transpose() * R * dtaut_dqp[t];
+    } else {
+      // Last step is different
+      Eigen::Ref<VectorX<T>> dlt_dq = g_approx.segment(nq*(t-1), 2*nq);
+
+      dlt_dq.segment(0, nq) +=
+          (v[t] - prob_.v_nom[t]).transpose() * Qf_v * dvt_dqm[t];
+
+      dlt_dq.segment(nq, nq) +=
+          (q[t] - prob_.q_nom[t]).transpose() * Qf_q +
+          (v[t] - prob_.v_nom[t]).transpose() * Qf_v * dvt_dqt[t];
+    }
+  }
+
+  // q0 is not a decision variable
+  g_approx.segment(0, nq).setZero();
+
+  PRINT_VARn(g_gt.transpose());
+  PRINT_VARn(g_approx.transpose());
+  PRINT_VARn((g_gt-g_approx).transpose());
+
+  ///////////////////////////////////////////////////////////////////////
+  // DEBUG: establish Hessian sparsity pattern
+  MatrixX<T> H_approx = MatrixX<T>::Zero(nq*(num_steps()+1), nq*(num_steps()+1));
 
   // First timestep
   Eigen::Ref<MatrixX<T>> dlt0_dq = H_approx.block(0, 0, 2*nq, 2*nq);
@@ -2206,10 +2249,8 @@ void TrajectoryOptimizer<T>::UpdateQuasiNewtonHessianApproximation(
   H_approx.leftCols(nq).setZero();
   H_approx.topLeftCorner(nq, nq).setIdentity();
 
-  PRINT_VARn(H_approx);
-  PRINT_VARn(H_gt);
 
-
+  (void) H_approx;
   (void)state;
   (void)s;
   (void)y;
@@ -2223,6 +2264,95 @@ void TrajectoryOptimizer<T>::UpdateQuasiNewtonHessianApproximation(
   //B.topRows(nq).setZero();
   //B.leftCols(nq).setZero();
   //B.topLeftCorner(nq, nq).setIdentity();
+}
+
+template <typename T>
+void TrajectoryOptimizer<T>::CalcGradientForEachTimeStep(
+    const TrajectoryOptimizerState<T>& state,
+    std::vector<VectorX<T>>* gradient) const {
+  // Initial sanity check on sizes
+  const int nq = plant().num_positions();
+  DRAKE_DEMAND(static_cast<int>(gradient->size()) == (num_steps() + 1));
+
+  // Some aliases
+  const std::vector<VectorX<T>>& q = state.q();
+  const std::vector<VectorX<T>>& v = EvalV(state);
+  const std::vector<VectorX<T>>& tau = EvalTau(state);
+
+  const double dt = time_step();
+  const MatrixX<T> Qq = 2 * prob_.Qq * dt;
+  const MatrixX<T> Qv = 2 * prob_.Qv * dt;
+  const MatrixX<T> R = 2 * prob_.R * dt;
+  const MatrixX<T> Qf_q = 2 * prob_.Qf_q;
+  const MatrixX<T> Qf_v = 2 * prob_.Qf_v;
+
+  const VelocityPartials<T>& v_partials = EvalVelocityPartials(state);
+  const InverseDynamicsPartials<T>& id_partials =
+      EvalInverseDynamicsPartials(state);
+  const std::vector<MatrixX<T>>& dvt_dqt = v_partials.dvt_dqt;
+  const std::vector<MatrixX<T>>& dvt_dqm = v_partials.dvt_dqm;
+  const std::vector<MatrixX<T>>& dtaut_dqp = id_partials.dtau_dqp;
+  const std::vector<MatrixX<T>>& dtaut_dqt = id_partials.dtau_dqt;
+  const std::vector<MatrixX<T>>& dtaut_dqm = id_partials.dtau_dqm;
+
+  // Compute ∇lₜ(q) for each time step
+  for (int t = 0; t <= num_steps(); ++t) {
+    if (t == 0) {
+      // The only decision variables involved at t=0 are q_1
+      DRAKE_DEMAND(gradient->at(t).size() == nq);
+
+      gradient->at(t) = tau[t].transpose() * R * dtaut_dqp[t];
+
+    } else if (t == 1) {
+      // The only decision variables involved at t=1 are q_1 and q_2
+      DRAKE_DEMAND(gradient->at(t).size() == 2*nq);
+
+      gradient->at(t).segment(0, nq) = 
+          (q[t] - prob_.q_nom[t]).transpose() * Qq +
+          (v[t] - prob_.v_nom[t]).transpose() * Qv * dvt_dqt[t] +
+          tau[t].transpose() * R * dtaut_dqt[t];
+
+      gradient->at(t).segment(nq, nq) = 
+          tau[t].transpose() * R * dtaut_dqp[t];
+
+    } else if (t == num_steps()) {
+      // The only decision variables involved at t=N are q_{N-1} and q_N
+      DRAKE_DEMAND(gradient->at(t).size() == 2*nq);
+
+      gradient->at(t).segment(0, nq) +=
+          (v[t] - prob_.v_nom[t]).transpose() * Qf_v * dvt_dqm[t];
+
+      gradient->at(t).segment(nq, nq) +=
+          (q[t] - prob_.q_nom[t]).transpose() * Qf_q +
+          (v[t] - prob_.v_nom[t]).transpose() * Qf_v * dvt_dqt[t];
+
+    } else {
+      // For most time steps, the cost is influenced by q_{t-1}, q_t, and
+      // q_{t+1}
+      DRAKE_DEMAND(gradient->at(t).size() == 3*nq);
+      
+      gradient->at(t).segment(0, nq) =
+          (v[t] - prob_.v_nom[t]).transpose() * Qv * dvt_dqm[t] +
+          tau[t].transpose() * R * dtaut_dqm[t];
+
+      gradient->at(t).segment(nq, nq) =
+          (q[t] - prob_.q_nom[t]).transpose() * Qq +
+          (v[t] - prob_.v_nom[t]).transpose() * Qv * dvt_dqt[t] +
+          tau[t].transpose() * R * dtaut_dqt[t];
+
+      gradient->at(t).segment(2*nq, nq) =
+          tau[t].transpose() * R * dtaut_dqp[t];
+    }
+  }
+}
+
+template <typename T>
+SolverFlag TrajectoryOptimizer<T>::Solve(const std::vector<VectorX<T>>&,
+                                         TrajectoryOptimizerSolution<T>*,
+                                         TrajectoryOptimizerStats<T>*,
+                                         ConvergenceReason*) const {
+  throw std::runtime_error(
+      "TrajectoryOptimizer::Solve only supports T=double.");
 }
 
 template <>

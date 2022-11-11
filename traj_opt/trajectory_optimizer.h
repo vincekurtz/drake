@@ -820,6 +820,25 @@ class TrajectoryOptimizer {
       const TrajectoryOptimizerState<T>& state, const VectorX<T>& s,
       const VectorX<T>& y, MatrixX<T>* B) const;
 
+  /**
+   * Compute the gradient of the running cost at each timestep, ∇lₜ(q), where
+   * the total cost is given by ∑ₜlₜ(q).
+   *
+   * Since lₜ(q) depends only on (qₜ₋₁, qₜ, qₜ₊₁), we store a sparse
+   * representation of this gradient for each time step. For most timesteps,
+   * ∇lₜ(q) is a vector of length 3*plant.num_positions(), where
+   *
+   *    ∇lₜ(q) = [∇lₜ(qₜ₋₁), ∇lₜ(qₜ), ∇lₜ(qₜ₊₁)].
+   *
+   * For the first and last timesteps we store smaller vectors, since q₀ is not
+   * a decision variable and q_{T+1} does not exist.
+   *
+   * @param state optimizer state
+   * @param gradient vector of gradients, ∇lₜ(q), for each time step
+   */
+  void CalcGradientForEachTimeStep(const TrajectoryOptimizerState<T>& state,
+                                   std::vector<VectorX<T>>* gradient) const;
+
   /* Helper to solve ths system H⋅x = b with a solver as specified with
   SolverParameters. On output b is overwritten with x. */
   void SolveLinearSystemInPlace(const PentaDiagonalMatrix<T>& H,
