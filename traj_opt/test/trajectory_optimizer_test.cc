@@ -99,6 +99,12 @@ class TrajectoryOptimizerTester {
       std::vector<MatrixXd>* hessians) {
     optimizer.CalcHessianForEachTimeStep(state, hessians);
   }
+
+  static void DenseHessianFromHessianForEachTimeStep(
+      const TrajectoryOptimizer<double>& optimizer,
+      const std::vector<MatrixXd>& Ht, MatrixXd* H) {
+    optimizer.DenseHessianFromHessianForEachTimeStep(Ht, H);
+  }
 };
 
 namespace internal {
@@ -1675,19 +1681,9 @@ GTEST_TEST(TrajectoryOptimizerTest, HessianForEachTimeStep) {
   // Compare with the ground truth Hessian
   const MatrixXd& H_gt = optimizer.EvalHessian(state).MakeDense();
 
-  MatrixXd H_sum = MatrixXd::Zero(nq*(num_steps+1), nq*(num_steps+1));
-  H_sum.block(0, 0, nq, nq) = MatrixXd::Identity(nq, nq);
-  for (int t=0; t<= num_steps; ++t) {
-    if (t == 0) {
-      H_sum.block(nq, nq, nq, nq) += Ht[t];
-    } else if (t == 1) {
-      H_sum.block(nq, nq, 2*nq, 2*nq) += Ht[t];
-    } else if (t < num_steps) {
-      H_sum.block(nq*(t-1), nq*(t-1), 3*nq, 3*nq) += Ht[t];
-    } else { 
-      H_sum.block(nq*(t-1), nq*(t-1), 2*nq, 2*nq) += Ht[t];
-    }
-  }
+  MatrixXd H_sum(nq*(num_steps+1), nq*(num_steps+1));
+  TrajectoryOptimizerTester::DenseHessianFromHessianForEachTimeStep(optimizer,
+                                                                    Ht, &H_sum);
 
   const double kTolerance = 100*std::numeric_limits<double>::epsilon();
   EXPECT_TRUE(

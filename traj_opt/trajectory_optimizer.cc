@@ -2148,113 +2148,22 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
 
 template <typename T>
 void TrajectoryOptimizer<T>::UpdateQuasiNewtonHessianApproximation(
-    const TrajectoryOptimizerState<T>& state, const VectorX<T>& s,
-    const VectorX<T>& y, MatrixX<T>* B_ptr) const {
-  MatrixX<T>& B = *B_ptr;
-  const int nq = plant().num_positions();
-
-  std::cout << "Testing Sparse Hessian Construction" << std::endl;
-
-  // DEBUG: test element-wise gradient construction
-  const VectorX<T>& g_gt = EvalGradient(state);
-  VectorX<T> g_approx = VectorX<T>::Zero(g_gt.size());
-
-  // Aliases
-  const std::vector<VectorX<T>>& q = state.q();
-  const std::vector<VectorX<T>>& v = EvalV(state);
-  const std::vector<VectorX<T>>& tau = EvalTau(state);
-
-  const double dt = time_step();
-  const MatrixX<T> Qq = 2 * prob_.Qq * dt;
-  const MatrixX<T> Qv = 2 * prob_.Qv * dt;
-  const MatrixX<T> R = 2 * prob_.R * dt;
-  const MatrixX<T> Qf_q = 2 * prob_.Qf_q;
-  const MatrixX<T> Qf_v = 2 * prob_.Qf_v;
-
-  const VelocityPartials<T>& v_partials = EvalVelocityPartials(state);
-  const InverseDynamicsPartials<T>& id_partials =
-      EvalInverseDynamicsPartials(state);
-  const std::vector<MatrixX<T>>& dvt_dqt = v_partials.dvt_dqt;
-  const std::vector<MatrixX<T>>& dvt_dqm = v_partials.dvt_dqm;
-  const std::vector<MatrixX<T>>& dtaut_dqp = id_partials.dtau_dqp;
-  const std::vector<MatrixX<T>>& dtaut_dqt = id_partials.dtau_dqt;
-  const std::vector<MatrixX<T>>& dtaut_dqm = id_partials.dtau_dqm;
-
-  for (int t=0; t<=num_steps(); ++t) {
-    if (t == 0) {
-      // First step is different
-      Eigen::Ref<VectorX<T>> dlt_dq = g_approx.segment(0, 2*nq);
-      
-      dlt_dq.segment(nq, nq) =
-          tau[t].transpose() * R * dtaut_dqp[t];
-
-      PRINT_VARn(dlt_dq.segment(nq, nq));
-
-    } else if (t < num_steps()) {
-      Eigen::Ref<VectorX<T>> dlt_dq = g_approx.segment(nq*(t-1), 3*nq);
-
-      dlt_dq.segment(0, nq) +=
-          (v[t] - prob_.v_nom[t]).transpose() * Qv * dvt_dqm[t] +
-          tau[t].transpose() * R * dtaut_dqm[t];
-
-      dlt_dq.segment(nq, nq) +=
-          (q[t] - prob_.q_nom[t]).transpose() * Qq +
-          (v[t] - prob_.v_nom[t]).transpose() * Qv * dvt_dqt[t] +
-          tau[t].transpose() * R * dtaut_dqt[t];
-
-      dlt_dq.segment(2*nq, nq) +=
-          tau[t].transpose() * R * dtaut_dqp[t];
-    } else {
-      // Last step is different
-      Eigen::Ref<VectorX<T>> dlt_dq = g_approx.segment(nq*(t-1), 2*nq);
-
-      dlt_dq.segment(0, nq) +=
-          (v[t] - prob_.v_nom[t]).transpose() * Qf_v * dvt_dqm[t];
-
-      dlt_dq.segment(nq, nq) +=
-          (q[t] - prob_.q_nom[t]).transpose() * Qf_q +
-          (v[t] - prob_.v_nom[t]).transpose() * Qf_v * dvt_dqt[t];
-    }
-  }
-
-  // q0 is not a decision variable
-  g_approx.segment(0, nq).setZero();
-
-  PRINT_VARn(g_gt.transpose());
-  PRINT_VARn(g_approx.transpose());
-  PRINT_VARn((g_gt-g_approx).transpose());
-
-  ///////////////////////////////////////////////////////////////////////
-  // DEBUG: establish Hessian sparsity pattern
-  MatrixX<T> H_approx = MatrixX<T>::Zero(nq*(num_steps()+1), nq*(num_steps()+1));
-
-  // First timestep
-  Eigen::Ref<MatrixX<T>> dlt0_dq = H_approx.block(0, 0, 2*nq, 2*nq);
-  dlt0_dq += MatrixX<T>::Ones(2*nq, 2*nq);
-
-  for (int t=1; t<num_steps(); ++t) {
-    // Compute the Hessian contribution for this time step, ∂²lₜ(q)/∂q²
-    Eigen::Ref<MatrixX<T>> dlt_dq = H_approx.block(nq*(t-1), nq*(t-1), 3*nq, 3*nq);
-
-    dlt_dq += MatrixX<T>::Ones(3*nq, 3*nq);  // placeholder
-  }
-
-  // Last timestep
-  Eigen::Ref<MatrixX<T>> dlT_dq = H_approx.block(
-      nq * (num_steps() - 1), nq * (num_steps() - 1), 2 * nq, 2 * nq);
-  dlT_dq += MatrixX<T>::Ones(2*nq, 2*nq);
+    const VectorX<T>& dq, const std::vector<VectorX<T>>& ys,
+    const std::vector<MatrixX<T>>* Bs_ptr) const {
+  (void)dq;
+  (void)ys;
+  (void)Bs_ptr;
   
-  // Zero-th timestep is identity
-  H_approx.topRows(nq).setZero();
-  H_approx.leftCols(nq).setZero();
-  H_approx.topLeftCorner(nq, nq).setIdentity();
+  //const int nq = plant().num_positions();
+  //MatrixX<T>& B = *Bs_ptr;
 
+  // For each time step t:
 
-  (void) H_approx;
-  (void)state;
-  (void)s;
-  (void)y;
-  (void)B;
+  // compute change in decision variables s
+
+  // compute change in gradient y
+
+  // Update the Hessian approximation for this block
 
   //B += -(B * s * s.transpose() * B) / (s.transpose() * B * s) +
   //      (y * y.transpose()) / (y.transpose() * s);
@@ -2460,6 +2369,28 @@ void TrajectoryOptimizer<T>::CalcHessianForEachTimeStep(
       hessians->at(t).block(2*nq, nq, nq, nq) =
           hessians->at(t).block(nq, 2*nq, nq, nq).transpose();
       
+    }
+  }
+}
+
+template <typename T>
+void TrajectoryOptimizer<T>::DenseHessianFromHessianForEachTimeStep(
+    const std::vector<MatrixX<T>>& Ht, MatrixX<T>* H) const {
+  const int nq = plant().num_positions();
+  DRAKE_DEMAND(H->rows() == nq * (num_steps() + 1));
+  DRAKE_DEMAND(H->cols() == nq * (num_steps() + 1));
+
+  H->setZero();
+  H->block(0, 0, nq, nq).setIdentity();
+  for (int t=0; t<= num_steps(); ++t) {
+    if (t == 0) {
+      H->block(nq, nq, nq, nq) += Ht[t];
+    } else if (t == 1) {
+      H->block(nq, nq, 2*nq, 2*nq) += Ht[t];
+    } else if (t < num_steps()) {
+      H->block(nq*(t-1), nq*(t-1), 3*nq, 3*nq) += Ht[t];
+    } else { 
+      H->block(nq*(t-1), nq*(t-1), 2*nq, 2*nq) += Ht[t];
     }
   }
 }
@@ -2734,6 +2665,18 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
 
   // Quasi-newton (BFGS) variables
   MatrixXd B = EvalHessian(state).MakeDense();
+  std::vector<MatrixXd> Bt;  // TODO: new function to allocate proper size
+  for (int t = 0; t <= num_steps(); ++t) {
+    int size = 3 * nq;
+    if (t == 0) {
+      size = nq;
+    } else if (t == 1) {
+      size = 2 * nq;
+    } else if (t == num_steps()) {
+      size = 2 * nq;
+    }
+    Bt.push_back(MatrixXd(size, size));
+  }
 
   // Define printout data
   const std::string separator_bar =
@@ -2747,8 +2690,9 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
   while (k < params_.max_iterations) {
     // Obtain the candiate update dq
     if ((!params_.quasi_newton) || (k < 500)) {
-      B = EvalHessian(state).MakeDense();
+      CalcHessianForEachTimeStep(state, &Bt);
     }
+    DenseHessianFromHessianForEachTimeStep(Bt, &B);
     //tr_constraint_active = CalcDoglegPoint(state, Delta, &dq, &dqH);
     tr_constraint_active = CalcDoglegPointApproxHessian(state, B, Delta, &dq, &dqH);
 
@@ -2793,15 +2737,18 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
       VectorXd y = -g;
       y += EvalGradient(state);
 
+      (void)s;
+      (void)y;
+
       // This condition must hold in order for B to be positive definite. If it
       // does not hold, we can make sure that it will by rejecting this step and
       // reducing the trust region.
-      if (s.transpose() * y >= 0) {
-        UpdateQuasiNewtonHessianApproximation(state, s, y, &B);
-      } else {
-        state.AddToQ(-dq);  // reject the step
-        rho = -1.0;         // negative rho ensures we reduce the trust region
-      }
+      //if (s.transpose() * y >= 0) {
+      //  UpdateQuasiNewtonHessianApproximation(state, s, y, &B);
+      //} else {
+      //  state.AddToQ(-dq);  // reject the step
+      //  rho = -1.0;         // negative rho ensures we reduce the trust region
+      //}
     }
     // Else (rho <= eta), the trust region ratio is too small to accept dq, so
     // we'll need to so keep reducing the trust region. Note that the trust

@@ -812,13 +812,14 @@ class TrajectoryOptimizer {
    * Update the quasi-Newton approximation of the Hessian using a sparse BFGS
    * variant.
    *
-   * @param s change in decision variables
-   * @param y change in gradient
-   * @param B the Hessian approximation to update
+   * @param dq change in decision variables
+   * @param ys change in gradient of the cost (for each time step)
+   * @param Bs estimates of the Hessian of the cost at each time step, which we
+   * will update
    */
   void UpdateQuasiNewtonHessianApproximation(
-      const TrajectoryOptimizerState<T>& state, const VectorX<T>& s,
-      const VectorX<T>& y, MatrixX<T>* B) const;
+      const VectorX<T>& dq, const std::vector<VectorX<T>>& ys,
+      const std::vector<MatrixX<T>>* Bs) const;
 
   /**
    * Compute the gradient of the running cost at each timestep, ∇lₜ(q), where
@@ -855,6 +856,16 @@ class TrajectoryOptimizer {
    */
   void CalcHessianForEachTimeStep(const TrajectoryOptimizerState<T>& state,
                                    std::vector<MatrixX<T>>* hessians) const;
+
+  /**
+   * Construct the Hessian of the unconstrained cost from the Hessian of the
+   * running cost at each time step.
+   *
+   * @param Ht vector of Hessians, ∇²lₜ(q), for each time step
+   * @param H the total Hessian, ∇²L(q), to set
+   */
+  void DenseHessianFromHessianForEachTimeStep(const std::vector<MatrixX<T>>& Ht,
+                                              MatrixX<T>* H) const;
 
   /* Helper to solve ths system H⋅x = b with a solver as specified with
   SolverParameters. On output b is overwritten with x. */
