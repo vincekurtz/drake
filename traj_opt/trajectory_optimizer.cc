@@ -2012,8 +2012,12 @@ bool TrajectoryOptimizer<double>::CalcDoglegPointApproxHessian(
   VectorXd& pH = state.workspace.q_size_tmp2;
 
   pH = -g / Delta;  // normalize by Δ
-  const auto& Hldlt = B.ldlt();
-  pH = Hldlt.solve(pH);
+
+  const PentaDiagonalMatrix<double> H =
+      PentaDiagonalMatrix<double>::MakeSymmetricFromLowerDense(
+          B, num_steps() + 1, plant().num_positions());
+  SolveLinearSystemInPlace(H, &pH);
+  //pH = B.partialPivLu().solve(pH);
 
   *dqH = pH * Delta;
 
@@ -2149,84 +2153,65 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
 template <typename T>
 void TrajectoryOptimizer<T>::UpdateQuasiNewtonHessianApproximation(
     const VectorX<T>& dq, const std::vector<VectorX<T>>& g_old,
-    const std::vector<VectorX<T>>& g_new,
-    std::vector<MatrixX<T>>* Bs) const {
+    const std::vector<VectorX<T>>& g_new, std::vector<MatrixX<T>>* Bs) const {
   const int nq = plant().num_positions();
-  
+
   // Compute B = B - B*s*s'*B / (s'*B*s) + y*y' / (y'*s) for each time step
   for (int t = 0; t <= num_steps(); ++t) {
+    // Indices for extracting the relevant decision variables from dq. For most
+    // time steps, the decision variables are q_{t-1}, q_t, q_{t+1}.
+    int start_idx = nq * (t-1);
+    int block_size = 3*nq;
+
     if (t == 0) {
       // The only decision variables involved at t=0 are q_1
-      const auto s = dq.segment(nq, nq);
-     
-      const VectorX<T> y = g_new[t] - g_old[t];
-      MatrixX<T>& B = Bs->at(t);
-
-      const T sy = s.transpose() * y;
-      DRAKE_DEMAND(sy > 0);
-
-      B += -(B * s * s.transpose() * B) / (s.transpose() * B * s) +
-            (y * y.transpose()) / (y.transpose() * s);
-
+      start_idx = nq;
+      block_size = nq;
     } else if (t == 1) {
       // The only decision variables involved at t=1 are q_1 and q_2
-      const auto s = dq.segment(nq, 2*nq);
-      
-      const VectorX<T> y = g_new[t] - g_old[t];
-      MatrixX<T>& B = Bs->at(t);
-      
-      const T sy = s.transpose() * y;
-      DRAKE_DEMAND(sy > 0);
-
-      B += -(B * s * s.transpose() * B) / (s.transpose() * B * s) +
-            (y * y.transpose()) / (y.transpose() * s);
-
+      start_idx = nq;
+      block_size = 2 * nq;
     } else if (t == num_steps()) {
       // The only decision variables involved at t=N are q_{N-1} and q_N
-      const auto s = dq.tail(2*nq);
-      
-      const VectorX<T> y = g_new[t] - g_old[t];
-      MatrixX<T>& B = Bs->at(t);
-      
-      const T sy = s.transpose() * y;
-      DRAKE_DEMAND(sy > 0);
+      block_size = 2 * nq;
+    } 
 
-      B += -(B * s * s.transpose() * B) / (s.transpose() * B * s) +
-            (y * y.transpose()) / (y.transpose() * s);
+    const auto s = dq.segment(start_idx, block_size);
+    const VectorX<T> y = g_new[t] - g_old[t];
+    MatrixX<T>& B = Bs->at(t);
 
-    } else {
-      // For most time steps, the decision variables are q_{t-1}, q_t, q_{t+1}
-      const auto s = dq.segment(nq*(t-1), 3*nq);
-      
-      const VectorX<T> y = g_new[t] - g_old[t];
-      MatrixX<T>& B = Bs->at(t);
-      
-      const T sy = s.transpose() * y;
-      DRAKE_DEMAND(sy > 0);
+    //// Regular BFGS update
+    //B += -(B * s * s.transpose() * B) / (s.transpose() * B * s) +
+    //      (y * y.transpose()) / (s.transpose() * y);
 
-      B += -(B * s * s.transpose() * B) / (s.transpose() * B * s) +
-            (y * y.transpose()) / (y.transpose() * s);
+    // Damped BFGS
+    const T sBs = s.transpose() * B * s;
+    const T sy = s.transpose() * y;
+    T theta = 1.0;
+    if (sy < 0.2 * sBs) {
+      theta = 0.8 * sBs / (sBs - sy);
     }
+    const VectorX<T> r = theta * y + (1 - theta) * B * s;
+    
+    B += -(B * s * s.transpose() * B) / sBs +
+          (r * r.transpose()) / (s.transpose() * r);
+
+    // Closest PSD matrix
+    //Eigen::JacobiSVD<MatrixX<T>> svd(B,
+    //                                 Eigen::ComputeThinU | Eigen::ComputeThinV);
+    //VectorX<T> D = svd.singularValues();
+    //D = D.cwiseMax(0.0);
+    //B = svd.matrixU() * D.asDiagonal() * svd.matrixV().transpose();
+
+    //if (!B.ldlt().isPositive()) {
+    //  std::cout << "Bt non-positive at t=" << t << std::endl;
+    //  PRINT_VAR(D.minCoeff());
+    //  PRINT_VAR(D.maxCoeff());
+    //  PRINT_VAR(1/B.ldlt().rcond());
+    //}
+
+    //DRAKE_DEMAND(B.ldlt().isPositive());
   }
-  //const int nq = plant().num_positions();
-  //MatrixX<T>& B = *Bs_ptr;
-
-  // For each time step t:
-
-  // compute change in decision variables s
-
-  // compute change in gradient y
-
-  // Update the Hessian approximation for this block
-
-  //B += -(B * s * s.transpose() * B) / (s.transpose() * B * s) +
-  //      (y * y.transpose()) / (y.transpose() * s);
-
-  //// Overwrite the first rows/columns that have to do with the (fixed)
-  //// initial condition
-  //B.topRows(nq).setZero();
-  //B.leftCols(nq).setZero();
-  //B.topLeftCorner(nq, nq).setIdentity();
 }
 
 template <typename T>
@@ -2759,6 +2744,7 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
     // Obtain the candiate update dq
     if ((!params_.quasi_newton) || (k < 500)) {
       CalcHessianForEachTimeStep(state, &Bt);
+      //B = EvalHessian(state).MakeDense();
     }
     DenseHessianFromHessianForEachTimeStep(Bt, &B);
     //tr_constraint_active = CalcDoglegPoint(state, Delta, &dq, &dqH);
@@ -2766,7 +2752,20 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
 
     // Verify that dq is a descent direction
     const VectorXd& g = EvalGradient(state);
-    DRAKE_DEMAND(dq.transpose() * g < 0);
+    //DRAKE_DEMAND(dq.transpose() * g < 0);
+
+    if (dq.transpose() * g >= 0) {
+      std::cout << "dq'g < 0 condition violated" << std::endl;
+      PRINT_VAR(dq.transpose() * g);
+      PRINT_VAR(B.ldlt().isPositive());
+      PRINT_VAR(1/B.ldlt().rcond());
+
+      Eigen::JacobiSVD<MatrixXd> svd(B,
+                                     Eigen::ComputeThinU | Eigen::ComputeThinV);
+      const VectorXd D = svd.singularValues();
+      PRINT_VAR(D.minCoeff());
+      PRINT_VAR(D.maxCoeff());
+    }
 
     // Compute some quantities for logging.
     // N.B. These should be computed before q is updated.
@@ -2797,17 +2796,29 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
       }
 
       CalcGradientForEachTimeStep(state, &g_old);
+
       state.AddToQ(dq);  // q += dq
 
       // Update the BFGS Hessian approximation
       CalcGradientForEachTimeStep(state, &g_new);
       UpdateQuasiNewtonHessianApproximation(dq, g_old, g_new, &Bt);
-    
-      // This condition must hold in order for B to be positive definite. If it
-      // does not hold, we can make sure that it will by rejecting this step and
-      // reducing the trust region.
-      //if (s.transpose() * y >= 0) {
-      //  UpdateQuasiNewtonHessianApproximation(state, s, y, &B);
+      //DenseHessianFromHessianForEachTimeStep(Bt, &B);
+
+      ///////////////////////////////////////////////////////////////////////
+      // Dense BFGS
+      //const VectorXd& s = dq;
+      //VectorXd y = -g;
+      //y += EvalGradient(state);
+
+      //if (s.transpose() * y >= -1e10) {
+      //  B += -(B * s * s.transpose() * B) / (s.transpose() * B * s) +
+      //        (y * y.transpose()) / (y.transpose() * s);
+
+      //  B.topRows(nq).setZero();
+      //  B.leftCols(nq).setZero();
+      //  B.topLeftCorner(nq, nq).setIdentity();
+      //  
+      //  PRINT_VAR(B.ldlt().isPositive());
       //} else {
       //  state.AddToQ(-dq);  // reject the step
       //  rho = -1.0;         // negative rho ensures we reduce the trust region

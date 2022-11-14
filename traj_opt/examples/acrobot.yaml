@@ -27,14 +27,19 @@ Qfv : [1.0, 1.0]
 
 # Problem definition parameters
 time_step : 0.05   # Discretization timestep (seconds)
-num_steps : 6    # number of timesteps
+num_steps : 40    # number of timesteps
 
 # Solver parameters
-max_iters : 1             # maximum Gauss-Newton iterations
+max_iters : 200             # maximum Gauss-Newton iterations
 method : "trust_region"     # solver method, {linesearch, trust_region}
-linesearch : "armijo"       # linesearch strategy, {armino, backtracking}
-proximal_operator : false   # whether to add a proximal operator cost term
-rho_proximal : 1e-8         # the proximal cost multiplier
+quasi_newton : false
+tolerances:
+  rel_cost_reduction: 0
+  abs_cost_reduction: 0
+  rel_gradient_along_dq: 0
+  abs_gradient_along_dq: 0
+  rel_state_change: 0
+  abs_state_change: 0
 
 # Method used to compute gradients of inverse dynamics, one of
 # {forward_differences, central_differences, central_differences4, autodiff}
