@@ -2148,12 +2148,66 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
 
 template <typename T>
 void TrajectoryOptimizer<T>::UpdateQuasiNewtonHessianApproximation(
-    const VectorX<T>& dq, const std::vector<VectorX<T>>& ys,
-    const std::vector<MatrixX<T>>* Bs_ptr) const {
-  (void)dq;
-  (void)ys;
-  (void)Bs_ptr;
+    const VectorX<T>& dq, const std::vector<VectorX<T>>& g_old,
+    const std::vector<VectorX<T>>& g_new,
+    std::vector<MatrixX<T>>* Bs) const {
+  const int nq = plant().num_positions();
   
+  // Compute B = B - B*s*s'*B / (s'*B*s) + y*y' / (y'*s) for each time step
+  for (int t = 0; t <= num_steps(); ++t) {
+    if (t == 0) {
+      // The only decision variables involved at t=0 are q_1
+      const auto s = dq.segment(nq, nq);
+     
+      const VectorX<T> y = g_new[t] - g_old[t];
+      MatrixX<T>& B = Bs->at(t);
+
+      const T sy = s.transpose() * y;
+      DRAKE_DEMAND(sy > 0);
+
+      B += -(B * s * s.transpose() * B) / (s.transpose() * B * s) +
+            (y * y.transpose()) / (y.transpose() * s);
+
+    } else if (t == 1) {
+      // The only decision variables involved at t=1 are q_1 and q_2
+      const auto s = dq.segment(nq, 2*nq);
+      
+      const VectorX<T> y = g_new[t] - g_old[t];
+      MatrixX<T>& B = Bs->at(t);
+      
+      const T sy = s.transpose() * y;
+      DRAKE_DEMAND(sy > 0);
+
+      B += -(B * s * s.transpose() * B) / (s.transpose() * B * s) +
+            (y * y.transpose()) / (y.transpose() * s);
+
+    } else if (t == num_steps()) {
+      // The only decision variables involved at t=N are q_{N-1} and q_N
+      const auto s = dq.tail(2*nq);
+      
+      const VectorX<T> y = g_new[t] - g_old[t];
+      MatrixX<T>& B = Bs->at(t);
+      
+      const T sy = s.transpose() * y;
+      DRAKE_DEMAND(sy > 0);
+
+      B += -(B * s * s.transpose() * B) / (s.transpose() * B * s) +
+            (y * y.transpose()) / (y.transpose() * s);
+
+    } else {
+      // For most time steps, the decision variables are q_{t-1}, q_t, q_{t+1}
+      const auto s = dq.segment(nq*(t-1), 3*nq);
+      
+      const VectorX<T> y = g_new[t] - g_old[t];
+      MatrixX<T>& B = Bs->at(t);
+      
+      const T sy = s.transpose() * y;
+      DRAKE_DEMAND(sy > 0);
+
+      B += -(B * s * s.transpose() * B) / (s.transpose() * B * s) +
+            (y * y.transpose()) / (y.transpose() * s);
+    }
+  }
   //const int nq = plant().num_positions();
   //MatrixX<T>& B = *Bs_ptr;
 
@@ -2677,6 +2731,20 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
     }
     Bt.push_back(MatrixXd(size, size));
   }
+  std::vector<VectorXd> g_old;  // Gradient at the previous
+  std::vector<VectorXd> g_new;  // Gradient at this iteration
+  for (int t = 0; t <= num_steps(); ++t) {
+    int size = 3 * nq;
+    if (t == 0) {
+      size = nq;
+    } else if (t == 1) {
+      size = 2 * nq;
+    } else if (t == num_steps()) {
+      size = 2 * nq;
+    }
+    g_old.push_back(VectorXd(size));
+    g_new.push_back(VectorXd(size));
+  }
 
   // Define printout data
   const std::string separator_bar =
@@ -2728,18 +2796,13 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
         scratch_state.set_proximal_operator_data(state.q(), EvalHessian(state));
       }
 
+      CalcGradientForEachTimeStep(state, &g_old);
       state.AddToQ(dq);  // q += dq
 
       // Update the BFGS Hessian approximation
-      const VectorXd& s = dq;
-      // y = g(k+1) - g(k). This funny ordering ensures that we don't need to
-      // store an extra copy of the gradient at the last step.
-      VectorXd y = -g;
-      y += EvalGradient(state);
-
-      (void)s;
-      (void)y;
-
+      CalcGradientForEachTimeStep(state, &g_new);
+      UpdateQuasiNewtonHessianApproximation(dq, g_old, g_new, &Bt);
+    
       // This condition must hold in order for B to be positive definite. If it
       // does not hold, we can make sure that it will by rejecting this step and
       // reducing the trust region.

@@ -813,13 +813,15 @@ class TrajectoryOptimizer {
    * variant.
    *
    * @param dq change in decision variables
-   * @param ys change in gradient of the cost (for each time step)
+   * @param g_old gradient at each time step at the last iteration
+   * @param g_new gradient at each time step at this iteration
    * @param Bs estimates of the Hessian of the cost at each time step, which we
    * will update
    */
   void UpdateQuasiNewtonHessianApproximation(
-      const VectorX<T>& dq, const std::vector<VectorX<T>>& ys,
-      const std::vector<MatrixX<T>>* Bs) const;
+      const VectorX<T>& dq, const std::vector<VectorX<T>>& g_old,
+      const std::vector<VectorX<T>>& g_new,
+      std::vector<MatrixX<T>>* Bs) const;
 
   /**
    * Compute the gradient of the running cost at each timestep, ∇lₜ(q), where
