@@ -42,7 +42,8 @@ tolerances:
   rel_state_change: 0
   abs_state_change: 0
 
-linear_solver : "pentadiagonal_lu"
+#linear_solver : "pentadiagonal_lu"
+linear_solver : "dense_ldlt"
 
 # Method used to compute gradients of inverse dynamics, one of
 # {forward_differences, central_differences, central_differences4, autodiff}

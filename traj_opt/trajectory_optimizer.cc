@@ -1965,9 +1965,14 @@ void TrajectoryOptimizer<double>::SolveLinearSystemInPlace(
     }
     case SolverParameters::LinearSolverType::kDenseLdlt: {
       const MatrixX<double> Hdense = H.MakeDense();
-      const auto& Hldlt = Hdense.ldlt();
-      *b = Hldlt.solve(*b);
-      DRAKE_DEMAND(Hldlt.info() == Eigen::Success);
+      //const auto& Hldlt = Hdense.ldlt();
+      //*b = Hldlt.solve(*b);
+      //DRAKE_DEMAND(Hldlt.info() == Eigen::Success);
+
+      // SVD
+      Eigen::JacobiSVD<MatrixXd> svd(Hdense,
+                                     Eigen::ComputeThinU | Eigen::ComputeThinV);
+      *b = svd.solve(*b);
       break;
     }
     case SolverParameters::LinearSolverType::kPetsc: {
