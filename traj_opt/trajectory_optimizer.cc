@@ -1969,8 +1969,7 @@ void TrajectoryOptimizer<double>::SolveLinearSystemInPlace(
       //*b = Hldlt.solve(*b);
       //DRAKE_DEMAND(Hldlt.info() == Eigen::Success);
 
-      // SVD
-      Eigen::JacobiSVD<MatrixXd> svd(Hdense,
+      Eigen::BDCSVD<MatrixXd> svd(Hdense,
                                      Eigen::ComputeThinU | Eigen::ComputeThinV);
       *b = svd.solve(*b);
       break;
@@ -2767,6 +2766,12 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
       const VectorXd D = svd.singularValues();
       PRINT_VAR(D.minCoeff());
       PRINT_VAR(D.maxCoeff());
+
+      std::cout << "Resetting to Hessian to Gauss-Newton approximation" << std::endl;
+      CalcHessianForEachTimeStep(state, &Bt);
+      DenseHessianFromHessianForEachTimeStep(Bt, &B);
+      tr_constraint_active = CalcDoglegPointApproxHessian(state, B, Delta, &dq, &dqH);
+
     }
     DRAKE_DEMAND(dq.transpose() * g < 0);
 
