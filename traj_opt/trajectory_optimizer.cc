@@ -2207,20 +2207,7 @@ void TrajectoryOptimizer<T>::UpdateQuasiNewtonHessianApproximation(
     Eigen::JacobiSVD<MatrixX<T>> svd(B,
                                      Eigen::ComputeFullU | Eigen::ComputeFullV);
     VectorX<T> D = svd.singularValues();
-    PRINT_VARn(D.transpose());
     DRAKE_DEMAND(D.minCoeff() >= 0);
-
-    //if (!B.ldlt().isPositive()) {
-    //  std::cout << "Bt non-positive at t=" << t << std::endl;
-    //  D = B.ldlt().vectorD();
-    //  PRINT_VAR(D.minCoeff());
-    //  PRINT_VAR(D.maxCoeff());
-    //  PRINT_VAR(1/B.ldlt().rcond());
-    //  //PRINT_VARn(svd.matrixU());
-    //  //PRINT_VARn(svd.matrixV());
-    //}
-
-    //DRAKE_DEMAND(B.ldlt().isPositive());
   }
 }
 
@@ -2776,6 +2763,7 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
       PRINT_VAR(D.minCoeff());
       PRINT_VAR(D.maxCoeff());
     }
+    DRAKE_DEMAND(dq.transpose() * g < 0);
 
     // Compute some quantities for logging.
     // N.B. These should be computed before q is updated.
