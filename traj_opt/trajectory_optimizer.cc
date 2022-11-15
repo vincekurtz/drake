@@ -2180,34 +2180,44 @@ void TrajectoryOptimizer<T>::UpdateQuasiNewtonHessianApproximation(
     const VectorX<T> y = g_new[t] - g_old[t];
     MatrixX<T>& B = Bs->at(t);
 
-    //// Regular BFGS update
-    //B += -(B * s * s.transpose() * B) / (s.transpose() * B * s) +
-    //      (y * y.transpose()) / (s.transpose() * y);
+    // Regular BFGS update
+    B += -(B * s * s.transpose() * B) / (s.transpose() * B * s) +
+          (y * y.transpose()) / (s.transpose() * y);
 
     // Damped BFGS
-    const T sBs = s.transpose() * B * s;
-    const T sy = s.transpose() * y;
-    T theta = 1.0;
-    if (sy < 0.2 * sBs) {
-      theta = 0.8 * sBs / (sBs - sy);
-    }
-    const VectorX<T> r = theta * y + (1 - theta) * B * s;
+    //const T sBs = s.transpose() * B * s;
+    //const T sy = s.transpose() * y;
+    //T theta = 1.0;
+    //if (sy < 0.2 * sBs) {
+    //  theta = 0.8 * sBs / (sBs - sy);
+    //}
+    //const VectorX<T> r = theta * y + (1 - theta) * B * s;
     
-    B += -(B * s * s.transpose() * B) / sBs +
-          (r * r.transpose()) / (s.transpose() * r);
+    //B += -(B * s * s.transpose() * B) / sBs +
+    //      (r * r.transpose()) / (s.transpose() * r);
 
     // Closest PSD matrix
     //Eigen::JacobiSVD<MatrixX<T>> svd(B,
-    //                                 Eigen::ComputeThinU | Eigen::ComputeThinV);
+    //                                 Eigen::ComputeFullU | Eigen::ComputeFullV);
     //VectorX<T> D = svd.singularValues();
-    //D = D.cwiseMax(0.0);
+    //D = D.cwiseMax(1e-1*D.norm());
     //B = svd.matrixU() * D.asDiagonal() * svd.matrixV().transpose();
+
+    // Check for positive definiteness via SVD
+    Eigen::JacobiSVD<MatrixX<T>> svd(B,
+                                     Eigen::ComputeFullU | Eigen::ComputeFullV);
+    VectorX<T> D = svd.singularValues();
+    PRINT_VARn(D.transpose());
+    DRAKE_DEMAND(D.minCoeff() >= 0);
 
     //if (!B.ldlt().isPositive()) {
     //  std::cout << "Bt non-positive at t=" << t << std::endl;
+    //  D = B.ldlt().vectorD();
     //  PRINT_VAR(D.minCoeff());
     //  PRINT_VAR(D.maxCoeff());
     //  PRINT_VAR(1/B.ldlt().rcond());
+    //  //PRINT_VARn(svd.matrixU());
+    //  //PRINT_VARn(svd.matrixV());
     //}
 
     //DRAKE_DEMAND(B.ldlt().isPositive());
