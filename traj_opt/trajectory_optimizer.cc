@@ -93,16 +93,15 @@ TrajectoryOptimizer<T>::TrajectoryOptimizer(const Diagram<T>* diagram,
 
   // Create an autodiff optimizer if we need exact gradients
   if constexpr (std::is_same_v<T, double>) {
-    if (params_.gradients_method == GradientsMethod::kAutoDiff) {
+    // TODO: decide more intelligently when to create an autodiff optimizer
+    //if (params_.gradients_method == GradientsMethod::kAutoDiff) {
       diagram_ad_ = systems::System<double>::ToAutoDiffXd(*diagram);
       plant_ad_ = dynamic_cast<const MultibodyPlant<AutoDiffXd>*>(
           &diagram_ad_->GetSubsystemByName(plant->get_name()));
       DRAKE_DEMAND(plant_ad_ != nullptr);
       SolverParameters params_ad(params);
-      // N.B. We'll only use optimizer_ad_ to compute inverse dynamics with
-      // AutoDiffXd, not gradients. We state this explicitly so that we don't
-      // get the exception below at construction.
-      params_ad.gradients_method = GradientsMethod::kNoGradients;
+      // TODO: consider using kNoGradients instead
+      params_ad.gradients_method = GradientsMethod::kCentralDifferences;
       optimizer_ad_ = std::make_unique<TrajectoryOptimizer<AutoDiffXd>>(
           diagram_ad_.get(), plant_ad_, prob, params_ad);
       // TODO(vincekurtz): move state's destructor and possible other
@@ -110,7 +109,7 @@ TrajectoryOptimizer<T>::TrajectoryOptimizer(const Diagram<T>* diagram,
       state_ad_ = std::unique_ptr<TrajectoryOptimizerState<AutoDiffXd>>(
           new TrajectoryOptimizerState<AutoDiffXd>(num_steps(), *diagram_ad_,
                                                    *plant_ad_));
-    }
+    //}
   } else {
     if (params_.gradients_method == GradientsMethod::kAutoDiff) {
       throw std::runtime_error(
@@ -1376,6 +1375,43 @@ const PentaDiagonalMatrix<T>& TrajectoryOptimizer<T>::EvalHessian(
     state.mutable_cache().hessian_up_to_date = true;
   }
   return state.cache().hessian;
+}
+
+template <typename T>
+MatrixX<T> TrajectoryOptimizer<T>::CalcExactHessian(
+    const TrajectoryOptimizerState<T>&) const {
+  throw std::runtime_error(
+      "TrajectoryOptimizer::CalcExactHessian only supports T=double");
+}
+
+template <>
+MatrixXd TrajectoryOptimizer<double>::CalcExactHessian(
+    const TrajectoryOptimizerState<double>& state) const {
+  
+  const int nq = plant().num_positions();
+  const int num_vars = (num_steps() + 1) * nq;
+  const std::vector<VectorX<double>>& q = state.q();
+  std::vector<VectorX<AutoDiffXd>> q_ad(num_steps() + 1,
+                                        VectorX<AutoDiffXd>(nq));
+
+  // Initialize q_ad.
+  int ad_idx = 0;
+  for (int t = 0; t <= num_steps(); ++t) {
+    for (int i = 0; i < nq; ++i) {
+      q_ad[t].segment<1>(i) =
+          math::InitializeAutoDiff(q[t].segment<1>(i), num_vars, ad_idx);
+      ++ad_idx;
+    }
+  }
+  state_ad_->set_q(q_ad);
+
+  // Compute the gradient with finite differences
+  const VectorX<AutoDiffXd>& g_ad = optimizer_ad_->EvalGradient(*state_ad_);
+  MatrixXd H = math::ExtractGradient(g_ad);
+  H.leftCols(nq).setZero();
+  H.block(0, 0, nq, nq).setIdentity();
+
+  return H;
 }
 
 template <typename T>

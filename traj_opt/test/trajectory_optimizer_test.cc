@@ -1583,20 +1583,19 @@ GTEST_TEST(TrajectoryOptimizerTest, ExactHessian) {
 
   // Compute the exact Hessian with autodiff
   const VectorX<AutoDiffXd>& g_ad = optimizer_ad.EvalGradient(state_ad);
-  MatrixXd H = math::ExtractGradient(g_ad);
-  H.leftCols(2).setZero();
-  H.block<2,2>(0,0).setIdentity();
+  MatrixXd H_ad = math::ExtractGradient(g_ad);
+  H_ad.leftCols(2).setZero();
+  H_ad.block<2,2>(0,0).setIdentity();
 
-  // Compute the Gauss-Newton Hessian
-  MatrixXd Hgn = optimizer.EvalHessian(state).MakeDense();
+  // Compute the exact Hessian from the optimizer (also uses autodiff, but under
+  // the hood)
+  MatrixXd H = optimizer.CalcExactHessian(state);
 
-  PRINT_VAR(H);
-  PRINT_VARn(Hgn);
-
-  PRINT_VAR(1/H.ldlt().rcond());
-  PRINT_VAR(H.ldlt().isPositive());
-  PRINT_VAR(1/Hgn.ldlt().rcond());
-  PRINT_VAR(Hgn.ldlt().isPositive());
+  // N.B. tolerance is sqrt(epsilon) since finite differences are used to get
+  // the gradient
+  const double kTolerance = std::sqrt(std::numeric_limits<double>::epsilon());
+  EXPECT_TRUE(
+      CompareMatrices(H, H_ad, kTolerance, MatrixCompareType::relative));
 }
 
 }  // namespace internal
