@@ -1589,7 +1589,9 @@ GTEST_TEST(TrajectoryOptimizerTest, ExactHessian) {
 
   // Compute the exact Hessian from the optimizer (also uses autodiff, but under
   // the hood)
-  MatrixXd H = optimizer.CalcExactHessian(state);
+  PentaDiagonalMatrix<double> H_sparse(num_steps + 1, nq);
+  optimizer.CalcExactHessian(state, &H_sparse);
+  MatrixXd H = H_sparse.MakeDense();
 
   // N.B. tolerance is sqrt(epsilon) since finite differences are used to get
   // the gradient

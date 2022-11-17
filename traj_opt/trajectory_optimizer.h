@@ -143,7 +143,7 @@ class TrajectoryOptimizer {
    * @param state optimizer state
    * @return MatrixX<T> the hessian
    */
-  MatrixX<T> CalcExactHessian(const TrajectoryOptimizerState<T>& state) const;
+  void CalcExactHessian(const TrajectoryOptimizerState<T>& state, PentaDiagonalMatrix<T>* H) const;
 
   /**
    * Solve the optimization from the given initial guess, which may or may not
