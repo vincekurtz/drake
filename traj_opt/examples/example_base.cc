@@ -313,6 +313,9 @@ void TrajOptExample::SetSolverParameters(
 
   // Flag for printing iteration data
   solver_params->verbose = options.verbose;
+
+  // Type of Hessian approximation
+  solver_params->exact_hessian = options.exact_hessian;
 }
 
 }  // namespace examples

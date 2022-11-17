@@ -2367,7 +2367,15 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
 
     // Verify that dq is a descent direction
     const VectorXd& g = EvalGradient(state);
-    DRAKE_DEMAND(dq.transpose() * g < 0);
+    //DRAKE_DEMAND(dq.transpose() * g < 0);
+
+    // Print some info about the Hessian
+    const MatrixXd Hdense = EvalHessian(state).MakeDense();
+    const double condition_number = 1 / Hdense.ldlt().rcond();
+    const bool is_positive = Hdense.ldlt().isPositive();
+    PRINT_VAR(condition_number);
+    PRINT_VAR(is_positive);
+    PRINT_VAR(dq.transpose() * g);
 
     // Compute some quantities for logging.
     // N.B. These should be computed before q is updated.
@@ -2378,6 +2386,11 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
 
     // Compute the trust region ratio
     rho = CalcTrustRatio(state, dq, &scratch_state);
+
+    //DEBUG: reject steps if it opposes the descent direction
+    if (dq.transpose() * g >= 0) {
+      rho = -1.0;
+    }
 
     // Save data related to our quadratic approximation (for the first two
     // variables)
