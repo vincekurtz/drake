@@ -1371,7 +1371,11 @@ template <typename T>
 const PentaDiagonalMatrix<T>& TrajectoryOptimizer<T>::EvalHessian(
     const TrajectoryOptimizerState<T>& state) const {
   if (!state.cache().hessian_up_to_date) {
-    CalcHessian(state, &state.mutable_cache().hessian);
+    if (params_.exact_hessian) {
+      CalcExactHessian(state, &state.mutable_cache().hessian);
+    } else {
+      CalcHessian(state, &state.mutable_cache().hessian);
+    }
     state.mutable_cache().hessian_up_to_date = true;
   }
   return state.cache().hessian;

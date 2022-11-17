@@ -132,6 +132,10 @@ struct SolverParameters {
   bool save_lineplot_data = false;
   double lineplot_q_min = 0.0;
   double lineplot_q_max = 1.0;
+
+  // Flag for choosing between the exact Hessian (autodiff, very slow) and a
+  // Gauss-Newton approximation
+  bool exact_hessian = false;
 };
 
 }  // namespace traj_opt

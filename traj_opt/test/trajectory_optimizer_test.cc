@@ -1549,7 +1549,10 @@ GTEST_TEST(TrajectoryOptimizerTest, ExactHessian) {
   auto diagram = builder.Build();
 
   // Create an optimizer
-  TrajectoryOptimizer<double> optimizer(diagram.get(), &plant, opt_prob);
+  SolverParameters params;
+  params.exact_hessian = true;  // compute the exact Hessian
+  TrajectoryOptimizer<double> optimizer(diagram.get(), &plant, opt_prob,
+                                        params);
   TrajectoryOptimizerState<double> state = optimizer.CreateState();
 
   // Make some fake data
@@ -1588,10 +1591,9 @@ GTEST_TEST(TrajectoryOptimizerTest, ExactHessian) {
   H_ad.block<2,2>(0,0).setIdentity();
 
   // Compute the exact Hessian from the optimizer (also uses autodiff, but under
-  // the hood)
-  PentaDiagonalMatrix<double> H_sparse(num_steps + 1, nq);
-  optimizer.CalcExactHessian(state, &H_sparse);
-  MatrixXd H = H_sparse.MakeDense();
+  // the hood). This only produces the exact hessian when params.exact_hessian =
+  // true
+  MatrixXd H = optimizer.EvalHessian(state).MakeDense();
 
   // N.B. tolerance is sqrt(epsilon) since finite differences are used to get
   // the gradient
