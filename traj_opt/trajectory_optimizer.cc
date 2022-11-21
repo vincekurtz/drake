@@ -263,17 +263,10 @@ void TrajectoryOptimizer<T>::CalcContactForceContribution(
   using std::pow;
   using std::sqrt;
 
-  // Compliant contact parameters. stiffness_exponent = 3/2 corresponds to Hertz
-  // model for spherical contact. stiffness_exponent = 1.0 corresponds to a
-  // linear spring force with stiffness F/delta.
+  // Compliant contact parameters
   const double F = params_.F;
   const double delta = params_.delta;
-  const double stiffness_exponent = params_.stiffness_exponent;
-  const double smoothing_factor = params_.smoothing_factor;
-
-  // (Normal) Dissipation. dissipation_exponent = 1.0 corresponds to the Hunt &
-  // Crossley model of dissipation.
-  const double dissipation_exponent = params_.dissipation_exponent;
+  const double sigma = params_.smoothing_factor;
   const double dissipation_velocity = params_.dissipation_velocity;
 
   // Friction parameters.
@@ -351,24 +344,38 @@ void TrajectoryOptimizer<T>::CalcContactForceContribution(
       const T vn = nhat.dot(v_AcBc_W);
       const Vector3<T> vt = v_AcBc_W - vn * nhat;
 
-      // Normal (compliant) component.
-      const T sign_vn = vn > 0 ? 1.0 : -1.0;
-      const T dissipation_factor = max(
-          0.0, 1.0 - pow(abs(vn / dissipation_velocity), dissipation_exponent) *
-                         sign_vn);
+      // Normal dissipation follows a smoothed Hunt and Crossley model
+      T dissipation_factor = 0.0;
+      const T s = vn / dissipation_velocity;
+      if (s < 0) {
+        dissipation_factor = 1 - s;
+      } else if (s < 2) {
+        dissipation_factor = (s - 2) * (s - 2) / 4;
+      }
 
+      // (Compliant) force in the normal direction increases linearly at a rate
+      // of 2F/delta Newtons per meter, with some smoothing that may or may not
+      // allow for force at a distance.
       T compliant_fn;
+      const T x = - pair.distance / delta;
       if (params_.force_at_a_distance) {
-        if (smoothing_factor * pair.distance < -100) {
+        if (x / sigma >= 37) {
           // If the exponent is going to be very large, replace with the
-          // functional limit as smoothing_factor goes to infinity.
-          compliant_fn = -F / delta * pair.distance;
+          // functional limit.
+          // N.B. x = 37 is the first integer such that exp(x)+1 = exp(x) in
+          // double precision.
+          compliant_fn = 2 * F * x;
         } else {
-          compliant_fn = F / delta / smoothing_factor *
-                         log(1 + exp(-smoothing_factor * pair.distance));
+          compliant_fn = 2 * F * sigma * log(1 + exp(x / sigma));
         }
       } else {
-        compliant_fn = F * pow(-pair.distance / delta, stiffness_exponent);
+        if (x < 0) {
+          compliant_fn = 0;
+        } else if (x < 1) {
+          compliant_fn = F * x * x;
+        } else {
+          compliant_fn = F * (2 * x - 1);
+        }
       }
       const T fn = compliant_fn * dissipation_factor;
 

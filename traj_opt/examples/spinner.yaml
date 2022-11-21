@@ -36,8 +36,8 @@ linesearch : "armijo"       # linesearch strategy, {armino, backtracking}
 proximal_operator : false   # whether to add a proximal operator cost term
 rho_proximal : 1e-5         # the proximal cost multiplier
 tolerances:
-  rel_cost_reduction: 1.0e-5
-  abs_cost_reduction: 1.0e-12
+  rel_cost_reduction: 1e-6
+  abs_cost_reduction: 1e-12
   rel_gradient_along_dq: 1e-6
   abs_gradient_along_dq: 1e-12
   rel_state_change: 1e-6
@@ -57,19 +57,19 @@ linesearch_plot_every_iteration : false
 print_debug_data : false
 save_solver_stats_csv : true
 
-# Contact model parameters
+# Contact model parameters. 
+# With no force at a distance, the normal component of contact force increases
+# quadratically from 0 Newtons at 0 meters penetration to F Newtons at delta
+# meters of penetration. After this point, force increases linearly at a rate
+# of 2F/delta Newtons / meter. 
 F : 1.0       # force at delta meters of penetration
 delta : 0.01  # penetration distance with F newtons of normal force
-stiffness_exponent : 1      # Compliant law exponent.
-dissipation_exponent : 1.0  # Hunt & Crossley-like model. Law exponent.
 dissipation_velocity : 0.1  # Hunt & Crossley-like model parameter, in m/s.
 
-# Force at a distance parameters. If force at a distance is enabled,
-# we still use F and delta to determine compliance, but assume
-# stiffness_exponent = 1 and smooth out the contact forces according
-# to the given factor (lower is smoother).
+# With force at a distance, contact normal forces increases linearly at a rate
+# of 2F/delta Newtons / meter, with a given smoothing factor (higher is smoother)
+smoothing_factor : 1.0
 force_at_a_distance : true
-smoothing_factor : 100
 
 # Friction
 friction_coefficient : 0.5  # Coefficient of friction.

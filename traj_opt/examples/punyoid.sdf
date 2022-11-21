@@ -257,17 +257,17 @@ Toyota Research Institute-->
       <visual name="ellip_hand">
         <pose>0 0 0 0 0 0</pose>
         <geometry>
-          <ellipsoid>
-            <radii>0.04 0.03 0.065</radii>
-          </ellipsoid>
+          <sphere>
+            <radius>0.04</radius>
+          </sphere>
         </geometry>
       </visual>
       <collision name="col_ellip_hand">
         <pose>0 0 0 0 0 0</pose>
         <geometry>
-          <ellipsoid>
-            <radii>0.04 0.03 0.065</radii>
-          </ellipsoid>
+          <sphere>
+            <radius>0.04</radius>
+          </sphere>
         </geometry>
       </collision>
     </link>
@@ -330,17 +330,17 @@ Toyota Research Institute-->
       <visual name="ellip_hand">
         <pose>0 0 0 0 0 0</pose>
         <geometry>
-          <ellipsoid>
-            <radii>0.04 0.03 0.065</radii>
-          </ellipsoid>
+          <sphere>
+            <radius>0.04</radius>
+          </sphere>
         </geometry>
       </visual>
       <collision name="col_ellip_hand">
         <pose>0 0 0 0 0 0</pose>
         <geometry>
-          <ellipsoid>
-            <radii>0.04 0.03 0.065</radii>
-          </ellipsoid>
+          <sphere>
+            <radius>0.04</radius>
+          </sphere>
         </geometry>
       </collision>
     </link>

@@ -293,12 +293,9 @@ void TrajOptExample::SetSolverParameters(
   // TODO(vincekurtz): figure out a better place to set these
   solver_params->F = options.F;
   solver_params->delta = options.delta;
-  solver_params->stiffness_exponent = options.stiffness_exponent;
   solver_params->dissipation_velocity = options.dissipation_velocity;
-  solver_params->dissipation_exponent = options.dissipation_exponent;
   solver_params->friction_coefficient = options.friction_coefficient;
   solver_params->stiction_velocity = options.stiction_velocity;
-
   solver_params->force_at_a_distance = options.force_at_a_distance;
   solver_params->smoothing_factor = options.smoothing_factor;
 
