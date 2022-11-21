@@ -36,13 +36,13 @@ libqt5core5a
 libqt5gui5
 libqt5printsupport5
 libqt5widgets5
-libquadmath0
 libspdlog-dev
 libsqlite3-0
 libtheora0
 libtiff5
 libtinyxml2-dev
 libtinyxml2.6.2v5
+libvtk9.1
 libx11-6
 libxml2
 libxt6

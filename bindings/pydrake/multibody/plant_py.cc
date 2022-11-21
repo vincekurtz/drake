@@ -19,6 +19,7 @@
 #include "drake/multibody/plant/contact_results.h"
 #include "drake/multibody/plant/contact_results_to_lcm.h"
 #include "drake/multibody/plant/externally_applied_spatial_force.h"
+#include "drake/multibody/plant/externally_applied_spatial_force_multiplexer.h"
 #include "drake/multibody/plant/multibody_plant.h"
 #include "drake/multibody/plant/multibody_plant_config.h"
 #include "drake/multibody/plant/multibody_plant_config_functions.h"
@@ -626,6 +627,25 @@ void DoScalarDependentDefinitions(py::module m, T) {
         .def("MakeActuationMatrix", &Class::MakeActuationMatrix,
             cls_doc.MakeActuationMatrix.doc)
         .def(
+            "MakeActuatorSelectorMatrix",
+            [](const Class* self, const std::vector<JointActuatorIndex>&
+                                      user_to_actuator_index_map) {
+              return self->MakeActuatorSelectorMatrix(
+                  user_to_actuator_index_map);
+            },
+            py::arg("user_to_actuator_index_map"),
+            cls_doc.MakeActuatorSelectorMatrix
+                .doc_1args_user_to_actuator_index_map)
+        .def(
+            "MakeActuatorSelectorMatrix",
+            [](const Class* self,
+                const std::vector<JointIndex>& user_to_joint_index_map) {
+              return self->MakeActuatorSelectorMatrix(user_to_joint_index_map);
+            },
+            py::arg("user_to_joint_index_map"),
+            cls_doc.MakeActuatorSelectorMatrix
+                .doc_1args_user_to_joint_index_map)
+        .def(
             "MapVelocityToQDot",
             [](const Class* self, const Context<T>& context,
                 const Eigen::Ref<const VectorX<T>>& v) {
@@ -917,6 +937,10 @@ void DoScalarDependentDefinitions(py::module m, T) {
             cls_doc.set_contact_model.doc)
         .def("get_contact_model", &Class::get_contact_model,
             cls_doc.get_contact_model.doc)
+        .def("set_discrete_contact_solver", &Class::set_discrete_contact_solver,
+            py::arg("contact_solver"), cls_doc.set_discrete_contact_solver.doc)
+        .def("get_discrete_contact_solver", &Class::get_discrete_contact_solver,
+            cls_doc.get_discrete_contact_solver.doc)
         .def_static("GetDefaultContactSurfaceRepresentation",
             &Class::GetDefaultContactSurfaceRepresentation,
             py::arg("time_step"),
@@ -1153,7 +1177,7 @@ void DoScalarDependentDefinitions(py::module m, T) {
 
   // ExternallyAppliedSpatialForce
   {
-    using Class = multibody::ExternallyAppliedSpatialForce<T>;
+    using Class = ExternallyAppliedSpatialForce<T>;
     constexpr auto& cls_doc = doc.ExternallyAppliedSpatialForce;
     auto cls = DefineTemplateClassWithDefault<Class>(
         m, "ExternallyAppliedSpatialForce", param, cls_doc.doc);
@@ -1167,6 +1191,16 @@ void DoScalarDependentDefinitions(py::module m, T) {
     AddValueInstantiation<Class>(m);
     // Some ports need `Value<std::vector<Class>>`.
     AddValueInstantiation<std::vector<Class>>(m);
+  }
+
+  // ExternallyAppliedSpatialForceMultiplexer
+  {
+    using Class = ExternallyAppliedSpatialForceMultiplexer<T>;
+    constexpr auto& cls_doc = doc.ExternallyAppliedSpatialForceMultiplexer;
+    auto cls = DefineTemplateClassWithDefault<Class, systems::LeafSystem<T>>(
+        m, "ExternallyAppliedSpatialForceMultiplexer", param, cls_doc.doc);
+    cls  // BR
+        .def(py::init<int>(), py::arg("num_inputs"), cls_doc.ctor.doc);
   }
 
   // Propeller
@@ -1328,6 +1362,14 @@ PYBIND11_MODULE(plant, m) {
         // Legacy alias. TODO(jwnimmer-tri) Deprecate this constant.
         .value("kPointContactOnly", Class::kPointContactOnly,
             cls_doc.kPointContactOnly.doc);
+  }
+
+  {
+    using Class = DiscreteContactSolver;
+    constexpr auto& cls_doc = doc.DiscreteContactSolver;
+    py::enum_<Class>(m, "DiscreteContactSolver", cls_doc.doc)
+        .value("kTamsi", Class::kTamsi, cls_doc.kTamsi.doc)
+        .value("kSap", Class::kSap, cls_doc.kSap.doc);
   }
 
   {

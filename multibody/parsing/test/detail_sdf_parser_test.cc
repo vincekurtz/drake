@@ -1,5 +1,6 @@
 #include "drake/multibody/parsing/detail_sdf_parser.h"
 
+#include <filesystem>
 #include <memory>
 #include <regex>
 #include <sstream>
@@ -9,8 +10,8 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
-#include "drake/common/filesystem.h"
 #include "drake/common/find_resource.h"
+#include "drake/common/never_destroyed.h"
 #include "drake/common/scope_exit.h"
 #include "drake/common/test_utilities/eigen_matrix_compare.h"
 #include "drake/common/test_utilities/expect_no_throw.h"
@@ -21,6 +22,7 @@
 #include "drake/math/rigid_transform.h"
 #include "drake/math/roll_pitch_yaw.h"
 #include "drake/multibody/parsing/detail_path_utils.h"
+#include "drake/multibody/parsing/detail_urdf_parser.h"
 #include "drake/multibody/parsing/test/diagnostic_policy_test_base.h"
 #include "drake/multibody/plant/multibody_plant.h"
 #include "drake/multibody/tree/ball_rpy_joint.h"
@@ -30,6 +32,7 @@
 #include "drake/multibody/tree/revolute_joint.h"
 #include "drake/multibody/tree/revolute_spring.h"
 #include "drake/multibody/tree/rigid_body.h"
+#include "drake/multibody/tree/screw_joint.h"
 #include "drake/multibody/tree/universal_joint.h"
 #include "drake/systems/framework/context.h"
 
@@ -65,12 +68,21 @@ class SdfParserTest : public test::DiagnosticPolicyTestBase{
     plant_.RegisterAsSourceForSceneGraph(&scene_graph_);
   }
 
+  static ParserInterface& TestingSelect(const DiagnosticPolicy&,
+                                        const std::string&) {
+    // TODO(rpoyner-tri): add more formats here, as tests use them.
+    static never_destroyed<UrdfParserWrapper> urdf;
+    return urdf.access();
+  }
+
+
   ModelInstanceIndex AddModelFromSdfFile(
       const std::string& file_name,
       const std::string& model_name) {
     const DataSource data_source{DataSource::kFilename, &file_name};
     internal::CollisionFilterGroupResolver resolver{&plant_};
-    ParsingWorkspace w{package_map_, diagnostic_policy_, &plant_, &resolver};
+    ParsingWorkspace w{package_map_, diagnostic_policy_,
+                       &plant_, &resolver, TestingSelect};
     std::optional<ModelInstanceIndex> result = AddModelFromSdf(
         data_source, model_name, w);
     EXPECT_TRUE(result.has_value());
@@ -82,7 +94,8 @@ class SdfParserTest : public test::DiagnosticPolicyTestBase{
       const std::string& file_name) {
     const DataSource data_source{DataSource::kFilename, &file_name};
     internal::CollisionFilterGroupResolver resolver{&plant_};
-    ParsingWorkspace w{package_map_, diagnostic_policy_, &plant_, &resolver};
+    ParsingWorkspace w{package_map_, diagnostic_policy_,
+                       &plant_, &resolver, TestingSelect};
     auto result = AddModelsFromSdf(data_source, w);
     resolver.Resolve(diagnostic_policy_);
     return result;
@@ -92,7 +105,8 @@ class SdfParserTest : public test::DiagnosticPolicyTestBase{
       const std::string& file_contents) {
     const DataSource data_source{DataSource::kContents, &file_contents};
     internal::CollisionFilterGroupResolver resolver{&plant_};
-    ParsingWorkspace w{package_map_, diagnostic_policy_, &plant_, &resolver};
+    ParsingWorkspace w{package_map_, diagnostic_policy_, &plant_,
+                       &resolver, TestingSelect};
     auto result = AddModelsFromSdf(data_source, w);
     resolver.Resolve(diagnostic_policy_);
     return result;
@@ -178,7 +192,7 @@ TEST_F(SdfParserTest, PackageMapSpecified) {
 
   const std::string full_sdf_filename = FindResourceOrThrow(
       "drake/multibody/parsing/test/box_package/sdfs/box.sdf");
-  filesystem::path package_path = full_sdf_filename;
+  std::filesystem::path package_path = full_sdf_filename;
   package_path = package_path.parent_path();
   package_path = package_path.parent_path();
 
@@ -708,7 +722,8 @@ TEST_F(SdfParserTest, IncludeTags) {
   ASSERT_EQ(plant_.num_bodies(), 1);
   ASSERT_EQ(plant_.num_joints(), 0);
 
-  package_map_.PopulateFromFolder(filesystem::path(full_name).parent_path());
+  package_map_.PopulateFromFolder(
+      std::filesystem::path(full_name).parent_path());
   AddModelsFromSdfFile(full_name);
   plant_.Finalize();
 
@@ -836,9 +851,8 @@ TEST_F(SdfParserTest, JointParsingTest) {
       prismatic_joint.acceleration_upper_limits(), Vector1d(10)));
 
   // Limitless revolute joint
-  DRAKE_EXPECT_NO_THROW(
-      plant_.GetJointByName<RevoluteJoint>("revolute_joint_no_limits",
-                                           instance1));
+  DRAKE_EXPECT_NO_THROW(plant_.GetJointByName<RevoluteJoint>(
+      "revolute_joint_no_limits", instance1));
   const RevoluteJoint<double>& no_limit_joint =
       plant_.GetJointByName<RevoluteJoint>("revolute_joint_no_limits",
                                            instance1);
@@ -852,8 +866,8 @@ TEST_F(SdfParserTest, JointParsingTest) {
   EXPECT_TRUE(CompareMatrices(no_limit_joint.position_upper_limits(), inf));
   EXPECT_TRUE(CompareMatrices(no_limit_joint.velocity_lower_limits(), neg_inf));
   EXPECT_TRUE(CompareMatrices(no_limit_joint.velocity_upper_limits(), inf));
-  EXPECT_TRUE(CompareMatrices(
-      no_limit_joint.acceleration_lower_limits(), neg_inf));
+  EXPECT_TRUE(
+      CompareMatrices(no_limit_joint.acceleration_lower_limits(), neg_inf));
   EXPECT_TRUE(CompareMatrices(no_limit_joint.acceleration_upper_limits(), inf));
 
   // Ball joint
@@ -953,6 +967,48 @@ TEST_F(SdfParserTest, JointParsingTest) {
   EXPECT_TRUE(CompareMatrices(planar_joint2.position_upper_limits(), inf3));
   EXPECT_TRUE(CompareMatrices(planar_joint2.velocity_lower_limits(), neg_inf3));
   EXPECT_TRUE(CompareMatrices(planar_joint2.velocity_upper_limits(), inf3));
+
+  // Continuous joint
+  DRAKE_EXPECT_NO_THROW(
+      plant_.GetJointByName<RevoluteJoint>("continuous_joint", instance1));
+  const RevoluteJoint<double>& continuous_joint =
+      plant_.GetJointByName<RevoluteJoint>("continuous_joint", instance1);
+  EXPECT_EQ(continuous_joint.name(), "continuous_joint");
+  EXPECT_EQ(continuous_joint.parent_body().name(), "link7");
+  EXPECT_EQ(continuous_joint.child_body().name(), "link8");
+  EXPECT_EQ(continuous_joint.revolute_axis(), Vector3d::UnitZ());
+  EXPECT_TRUE(
+      CompareMatrices(continuous_joint.position_lower_limits(), neg_inf));
+  EXPECT_TRUE(CompareMatrices(continuous_joint.position_upper_limits(), inf));
+  EXPECT_TRUE(
+      CompareMatrices(continuous_joint.velocity_lower_limits(), neg_inf));
+  EXPECT_TRUE(CompareMatrices(continuous_joint.velocity_upper_limits(), inf));
+  EXPECT_TRUE(
+      CompareMatrices(continuous_joint.acceleration_lower_limits(), neg_inf));
+  EXPECT_TRUE(
+      CompareMatrices(continuous_joint.acceleration_upper_limits(), inf));
+
+  // Screw joint
+  DRAKE_EXPECT_NO_THROW(
+      plant_.GetJointByName<ScrewJoint>("screw_joint", instance1));
+  const ScrewJoint<double>& screw_joint =
+      plant_.GetJointByName<ScrewJoint>("screw_joint", instance1);
+  EXPECT_EQ(screw_joint.name(), "screw_joint");
+  EXPECT_EQ(screw_joint.parent_body().name(), "link8");
+  EXPECT_EQ(screw_joint.child_body().name(), "link9");
+  EXPECT_EQ(screw_joint.screw_axis(), Vector3d::UnitX());
+  EXPECT_EQ(screw_joint.screw_pitch(), 0.04);
+  EXPECT_EQ(screw_joint.damping(), 0.1);
+  EXPECT_TRUE(
+      CompareMatrices(screw_joint.position_lower_limits(), neg_inf));
+  EXPECT_TRUE(CompareMatrices(screw_joint.position_upper_limits(), inf));
+  EXPECT_TRUE(
+      CompareMatrices(screw_joint.velocity_lower_limits(), neg_inf));
+  EXPECT_TRUE(CompareMatrices(screw_joint.velocity_upper_limits(), inf));
+  EXPECT_TRUE(
+      CompareMatrices(screw_joint.acceleration_lower_limits(), neg_inf));
+  EXPECT_TRUE(
+      CompareMatrices(screw_joint.acceleration_upper_limits(), inf));
 }
 
 // Tests the error handling for an unsupported joint type (when actuated).
@@ -1080,36 +1136,6 @@ TEST_F(SdfParserTest, ActuatedBallJointParsingTest) {
 </model>)""");
   EXPECT_THAT(FormatFirstWarning(), ::testing::MatchesRegex(
       ".*effort limits.*ball joint.*not implemented.*"));
-  ClearDiagnostics();
-}
-
-// Tests the error handling for an unsupported joint type.
-TEST_F(SdfParserTest, ContinuousJointParsingTest) {
-  ParseTestString(R"""(
-<model name="molly">
-  <link name="larry" />
-  <joint name="jerry" type="continuous">
-    <parent>world</parent>
-    <child>larry</child>
-  </joint>
-</model>)""");
-  EXPECT_THAT(FormatFirstError(), ::testing::MatchesRegex(
-      ".*continuous.*not supported.*jerry.*"));
-  ClearDiagnostics();
-}
-
-// Tests the error handling for an unsupported joint type.
-TEST_F(SdfParserTest, ScrewJointParsingTest) {
-  ParseTestString(R"""(
-<model name="molly">
-  <link name="larry" />
-  <joint name="jerry" type="screw">
-    <parent>world</parent>
-    <child>larry</child>
-  </joint>
-</model>)""");
-  EXPECT_THAT(FormatFirstError(), ::testing::MatchesRegex(
-      ".*screw.*not supported.*jerry.*"));
   ClearDiagnostics();
 }
 
@@ -2363,7 +2389,7 @@ TEST_F(SdfParserTest, CollisionFilterGroupParsingTest) {
 
   // Read in the SDF file.
   package_map_.PopulateFromFolder(
-      filesystem::path(full_sdf_filename).parent_path());
+      std::filesystem::path(full_sdf_filename).parent_path());
   AddModelFromSdfFile(full_sdf_filename, "");
 
   // Get geometry ids for all the bodies.
@@ -2514,7 +2540,8 @@ TEST_F(SdfParserTest, MergeInclude) {
   ASSERT_EQ(plant_.num_bodies(), 1);
   ASSERT_EQ(plant_.num_joints(), 0);
 
-  package_map_.PopulateFromFolder(filesystem::path(full_name).parent_path());
+  package_map_.PopulateFromFolder(
+      std::filesystem::path(full_name).parent_path());
   AddModelsFromSdfFile(full_name);
   plant_.Finalize();
 

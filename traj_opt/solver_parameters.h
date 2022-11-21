@@ -79,6 +79,9 @@ struct SolverParameters {
   // Parameters for the PETSc solver. Ignored if linear_solver != kPetsc.
   PetscSolverPatameters petsc_parameters{};
 
+  // Enable/disable quaternions' normalization at each iteration.
+  bool normalize_quaternions{true};
+
   // Flag for whether to print out iteration data
   bool verbose = true;
 

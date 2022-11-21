@@ -40,21 +40,34 @@ drake_pybind_library(
     py_deps = [
         "//bindings/pydrake/multibody",
         "//bindings/pydrake/solvers",
+        "//bindings/pydrake/systems",
         "//bindings/pydrake:geometry_py",
         "//bindings/pydrake:lcm_py",
         "//bindings/pydrake:symbolic_py",
         "//lcmtypes:lcmtypes_drake_py",
     ],
     py_srcs = [
-        "all.py",
         "meldis.py",
+        "model_visualizer.py",
         "plotting.py",
+        "_meldis.py",
+        "_model_visualizer.py",
+        "_plotting.py",
+        "_video.py",
+        "_visualization_extra.py",
     ],
 )
 
 drake_py_binary(
     name = "meldis",
     srcs = ["meldis.py"],
+    visibility = ["//tools:__pkg__"],
+    deps = [":visualization"],
+)
+
+drake_py_binary(
+    name = "model_visualizer",
+    srcs = ["model_visualizer.py"],
     visibility = ["//tools:__pkg__"],
     deps = [":visualization"],
 )
@@ -86,13 +99,33 @@ drake_py_unittest(
     ],
     deps = [
         ":visualization",
+        "//bindings/pydrake/common/test_utilities:deprecation_py",
     ],
+)
+
+drake_py_unittest(
+    name = "model_visualizer_test",
+    data = [
+        ":model_visualizer",
+        "//manipulation/util:test_models",
+        "//multibody/benchmarks/acrobot:models",
+    ],
+    deps = [":model_visualizer"],
 )
 
 drake_py_unittest(
     name = "plotting_test",
     deps = [
         ":visualization",
+        "//bindings/pydrake/common/test_utilities:deprecation_py",
+    ],
+)
+
+drake_py_unittest(
+    name = "video_test",
+    deps = [
+        ":visualization",
+        "//bindings/pydrake/common/test_utilities:numpy_compare_py",
     ],
 )
 

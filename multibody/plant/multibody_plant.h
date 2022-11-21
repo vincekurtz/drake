@@ -155,8 +155,6 @@ enum class DiscreteContactSolver {
 #define DRAKE_MBP_THROW_IF_NOT_FINALIZED() ThrowIfNotFinalized(__func__)
 /// @endcond
 
-// TODO(sherm1) Rename "continuous_state" output ports to just "state" since
-//              they can be discrete. However see issue #12214.
 /**
 %MultibodyPlant is a Drake system framework representation (see
 systems::System) for the model of a physical system consisting of a
@@ -172,14 +170,14 @@ input_ports:
 - <em style="color:gray">model_instance_name[i]</em>_actuation
 - <span style="color:green">geometry_query</span>
 output_ports:
-- continuous_state
+- state
 - body_poses
 - body_spatial_velocities
 - body_spatial_accelerations
 - generalized_acceleration
 - reaction_forces
 - contact_results
-- <em style="color:gray">model_instance_name[i]</em>_continuous_state
+- <em style="color:gray">model_instance_name[i]</em>_state
 - '<em style="color:gray">
   model_instance_name[i]</em>_generalized_acceleration'
 - '<em style="color:gray">
@@ -303,7 +301,7 @@ files.  Consider the example below which loads an acrobot model:
   const std::string relative_name =
     "drake/multibody/benchmarks/acrobot/acrobot.sdf";
   const std::string full_name = FindResourceOrThrow(relative_name);
-  parser.AddModelFromFile(full_name);
+  parser.AddModels(full_name);
 @endcode
 As in the example above, for models including visual geometry, collision
 geometry or both, the user must specify a SceneGraph for geometry handling.
@@ -312,7 +310,7 @@ examples/multibody/acrobot/run_lqr.cc.
 
 AddModelFromFile() can be invoked multiple times on the same plant in order
 to load multiple model instances.  Other methods are available on Parser
-such as AddAllModelsFromFile() which allows creating model instances per
+such as AddModels() which allows creating model instances per
 each `<model>` tag found in the file. Please refer to each of these
 methods' documentation for further details.
 
@@ -1739,26 +1737,6 @@ class MultibodyPlant : public internal::MultibodyTreeSystem<T> {
     return contact_surface_representation_;
   }
 
-  /// <!-- TODO(xuchenhan-tri): Remove SetContactSolver() once
-  /// SetDiscreteUpdateManager() stabilizes. -->
-  ///
-  /// For use only by advanced developers wanting to try out their custom
-  /// contact solvers.
-  ///
-  /// @experimental
-  ///
-  /// @param solver The contact solver to be used for simulations of discrete
-  /// models with frictional contact. Discrete updates will use this solver
-  /// after this call.
-  /// @pre solver != nullptr.
-  /// @note `this` MultibodyPlant will no longer support scalar conversion to or
-  /// from symbolic::Expression after a call to this method.
-  void SetContactSolver(
-      std::unique_ptr<contact_solvers::internal::ContactSolver<T>> solver) {
-    DRAKE_DEMAND(solver != nullptr);
-    contact_solver_ = std::move(solver);
-  }
-
   /// For use only by advanced developers wanting to try out their custom time
   /// stepping strategies, including contact resolution.
   ///
@@ -1788,7 +1766,7 @@ class MultibodyPlant : public internal::MultibodyTreeSystem<T> {
   /// With this method MultibodyPlant takes ownership of `model` and
   /// calls its DeclareSystemResources() method at Finalize(), giving specific
   /// physical model implementations a chance to declare the system resources it
-  /// needs.
+  /// needs. Each type of PhysicalModel can be added at most once.
   ///
   /// @param model After this call the model is owned by `this` MultibodyPlant.
   /// @pre model != nullptr.
@@ -1882,6 +1860,13 @@ class MultibodyPlant : public internal::MultibodyTreeSystem<T> {
       double v_stiction = MultibodyPlantConfig{}.stiction_tolerance) {
     friction_model_.set_stiction_tolerance(v_stiction);
   }
+
+  /// @returns the stiction tolerance parameter, in m/s.
+  /// @see set_stiction_tolerance.
+  double stiction_tolerance() const {
+    return friction_model_.stiction_tolerance();
+  }
+
   /// @} <!-- Contact modeling -->
 
   /// @anchor mbp_state_accessors_and_mutators
@@ -4194,7 +4179,7 @@ class MultibodyPlant : public internal::MultibodyTreeSystem<T> {
   /// Returns the size of the generalized position vector q for this model.
   /// @warning The intent of this function is only to be used after Finalize().
   /// Calling it prior to Finalize() will return inaccurate results. On or after
-  /// 2022-10-01, calling this function before Finalize() will result in an
+  /// 2023-01-01, calling this function before Finalize() will result in an
   /// exception.
   int num_positions() const { return internal_tree().num_positions(); }
 
@@ -4208,7 +4193,7 @@ class MultibodyPlant : public internal::MultibodyTreeSystem<T> {
   /// Returns the size of the generalized velocity vector v for this model.
   /// @warning The intent of this function is only to be used after Finalize().
   /// Calling it prior to Finalize() will return inaccurate results. On or after
-  /// 2022-10-01, calling this function before Finalize() will result in an
+  /// 2023-01-01, calling this function before Finalize() will result in an
   /// exception.
   int num_velocities() const { return internal_tree().num_velocities(); }
 
@@ -4225,7 +4210,7 @@ class MultibodyPlant : public internal::MultibodyTreeSystem<T> {
   /// will be `num_positions()` plus `num_velocities()`.
   /// @warning The intent of this function is only to be used after Finalize().
   /// Calling it prior to Finalize() will return inaccurate results. On or after
-  /// 2022-10-01, calling this function before Finalize() will result in an
+  /// 2023-01-01, calling this function before Finalize() will result in an
   /// exception.
   int num_multibody_states() const { return internal_tree().num_states(); }
 
@@ -4572,10 +4557,9 @@ class MultibodyPlant : public internal::MultibodyTreeSystem<T> {
   // shown to be exactly conserved and to be within O(dt) of the real energy of
   // the mechanical system.)
   // TODO(amcastro-tri): Update this docs when contact is added.
-  void DoCalcDiscreteVariableUpdates(
-      const drake::systems::Context<T>& context0,
-      const std::vector<const drake::systems::DiscreteUpdateEvent<T>*>& events,
-      drake::systems::DiscreteValues<T>* updates) const override;
+  systems::EventStatus CalcDiscreteStep(
+      const systems::Context<T>& context0,
+      systems::DiscreteValues<T>* updates) const;
 
   // Helper method used within DoCalcDiscreteVariableUpdates() to update
   // generalized velocities from previous step value v0 to next step value v.
@@ -4804,7 +4788,19 @@ class MultibodyPlant : public internal::MultibodyTreeSystem<T> {
       std::vector<SpatialAcceleration<T>>* A_WB_all) const;
 
   // Method to compute spatial contact forces for continuous plants.
+  // @note This version zeros out the forces in @p F_BBo_W_array before adding
+  // in contact force.
+  // @see CalcAndAddSpatialContactForcesContinuous() for the version of this
+  // method that does not zero out the forces.
   void CalcSpatialContactForcesContinuous(
+      const drake::systems::Context<T>& context,
+      std::vector<SpatialForce<T>>* F_BBo_W_array) const;
+
+  // Method to compute spatial contact forces for continuous plants.
+  // @note This version does *not* zero out the forces in @p F_BBo_W_array.
+  // @see CalcSpatialContactForcesContinuous() for the version of this method
+  // that zeros out @p F_BBo_W_array before adding in contact forces.
+  void CalcAndAddSpatialContactForcesContinuous(
       const drake::systems::Context<T>& context,
       std::vector<SpatialForce<T>>* F_BBo_W_array) const;
 
@@ -4989,25 +4985,12 @@ class MultibodyPlant : public internal::MultibodyTreeSystem<T> {
                               joint.child_body().index());
   }
 
-  // Helper to invoke our TamsiSolver. This method and `CallContactSolver()` are
-  // disjoint methods. One should only use one or the other, but not both.
+  // Helper to invoke our TamsiSolver.
   void CallTamsiSolver(
-      TamsiSolver<T>* tamsi_solver,
-      const T& time0, const VectorX<T>& v0, const MatrixX<T>& M0,
-      const VectorX<T>& minus_tau, const VectorX<T>& fn0, const MatrixX<T>& Jn,
-      const MatrixX<T>& Jt, const VectorX<T>& stiffness,
+      TamsiSolver<T>* tamsi_solver, const T& time0, const VectorX<T>& v0,
+      const MatrixX<T>& M0, const VectorX<T>& minus_tau, const VectorX<T>& fn0,
+      const MatrixX<T>& Jn, const MatrixX<T>& Jt, const VectorX<T>& stiffness,
       const VectorX<T>& damping, const VectorX<T>& mu,
-      contact_solvers::internal::ContactSolverResults<T>* results) const;
-
-  // Helper to invoke ContactSolver when one is available. This method and
-  // `CallTamsiSolver()` are disjoint methods. One should only use one or the
-  // other, but not both.
-  void CallContactSolver(
-      contact_solvers::internal::ContactSolver<T>* contact_solver,
-      const T& time0, const VectorX<T>& v0, const MatrixX<T>& M0,
-      const VectorX<T>& minus_tau, const VectorX<T>& phi0, const MatrixX<T>& Jc,
-      const VectorX<T>& stiffness, const VectorX<T>& damping,
-      const VectorX<T>& mu,
       contact_solvers::internal::ContactSolverResults<T>* results) const;
 
   // Removes `this` MultibodyPlant's ability to convert to the scalar types
@@ -5211,11 +5194,6 @@ class MultibodyPlant : public internal::MultibodyTreeSystem<T> {
   // plant is modeled as a continuous system, it is exactly zero.
   double time_step_{0};
 
-  // TODO(xuchenhan-tri): Entirely remove the contact_solver_ back door by the
-  // newer design using DiscreteUpdateManager. When not the nullptr, this is the
-  // solver to be used for discrete updates.
-  std::unique_ptr<contact_solvers::internal::ContactSolver<T>> contact_solver_;
-
   // When not the nullptr, this manager class is used to advance discrete
   // states.
   // TODO(amcastro-tri): migrate the entirety of computations related to contact
@@ -5400,16 +5378,6 @@ template <>
 void MultibodyPlant<symbolic::Expression>::CalcHydroelasticWithFallback(
     const systems::Context<symbolic::Expression>&,
     internal::HydroelasticFallbackCacheData<symbolic::Expression>*) const;
-template <>
-void MultibodyPlant<symbolic::Expression>::CallContactSolver(
-    contact_solvers::internal::ContactSolver<symbolic::Expression>*,
-    const symbolic::Expression&, const VectorX<symbolic::Expression>&,
-    const MatrixX<symbolic::Expression>&, const VectorX<symbolic::Expression>&,
-    const VectorX<symbolic::Expression>&, const MatrixX<symbolic::Expression>&,
-    const VectorX<symbolic::Expression>&, const VectorX<symbolic::Expression>&,
-    const VectorX<symbolic::Expression>&,
-    contact_solvers::internal::ContactSolverResults<symbolic::Expression>*)
-    const;
 #endif
 
 }  // namespace multibody

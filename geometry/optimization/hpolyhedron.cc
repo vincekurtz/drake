@@ -50,8 +50,8 @@ std::tuple<bool, solvers::MathematicalProgramResult> IsInfeasible(
 }
 
 // Checks if Ax ≤ b defines an empty set.
-bool IsEmpty(const Eigen::Ref<const MatrixXd>& A,
-             const Eigen::Ref<const VectorXd>& b) {
+bool DoIsEmpty(const Eigen::Ref<const MatrixXd>& A,
+               const Eigen::Ref<const VectorXd>& b) {
   solvers::MathematicalProgram prog;
   solvers::VectorXDecisionVariable x =
       prog.NewContinuousVariables(A.cols(), "x");
@@ -224,7 +224,7 @@ HPolyhedron HPolyhedron::Intersection(const HPolyhedron& other,
 
 VectorXd HPolyhedron::UniformSample(
     RandomGenerator* generator,
-    const Eigen::Ref<Eigen::VectorXd>& previous_sample) const {
+    const Eigen::Ref<const Eigen::VectorXd>& previous_sample) const {
   std::normal_distribution<double> gaussian;
   // Choose a random direction.
   VectorXd direction(ambient_dimension());
@@ -232,7 +232,8 @@ VectorXd HPolyhedron::UniformSample(
     direction[i] = gaussian(*generator);
   }
   // Find max and min θ subject to
-  //   A(previous_sample + θ*direction) ≤ b.
+  //   A(previous_sample + θ*direction) ≤ b,
+  // aka ∀i, θ * (A * direction)[i] ≤ (b - A * previous_sample)[i].
   VectorXd line_b = b_ - A_ * previous_sample;
   VectorXd line_a = A_ * direction;
   double theta_max = std::numeric_limits<double>::infinity();
@@ -244,12 +245,14 @@ VectorXd HPolyhedron::UniformSample(
       theta_max = std::min(theta_max, line_b[i] / line_a[i]);
     }
   }
-  if (std::isinf(theta_max) || std::isinf(theta_min)) {
-    throw std::invalid_argument(
+  if (std::isinf(theta_max) || std::isinf(theta_min) || theta_max < theta_min) {
+    throw std::invalid_argument(fmt::format(
         "The Hit and Run algorithm failed to find a feasible point in the set. "
-        "The `previous_sample` must be in the set.");
+        "The `previous_sample` must be in the set.\nmax(A * previous_sample - "
+        "b) = {}",
+        (A_ * previous_sample - b_).maxCoeff()));
   }
-  // Now pick θ uniformly from [θ_min, θ_max].
+  // Now pick θ uniformly from [θ_min, θ_max).
   std::uniform_real_distribution<double> uniform_theta(theta_min, theta_max);
   const double theta = uniform_theta(*generator);
   // The new sample is previous_sample + θ * direction.
@@ -325,7 +328,7 @@ bool HPolyhedron::ContainedIn(const HPolyhedron& other, double tol) const {
   DRAKE_DEMAND(other.A().cols() == A_.cols());
   // `this` defines an empty set and therefore is contained in any `other`
   // HPolyhedron.
-  if (IsEmpty(A_, b_)) {
+  if (DoIsEmpty(A_, b_)) {
     return true;
   }
 
@@ -400,7 +403,7 @@ HPolyhedron HPolyhedron::DoIntersectionWithChecks(const HPolyhedron& other,
       A.row(num_kept) = other.A().row(i);
       b.row(num_kept) = other.b().row(i);
       ++num_kept;
-      if (IsEmpty(A.topRows(num_kept), b.topRows(num_kept))) {
+      if (DoIsEmpty(A.topRows(num_kept), b.topRows(num_kept))) {
         return {A.topRows(num_kept), b.topRows(num_kept)};
       }
     }
@@ -433,23 +436,28 @@ HPolyhedron HPolyhedron::ReduceInequalities(double tol) const {
                                b_.row(i), x);
     }
 
-    // Constraint to check redundant.
-    Binding<solvers::LinearConstraint> redundant_constraint_binding =
-        prog.AddLinearConstraint(A_.row(excluded_index),
-                                 VectorXd::Constant(1, -kInf),
-                                 b_.row(excluded_index) + VectorXd::Ones(1), x);
-
-    // Construct cost binding for prog.
-    Binding<solvers::LinearCost> program_cost_binding =
-        prog.AddLinearCost(-A_.row(excluded_index), 0, x);
-
-    // The current inequality is redundant.
+    // First we check whether the current index defines an empty set. If it
+    // does, then any new constraint is already redundant. This check is
+    // expected before calling IsRedundant.
     if (std::get<0>(IsInfeasible(prog))) {
       kept_indices.erase(excluded_index);
-    } else if (IsRedundant(A_.row(excluded_index), b_(excluded_index), &prog,
-                           &redundant_constraint_binding, &program_cost_binding,
-                           tol)) {
-      kept_indices.erase(excluded_index);
+    } else {
+      // Constraint to check redundant.
+      Binding<solvers::LinearConstraint> redundant_constraint_binding =
+          prog.AddLinearConstraint(
+              A_.row(excluded_index), VectorXd::Constant(1, -kInf),
+              b_.row(excluded_index) + VectorXd::Ones(1), x);
+
+      // Construct cost binding for prog.
+      Binding<solvers::LinearCost> program_cost_binding =
+          prog.AddLinearCost(-A_.row(excluded_index), 0, x);
+
+      // The current inequality is redundant.
+      if (IsRedundant(A_.row(excluded_index), b_(excluded_index), &prog,
+                      &redundant_constraint_binding, &program_cost_binding,
+                      tol)) {
+        kept_indices.erase(excluded_index);
+      }
     }
   }
 
@@ -463,6 +471,8 @@ HPolyhedron HPolyhedron::ReduceInequalities(double tol) const {
   }
   return {A_new, b_new};
 }
+
+bool HPolyhedron::IsEmpty() const { return DoIsEmpty(A_, b_); }
 
 bool HPolyhedron::DoPointInSet(const Eigen::Ref<const VectorXd>& x,
                                double tol) const {
@@ -525,13 +535,6 @@ HPolyhedron::DoToShapeWithPose() const {
       "class (to support in-memory mesh data, or file I/O).");
 }
 
-void HPolyhedron::ImplementGeometry(const HalfSpace&, void* data) {
-  auto* Ab = static_cast<std::pair<MatrixXd, VectorXd>*>(data);
-  // z <= 0.0.
-  Ab->first = Eigen::RowVector3d{0.0, 0.0, 1.0};
-  Ab->second = Vector1d{0.0};
-}
-
 void HPolyhedron::ImplementGeometry(const Box& box, void* data) {
   Eigen::Matrix<double, 6, 3> A;
   A << Eigen::Matrix3d::Identity(), -Eigen::Matrix3d::Identity();
@@ -543,6 +546,13 @@ void HPolyhedron::ImplementGeometry(const Box& box, void* data) {
   auto* Ab = static_cast<std::pair<MatrixXd, VectorXd>*>(data);
   Ab->first = A;
   Ab->second = b;
+}
+
+void HPolyhedron::ImplementGeometry(const HalfSpace&, void* data) {
+  auto* Ab = static_cast<std::pair<MatrixXd, VectorXd>*>(data);
+  // z <= 0.0.
+  Ab->first = Eigen::RowVector3d{0.0, 0.0, 1.0};
+  Ab->second = Vector1d{0.0};
 }
 
 HPolyhedron HPolyhedron::PontryaginDifference(const HPolyhedron& other) const {

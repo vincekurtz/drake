@@ -1,8 +1,9 @@
 #include "drake/solvers/mosek_solver.h"
 
+#include <filesystem>
+
 #include <gtest/gtest.h>
 
-#include "drake/common/filesystem.h"
 #include "drake/common/temp_directory.h"
 #include "drake/common/test_utilities/expect_throws_message.h"
 #include "drake/solvers/mathematical_program.h"
@@ -61,6 +62,13 @@ TEST_F(UnboundedLinearProgramTest1, Test) {
   }
 }
 
+TEST_F(DuplicatedVariableLinearProgramTest1, Test) {
+  MosekSolver solver;
+  if (solver.available()) {
+    CheckSolution(solver);
+  }
+}
+
 TEST_P(QuadraticProgramTest, TestQP) {
   MosekSolver solver;
   prob()->RunProblem(&solver);
@@ -89,6 +97,13 @@ TEST_P(TestEllipsoidsSeparation, TestSOCP) {
 INSTANTIATE_TEST_SUITE_P(
     MosekTest, TestEllipsoidsSeparation,
     ::testing::ValuesIn(GetEllipsoidsSeparationProblems()));
+
+GTEST_TEST(TestDuplicatedVariableQuadraticProgram, Test) {
+  MosekSolver solver;
+  if (solver.available()) {
+    TestDuplicatedVariableQuadraticProgram(solver);
+  }
+}
 
 TEST_P(TestQPasSOCP, TestSOCP) {
   MosekSolver mosek_solver;
@@ -134,6 +149,11 @@ GTEST_TEST(TestSOCP, SmallestEllipsoidCoveringProblem) {
   // Mosek 10 returns a solution that is accurate up to 1.3E-5 for this specific
   // problem. Might need to change the tolerance when we upgrade Mosek.
   SolveAndCheckSmallestEllipsoidCoveringProblems(solver, {}, 1.3E-5);
+}
+
+GTEST_TEST(TestSOCP, TestSocpDuplicatedVariable1) {
+  MosekSolver solver;
+  TestSocpDuplicatedVariable1(solver, std::nullopt, 1E-6);
 }
 
 GTEST_TEST(TestSemidefiniteProgram, TrivialSDP) {
@@ -213,12 +233,12 @@ GTEST_TEST(MosekTest, TestLogging) {
   prog.AddLinearConstraint(x(0) + x(1) == 1);
 
   const std::string log_file = temp_directory() + "/mosek_logging.log";
-  EXPECT_FALSE(filesystem::exists({log_file}));
+  EXPECT_FALSE(std::filesystem::exists({log_file}));
   MosekSolver solver;
   MathematicalProgramResult result;
   solver.Solve(prog, {}, {}, &result);
   // By default, no logging file.
-  EXPECT_FALSE(filesystem::exists({log_file}));
+  EXPECT_FALSE(std::filesystem::exists({log_file}));
   // Print to console. We can only test this doesn't cause any runtime error. We
   // can't test if the logging message is actually printed to the console.
   SolverOptions solver_options;
@@ -228,7 +248,7 @@ GTEST_TEST(MosekTest, TestLogging) {
   // Output the logging to the console
   solver_options.SetOption(CommonSolverOption::kPrintFileName, log_file);
   solver.Solve(prog, {}, solver_options, &result);
-  EXPECT_TRUE(filesystem::exists({log_file}));
+  EXPECT_TRUE(std::filesystem::exists({log_file}));
   // Now set both print to console and the log file. This will cause an error.
   solver_options.SetOption(CommonSolverOption::kPrintToConsole, 1);
   DRAKE_EXPECT_THROWS_MESSAGE(
@@ -286,15 +306,15 @@ GTEST_TEST(MosekTest, Write) {
   MosekSolver mosek_solver;
   SolverOptions solver_options;
   const std::string file = temp_directory() + "mosek.mps";
-  EXPECT_FALSE(filesystem::exists(file));
+  EXPECT_FALSE(std::filesystem::exists(file));
   solver_options.SetOption(MosekSolver::id(), "writedata", file);
   mosek_solver.Solve(prog, {}, solver_options);
-  EXPECT_TRUE(filesystem::exists(file));
-  filesystem::remove(file);
+  EXPECT_TRUE(std::filesystem::exists(file));
+  std::filesystem::remove(file);
   // Set "writedata" to "". Now expect no model file.
   solver_options.SetOption(MosekSolver::id(), "writedata", "");
   mosek_solver.Solve(prog, {}, solver_options);
-  EXPECT_FALSE(filesystem::exists(file));
+  EXPECT_FALSE(std::filesystem::exists(file));
 }
 
 GTEST_TEST(MosekSolver, TestInitialGuess) {

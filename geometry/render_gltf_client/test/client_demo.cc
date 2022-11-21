@@ -43,13 +43,13 @@
    - (optional) Confirm that occluding *transparent* objects are rendered the
      same. */
 
+#include <filesystem>
 #include <memory>
 #include <utility>
 
 #include <fmt/format.h>
 #include <gflags/gflags.h>
 
-#include "drake/common/filesystem.h"
 #include "drake/common/find_resource.h"
 #include "drake/common/text_logging.h"
 #include "drake/geometry/drake_visualizer.h"
@@ -103,6 +103,10 @@ DEFINE_string(
 DEFINE_string(
     server_render_endpoint, RenderEngineGltfClientParams{}.render_endpoint,
     "The render_endpoint for the render server.");
+DEFINE_bool(
+    cleanup, RenderEngineGltfClientParams{}.cleanup,
+    "Whether the client should cleanup files generated or retrieved from the "
+    "server.");
 
 static bool valid_render_engine(const char* flagname, const std::string& val) {
   if (val == "vtk")
@@ -165,7 +169,8 @@ bool IsValidSaveDirectory(const std::string& save_dir) {
   if (save_dir.empty())
     return false;
 
-  if (!filesystem::exists(save_dir) || !filesystem::is_directory(save_dir)) {
+  if (!std::filesystem::exists(save_dir) ||
+      !std::filesystem::is_directory(save_dir)) {
     throw std::logic_error(fmt::format(
         "Provided save_dir {} is invalid", save_dir));
   }
@@ -179,6 +184,9 @@ int DoMain() {
   auto [plant, scene_graph] =
       multibody::AddMultibodyPlantSceneGraph(&builder, 0.0);
 
+  // Log debug messages and set `params.verbose` to true if `cleanup=false`.
+  if (!FLAGS_cleanup) logging::set_log_level("debug");
+
   const std::string renderer_name("renderer");
   if (FLAGS_render_engine == "vtk") {
     scene_graph.AddRenderer(renderer_name, geometry::MakeRenderEngineVtk({}));
@@ -186,6 +194,8 @@ int DoMain() {
     RenderEngineGltfClientParams params;
     params.base_url = FLAGS_server_base_url;
     params.render_endpoint = FLAGS_server_render_endpoint;
+    params.cleanup = FLAGS_cleanup;
+    params.verbose = !FLAGS_cleanup;
     scene_graph.AddRenderer(renderer_name,
                             geometry::MakeRenderEngineGltfClient(params));
   }
@@ -195,10 +205,8 @@ int DoMain() {
   // we don't want to have to wait for gravity to take effect to observe a
   // difference in position.
   Parser parser{&plant};
-  parser.AddModelFromFile(
-      FindResourceOrThrow(
-          "drake/geometry/render_gltf_client/test/example_scene.sdf"),
-      "example_scene");
+  parser.AddModels(FindResourceOrThrow(
+      "drake/geometry/render_gltf_client/test/example_scene.sdf"));
 
   DrakeLcm lcm;
   DrakeVisualizerd::AddToBuilder(&builder, scene_graph, &lcm);
@@ -235,7 +243,8 @@ int DoMain() {
   }
 
   const std::string filename =
-      (filesystem::path(FLAGS_save_dir) / "{image_type}_{count:03}").string();
+      (std::filesystem::path(FLAGS_save_dir) / "{image_type}_{count:03}").
+          string();
 
   if (FLAGS_color) {
     const auto& port =

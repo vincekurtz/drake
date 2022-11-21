@@ -58,6 +58,11 @@ cp -r -t ${WHEEL_DIR}/pydrake \
 cp -r -t ${WHEEL_DIR}/pydrake/lib \
     /opt/drake/lib/libdrake*.so
 
+if [[ "$(uname)" == "Linux" ]]; then
+  cp -r -t ${WHEEL_DIR}/pydrake \
+      /opt/drake-wheel-content/*
+fi
+
 # NOTE: build-vtk.sh also puts licenses in /opt/drake-dependencies/licenses.
 cp -r -t ${WHEEL_DIR}/pydrake/doc \
     /opt/drake-dependencies/licenses/*

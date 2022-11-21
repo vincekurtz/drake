@@ -4,6 +4,7 @@
 #include <atomic>
 #include <cctype>
 #include <exception>
+#include <filesystem>
 #include <fstream>
 #include <functional>
 #include <future>
@@ -24,7 +25,6 @@
 #include <uuid.h>
 
 #include "drake/common/drake_throw.h"
-#include "drake/common/filesystem.h"
 #include "drake/common/find_resource.h"
 #include "drake/common/never_destroyed.h"
 #include "drake/common/scope_exit.h"
@@ -58,8 +58,6 @@ const std::string& GetUrlContent(std::string_view url_path) {
       LoadResource("drake/geometry/meshcat.js"));
   static const drake::never_destroyed<std::string> stats_js(
       LoadResource("drake/geometry/stats.min.js"));
-  static const drake::never_destroyed<std::string> msgpack_lite_js(
-      LoadResource("drake/geometry/msgpack.min.js"));
   static const drake::never_destroyed<std::string> meshcat_ico(
       LoadResource("drake/geometry/meshcat.ico"));
   static const drake::never_destroyed<std::string> meshcat_html(
@@ -75,9 +73,6 @@ const std::string& GetUrlContent(std::string_view url_path) {
   }
   if (url_path == "/stats.min.js") {
     return stats_js.access();
-  }
-  if (url_path == "/msgpack.min.js") {
-    return msgpack_lite_js.access();
   }
   if (url_path == "/favicon.ico") {
     return meshcat_ico.access();
@@ -267,76 +262,6 @@ class MeshcatShapeReifier : public ShapeReifier {
 
   using ShapeReifier::ImplementGeometry;
 
-  void ImplementGeometry(const Sphere& sphere, void* data) override {
-    DRAKE_DEMAND(data != nullptr);
-    auto& lumped = *static_cast<internal::LumpedObjectData*>(data);
-    lumped.object = internal::MeshData();
-
-    auto geometry = std::make_unique<internal::SphereGeometryData>();
-    geometry->uuid = uuids::to_string((*uuid_generator_)());
-    geometry->radius = sphere.radius();
-    lumped.geometry = std::move(geometry);
-  }
-
-  void ImplementGeometry(const Cylinder& cylinder, void* data) override {
-    DRAKE_DEMAND(data != nullptr);
-    auto& lumped = *static_cast<internal::LumpedObjectData*>(data);
-    auto& mesh = lumped.object.emplace<internal::MeshData>();
-
-    auto geometry = std::make_unique<internal::CylinderGeometryData>();
-    geometry->uuid = uuids::to_string((*uuid_generator_)());
-    geometry->radiusBottom = cylinder.radius();
-    geometry->radiusTop = cylinder.radius();
-    geometry->height = cylinder.length();
-    lumped.geometry = std::move(geometry);
-
-    // Meshcat cylinders have their long axis in y.
-    Eigen::Map<Eigen::Matrix4d>(mesh.matrix) =
-        RigidTransformd(RotationMatrixd::MakeXRotation(M_PI / 2.0))
-            .GetAsMatrix4();
-  }
-
-  void ImplementGeometry(const HalfSpace&, void*) override {
-    // TODO(russt): Use PlaneGeometry with fields width, height,
-    // widthSegments, heightSegments
-    drake::log()->warn("Meshcat does not display HalfSpace geometry (yet).");
-  }
-
-  void ImplementGeometry(const Box& box, void* data) override {
-    DRAKE_DEMAND(data != nullptr);
-    auto& lumped = *static_cast<internal::LumpedObjectData*>(data);
-    lumped.object = internal::MeshData();
-
-    auto geometry = std::make_unique<internal::BoxGeometryData>();
-    geometry->uuid = uuids::to_string((*uuid_generator_)());
-    geometry->width = box.width();
-    // Three.js uses height for the y axis; Drake uses depth.
-    geometry->height = box.depth();
-    geometry->depth = box.height();
-    lumped.geometry = std::move(geometry);
-  }
-
-  void ImplementGeometry(const Capsule&, void*) override {
-    drake::log()->warn("Meshcat does not display Capsule geometry (yet).");
-  }
-
-  void ImplementGeometry(const Ellipsoid& ellipsoid, void* data) override {
-    // Implemented as a Sphere stretched by a diagonal transform.
-    DRAKE_DEMAND(data != nullptr);
-    auto& lumped = *static_cast<internal::LumpedObjectData*>(data);
-    auto& mesh = lumped.object.emplace<internal::MeshData>();
-
-    auto geometry = std::make_unique<internal::SphereGeometryData>();
-    geometry->uuid = uuids::to_string((*uuid_generator_)());
-    geometry->radius = 1;
-    lumped.geometry = std::move(geometry);
-
-    Eigen::Map<Eigen::Matrix4d> matrix(mesh.matrix);
-    matrix(0, 0) = ellipsoid.a();
-    matrix(1, 1) = ellipsoid.b();
-    matrix(2, 2) = ellipsoid.c();
-  }
-
   template <typename T>
   void ImplementMesh(const T& mesh, void* data) {
     DRAKE_DEMAND(data != nullptr);
@@ -346,7 +271,7 @@ class MeshcatShapeReifier : public ShapeReifier {
     // meshes unless necessary.  Using the filename is tempting, but that leads
     // to problems when the file contents change on disk.
 
-    const filesystem::path filename(mesh.filename());
+    const std::filesystem::path filename(mesh.filename());
     std::string format = filename.extension();
     format.erase(0, 1);  // remove the . from the extension
     std::ifstream input(mesh.filename(), std::ios::binary | std::ios::ate);
@@ -392,7 +317,7 @@ class MeshcatShapeReifier : public ShapeReifier {
       std::string mtllib = matches.str(1);
 
       // Use filename path as the base directory for textures.
-      const filesystem::path basedir = filename.parent_path();
+      const std::filesystem::path basedir = filename.parent_path();
 
       // Read .mtl file into geometry.mtl_library.
       std::ifstream mtl_stream(basedir / mtllib, std::ios::ate);
@@ -466,11 +391,83 @@ class MeshcatShapeReifier : public ShapeReifier {
     }
     }
 
-  void ImplementGeometry(const Mesh& mesh, void* data) override {
-    ImplementMesh(mesh, data);
+  void ImplementGeometry(const Box& box, void* data) override {
+    DRAKE_DEMAND(data != nullptr);
+    auto& lumped = *static_cast<internal::LumpedObjectData*>(data);
+    lumped.object = internal::MeshData();
+
+    auto geometry = std::make_unique<internal::BoxGeometryData>();
+    geometry->uuid = uuids::to_string((*uuid_generator_)());
+    geometry->width = box.width();
+    // Three.js uses height for the y axis; Drake uses depth.
+    geometry->height = box.depth();
+    geometry->depth = box.height();
+    lumped.geometry = std::move(geometry);
+  }
+
+  void ImplementGeometry(const Capsule& capsule, void* data) override {
+    DRAKE_DEMAND(data != nullptr);
+    auto& lumped = *static_cast<internal::LumpedObjectData*>(data);
+    auto& mesh = lumped.object.emplace<internal::MeshData>();
+
+    auto geometry = std::make_unique<internal::CapsuleGeometryData>();
+    geometry->uuid = uuids::to_string((*uuid_generator_)());
+    geometry->radius = capsule.radius();
+    geometry->length = capsule.length();
+    lumped.geometry = std::move(geometry);
+
+    // Meshcat cylinders have their long axis in y.
+    Eigen::Map<Eigen::Matrix4d>(mesh.matrix) =
+        RigidTransformd(RotationMatrixd::MakeXRotation(M_PI / 2.0))
+            .GetAsMatrix4();
   }
 
   void ImplementGeometry(const Convex& mesh, void* data) override {
+    ImplementMesh(mesh, data);
+  }
+
+  void ImplementGeometry(const Cylinder& cylinder, void* data) override {
+    DRAKE_DEMAND(data != nullptr);
+    auto& lumped = *static_cast<internal::LumpedObjectData*>(data);
+    auto& mesh = lumped.object.emplace<internal::MeshData>();
+
+    auto geometry = std::make_unique<internal::CylinderGeometryData>();
+    geometry->uuid = uuids::to_string((*uuid_generator_)());
+    geometry->radiusBottom = cylinder.radius();
+    geometry->radiusTop = cylinder.radius();
+    geometry->height = cylinder.length();
+    lumped.geometry = std::move(geometry);
+
+    // Meshcat cylinders have their long axis in y.
+    Eigen::Map<Eigen::Matrix4d>(mesh.matrix) =
+        RigidTransformd(RotationMatrixd::MakeXRotation(M_PI / 2.0))
+            .GetAsMatrix4();
+  }
+
+  void ImplementGeometry(const Ellipsoid& ellipsoid, void* data) override {
+    // Implemented as a Sphere stretched by a diagonal transform.
+    DRAKE_DEMAND(data != nullptr);
+    auto& lumped = *static_cast<internal::LumpedObjectData*>(data);
+    auto& mesh = lumped.object.emplace<internal::MeshData>();
+
+    auto geometry = std::make_unique<internal::SphereGeometryData>();
+    geometry->uuid = uuids::to_string((*uuid_generator_)());
+    geometry->radius = 1;
+    lumped.geometry = std::move(geometry);
+
+    Eigen::Map<Eigen::Matrix4d> matrix(mesh.matrix);
+    matrix(0, 0) = ellipsoid.a();
+    matrix(1, 1) = ellipsoid.b();
+    matrix(2, 2) = ellipsoid.c();
+  }
+
+  void ImplementGeometry(const HalfSpace&, void*) override {
+    // TODO(russt): Use PlaneGeometry with fields width, height,
+    // widthSegments, heightSegments
+    drake::log()->warn("Meshcat does not display HalfSpace geometry (yet).");
+  }
+
+  void ImplementGeometry(const Mesh& mesh, void* data) override {
     ImplementMesh(mesh, data);
   }
 
@@ -494,6 +491,17 @@ class MeshcatShapeReifier : public ShapeReifier {
         RigidTransformd(RotationMatrixd::MakeXRotation(M_PI / 2.0),
                         Eigen::Vector3d{0, 0, cone.height() / 2.0})
             .GetAsMatrix4();
+  }
+
+  void ImplementGeometry(const Sphere& sphere, void* data) override {
+    DRAKE_DEMAND(data != nullptr);
+    auto& lumped = *static_cast<internal::LumpedObjectData*>(data);
+    lumped.object = internal::MeshData();
+
+    auto geometry = std::make_unique<internal::SphereGeometryData>();
+    geometry->uuid = uuids::to_string((*uuid_generator_)());
+    geometry->radius = sphere.radius();
+    lumped.geometry = std::move(geometry);
   }
 
  private:
@@ -542,7 +550,8 @@ class Meshcat::Impl {
     // values) through to fmt to allow any fmt-specific exception to percolate.
     // Then, confirm that the user's pattern started with a valid protocol.
     const std::string url = fmt::format(
-        params.web_url_pattern, fmt::arg("host", "foo"), fmt::arg("port", 1));
+        fmt_runtime(params.web_url_pattern),
+        fmt::arg("host", "foo"), fmt::arg("port", 1));
     if (url.substr(0, 4) != "http") {
       throw std::logic_error("The web_url_pattern must be http:// or https://");
     }
@@ -611,7 +620,7 @@ class Meshcat::Impl {
     const bool is_localhost = host.empty() || host == "*";
     const std::string display_host = is_localhost ? "localhost" : host;
     return fmt::format(
-        params_.web_url_pattern,
+        fmt_runtime(params_.web_url_pattern),
         fmt::arg("host", display_host),
         fmt::arg("port", port_));
   }
@@ -1251,7 +1260,7 @@ class Meshcat::Impl {
   }
 
   // This function is public via the PIMPL.
-  int GetButtonClicks(std::string_view name) {
+  int GetButtonClicks(std::string_view name) const {
     std::lock_guard<std::mutex> lock(controls_mutex_);
     auto iter = buttons_.find(name);
     if (iter == buttons_.end()) {
@@ -1373,7 +1382,7 @@ class Meshcat::Impl {
   }
 
   // This function is public via the PIMPL.
-  double GetSliderValue(std::string_view name) {
+  double GetSliderValue(std::string_view name) const {
     DRAKE_DEMAND(IsThread(main_thread_id_));
 
     std::lock_guard<std::mutex> lock(controls_mutex_);
@@ -1434,6 +1443,13 @@ class Meshcat::Impl {
     }
   }
 
+  Meshcat::Gamepad GetGamepad() const {
+    DRAKE_DEMAND(IsThread(main_thread_id_));
+
+    std::lock_guard<std::mutex> lock(controls_mutex_);
+    return gamepad_;
+  }
+
   // This function is public via the PIMPL.
   std::string StaticHtml() {
     DRAKE_DEMAND(IsThread(main_thread_id_));
@@ -1460,7 +1476,6 @@ class Meshcat::Impl {
     std::vector<std::pair<std::string, std::string>> js_paths{
         {" src=\"meshcat.js\"", "/meshcat.js"},
         {" src=\"stats.min.js\"", "/stats.min.js"},
-        {" src=\"msgpack.min.js\"", "/msgpack.min.js"},
     };
 
     for (const auto& [src_link, url] : js_paths) {
@@ -1806,6 +1821,14 @@ class Meshcat::Impl {
       }
       return;
     }
+    if (data.type == "gamepad" && data.gamepad.has_value()) {
+      // TODO(russt): Figure out how to do the non-invasive unpack of
+      // Meshcat::Gamepad and remove internal::Gamepad.
+      gamepad_.index = data.gamepad->index;
+      gamepad_.button_values = std::move(data.gamepad->button_values);
+      gamepad_.axes = std::move(data.gamepad->axes);
+      return;
+    }
     drake::log()->warn("Meshcat ignored a '{}' event", data.type);
     if (inject_message_fault_.load()) {
       throw std::runtime_error(
@@ -1872,10 +1895,11 @@ class Meshcat::Impl {
   std::thread websocket_thread_{};
   const std::string prefix_{};
 
-  // Both threads access controls_, guarded by controls_mutex_.
-  std::mutex controls_mutex_;
+  // Both threads access the following variables, guarded by controls_mutex_.
+  mutable std::mutex controls_mutex_;
   std::map<std::string, internal::SetButtonControl, std::less<>> buttons_{};
   std::map<std::string, internal::SetSliderControl, std::less<>> sliders_{};
+  Meshcat::Gamepad gamepad_{};
   std::vector<std::string> controls_{};  // Names of buttons and sliders in the
                                          // order they were added.
 
@@ -2141,7 +2165,7 @@ void Meshcat::AddButton(std::string name, std::string keycode) {
   impl().AddButton(std::move(name), std::move(keycode));
 }
 
-int Meshcat::GetButtonClicks(std::string_view name) {
+int Meshcat::GetButtonClicks(std::string_view name) const {
   return impl().GetButtonClicks(name);
 }
 
@@ -2160,7 +2184,7 @@ void Meshcat::SetSliderValue(std::string name, double value) {
   impl().SetSliderValue(std::move(name), value);
 }
 
-double Meshcat::GetSliderValue(std::string_view name) {
+double Meshcat::GetSliderValue(std::string_view name) const {
   return impl().GetSliderValue(name);
 }
 
@@ -2170,6 +2194,10 @@ void Meshcat::DeleteSlider(std::string name) {
 
 void Meshcat::DeleteAddedControls() {
   impl().DeleteAddedControls();
+}
+
+Meshcat::Gamepad Meshcat::GetGamepad() const {
+  return impl().GetGamepad();
 }
 
 std::string Meshcat::StaticHtml() {

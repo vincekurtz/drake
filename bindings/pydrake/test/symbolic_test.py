@@ -3,11 +3,13 @@
 import copy
 import itertools
 import unittest
+import warnings
 
 import numpy as np
 
 import pydrake.symbolic as sym
 import pydrake.common
+from pydrake.common.test_utilities.deprecation import catch_drake_warnings
 import pydrake.math as drake_math
 from pydrake.test.algebra_test_util import ScalarAlgebra, VectorizedAlgebra
 from pydrake.common.containers import EqualToDict
@@ -1150,6 +1152,11 @@ class TestSymbolicMonomial(unittest.TestCase):
         basis = sym.OddDegreeMonomialBasis(vars, 3)
         self.assertEqual(basis.size, 6)
 
+    def test_calc_monomial_basis_order_up_to_one(self):
+        basis = sym.CalcMonomialBasisOrderUpToOne(
+            x=sym.Variables([x, y, z]), sort_monomial=False)
+        self.assertEqual(basis.size, 8)
+
     def test_evaluate(self):
         m = sym.Monomial(x, 3) * sym.Monomial(y)  # m = x³y
         env = {x: 2.0,
@@ -2279,7 +2286,10 @@ class TestStereographicSubstitution(unittest.TestCase):
             sym.Polynomial((1+ty*ty)*(1+tx*tx)).Expand()))
 
         e = 2 * np.sin(x) + np.sin(y) * np.cos(x)
-        r = sym.SubstituteStereographicProjection(e=e, subs={x: tx, y: ty})
+        # The following method is deprecated, to be removed on or after
+        # 2023-02-01.
+        with catch_drake_warnings(expected_count=1):
+            r = sym.SubstituteStereographicProjection(e=e, subs={x: tx, y: ty})
         self.assertTrue(r.numerator().Expand().EqualTo(
             sym.Polynomial(4*tx*(1+ty*ty) + 2*ty * (1-tx*tx)).Expand()))
         self.assertTrue(r.denominator().Expand().EqualTo(
@@ -2298,3 +2308,19 @@ class TestReplaceBilinearTerms(unittest.TestCase):
         e = x[0]*y[1] * 3 + x[1]*y[2] * 4
         e_replace = sym.ReplaceBilinearTerms(e=e, x=x, y=y, W=W)
         self.assertTrue(e_replace.EqualTo(W[0, 1]*3 + W[1, 2]*4))
+
+
+class TestIssue17898(unittest.TestCase):
+    def test_numpy_dtype_object_operations_no_warnings(self):
+        """
+        Tests that operations like `np.matmul`, `np.sqrt`, etc. do not issue
+        warnings when using Drake-specified dtype=object types.
+
+        See #17898 for more context.
+        """
+        with warnings.catch_warnings(record=True) as w:
+            v = sym.MakeVectorVariable(2, "v")
+            np.eye(2) @ v
+            np.sqrt(v)
+            # Ensure no user-visible warnings occur.
+            self.assertEqual(len(w), 0)
