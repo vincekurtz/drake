@@ -1,5 +1,4 @@
 import matplotlib
-import matplotlib.animation as animation
 import numpy as np
 from warnings import warn
 
@@ -54,7 +53,7 @@ class PyPlotVisualizer(LeafSystem):
 
         self.set_name('pyplot_visualization')
         self.timestep = draw_period or default_draw_period
-        self.DeclarePeriodicPublish(self.timestep, 0.0)
+        self.DeclarePeriodicPublishNoHandler(self.timestep, 0.0)
 
         if ax is None:
             self.fig = self._plt.figure(facecolor=facecolor, figsize=figsize)
@@ -129,6 +128,9 @@ class PyPlotVisualizer(LeafSystem):
         return self.draw(self._recorded_contexts[i])
 
     def get_recording_as_animation(self, **kwargs):
+        # We defer this import to this call site to prevent the import
+        # from hanging. See #18323.
+        import matplotlib.animation as animation
         ani = animation.FuncAnimation(fig=self.fig,
                                       func=self._draw_recorded_frame,
                                       frames=len(self._recorded_contexts),
@@ -161,6 +163,9 @@ class PyPlotVisualizer(LeafSystem):
         def animate_update(i):
             self.draw(x[:, i])
 
+        # We defer this import to this call site to prevent the import
+        # from hanging. See #18323.
+        import matplotlib.animation as animation
         ani = animation.FuncAnimation(fig=self.fig,
                                       func=animate_update,
                                       frames=t.shape[0],

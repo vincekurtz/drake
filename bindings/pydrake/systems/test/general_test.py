@@ -186,6 +186,7 @@ class TestGeneral(unittest.TestCase):
                 systemU = Adder_[U](3, 10)
                 contextU = systemU.CreateDefaultContext()
                 contextU.SetTime(0.5)
+                contextT.SetStateAndParametersFrom(contextU)
                 contextT.SetTimeStateAndParametersFrom(contextU)
                 if T == float:
                     self.assertEqual(contextT.get_time(), 0.5)
@@ -234,6 +235,8 @@ class TestGeneral(unittest.TestCase):
         context.SetDiscreteState(group_index=0, xd=3 * x)
         np.testing.assert_equal(
             context.get_discrete_state_vector().CopyToVector(), 3 * x)
+        # Just verify that the third overload is present.
+        context.SetDiscreteState(context.get_discrete_state())
 
         def check_abstract_value_zero(context, expected_value):
             # Check through Context, State, and AbstractValues APIs.
@@ -290,12 +293,17 @@ class TestGeneral(unittest.TestCase):
         system1 = LinearSystem(A=[1], B=[1], C=[1], D=[1], time_period=0.1)
         periodic_data = system1.GetUniquePeriodicDiscreteUpdateAttribute()
         self.assertIsInstance(periodic_data, PeriodicEventData)
-        self.assertIsInstance(periodic_data.Clone(), PeriodicEventData)
         periodic_data.period_sec()
         periodic_data.offset_sec()
+        self.assertTrue(copy.copy(periodic_data) is not periodic_data)
         is_diff_eq, period = system1.IsDifferenceEquationSystem()
         self.assertTrue(is_diff_eq)
         self.assertEqual(period, periodic_data.period_sec())
+        context = system1.CreateDefaultContext()
+        system1.get_input_port(0).FixValue(context, 0.0)
+        updated_discrete = system1.EvalUniquePeriodicDiscreteUpdate(context)
+        self.assertEqual(updated_discrete.num_groups(),
+                         context.get_discrete_state().num_groups())
 
         # Simple continuous-time system.
         system2 = LinearSystem(A=[1], B=[1], C=[1], D=[1], time_period=0.0)
@@ -943,6 +951,8 @@ class TestGeneral(unittest.TestCase):
             builder.ExportInput(adder1.get_input_port(0), "in0")
             builder.ExportInput(adder1.get_input_port(1), "in1")
             builder.ExportOutput(adder2.get_output_port(), "out")
+            builder.GetSubsystemByName(name="adder1")
+            builder.GetMutableSubsystemByName(name="adder2")
             self.assertEqual(len(builder.connection_map()), 1)
             diagram = builder.Build()
             return adder1, adder2, diagram

@@ -37,8 +37,10 @@ using solvers::LinearEqualityConstraint;
 using solvers::LInfNormCost;
 using solvers::MathematicalProgram;
 using solvers::MathematicalProgramResult;
+using solvers::MatrixXDecisionVariable;
 using solvers::PerspectiveQuadraticCost;
 using solvers::QuadraticCost;
+using solvers::SolutionResult;
 using solvers::VariableRefList;
 using solvers::VectorXDecisionVariable;
 using symbolic::Expression;
@@ -642,7 +644,7 @@ MathematicalProgramResult GraphOfConvexSets::SolveShortestPath(
 
   std::map<VertexId, std::vector<Edge*>> incoming_edges;
   std::map<VertexId, std::vector<Edge*>> outgoing_edges;
-  std::map<VertexId, VectorXDecisionVariable> vertex_edge_ell;
+  std::map<VertexId, MatrixXDecisionVariable> vertex_edge_ell;
   std::vector<Edge*> excluded_edges;
 
   std::map<EdgeId, Variable> relaxed_phi;
@@ -884,7 +886,8 @@ MathematicalProgramResult GraphOfConvexSets::SolveShortestPath(
   // Implements the rounding scheme put forth in Section 4.2 of
   // "Motion Planning around Obstacles with Convex Optimization":
   // https://arxiv.org/abs/2205.04422
-  if (options.convex_relaxation && options.max_rounded_paths > 0) {
+  if (options.convex_relaxation && options.max_rounded_paths > 0 &&
+      result.is_success()) {
     DRAKE_THROW_UNLESS(options.max_rounding_trials > 0);
     RandomGenerator generator(options.rounding_seed);
     std::uniform_real_distribution<double> uniform;
@@ -898,7 +901,7 @@ MathematicalProgramResult GraphOfConvexSets::SolveShortestPath(
       }
     }
     int num_trials = 0;
-    MathematicalProgramResult best_result;
+    MathematicalProgramResult best_rounded_result;
     while (static_cast<int>(paths.size()) < options.max_rounded_paths &&
            num_trials < options.max_rounding_trials) {
       ++num_trials;
@@ -917,12 +920,14 @@ MathematicalProgramResult GraphOfConvexSets::SolveShortestPath(
             candidate_edges.emplace_back(e);
           }
         }
-        // Note: This rounding strategy should not end at a node with no
-        // candidate outbound edges. If it does, the right next step would be to
-        // pop the last` path_vertex_ids` and `new_path` edge. Since no examples
-        // of this happening have been observed, we use an assertion to detect a
-        // failure instead of adding an untested conditional.
-        DRAKE_DEMAND(candidate_edges.size() > 0);
+        // If the depth first search finds itself at a node with no candidate
+        // outbound edges, backtrack to the previous node and continue the
+        // search.
+        if (candidate_edges.size() == 0) {
+          path_vertex_ids.pop_back();
+          new_path.pop_back();
+          continue;
+        }
         Eigen::VectorXd candidate_flows(candidate_edges.size());
         for (size_t ii = 0; ii < candidate_edges.size(); ++ii) {
           candidate_flows(ii) = flows[candidate_edges[ii]->id()];
@@ -969,18 +974,23 @@ MathematicalProgramResult GraphOfConvexSets::SolveShortestPath(
 
       MathematicalProgramResult rounded_result = Solve(prog, options);
 
-      // Check path quality and early termination.
+      // Check path quality.
       if (rounded_result.is_success() &&
-          (num_trials == 1 || rounded_result.get_optimal_cost() <
-                                  best_result.get_optimal_cost())) {
-        best_result = rounded_result;
+          (!best_rounded_result.is_success() ||
+           rounded_result.get_optimal_cost() <
+               best_rounded_result.get_optimal_cost())) {
+        best_rounded_result = rounded_result;
       }
 
       for (Binding<Constraint>& con : added_constraints) {
         prog.RemoveConstraint(con);
       }
     }
-    result = best_result;
+    if (best_rounded_result.is_success()) {
+      result = best_rounded_result;
+    } else {
+      result.set_solution_result(SolutionResult::kIterationLimit);
+    }
   }
 
   // Push the placeholder variables and excluded edge variables into the result,

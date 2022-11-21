@@ -140,6 +140,13 @@ class TestGeometryOptimization(unittest.TestCase):
         h_half_box3 = h_half_box_intersect_unit_box.ReduceInequalities(
             tol=1E-9)
 
+        # This polyhedron is intentionally constructed to be an empty set.
+        A_empty = np.vstack([np.eye(3), -np.eye(3)])
+        b_empty = -np.ones(6)
+        h_empty = mut.HPolyhedron(A_empty, b_empty)
+        self.assertTrue(h_empty.IsEmpty())
+        self.assertFalse(h_l1_ball.IsEmpty())
+
     def test_hyper_ellipsoid(self):
         ellipsoid = mut.Hyperellipsoid(A=self.A, center=self.b)
         self.assertEqual(ellipsoid.ambient_dimension(), 3)
@@ -393,11 +400,12 @@ class TestGeometryOptimization(unittest.TestCase):
 </robot>"""
         builder = DiagramBuilder()
         plant, scene_graph = AddMultibodyPlantSceneGraph(builder, 0.0)
-        Parser(plant).AddModelFromString(limits_urdf, "urdf")
+        Parser(plant).AddModelsFromString(limits_urdf, "urdf")
         plant.Finalize()
         diagram = builder.Build()
         context = diagram.CreateDefaultContext()
         options = mut.IrisOptions()
+        options.num_collision_infeasible_samples = 3
         ik = InverseKinematics(plant)
         options.prog_with_additional_constraints = ik.prog()
         options.num_additional_constraint_infeasible_samples = 2
@@ -409,6 +417,14 @@ class TestGeometryOptimization(unittest.TestCase):
         self.assertEqual(region.ambient_dimension(), 1)
         self.assertTrue(region.PointInSet([1.0]))
         self.assertFalse(region.PointInSet([3.0]))
+        options.configuration_obstacles = [mut.Point([-0.5])]
+        region = mut.IrisInConfigurationSpace(
+            plant=plant, context=plant.GetMyContextFromRoot(context),
+            options=options)
+        self.assertIsInstance(region, mut.ConvexSet)
+        self.assertEqual(region.ambient_dimension(), 1)
+        self.assertTrue(region.PointInSet([1.0]))
+        self.assertFalse(region.PointInSet([-1.0]))
 
     def test_graph_of_convex_sets(self):
         options = mut.GraphOfConvexSetsOptions()
@@ -420,6 +436,9 @@ class TestGeometryOptimization(unittest.TestCase):
         options.rounding_seed = 1
         options.solver = ClpSolver()
         options.solver_options = SolverOptions()
+        options.solver_options.SetOption(ClpSolver.id(), "scaling", 2)
+        self.assertIn("scaling",
+                      options.solver_options.GetOptions(ClpSolver.id()))
         self.assertIn("convex_relaxation", repr(options))
 
         spp = mut.GraphOfConvexSets()

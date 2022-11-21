@@ -31,6 +31,11 @@ from pydrake.systems.framework import (
     InputPort,
     OutputPort,
     )
+from pydrake.systems.lcm import LcmBuses, _Serializer_
+from drake import (
+    lcmt_image,
+    lcmt_image_array,
+)
 
 # Shorthand aliases, to reduce verbosity.
 pt = mut.PixelType
@@ -88,6 +93,7 @@ class TestSensors(unittest.TestCase):
             ImageT = mut.Image[pixel_type]
             self.assertEqual(ImageT.Traits, mut.ImageTraits[pixel_type])
             self.assertEqual(ImageT, image_type_alias)
+            ImageT()
 
             w = 640
             h = 480
@@ -207,6 +213,21 @@ class TestSensors(unittest.TestCase):
         # Systems have been added.
         self.assertGreater(len(builder.GetSystems()), system_count)
 
+    def test_camera_config_lcm_buses(self):
+        builder = DiagramBuilder()
+        plant, scene_graph = AddMultibodyPlantSceneGraph(builder, 0.0)
+        system_count = len(builder.GetSystems())
+
+        # We'll call the Apply function using lcm_buses= instead of lcm=.
+        lcm_buses = LcmBuses()
+        lcm_buses.Add("fancy", DrakeLcm())
+        config = mut.CameraConfig(lcm_bus="fancy")
+        mut.ApplyCameraConfig(config=config, builder=builder,
+                              lcm_buses=lcm_buses)
+
+        # Check that systems were added.
+        self.assertGreater(len(builder.GetSystems()), system_count)
+
     def test_camera_info(self):
         width = 640
         height = 480
@@ -248,8 +269,8 @@ class TestSensors(unittest.TestCase):
     def _check_output(self, value):
         self.assertIsInstance(value, OutputPort)
 
-    def test_image_to_lcm_image_array_t(self):
-        # Test nominal constructor.
+    def test_image_to_lcm_image_array_basic(self):
+        """Tests the nominal constructor."""
         dut = mut.ImageToLcmImageArrayT(
             color_frame_name="color", depth_frame_name="depth",
             label_frame_name="label", do_compress=False)
@@ -257,15 +278,19 @@ class TestSensors(unittest.TestCase):
                 dut.color_image_input_port(), dut.depth_image_input_port(),
                 dut.label_image_input_port()):
             self._check_input(port)
-        self._check_output(dut.image_array_t_msg_output_port())
+        for port in (
+                dut.image_array_t_msg_output_port(),):
+            self._check_output(port)
 
-        # Test custom constructor, test functionality (up to getting abstract
-        # value).
+    def test_image_to_lcm_image_array_custom(self):
+        """Tests the custom constructor and runtime functionality."""
+        # Declare ports using the custom constructor.
         dut = mut.ImageToLcmImageArrayT(do_compress=False)
-        # Declare ports.
         for pixel_type in pixel_types:
             name = str(pixel_type)
             dut.DeclareImageInputPort[pixel_type](name=name)
+
+        # Populate the input images.
         context = dut.CreateDefaultContext()
         for pixel_type in pixel_types:
             name = str(pixel_type)
@@ -273,11 +298,72 @@ class TestSensors(unittest.TestCase):
             self._check_input(port)
             image = mut.Image[pixel_type](width=1, height=1)
             port.FixValue(context, image)
+
+        # Compute the C++ message as a Value<drake::lcmt_image_array>.
         output = dut.AllocateOutput()
         dut.CalcOutput(context, output)
-        # N.B. This Value[] is a C++ LCM object. See
-        # `lcm_py_bind_cpp_serializers.h` for more information.
-        self.assertIsInstance(output.get_data(0), AbstractValue)
+        cxx_message = output.get_data(0)
+
+        # We can't access that C++ message from Python (messages are not bound
+        # into the Value[] template class), so to inspect it we'll need to
+        # serialize down into raw bytes and then back into a Python message.
+        serializer = _Serializer_[lcmt_image_array]()
+        message = lcmt_image_array.decode(serializer.Serialize(cxx_message))
+
+        # Inspect the message for correctness.
+        self.assertEqual(message.num_images, len(pixel_types))
+        for i, image in enumerate(message.images):
+            pixel_type = pixel_types[i]
+            with self.subTest(pixel_type=pixel_type):
+                self.assertEqual(image.width, 1)
+                self.assertEqual(image.height, 1)
+                expected_format = {
+                    pt.kRgba8U: lcmt_image.PIXEL_FORMAT_RGBA,
+                    pt.kDepth16U: lcmt_image.PIXEL_FORMAT_DEPTH,
+                    pt.kDepth32F: lcmt_image.PIXEL_FORMAT_DEPTH,
+                    pt.kLabel16I: lcmt_image.PIXEL_FORMAT_LABEL,
+                }[pixel_type]
+                self.assertEqual(image.pixel_format, expected_format)
+
+    def test_lcm_image_array_to_images_basic(self):
+        """Tests all API calls as well as runtime functionality."""
+        dut = mut.LcmImageArrayToImages()
+        for port in (
+                dut.image_array_t_input_port(),):
+            self._check_input(port)
+        for port in (
+                dut.color_image_output_port(),
+                dut.depth_image_output_port()):
+            self._check_output(port)
+
+        # Create a one-pixel lcmt_image message.
+        image_message = lcmt_image()
+        image_message.pixel_format = lcmt_image.PIXEL_FORMAT_RGBA
+        image_message.channel_type = lcmt_image.CHANNEL_TYPE_UINT8
+        image_message.width = 1
+        image_message.height = 1
+        image_message.row_stride = 4
+        image_message.size = 4
+        image_message.data = [0] * 4
+
+        # Wrap the single image message into an image_array message.
+        array_message = lcmt_image_array()
+        array_message.num_images = 1
+        array_message.images = [image_message]
+
+        # Copy the message into the Context. This is a bit tricky because the
+        # input port is Value<drake::lcmt_image_array> which is not bound into
+        # the Value[] class template, so we need to encode/decode to get there.
+        context = dut.CreateDefaultContext()
+        serializer = _Serializer_[lcmt_image_array]()
+        cxx_message = serializer.CreateDefaultValue()
+        serializer.Deserialize(array_message.encode(), cxx_message)
+        dut.image_array_t_input_port().FixValue(context, cxx_message)
+
+        # Extract the message's color image using the dut.
+        image = dut.color_image_output_port().Eval(context)
+        self.assertEqual(image.width(), 1)
+        self.assertEqual(image.height(), 1)
 
     def test_rgbd_sensor(self):
         def check_ports(system):

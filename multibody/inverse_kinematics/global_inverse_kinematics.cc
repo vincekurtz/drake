@@ -48,6 +48,28 @@ std::unordered_set<BodyIndex> GetWeldToWorldBodyIndexSet(
   }
   return weld_to_world_body_index_set;
 }
+
+bool IsWeld(const Joint<double>& joint) {
+  const bool is_weld = !joint.can_rotate() && !joint.can_translate() &&
+                       joint.num_positions() == 0 &&
+                       joint.num_velocities() == 0;
+  if (is_weld) {
+    DRAKE_THROW_UNLESS(dynamic_cast<const WeldJoint<double>*>(&joint) !=
+                       nullptr);
+  }
+  return is_weld;
+}
+
+bool IsRevolute(const Joint<double>& joint) {
+  const bool is_revolute = joint.can_rotate() && !joint.can_translate() &&
+                           joint.num_positions() == 1 &&
+                           joint.num_velocities() == 1;
+  if (is_revolute) {
+    DRAKE_THROW_UNLESS(dynamic_cast<const RevoluteJoint<double>*>(&joint) !=
+                       nullptr);
+  }
+  return is_revolute;
+}
 }  // namespace
 
 GlobalInverseKinematics::GlobalInverseKinematics(
@@ -78,16 +100,28 @@ GlobalInverseKinematics::GlobalInverseKinematics(
   // This dummy_plant_context is used to compute the pose of a body welded to
   // the world.
   auto dummy_plant_context = plant_.CreateDefaultContext();
+  // First go through each body to assign the pose variables.
   for (BodyIndex body_idx{1}; body_idx < num_bodies; ++body_idx) {
     const Body<double>& body = plant_.get_body(body_idx);
     const string body_R_name = body.name() + "_R";
     const string body_pos_name = body.name() + "_pos";
     p_WBo_[body_idx] = prog_.NewContinuousVariables<3>(body_pos_name);
+    if (weld_to_world_body_index_set.count(body_idx) > 0) {
+      // This body is welded to the world.
+      R_WB_[body_idx] = prog_.NewContinuousVariables<3, 3>(body_R_name);
+    } else {
+      // This body is not rigidly fixed to the world.
+      R_WB_[body_idx] = solvers::NewRotationMatrixVars(&prog_, body_R_name);
+    }
+  }
+  // Now go through each body to add the kinematic constraint between each body
+  // and its parent.
+  for (BodyIndex body_idx{1}; body_idx < num_bodies; ++body_idx) {
+    const Body<double>& body = plant_.get_body(body_idx);
     // If the body is fixed to the world, then fix the decision variables on
     // the body position and orientation.
     if (weld_to_world_body_index_set.count(body_idx) > 0) {
       // This body is welded to the world.
-      R_WB_[body_idx] = prog_.NewContinuousVariables<3, 3>(body_R_name);
       const math::RigidTransformd X_WB = plant_.CalcRelativeTransform(
           *dummy_plant_context, plant_.world_frame(), body.body_frame());
       // TODO(hongkai.dai): clean up this for loop using
@@ -101,8 +135,6 @@ GlobalInverseKinematics::GlobalInverseKinematics(
                                      p_WBo_[body_idx]);
     } else {
       // This body is not rigidly fixed to the world.
-      R_WB_[body_idx] = solvers::NewRotationMatrixVars(&prog_, body_R_name);
-
       if (!options.linear_constraint_only) {
         solvers::AddRotationMatrixOrthonormalSocpConstraint(&prog_,
                                                             R_WB_[body_idx]);
@@ -128,9 +160,9 @@ GlobalInverseKinematics::GlobalInverseKinematics(
             joint->frame_on_parent().GetFixedPoseInBodyFrame();
         const RigidTransformd X_CJc =
             joint->frame_on_child().GetFixedPoseInBodyFrame();
-        if (dynamic_cast<const WeldJoint<double>*>(joint) != nullptr) {
+        if (IsWeld(*joint)) {
           const WeldJoint<double>* weld_joint =
-              dynamic_cast<const WeldJoint<double>*>(joint);
+              static_cast<const WeldJoint<double>*>(joint);
 
           const RigidTransformd X_JpJc = weld_joint->X_FM();
           const RigidTransformd X_PC =
@@ -155,10 +187,9 @@ GlobalInverseKinematics::GlobalInverseKinematics(
             prog_.AddLinearEqualityConstraint(orient_invariance.col(i),
                                               Vector3d::Zero());
           }
-        } else if (dynamic_cast<const RevoluteJoint<double>*>(joint) !=
-                   nullptr) {
+        } else if (IsRevolute(*joint)) {
           const RevoluteJoint<double>* revolute_joint =
-              dynamic_cast<const RevoluteJoint<double>*>(joint);
+              static_cast<const RevoluteJoint<double>*>(joint);
           // Adding mixed-integer constraint will add binary variables into
           // the program.
           rotation_generator.AddToProgram(R_WB_[body_idx], &prog_);
@@ -171,7 +202,7 @@ GlobalInverseKinematics::GlobalInverseKinematics(
           // where axis_Jc = axis_Jp since the rotation axis is invaraiant in
           // the inboard frame Jp and the outboard frame Jc.
           prog_.AddLinearEqualityConstraint(
-              R_WB_[body_idx] * X_CJc.rotation().matrix().transpose() * axis -
+              R_WB_[body_idx] * X_CJc.rotation().matrix() * axis -
                   R_WB_[parent_idx] * X_PJp.rotation().matrix() * axis,
               Vector3d::Zero());
 
@@ -179,7 +210,7 @@ GlobalInverseKinematics::GlobalInverseKinematics(
           // parent bodies.
           prog_.AddLinearEqualityConstraint(
               p_WBo_[parent_idx] + R_WB_[parent_idx] * X_PJp.translation() -
-                  p_WBo_[body_idx] + R_WB_[body_idx] * X_CJc.translation(),
+                  p_WBo_[body_idx] - R_WB_[body_idx] * X_CJc.translation(),
               Vector3d::Zero());
 
           // Now we process the joint limits constraint.
@@ -357,19 +388,6 @@ Eigen::VectorXd GlobalInverseKinematics::ReconstructGeneralizedPositionSolution(
     ++body_idx;
   }
   return q;
-}
-
-solvers::Binding<solvers::LinearConstraint>
-GlobalInverseKinematics::AddWorldPositionConstraint(
-    BodyIndex body_idx, const Eigen::Vector3d& p_BQ,
-    const Eigen::Vector3d& box_lb_F, const Eigen::Vector3d& box_ub_F,
-    const Eigen::Isometry3d& X_WF) {
-  const Vector3<Expression> body_pt_pos =
-      p_WBo_[body_idx] + R_WB_[body_idx] * p_BQ;
-  const Vector3<Expression> body_pt_in_measured_frame =
-      X_WF.linear().transpose() * (body_pt_pos - X_WF.translation());
-  return prog_.AddLinearConstraint(body_pt_in_measured_frame, box_lb_F,
-                                   box_ub_F);
 }
 
 solvers::Binding<solvers::LinearConstraint>

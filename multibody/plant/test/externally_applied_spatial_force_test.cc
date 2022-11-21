@@ -117,7 +117,7 @@ class ExternallyAppliedForcesTest : public ::testing::Test {
         FindResourceOrThrow("drake/multibody/benchmarks/acrobot/acrobot.sdf");
     systems::DiagramBuilder<double> builder;
     plant_ = builder.AddSystem<MultibodyPlant<double>>(time_step);
-    Parser(plant_).AddModelFromFile(full_name);
+    Parser(plant_).AddModels(full_name);
     plant_->Finalize();
 
     // Add the system that applies inverse gravitational forces to the link
@@ -168,7 +168,7 @@ TEST_F(ExternallyAppliedForcesTest, DiscretePlant) {
   MakePlantWithGravityCompensator(1.0e-3);
 
   auto updates = diagram_->AllocateDiscreteVariables();
-  diagram_->CalcDiscreteVariableUpdates(*context_, updates.get());
+  diagram_->CalcForcedDiscreteVariableUpdate(*context_, updates.get());
 
   // Copies to plain Eigen vectors to verify the math.
   auto& acrobot_context =

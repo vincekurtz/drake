@@ -10,10 +10,9 @@ You can also visualize the LCM test data like so:
         TestMeldis.test_contact_applet_hydroelastic
 """
 
-import pydrake.visualization.meldis as mut
+import pydrake.visualization as mut
 
 import unittest
-
 from drake import (
     lcmt_viewer_geometry_data,
     lcmt_viewer_link_data,
@@ -21,6 +20,9 @@ from drake import (
 
 from pydrake.common import (
     FindResourceOrThrow,
+)
+from pydrake.common.test_utilities.deprecation import (
+    catch_drake_warnings,
 )
 from pydrake.geometry import (
     DrakeVisualizer,
@@ -48,7 +50,7 @@ class TestMeldis(unittest.TestCase):
         builder = DiagramBuilder()
         plant, scene_graph = AddMultibodyPlantSceneGraph(builder, 0.0)
         parser = Parser(plant=plant)
-        parser.AddModelFromFile(FindResourceOrThrow(sdf_filename))
+        parser.AddModels(FindResourceOrThrow(sdf_filename))
         plant.Finalize()
         DrakeVisualizer.AddToBuilder(builder=builder, scene_graph=scene_graph,
                                      params=visualizer_params, lcm=lcm)
@@ -73,7 +75,7 @@ class TestMeldis(unittest.TestCase):
             visualizer_params=DrakeVisualizerParams(),
             lcm=lcm)
         context = diagram.CreateDefaultContext()
-        diagram.Publish(context)
+        diagram.ForcedPublish(context)
 
         # The geometry isn't registered until the load is processed.
         self.assertEqual(meshcat.HasPath("/DRAKE_VIEWER"), False)
@@ -100,7 +102,7 @@ class TestMeldis(unittest.TestCase):
                 role=Role.kProximity),
             lcm=lcm)
         context = diagram.CreateDefaultContext()
-        diagram.Publish(context)
+        diagram.ForcedPublish(context)
         lcm.HandleSubscriptions(timeout_millis=0)
         dut._invoke_subscriptions()
 
@@ -136,7 +138,7 @@ class TestMeldis(unittest.TestCase):
         context = diagram.CreateDefaultContext()
         plant.SetPositions(plant.GetMyMutableContextFromRoot(context),
                            [-0.03, 0.03])
-        diagram.Publish(context)
+        diagram.ForcedPublish(context)
 
         # The geometry isn't registered until the load is processed.
         pair_path = "/CONTACT_RESULTS/point/base_link(2)+base_link(3)"
@@ -163,7 +165,7 @@ class TestMeldis(unittest.TestCase):
         builder = DiagramBuilder()
         plant, scene_graph = AddMultibodyPlantSceneGraph(builder, 0.001)
         parser = Parser(plant=plant)
-        parser.AddModelFromFile(sdf_file)
+        parser.AddModels(sdf_file)
         body1 = plant.GetBodyByName("body1")
         body2 = plant.GetBodyByName("body2")
         plant.AddJoint(PrismaticJoint(
@@ -179,7 +181,7 @@ class TestMeldis(unittest.TestCase):
         context = diagram.CreateDefaultContext()
         plant.SetPositions(plant.GetMyMutableContextFromRoot(context),
                            [0.1, 0.3])
-        diagram.Publish(context)
+        diagram.ForcedPublish(context)
 
         # The geometry isn't registered until the load is processed.
         hydro_path = "/CONTACT_RESULTS/hydroelastic/" + \
@@ -248,3 +250,8 @@ class TestMeldis(unittest.TestCase):
 
         # After the handlers are called, we have the expected meshcat path.
         self.assertEqual(dut.meshcat.HasPath(meshcat_path), True)
+
+    def test_deprecation(self):
+        import pydrake.visualization.meldis as old
+        with catch_drake_warnings(expected_count=1):
+            old.Meldis(meshcat_port=None)

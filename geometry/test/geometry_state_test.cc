@@ -220,23 +220,6 @@ class ShapeMatcher final : public ShapeReifier {
   // Shape reifier implementations.
   using ShapeReifier::ImplementGeometry;
 
-  void ImplementGeometry(const Sphere& sphere, void*) final {
-    if (IsExpectedType(sphere)) {
-      TestShapeParameters(sphere);
-    }
-  }
-
-  void ImplementGeometry(const Cylinder& cylinder, void*) final {
-    if (IsExpectedType(cylinder)) {
-      TestShapeParameters(cylinder);
-    }
-  }
-
-  void ImplementGeometry(const HalfSpace& half_space, void*) final {
-    // Halfspace has no parameters; so no further testing is necessary.
-    IsExpectedType(half_space);
-  }
-
   void ImplementGeometry(const Box& box, void*) final {
     if (IsExpectedType(box)) {
       TestShapeParameters(box);
@@ -249,15 +232,34 @@ class ShapeMatcher final : public ShapeReifier {
     }
   }
 
+  void ImplementGeometry(const Convex& convex, void*) final {
+    if (IsExpectedType(convex)) {
+      TestShapeParameters(convex);
+    }
+  }
+
+  void ImplementGeometry(const Cylinder& cylinder, void*) final {
+    if (IsExpectedType(cylinder)) {
+      TestShapeParameters(cylinder);
+    }
+  }
+
+  // TODO(SeanCurtis-TRI): Why are we missing ellipsoid and meshcat cone?
+
+  void ImplementGeometry(const HalfSpace& half_space, void*) final {
+    // Halfspace has no parameters; so no further testing is necessary.
+    IsExpectedType(half_space);
+  }
+
   void ImplementGeometry(const Mesh& mesh, void*) final {
     if (IsExpectedType(mesh)) {
       TestShapeParameters(mesh);
     }
   }
 
-  void ImplementGeometry(const Convex& convex, void*) final {
-    if (IsExpectedType(convex)) {
-      TestShapeParameters(convex);
+  void ImplementGeometry(const Sphere& sphere, void*) final {
+    if (IsExpectedType(sphere)) {
+      TestShapeParameters(sphere);
     }
   }
 
@@ -1675,8 +1677,10 @@ TEST_F(GeometryStateTest, RegisterDeformableGeometry) {
       "Registering deformable geometry.*non-world frame.*");
 
   /* Successful registration of deformable geometry. */
+  const RigidTransformd X_WG(AngleAxis<double>(M_PI_2, Vector3d::UnitX()),
+                             Vector3d{1, 2, 3});
   auto instance2 = make_unique<GeometryInstance>(
-      RigidTransformd::Identity(), make_unique<Sphere>(sphere), "sphere");
+      X_WG, make_unique<Sphere>(sphere), "sphere");
   const GeometryId expected_g_id = instance2->id();
   const auto g_id = geometry_state_.RegisterDeformableGeometry(
       s_id, InternalFrame::world_frame_id(), move(instance2), kRezHint);
@@ -1696,10 +1700,12 @@ TEST_F(GeometryStateTest, RegisterDeformableGeometry) {
   ASSERT_NE(reference_mesh, nullptr);
   EXPECT_TRUE(reference_mesh->Equal(expected_mesh));
 
-  // Verify querying pose on deformable geometry throws. (Deformable geometries
-  // are characterized by vertex positions.)
-  EXPECT_THROW(geometry_state_.GetPoseInFrame(g_id), std::exception);
-  EXPECT_THROW(geometry_state_.GetPoseInParent(g_id), std::exception);
+  // Querying the _reference_ pose is fine.
+  EXPECT_TRUE(geometry_state_.GetPoseInFrame(g_id).IsExactlyEqualTo(X_WG));
+  EXPECT_TRUE(geometry_state_.GetPoseInParent(g_id).IsExactlyEqualTo(X_WG));
+  // Querying _current_ pose on deformable geometry throws. (Deformable
+  // geometries are characterized by vertex positions via
+  // get_configurations_in_world.)
   EXPECT_THROW(geometry_state_.get_pose_in_world(g_id), std::exception);
 
   // Verify vertex positions can be retrieved.

@@ -7,8 +7,9 @@ from pydrake.multibody.meshcat import (
 )
 
 import copy
-import os
 import unittest
+
+import numpy as np
 
 from pydrake.common import (
     FindResourceOrThrow,
@@ -25,7 +26,6 @@ from pydrake.multibody.parsing import (
 )
 from pydrake.multibody.plant import (
     AddMultibodyPlantSceneGraph,
-    MultibodyPlant,
 )
 from pydrake.systems.framework import (
     DiagramBuilder,
@@ -79,7 +79,7 @@ class TestMeshcat(unittest.TestCase):
         builder = DiagramBuilder()
         plant, scene_graph = AddMultibodyPlantSceneGraph(builder, 0.0)
         parser = Parser(plant)
-        parser.AddModelFromFile(acrobot_file)
+        parser.AddModels(acrobot_file)
         plant.Finalize()
 
         # Construct a sliders system, using every available option.
@@ -91,6 +91,8 @@ class TestMeshcat(unittest.TestCase):
             lower_limit=[-3.0, -6.0],
             upper_limit=[3.0, 6.0],
             step=[0.25, 0.50],
+            decrement_keycodes=["ArrowLeft", "ArrowDown"],
+            increment_keycodes=["ArrowRight", "ArrowUp"],
         )
 
         # Various methods should not crash.
@@ -126,7 +128,10 @@ class TestMeshcat(unittest.TestCase):
         # The Run function doesn't crash.
         builder.AddSystem(dut)
         diagram = builder.Build()
-        dut.Run(diagram=diagram, timeout=1.0)
+        q = dut.Run(diagram=diagram,
+                    timeout=1.0,
+                    stop_button_keycode="ArrowLeft")
+        np.testing.assert_equal(q, [0, 0])
 
         # The SetPositions function doesn't crash (Acrobot has two positions).
         dut.SetPositions(q=[1, 2])

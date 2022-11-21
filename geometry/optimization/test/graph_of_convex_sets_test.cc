@@ -6,6 +6,7 @@
 #include <gtest/gtest.h>
 
 #include "drake/common/test_utilities/eigen_matrix_compare.h"
+#include "drake/common/test_utilities/expect_no_throw.h"
 #include "drake/common/test_utilities/expect_throws_message.h"
 #include "drake/geometry/optimization/hpolyhedron.h"
 #include "drake/geometry/optimization/hyperellipsoid.h"
@@ -36,6 +37,7 @@ using solvers::LinearCost;
 using solvers::LinearEqualityConstraint;
 using solvers::MathematicalProgramResult;
 using solvers::QuadraticCost;
+using solvers::SolutionResult;
 using solvers::SolverOptions;
 using symbolic::Environment;
 using symbolic::Expression;
@@ -483,6 +485,12 @@ TEST_F(ThreePoints, LinearCost5) {
   source_->AddCost(b);
   DRAKE_EXPECT_THROWS_MESSAGE(g_.SolveShortestPath(*source_, *target_, options),
                               "Constant costs must be non-negative.*");
+}
+
+TEST_F(ThreePoints, MultipleVertexCosts) {
+  source_->AddCost(1.0);
+  source_->AddCost(1.0);
+  DRAKE_EXPECT_NO_THROW(g_.SolveShortestPath(*source_, *target_, options));
 }
 
 TEST_F(ThreePoints, QuadraticCost) {
@@ -995,6 +1003,38 @@ GTEST_TEST(ShortestPathTest, ClassicalShortestPath) {
   }
 }
 
+GTEST_TEST(ShortestPathTest, InfeasibleProblem) {
+  GraphOfConvexSets spp;
+
+  Vertex* source = spp.AddVertex(Point(Vector1d(-1)));
+  Vertex* v1 = spp.AddVertex(Point(Vector1d(-0.5)));
+  Vertex* v2 = spp.AddVertex(Point(Vector1d(0.5)));
+  Vertex* target = spp.AddVertex(Point(Vector1d(1)));
+
+  spp.AddEdge(*source, *v1);
+  spp.AddEdge(*v2, *target);
+
+  auto result = spp.SolveShortestPath(*source, *target);
+  ASSERT_FALSE(result.is_success());
+  EXPECT_EQ(result.get_solution_result(),
+            SolutionResult::kInfeasibleConstraints);
+
+  GraphOfConvexSetsOptions options;
+  options.max_rounded_paths = 1;
+  result = spp.SolveShortestPath(*source, *target, options);
+  ASSERT_FALSE(result.is_success());
+  EXPECT_EQ(result.get_solution_result(),
+            SolutionResult::kInfeasibleConstraints);
+
+  if (!MixedIntegerSolverAvailable()) {
+    return;
+  }
+
+  options.convex_relaxation = false;
+  result = spp.SolveShortestPath(*source, *target, options);
+  ASSERT_FALSE(result.is_success());
+}
+
 GTEST_TEST(ShortestPathTest, TwoStepLoopConstraint) {
   GraphOfConvexSets spp;
 
@@ -1296,7 +1336,7 @@ GTEST_TEST(ShortestPathTest, RoundedSolution) {
       const double tol =
           (relaxed_result.get_solver_id() == solvers::GurobiSolver::id()) ? 1e-1
           : (relaxed_result.get_solver_id() == solvers::CsdpSolver::id()) ? 1e-2
-          : 1e-6;
+          : 1e-5;
       EXPECT_NEAR(relaxed_result.GetSolution(edges[ii]->phi()), 0.5, tol);
     } else if (ii < 10) {
       EXPECT_LT(relaxed_result.GetSolution(edges[ii]->phi()), 0.5);
@@ -1318,6 +1358,81 @@ GTEST_TEST(ShortestPathTest, RoundedSolution) {
   auto mip_result = spp.SolveShortestPath(source->id(), target->id(), options);
   EXPECT_NEAR(rounded_result.get_optimal_cost(), mip_result.get_optimal_cost(),
               2e-6);
+}
+
+// In some cases, the depth first search performed in rounding will lead to a
+// dead end. This test confirms that the search can backtrack to explore a new
+// branch. Note that this test is only effective when Mosek or Gurobi is
+// enabled. Otherwise, the failure mode that required backtracking in the depth
+// first search is not triggered.
+GTEST_TEST(ShortestPathTest, RoundingBacktrack) {
+  GraphOfConvexSets spp;
+
+  Vertex* source = spp.AddVertex(Point(Vector2d(1, -2)), "source");
+  Vertex* target = spp.AddVertex(Point(Vector2d(0.4, 2.5)), "target");
+
+  Vector3d b(3, 3, -1);
+  Vertex* v0 = spp.AddVertex(
+      HPolyhedron((Matrix<double, 3, 2>() << -1, 0, 0, -1, 1, 1).finished(), b)
+          .CartesianPower(2));
+  Vertex* v1 = spp.AddVertex(
+      HPolyhedron((Matrix<double, 3, 2>() << 1, 0, 0, -1, -1, 1).finished(), b)
+          .CartesianPower(2));
+  Vertex* v2 = spp.AddVertex(
+      HPolyhedron((Matrix<double, 3, 2>() << -1, 0, 0, 1, 1, -1).finished(), b)
+          .CartesianPower(2));
+  Vertex* v3 = spp.AddVertex(
+      HPolyhedron((Matrix<double, 3, 2>() << 1, 0, 0, 1, -1, -1).finished(), b)
+          .CartesianPower(2));
+
+  std::vector<Edge*> source_edges;
+  std::vector<Edge*> region_edges;
+  std::vector<Edge*> target_edges;
+
+  source_edges.push_back(spp.AddEdge(*source, *v0));
+  source_edges.push_back(spp.AddEdge(*source, *v1));
+
+  region_edges.push_back(spp.AddEdge(*v0, *v1));
+  region_edges.push_back(spp.AddEdge(*v1, *v0));
+  region_edges.push_back(spp.AddEdge(*v0, *v2));
+  region_edges.push_back(spp.AddEdge(*v2, *v0));
+  region_edges.push_back(spp.AddEdge(*v1, *v3));
+  region_edges.push_back(spp.AddEdge(*v3, *v1));
+  region_edges.push_back(spp.AddEdge(*v2, *v3));
+  region_edges.push_back(spp.AddEdge(*v3, *v2));
+
+  target_edges.push_back(spp.AddEdge(*v2, *target));
+  target_edges.push_back(spp.AddEdge(*v3, *target));
+
+  Matrix<double, 2, 4> A_diff;
+  A_diff << -Matrix2d::Identity(), Matrix2d::Identity();
+  auto continuity_con = std::make_shared<solvers::LinearEqualityConstraint>(
+      A_diff, Vector2d::Zero());
+  for (Edge* e : source_edges) {
+    e->AddConstraint(
+        solvers::Binding(continuity_con, {e->xu(), e->xv().head<2>()}));
+  }
+  for (Edge* e : source_edges) {
+    e->AddConstraint(solvers::Binding(continuity_con,
+                                      {e->xu().tail<2>(), e->xv().head<2>()}));
+  }
+  for (Edge* e : target_edges) {
+    e->AddConstraint(
+        solvers::Binding(continuity_con, {e->xu().tail<2>(), e->xv()}));
+  }
+
+  auto cost = std::make_shared<solvers::L2NormCost>(A_diff, Vector2d::Zero());
+  v0->AddCost(solvers::Binding(cost, v0->x()));
+  v1->AddCost(solvers::Binding(cost, v1->x()));
+  v2->AddCost(solvers::Binding(cost, v2->x()));
+  v3->AddCost(solvers::Binding(cost, v3->x()));
+
+  GraphOfConvexSetsOptions options;
+  options.convex_relaxation = true;
+  options.preprocessing = false;
+  options.max_rounded_paths = 10;
+  auto result = spp.SolveShortestPath(source->id(), target->id(), options);
+  ASSERT_TRUE(result.is_success());
 }
 
 GTEST_TEST(ShortestPathTest, TobiasToyExample) {
@@ -1476,11 +1591,11 @@ GTEST_TEST(ShortestPathTest, Figure9) {
       spp.AddVertex(HPolyhedron::MakeBox(Vector2d(2, -2), Vector2d(4, 2)));
   const Vertex* target = spp.AddVertex(Point(Vector2d(5, 0)), "target");
 
-  const Edge* e01 = spp.AddEdge(*source, *v1);
-  const Edge* e02 = spp.AddEdge(*source, *v2);
-  const Edge* e13 = spp.AddEdge(*v1, *v3);
-  const Edge* e23 = spp.AddEdge(*v2, *v3);
-  const Edge* e34 = spp.AddEdge(*v3, *target);
+  Edge* e01 = spp.AddEdge(*source, *v1);
+  Edge* e02 = spp.AddEdge(*source, *v2);
+  Edge* e13 = spp.AddEdge(*v1, *v3);
+  Edge* e23 = spp.AddEdge(*v2, *v3);
+  Edge* e34 = spp.AddEdge(*v3, *target);
 
   // Edge length is distance for all edges.
   Matrix<double, 2, 4> A;
@@ -1507,6 +1622,39 @@ GTEST_TEST(ShortestPathTest, Figure9) {
   EXPECT_TRUE(v3->GetSolution(result)[0] > 2.0 - kTol);
   EXPECT_TRUE(v3->GetSolution(result)[0] < 4.0 - kTol);
   EXPECT_NEAR(v3->GetSolution(result)[1], 0, kTol);
+
+  // Test that rounding returns the convex relaxation when relaxation is
+  // feasible but integer solution is not.
+  //
+  // CSDP crashes when fed an infeasible problem so don't test behaviour under
+  // CSDP when problem is not integer feasible.
+  if (!MixedIntegerSolverAvailable()) {
+    return;
+  }
+
+  e13->AddConstraint(e13->xu()[1] == e13->xv()[1]);
+  e23->AddConstraint(e23->xu()[1] == e23->xv()[1]);
+  e34->AddConstraint(e34->xu()[1] == e34->xv()[1]);
+
+  auto relaxed_result = spp.SolveShortestPath(source->id(), target->id());
+  GraphOfConvexSetsOptions options;
+  options.max_rounded_paths = 1;
+  auto rounded_result =
+      spp.SolveShortestPath(source->id(), target->id(), options);
+
+  ASSERT_TRUE(relaxed_result.is_success());
+  EXPECT_EQ(rounded_result.get_solution_result(),
+            SolutionResult::kIterationLimit);
+  for (const auto& e : spp.Edges()) {
+    EXPECT_NEAR(relaxed_result.GetSolution(e->phi()),
+                rounded_result.GetSolution(e->phi()), 1e-10);
+    EXPECT_TRUE(CompareMatrices(relaxed_result.GetSolution(e->xu()),
+                                rounded_result.GetSolution(e->xu()), 1e-12));
+    EXPECT_TRUE(CompareMatrices(relaxed_result.GetSolution(e->xv()),
+                                rounded_result.GetSolution(e->xv()), 1e-12));
+    EXPECT_NEAR(e->GetSolutionCost(relaxed_result),
+                e->GetSolutionCost(rounded_result), 1e-10);
+  }
 }
 
 GTEST_TEST(ShortestPathTest, Graphviz) {

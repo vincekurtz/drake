@@ -104,7 +104,6 @@ GTEST_TEST(HPolyhedronTest, L1BallTest) {
   EXPECT_TRUE(CompareMatrices(b, H_L1_box.b()));
 }
 
-
 GTEST_TEST(HPolyhedronTest, ArbitraryBoxTest) {
   RigidTransformd X_WG(RotationMatrixd::MakeZRotation(M_PI / 2.0),
                        Vector3d(-4.0, -5.0, -6.0));
@@ -416,6 +415,17 @@ GTEST_TEST(HPolyhedronTest, IsBounded4) {
   EXPECT_FALSE(H.IsBounded());
 }
 
+GTEST_TEST(HPolyhedronTest, IsBoundedEmptyPolyhedron) {
+  Eigen::MatrixXd A_infeasible{3, 3};
+  // clang-format off
+  A_infeasible << 1, -1, 0,
+                  -1, 0, 1,
+                  0, 1, -1;
+  // clang-format on
+  HPolyhedron H(A_infeasible, -Vector3d::Ones());
+  EXPECT_TRUE(H.IsEmpty());
+}
+
 GTEST_TEST(HPolyhedronTest, CartesianPowerTest) {
   // First test the concept. If x ∈ H, then [x; x]  ∈ H x H and
   // [x; x; x]  ∈ H x H x H.
@@ -554,8 +564,7 @@ GTEST_TEST(HPolyhedronTest, ContainedIn) {
   EXPECT_TRUE(large_polyhedron.ContainedIn(small_polyhedron, 1.1));
 }
 
-GTEST_TEST(HPolyhedronTest,
-           IrredundantBallIntersectionContainsBothOriginal) {
+GTEST_TEST(HPolyhedronTest, IrredundantBallIntersectionContainsBothOriginal) {
   HPolyhedron L1_ball = HPolyhedron::MakeL1Ball(3);
   HPolyhedron Linfty_ball = HPolyhedron::MakeUnitBox(3);
 
@@ -585,6 +594,72 @@ GTEST_TEST(HPolyhedronTest, ReduceL1LInfBallIntersection) {
   EXPECT_TRUE(CompareMatrices(reduced_polyhedron.A(), L1_ball.A()));
   EXPECT_TRUE(CompareMatrices(reduced_polyhedron.b(), L1_ball.b()));
 }
+
+GTEST_TEST(HPolyhedronTest, ReduceToInfeasibleSet) {
+  Eigen::MatrixXd A{5, 3};
+  Eigen::VectorXd b{5};
+  // Rows 1-3 define an infeasible set of inequalities.
+  // clang-format off
+  A << 1, 0, 0,
+       1, -1, 0,
+       -1, 0, 1,
+       0, 1, -1,
+       0, 0, -1;
+  b << 1, -1, -1, -1, 0;
+  // clang-format off
+
+  HPolyhedron H{A, b};
+  HPolyhedron H_reduced = H.ReduceInequalities();
+
+  EXPECT_TRUE(H.IsEmpty());
+  EXPECT_TRUE(H_reduced.IsEmpty());
+}
+
+GTEST_TEST(HPolyhedronTest, IsEmptyMinimalInequalitySet) {
+  Eigen::MatrixXd A_infeasible{3, 3};
+  Eigen::VectorXd b_infeasible{3};
+  // clang-format off
+  A_infeasible << 1, -1, 0,
+                  -1, 0, 1,
+                  0, 1, -1;
+  b_infeasible << -1, -1, -1;
+  // clang-format on
+
+  HPolyhedron H{A_infeasible, b_infeasible};
+  EXPECT_TRUE(H.IsEmpty());
+}
+
+GTEST_TEST(HPolyhedronTest, IsEmptyNonMinimalInequalitySet) {
+  Eigen::MatrixXd A{5, 3};
+  Eigen::VectorXd b{5};
+  // clang-format off
+  A << 1, 0, 0,
+       0, 0, -1,
+       1, -1, 0,
+       -1, 0, 1,
+       0, 1, -1;;
+  b << 1, 0, -1, -1, -1;;
+  // clang-format off
+
+  HPolyhedron H{A, b};
+  EXPECT_TRUE(H.IsEmpty());
+}
+
+GTEST_TEST(HPolyhedronTest, IsEmptyUnboundedHPolyhedron) {
+  Eigen::MatrixXd A{2, 2};
+  Eigen::VectorXd b{2};
+  A << 1, 0, -1, 0;  // only restrict the first coordinate
+  b << 1, 1;
+  HPolyhedron H{A, b};
+  EXPECT_FALSE(H.IsEmpty());
+}
+
+GTEST_TEST(HPolyhedronTest, IsEmptyBoundedHPolyhedron) {
+  HPolyhedron H = HPolyhedron::MakeUnitBox(2);
+  EXPECT_FALSE(H.IsEmpty());
+}
+
+
 
 GTEST_TEST(HPolyhedronTest, IntersectionTest) {
   HPolyhedron H_A = HPolyhedron::MakeUnitBox(2);
@@ -647,13 +722,12 @@ GTEST_TEST(HPolyhedronTest, PontryaginDifferenceTestNonAxisAligned) {
   HPolyhedron L1_ball = HPolyhedron::MakeL1Ball(3);
   const HPolyhedron H_A = HPolyhedron::MakeUnitBox(3);
 
-  const HPolyhedron H_B{L1_ball.A(), 0.5*L1_ball.b()};
+  const HPolyhedron H_B{L1_ball.A(), 0.5 * L1_ball.b()};
 
   const HPolyhedron H_C = H_A.PontryaginDifference(H_B);
 
   const HPolyhedron H_C_expected =
-      HPolyhedron::MakeBox(Vector3d::Constant(-0.5),
-                           Vector3d::Constant(0.5));
+      HPolyhedron::MakeBox(Vector3d::Constant(-0.5), Vector3d::Constant(0.5));
 
   EXPECT_TRUE(CompareMatrices(H_C.A(), H_C_expected.A(), 1e-8));
   EXPECT_TRUE(CompareMatrices(H_C.b(), H_C_expected.b(), 1e-8));
@@ -715,6 +789,52 @@ GTEST_TEST(HPolyhedronTest, UniformSampleTest) {
                samples.row(1).array() >= -1.5 && samples.row(1).array() <= -1)
                   .count(),
               N / 10, kTol);
+}
+
+// Test the case where the sample point is outside the region, but the max
+// threshold can be smaller than the min threshold. (This was a bug uncovered
+// by hammering on this code from IRIS).
+GTEST_TEST(HPolyhedronTest, UniformSampleTest2) {
+  Matrix<double, 5, 2> A;
+  Matrix<double, 5, 1> b;
+  // clang-format off
+  A <<  1,  0,  // x ≤ 1
+        0,  1,  // y ≤ 1
+       -1,  0,  // x ≥ -1
+        0, -1,  // y ≥ -1
+       -1,  0,  // x ≥ 0
+  b << 1, 1, 1, 1, 0;
+  // clang-format on
+  HPolyhedron H(A, b);
+
+  // Draw random samples.
+  RandomGenerator generator(1234);
+  // Use a seed that is outside the set (because x ≤ 0), but still inside the
+  // [-1, 1] unit box (so the line search in all directions returns finite
+  // values). It throws when the hit and run direction intersects x=0 outside
+  // of the unit box.
+  const Vector2d seed{-0.5, 0.9};
+  // Make sure that random samples either return a point in the set (because
+  // they were lucky) or throw.  Previously, the method could return a point
+  // outside the set.
+  int num_throws = 0;
+  int num_success = 0;
+  for (int i = 0; i < 10; ++i) {
+    try {
+      const Vector2d sample = H.UniformSample(&generator, seed);
+      EXPECT_TRUE(H.PointInSet(sample, 1e-12));
+      ++num_success;
+    } catch (const std::exception& err) {
+      ++num_throws;
+      EXPECT_NE(
+          std::string(err.what())
+              .find("Hit and Run algorithm failed to find a feasible point"),
+          std::string::npos);
+    }
+  }
+  // Make sure both paths were touched.
+  EXPECT_GT(num_throws, 0);
+  EXPECT_GT(num_success, 0);
 }
 
 GTEST_TEST(HPolyhedronTest, Serialize) {

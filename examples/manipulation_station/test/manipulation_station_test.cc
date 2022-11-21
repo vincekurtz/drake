@@ -43,7 +43,7 @@ multibody::SpatialInertia<double> MakeCompositeGripperInertia() {
   const std::string& wsg_sdf_path = FindResourceOrThrow(
       "drake/manipulation/models/wsg_50_description/sdf/"
       "schunk_wsg_50_no_tip.sdf");
-  parser.AddModelFromFile(wsg_sdf_path);
+  parser.AddModels(wsg_sdf_path);
   plant.Finalize();
   const std::string gripper_body_frame_name = "body";
   const auto& frame = plant.GetFrameByName(gripper_body_frame_name);
@@ -108,10 +108,8 @@ GTEST_TEST(ManipulationStationTest, CheckPlantBasics) {
   station.SetupManipulationClassStation();
   multibody::Parser parser(&station.get_mutable_multibody_plant(),
                            &station.get_mutable_scene_graph());
-  parser.AddModelFromFile(
-      FindResourceOrThrow("drake/examples/manipulation_station/models"
-                          "/061_foam_brick.sdf"),
-      "object");
+  parser.AddModels(FindResourceOrThrow(
+      "drake/examples/manipulation_station/models/061_foam_brick.sdf"));
   station.Finalize();
 
   auto& plant = station.get_multibody_plant();
@@ -271,7 +269,7 @@ GTEST_TEST(ManipulationStationTest, CheckDynamics) {
                   .isZero());
 
   auto next_state = station.AllocateDiscreteVariables();
-  station.CalcDiscreteVariableUpdates(*context, next_state.get());
+  station.CalcForcedDiscreteVariableUpdate(*context, next_state.get());
 
   // Check that vdot ≈ 0 by checking that next velocity ≈ velocity.
   const auto& base_joint =

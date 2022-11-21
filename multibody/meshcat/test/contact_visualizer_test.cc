@@ -109,7 +109,7 @@ class ContactVisualizerTest : public ::testing::Test {
 
   void PublishAndCheck(
       bool expect_geometry_names = false) {
-    diagram_->Publish(*context_);
+    diagram_->ForcedPublish(*context_);
     if (expect_geometry_names) {
       EXPECT_TRUE(meshcat_->HasPath(
           "contact_forces/point/sphere1.base_link+sphere2.base_link.bonus"));
@@ -192,12 +192,12 @@ TEST_F(ContactVisualizerTest, Parameters) {
   // visualization; they are partially covered by meshcat_manual_test.
   SetUpDiagram(0, false, params);
 
-  diagram_->Publish(*context_);
+  diagram_->ForcedPublish(*context_);
   EXPECT_FALSE(meshcat_->HasPath("contact_forces"));
   EXPECT_TRUE(meshcat_->HasPath("test_prefix"));
 
-  auto periodic_events = visualizer_->GetPeriodicEvents();
-  for (const auto& data_and_vector : periodic_events) {
+  auto periodic_events_map = visualizer_->MapPeriodicEventsByTiming();
+  for (const auto& data_and_vector : periodic_events_map) {
     EXPECT_EQ(data_and_vector.second.size(), 1);  // only one periodic event
     EXPECT_EQ(data_and_vector.first.period_sec(), params.publish_period);
     EXPECT_EQ(data_and_vector.first.offset_sec(), 0.0);
@@ -207,13 +207,13 @@ TEST_F(ContactVisualizerTest, Parameters) {
 TEST_F(ContactVisualizerTest, Delete) {
   SetUpDiagram();
 
-  diagram_->Publish(*context_);
+  diagram_->ForcedPublish(*context_);
   EXPECT_TRUE(meshcat_->HasPath("contact_forces"));
 
   visualizer_->Delete();
   EXPECT_FALSE(meshcat_->HasPath("contact_forces"));
 
-  diagram_->Publish(*context_);
+  diagram_->ForcedPublish(*context_);
   EXPECT_TRUE(meshcat_->HasPath("contact_forces"));
 }
 
@@ -240,7 +240,7 @@ TEST_F(ContactVisualizerTest, ScalarConversion) {
 
   // Call publish to provide code coverage for the AutoDiffXd version of
   // UpdateMeshcat.  We simply confirm that the code doesn't blow up.
-  ad_diagram->Publish(*ad_context);
+  ad_diagram->ForcedPublish(*ad_context);
 }
 
 }  // namespace

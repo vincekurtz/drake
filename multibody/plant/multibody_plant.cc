@@ -26,6 +26,7 @@
 #include "drake/multibody/plant/externally_applied_spatial_force.h"
 #include "drake/multibody/plant/hydroelastic_traction_calculator.h"
 #include "drake/multibody/plant/make_discrete_update_manager.h"
+#include "drake/multibody/plant/slicing_and_indexing.h"
 #include "drake/multibody/tree/prismatic_joint.h"
 #include "drake/multibody/tree/revolute_joint.h"
 #include "drake/multibody/triangle_quadrature/gaussian_triangle_quadrature_rule.h"
@@ -259,103 +260,6 @@ std::string GetScopedName(
   }
 }
 
-// TODO(rpoyner-tri): the Select*() and Expand*() functions below can be
-// removed and replaced with arbitrary indexing once Eigen 3.4 is our minimum
-// required version.
-
-// Valid index arrays are no larger than max_size, are sorted, and contain
-// entries in the range [0, max_size).
-void DemandIndicesValid(const std::vector<int>& indices, int max_size) {
-  DRAKE_DEMAND(static_cast<int>(indices.size()) <= max_size);
-  if (indices.empty()) { return; }
-
-  // Only do the expensive check in debug builds.
-  DRAKE_ASSERT(std::is_sorted(indices.begin(), indices.end()));
-  DRAKE_DEMAND(indices[0] >= 0);
-  DRAKE_DEMAND(indices[indices.size() - 1] < max_size);
-}
-
-// Make a new, possibly smaller square matrix from square matrix @p M, by
-// selecting the rows and columns indexed by @p indices.
-template <typename T>
-MatrixX<T> SelectRowsCols(const MatrixX<T>& M,
-                          const std::vector<int>& indices) {
-  DRAKE_DEMAND(M.rows() == M.cols());
-  DRAKE_ASSERT_VOID(DemandIndicesValid(indices, M.rows()));
-  const int selected_count = indices.size();
-  if (selected_count == M.rows()) {
-    return M;
-  }
-  MatrixX<T> result(selected_count, selected_count);
-
-  for (int i = 0; i < result.rows(); ++i) {
-    for (int j = 0; j < result.cols(); ++j) {
-      result(i, j) = M(indices[i], indices[j]);
-    }
-  }
-  return result;
-}
-
-// Make a new, possibly smaller matrix from matrix M, by selecting the columns
-// indexed by @p indices.
-template <typename T>
-MatrixX<T> SelectCols(const MatrixX<T>& M,
-                      const std::vector<int>& indices) {
-  DRAKE_ASSERT_VOID(DemandIndicesValid(indices, M.cols()));
-  const int selected_count = indices.size();
-  if (selected_count == M.cols()) {
-    return M;
-  }
-  MatrixX<T> result(M.rows(), selected_count);
-
-  for (int i = 0; i < result.cols(); ++i) {
-    result.col(i) = M.col(indices[i]);
-  }
-  return result;
-}
-
-// Make a new, possibly smaller vector from vector @p v, by selecting the rows
-// indexed by @p indices.
-template <typename T>
-VectorX<T> SelectRows(const VectorX<T>& v,
-                      const std::vector<int>& indices) {
-  const int selected_count = indices.size();
-  if (selected_count == v.rows()) {
-    return v;
-  }
-  VectorX<T> result(selected_count);
-
-  for (int i = 0; i < result.rows(); ++i) {
-    result(i) = v(indices[i]);
-  }
-  return result;
-}
-
-// Make a new, possibly larger vector of size @p rows_out, by copying rows
-// of @p v to rows indexed by @p indices. New rows are filled with zeros.
-template <typename T>
-VectorX<T> ExpandRows(const VectorX<T>& v, int rows_out,
-                       const std::vector<int>& indices) {
-  DRAKE_ASSERT(static_cast<int>(indices.size()) == v.rows());
-  DRAKE_ASSERT(rows_out >= v.rows());
-  DRAKE_ASSERT_VOID(DemandIndicesValid(indices, rows_out));
-  if (rows_out == v.rows()) {
-    return v;
-  }
-  VectorX<T> result(rows_out);
-
-  int index_cursor = 0;
-  for (int i = 0; i < result.rows(); ++i) {
-    if (index_cursor >= v.rows() || i < indices[index_cursor]) {
-      result(i) = 0.;
-    } else {
-      result(indices[index_cursor]) = v(index_cursor);
-      ++index_cursor;
-    }
-  }
-  return result;
-}
-
 }  // namespace
 
 template <typename T>
@@ -466,8 +370,6 @@ MultibodyPlant<T>::MultibodyPlant(const MultibodyPlant<U>& other)
     }
 
     time_step_ = other.time_step_;
-    // TODO(xuchenhan-tri): Remove contact_solver_ all together.
-    contact_solver_ = nullptr;
     // discrete_update_manager_ is copied below after FinalizePlantOnly().
 
     // Copy over physical_models_.
@@ -1402,6 +1304,8 @@ void MultibodyPlant<T>::SetDiscreteUpdateManager(
 template <typename T>
 void MultibodyPlant<T>::AddPhysicalModel(
     std::unique_ptr<internal::PhysicalModel<T>> model) {
+  // TODO(xuchenhan-tri): Guard against the same type of model being registered
+  //  more than once.
   DRAKE_MBP_THROW_IF_FINALIZED();
   DRAKE_DEMAND(model != nullptr);
   auto& added_model = physical_models_.emplace_back(std::move(model));
@@ -2689,49 +2593,41 @@ void MultibodyPlant<T>::CalcContactSolverResults(
   }
 
   // Joint locking: reduce solver inputs.
-  MatrixX<T> M0_unlocked = SelectRowsCols(M0, indices);
-  VectorX<T> minus_tau_unlocked = SelectRows(minus_tau, indices);
-  MatrixX<T> Jn_unlocked = SelectCols(contact_jacobians.Jn, indices);
-  MatrixX<T> Jt_unlocked = SelectCols(contact_jacobians.Jt, indices);
-  MatrixX<T> Jc_unlocked = SelectCols(contact_jacobians.Jc, indices);
+  MatrixX<T> M0_unlocked = internal::SelectRowsCols(M0, indices);
+  VectorX<T> minus_tau_unlocked = internal::SelectRows(minus_tau, indices);
+  MatrixX<T> Jn_unlocked = internal::SelectCols(contact_jacobians.Jn, indices);
+  MatrixX<T> Jt_unlocked = internal::SelectCols(contact_jacobians.Jt, indices);
+  MatrixX<T> Jc_unlocked = internal::SelectCols(contact_jacobians.Jc, indices);
 
-  VectorX<T> v0_unlocked = SelectRows(v0, indices);
+  VectorX<T> v0_unlocked = internal::SelectRows(v0, indices);
 
   contact_solvers::internal::ContactSolverResults<T> results_unlocked;
   results_unlocked.Resize(indices.size(), num_contacts);
 
-  if (contact_solver_ != nullptr) {
-    CallContactSolver(contact_solver_.get(), context0.get_time(), v0_unlocked,
-                      M0_unlocked, minus_tau_unlocked, phi0, Jc_unlocked,
-                      stiffness, damping, mu, &results_unlocked);
-  } else {
-    systems::CacheEntryValue& value =
-        this->get_cache_entry(cache_indexes_.contact_solver_scratch)
-        .get_mutable_cache_entry_value(context0);
-    auto& tamsi_solver =
-        value.GetMutableValueOrThrow<TamsiSolver<T>>();
-    if (tamsi_solver.get_solver_parameters().stiction_tolerance !=
-        friction_model_.stiction_tolerance()) {
-      // Set the stiction tolerance according to the values set by users with
-      // set_stiction_tolerance().
-      TamsiSolverParameters solver_parameters;
-      solver_parameters.stiction_tolerance =
-          friction_model_.stiction_tolerance();
-      tamsi_solver.set_solver_parameters(solver_parameters);
-    }
-
-    // TAMSI is initialized with num_velocities(). Resize the internal solver
-    // workspace if needed.
-    tamsi_solver.ResizeIfNeeded(indices.size());
-
-    CallTamsiSolver(&tamsi_solver, context0.get_time(), v0_unlocked,
-                    M0_unlocked, minus_tau_unlocked, fn0, Jn_unlocked,
-                    Jt_unlocked, stiffness, damping, mu, &results_unlocked);
+  systems::CacheEntryValue& value =
+      this->get_cache_entry(cache_indexes_.contact_solver_scratch)
+          .get_mutable_cache_entry_value(context0);
+  auto& tamsi_solver = value.GetMutableValueOrThrow<TamsiSolver<T>>();
+  if (tamsi_solver.get_solver_parameters().stiction_tolerance !=
+      friction_model_.stiction_tolerance()) {
+    // Set the stiction tolerance according to the values set by users with
+    // set_stiction_tolerance().
+    TamsiSolverParameters solver_parameters;
+    solver_parameters.stiction_tolerance = friction_model_.stiction_tolerance();
+    tamsi_solver.set_solver_parameters(solver_parameters);
   }
 
+  // TAMSI is initialized with num_velocities(). Resize the internal solver
+  // workspace if needed.
+  tamsi_solver.ResizeIfNeeded(indices.size());
+
+  CallTamsiSolver(&tamsi_solver, context0.get_time(), v0_unlocked, M0_unlocked,
+                  minus_tau_unlocked, fn0, Jn_unlocked, Jt_unlocked, stiffness,
+                  damping, mu, &results_unlocked);
+
   // Joint locking: expand reduced outputs.
-  results->v_next = ExpandRows(results_unlocked.v_next,
-                                num_velocities(), indices);
+  results->v_next =
+      internal::ExpandRows(results_unlocked.v_next, num_velocities(), indices);
   results->tau_contact =
       contact_jacobians.Jn.transpose() * results_unlocked.fn +
       contact_jacobians.Jt.transpose() * results_unlocked.ft;
@@ -2776,7 +2672,7 @@ void MultibodyPlant<T>::CalcJointLockingIndices(
   // Sort the unlocked indices to keep the original DOF ordering established by
   // the plant stable.
   std::sort(indices.begin(), indices.end());
-  DemandIndicesValid(indices, num_velocities());
+  internal::DemandIndicesValid(indices, num_velocities());
   DRAKE_DEMAND(static_cast<int>(indices.size()) == unlocked_cursor);
 }
 
@@ -2816,7 +2712,7 @@ void MultibodyPlant<T>::CallTamsiSolver(
   if (info != TamsiSolverResult::kSuccess) {
     const std::string msg = fmt::format(
         "MultibodyPlant's discrete update solver failed to converge at "
-        "simulation time = {:7.3g} with discrete update period = {:7.3g}. "
+        "simulation time = {} with discrete update period = {}. "
         "This usually means that the plant's discrete update period is too "
         "large to resolve the system's dynamics for the given simulation "
         "conditions. This is often the case during abrupt collisions or during "
@@ -2827,7 +2723,7 @@ void MultibodyPlant<T>::CallTamsiSolver(
         "solutions include:\n"
         "  1. reduce the discrete update period set at construction,\n"
         "  2. decrease the high gains in your controller whenever possible,\n"
-        "  3. switch to a continuous model (discrete update period is zero), "
+        "  3. switch to a continuous model (discrete update period is zero),\n"
         "     though this might affect the simulation run time.",
         time0, this->time_step());
     throw std::runtime_error(msg);
@@ -2843,99 +2739,6 @@ void MultibodyPlant<T>::CallTamsiSolver(
   results->vn = tamsi_solver->get_normal_velocities();
   results->vt = tamsi_solver->get_tangential_velocities();
   results->tau_contact = tamsi_solver->get_generalized_contact_forces();
-}
-
-template <>
-void MultibodyPlant<symbolic::Expression>::CallContactSolver(
-    contact_solvers::internal::ContactSolver<symbolic::Expression>*,
-    const symbolic::Expression&, const VectorX<symbolic::Expression>&,
-    const MatrixX<symbolic::Expression>&, const VectorX<symbolic::Expression>&,
-    const VectorX<symbolic::Expression>&, const MatrixX<symbolic::Expression>&,
-    const VectorX<symbolic::Expression>&, const VectorX<symbolic::Expression>&,
-    const VectorX<symbolic::Expression>&,
-    contact_solvers::internal::ContactSolverResults<symbolic::Expression>*)
-    const {
-  throw std::logic_error(
-      "This method doesn't support T = symbolic::Expression.");
-}
-
-template <typename T>
-void MultibodyPlant<T>::CallContactSolver(
-    contact_solvers::internal::ContactSolver<T>* contact_solver,
-    const T& time0, const VectorX<T>& v0, const MatrixX<T>& M0,
-    const VectorX<T>& minus_tau, const VectorX<T>& phi0, const MatrixX<T>& Jc,
-    const VectorX<T>& stiffness, const VectorX<T>& damping,
-    const VectorX<T>& mu,
-    contact_solvers::internal::ContactSolverResults<T>* results) const {
-  // Tolerance larger than machine epsilon by an arbitrary factor. Just large
-  // enough so that entries close to machine epsilon, due to round-off errors,
-  // still get pruned.
-  const double kPruneTolerance = 20 * std::numeric_limits<double>::epsilon();
-  // TODO(amcastro-tri): Here MultibodyPlant should provide an actual O(n)
-  // operator per #12210.
-  const Eigen::SparseMatrix<T> Jc_sparse = Jc.sparseView(kPruneTolerance);
-  const contact_solvers::internal::SparseLinearOperator<T> Jc_op("Jc",
-                                                                 &Jc_sparse);
-
-  class MassMatrixInverseOperator
-      : public contact_solvers::internal::LinearOperator<T> {
-   public:
-    MassMatrixInverseOperator(const std::string& name, const MatrixX<T>* M)
-        : contact_solvers::internal::LinearOperator<T>(name), M_ldlt_{*M} {
-      DRAKE_DEMAND(M != nullptr);
-      nv_ = M->rows();
-      // TODO(sherm1) Eliminate heap allocation.
-      tmp_.resize(nv_);
-    }
-    ~MassMatrixInverseOperator() = default;
-
-    int rows() const { return nv_; }
-    int cols() const { return nv_; }
-
-   private:
-    void DoMultiply(const Eigen::Ref<const Eigen::SparseVector<T>>& x,
-                    Eigen::SparseVector<T>* y) const final {
-      tmp_ = VectorX<T>(x);
-      *y = M_ldlt_.Solve(tmp_).sparseView();
-    }
-    void DoMultiply(const Eigen::Ref<const VectorX<T>>& x,
-                    VectorX<T>* y) const final {
-      *y = M_ldlt_.Solve(x);
-    }
-    int nv_;
-    mutable VectorX<T> tmp_;  // temporary workspace.
-    math::LinearSolver<Eigen::LDLT, MatrixX<T>> M_ldlt_;
-  };
-  MassMatrixInverseOperator Minv_op("Minv", &M0);
-
-  // Perform the "predictor" step, in the absence of contact forces. See
-  // ContactSolver's class documentation for details.
-  // TODO(amcastro-tri): here the predictor step could be implicit in tau so
-  // that for instance we'd be able do deal with force elements implicitly.
-  const int nv = num_velocities();
-  VectorX<T> v_star(nv);  // TODO(sherm1) Eliminate heap allocation.
-  Minv_op.Multiply(minus_tau, &v_star);  // v_star = -M⁻¹⋅τ
-  v_star *= -time_step();                // v_star = dt⋅M⁻¹⋅τ
-  v_star += v0;                          // v_star = v₀ + dt⋅M⁻¹⋅τ
-
-  contact_solvers::internal::SystemDynamicsData<T> dynamics_data(&Minv_op,
-                                                                 &v_star);
-  contact_solvers::internal::PointContactData<T> contact_data(
-      &phi0, &Jc_op, &stiffness, &damping, &mu);
-  const contact_solvers::internal::ContactSolverStatus info =
-      contact_solver->SolveWithGuess(time_step(), dynamics_data, contact_data,
-                                    v0, &*results);
-
-  if (info != contact_solvers::internal::ContactSolverStatus::kSuccess) {
-    const std::string msg =
-        fmt::format("MultibodyPlant's contact solver of type '" +
-                        NiceTypeName::Get(*contact_solver_) +
-                        "' failed to converge at "
-                        "simulation time = {:7.3g} with discrete update "
-                        "period = {:7.3g}.",
-                    time0, time_step());
-    throw std::runtime_error(msg);
-  }
 }
 
 template <typename T>
@@ -2990,6 +2793,18 @@ void MultibodyPlant<T>::CalcSpatialContactForcesContinuous(
   // Forces can accumulate into F_BBo_W_array; initialize it to zero first.
   std::fill(F_BBo_W_array->begin(), F_BBo_W_array->end(),
             SpatialForce<T>::Zero());
+
+  CalcAndAddSpatialContactForcesContinuous(context, F_BBo_W_array);
+}
+
+template <typename T>
+void MultibodyPlant<T>::CalcAndAddSpatialContactForcesContinuous(
+      const drake::systems::Context<T>& context,
+      std::vector<SpatialForce<T>>* F_BBo_W_array) const {
+  this->ValidateContext(context);
+  DRAKE_DEMAND(F_BBo_W_array != nullptr);
+  DRAKE_DEMAND(static_cast<int>(F_BBo_W_array->size()) == num_bodies());
+  DRAKE_DEMAND(!is_discrete());
 
   // Early exit if there are no contact forces.
   if (num_collision_geometries() == 0) return;
@@ -3153,10 +2968,9 @@ void MultibodyPlant<T>::DoCalcForwardDynamicsDiscrete(
 }
 
 template<typename T>
-void MultibodyPlant<T>::DoCalcDiscreteVariableUpdates(
-    const drake::systems::Context<T>& context0,
-    const std::vector<const drake::systems::DiscreteUpdateEvent<T>*>&,
-    drake::systems::DiscreteValues<T>* updates) const {
+systems::EventStatus MultibodyPlant<T>::CalcDiscreteStep(
+    const systems::Context<T>& context0,
+    systems::DiscreteValues<T>* updates) const {
   this->ValidateContext(context0);
 
   // TODO(amcastro-tri): remove the entirety of the code we are bypassing here.
@@ -3164,7 +2978,7 @@ void MultibodyPlant<T>::DoCalcDiscreteVariableUpdates(
   // MultibodyPlant manager.
   if (discrete_update_manager_) {
     discrete_update_manager_->CalcDiscreteValues(context0, updates);
-    return;
+    return systems::EventStatus::Succeeded();
   }
 
   // Get the system state as raw Eigen vectors
@@ -3189,6 +3003,8 @@ void MultibodyPlant<T>::DoCalcDiscreteVariableUpdates(
   VectorX<T> x_next(this->num_multibody_states());
   x_next << q_next, v_next;
   updates->set_value(0, x_next);
+
+  return systems::EventStatus::Succeeded();
 }
 
 template<typename T>
@@ -3197,7 +3013,12 @@ void MultibodyPlant<T>::DeclareStateCacheAndPorts() {
   DRAKE_DEMAND(this->is_finalized());
 
   if (is_discrete()) {
-    this->DeclarePeriodicDiscreteUpdate(time_step_);
+    this->DeclarePeriodicDiscreteUpdateEvent(
+        time_step_, 0.0, &MultibodyPlant<T>::CalcDiscreteStep);
+
+    // Also permit triggering a step via a Forced update.
+    this->DeclareForcedDiscreteUpdateEvent(
+        &MultibodyPlant<T>::CalcDiscreteStep);
   }
 
   DeclareCacheEntries();
@@ -3235,13 +3056,17 @@ void MultibodyPlant<T>::DeclareStateCacheAndPorts() {
         Value<std::vector<ExternallyAppliedSpatialForce<T>>>()).get_index();
 
   // Declare one output port for the entire state vector.
-  // TODO(sherm1) Rename this port to just "state" when #12214 is resolved so
-  //              we can deprecate the old port name.
   state_output_port_ =
-      this->DeclareVectorOutputPort("continuous_state", num_multibody_states(),
+      this->DeclareVectorOutputPort("state", num_multibody_states(),
                                     &MultibodyPlant::CopyMultibodyStateOut,
                                     {this->all_state_ticket()})
           .get_index();
+
+  this->DeprecateOutputPort(this->DeclareVectorOutputPort(
+      "continuous_state", num_multibody_states(),
+      &MultibodyPlant::CopyMultibodyStateOut, {this->all_state_ticket()}),
+      "Use the port named 'state' instead; the 'continuous_state' alias will "
+      "be removed on or after 2023-03-01.");
 
   // Declare the output port for the poses of all bodies in the world.
   body_poses_port_ =
@@ -3297,18 +3122,20 @@ void MultibodyPlant<T>::DeclareStateCacheAndPorts() {
 
     const int instance_num_states =  // Might be zero.
         num_multibody_states(model_instance_index);
-    // TODO(sherm1) Rename these ports to just "_state" when #12214 is resolved
-    //              so we can deprecate the old port names.
+    auto copy_instance_state_out = [this, model_instance_index](
+        const Context<T>& context, BasicVector<T>* result) {
+      this->CopyMultibodyStateOut(model_instance_index, context, result);
+    };
     instance_state_output_ports_[model_instance_index] =
         this->DeclareVectorOutputPort(
-                instance_name + "_continuous_state", instance_num_states,
-                [this, model_instance_index](const systems::Context<T>& context,
-                                             systems::BasicVector<T>* result) {
-                  this->CopyMultibodyStateOut(model_instance_index, context,
-                                               result);
-                },
-                {this->all_state_ticket()})
+                instance_name + "_state", instance_num_states,
+                copy_instance_state_out, {this->all_state_ticket()})
             .get_index();
+    this->DeprecateOutputPort(this->DeclareVectorOutputPort(
+        instance_name + "_continuous_state", instance_num_states,
+        copy_instance_state_out, {this->all_state_ticket()}),
+        "Use the port suffixed with '_state' instead; the '_continuous_state' "
+        "alias will be removed on or after 2023-03-01.");
 
     const int instance_num_velocities =  // Might be zero.
         num_velocities(model_instance_index);
@@ -3827,9 +3654,15 @@ void MultibodyPlant<T>::CalcReactionForces(
   auto& Fapplied_Bo_W_array = applied_forces.mutable_body_forces();
   auto& tau_applied = applied_forces.mutable_generalized_forces();
 
-  // TODO(sherm1) This doesn't include hydroelastic contact forces
-  //              in continuous mode (#13888).
-  CalcAndAddContactForcesByPenaltyMethod(context, &Fapplied_Bo_W_array);
+  // Add in forces due to contact.
+  // Only add in hydroelastic contact forces for continuous mode for now as
+  // the forces computed by CalcHydroelasticContactForces() are wrong in
+  // discrete mode. See (#13888).
+  if (!is_discrete()) {
+    CalcAndAddSpatialContactForcesContinuous(context, &Fapplied_Bo_W_array);
+  } else {
+    CalcAndAddContactForcesByPenaltyMethod(context, &Fapplied_Bo_W_array);
+  }
 
   // Compute reaction forces at each mobilizer.
   std::vector<SpatialAcceleration<T>> A_WB_vector(num_bodies());

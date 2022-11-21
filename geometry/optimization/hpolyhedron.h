@@ -88,6 +88,9 @@ class HPolyhedron final : public ConvexSet {
   negative tol means it is less likey to remote a constraint.  */
   [[nodiscard]] HPolyhedron ReduceInequalities(double tol = 1E-9) const;
 
+  /** Checks if this HPolyhedron defines an empty set.  */
+  [[nodiscard]] bool IsEmpty() const;
+
   /** Solves a semi-definite program to compute the inscribed ellipsoid.
   From Section 8.4.2 in Boyd and Vandenberghe, 2004, we solve
   @verbatim
@@ -157,7 +160,7 @@ class HPolyhedron final : public ConvexSet {
   */
   Eigen::VectorXd UniformSample(
       RandomGenerator* generator,
-      const Eigen::Ref<Eigen::VectorXd>& previous_sample) const;
+      const Eigen::Ref<const Eigen::VectorXd>& previous_sample) const;
 
   /** Variant of UniformSample that uses the ChebyshevCenter() as the
   previous_sample as a feasible point to start the Markov chain sampling. */
@@ -233,8 +236,8 @@ class HPolyhedron final : public ConvexSet {
 
   // Implement support shapes for the ShapeReifier interface.
   using ShapeReifier::ImplementGeometry;
-  void ImplementGeometry(const HalfSpace&, void* data) final;
   void ImplementGeometry(const Box& box, void* data) final;
+  void ImplementGeometry(const HalfSpace&, void* data) final;
   // TODO(russt): Support ImplementGeometry(const Convex& convex, ...), but
   // currently it would require e.g. digging ReadObjForConvex out of
   // proximity_engine.cc.

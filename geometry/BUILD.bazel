@@ -24,7 +24,6 @@ drake_cc_package_library(
         ":collision_filter_manager",
         ":drake_visualizer",
         ":drake_visualizer_params",
-        ":frame_kinematics",
         ":geometry_frame",
         ":geometry_ids",
         ":geometry_instance",
@@ -142,17 +141,6 @@ drake_cc_library(
     ],
 )
 
-# Remove on 2022-10-01.
-drake_cc_library(
-    name = "frame_kinematics",
-    hdrs = [
-        "frame_kinematics_vector.h",
-    ],
-    deps = [
-        ":kinematics_vector",
-    ],
-)
-
 drake_cc_library(
     name = "kinematics_vector",
     srcs = [
@@ -260,8 +248,6 @@ drake_cc_library(
         ":proximity_engine",
         ":utilities",
         "//geometry/render:render_engine",
-        # Add an unused dependency to help smooth out the deprecation.
-        ":frame_kinematics",
     ],
 )
 
@@ -365,6 +351,8 @@ drake_cc_library(
     deps = [
         "//common:essential",
         "//common:nice_type_name",
+        "//geometry/proximity:meshing_utilities",
+        "//geometry/proximity:obj_to_surface_mesh",
         "//math:geometric_transform",
     ],
 )
@@ -408,14 +396,6 @@ genrule(
 )
 
 genrule(
-    name = "msgpack_lite_js_genrule",
-    srcs = ["@msgpack_lite_js//:dist/msgpack.min.js"],
-    outs = ["msgpack.min.js"],
-    cmd = "cp $< $@",
-    visibility = ["//visibility:private"],
-)
-
-genrule(
     name = "meshcat_ico_genrule",
     srcs = ["//doc:favicon.ico"],
     outs = ["meshcat.ico"],
@@ -437,7 +417,6 @@ filegroup(
         "meshcat.html",
         ":meshcat.ico",
         ":meshcat.js",
-        ":msgpack.min.js",
         ":stats.min.js",
     ],
     visibility = ["//visibility:private"],
@@ -487,7 +466,6 @@ drake_cc_library(
         "//perception:point_cloud",
     ],
     deps = [
-        "//common:filesystem",
         "//common:find_resource",
         "//common:scope_exit",
         "//common:unused",
@@ -640,6 +618,14 @@ filegroup(
     ],
 )
 
+filegroup(
+    name = "test_stl_files",
+    testonly = 1,
+    srcs = [
+        "test/quad_cube.stl",
+    ],
+)
+
 drake_cc_googletest(
     name = "collision_filter_declaration_test",
     deps = [
@@ -676,7 +662,6 @@ drake_cc_googletest(
     deps = [
         ":proximity_engine",
         ":shape_specification",
-        "//common:filesystem",
         "//common/test_utilities:eigen_matrix_compare",
         "//common/test_utilities:expect_no_throw",
         "//common/test_utilities:expect_throws_message",
@@ -810,8 +795,14 @@ drake_cc_googletest(
 
 drake_cc_googletest(
     name = "shape_specification_test",
+    data = [
+        ":test_obj_files",
+        ":test_stl_files",
+        ":test_vtk_files",
+    ],
     deps = [
         ":shape_specification",
+        "//common:find_resource",
         "//common/test_utilities",
     ],
 )

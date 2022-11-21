@@ -34,10 +34,18 @@ ln -s ${PREFIX}/include/${PYTHON} /usr/local/include/
 ln -s ${PREFIX}/include/${PYTHON}m /usr/local/include/
 ln -s /usr/local/bin/python /usr/bin/python
 
+# TODO(jwnimmer-tri): Should these be version-pinned? What's the process for
+# keeping them up to date if they are?
 pip install \
     lxml \
+    matplotlib \
+    numpy \
     pyyaml \
     semantic-version \
     setuptools \
     wheel \
     auditwheel
+
+if [[ "$(uname)" == "Linux" ]]; then
+    pip install patchelf
+fi

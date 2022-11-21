@@ -21,7 +21,7 @@ from pydrake.systems.drawing import plot_graphviz, plot_system_graphviz
 from pydrake.systems.framework import DiagramBuilder
 from pydrake.visualization import AddDefaultVisualization
 
-# If running under `bazel run`, output to cwd to the user can find it.
+# If running under `bazel run`, output to cwd so the user can find it.
 # If running under `bazel test` avoid polluting the test's cwd.
 for env_name in ['BUILD_WORKING_DIRECTORY', 'TEST_TMPDIR']:
     if env_name in os.environ:
@@ -32,7 +32,7 @@ file_name = FindResourceOrThrow(
 builder = DiagramBuilder()
 cart_pole, scene_graph = AddMultibodyPlantSceneGraph(
     builder=builder, time_step=0.0)
-Parser(plant=cart_pole).AddModelFromFile(file_name)
+Parser(plant=cart_pole).AddModels(file_name)
 
 plt.figure(figsize=(11, 8.5), dpi=300)
 plot_graphviz(cart_pole.GetTopologyGraphvizString())

@@ -1,6 +1,8 @@
+#include <chrono>
 #include <cstdio>
 #include <fstream>
 #include <iostream>
+#include <thread>
 
 #include "drake/common/find_resource.h"
 #include "drake/common/temp_directory.h"
@@ -31,16 +33,19 @@ int do_main() {
   auto meshcat = std::make_shared<Meshcat>();
 
   meshcat->SetObject("sphere", Sphere(.25), Rgba(1.0, 0, 0, 1));
-  meshcat->SetTransform("sphere", RigidTransformd(Vector3d{-3, 0, 0}));
+  meshcat->SetTransform("sphere", RigidTransformd(Vector3d{-4, 0, 0}));
 
   meshcat->SetObject("cylinder", Cylinder(.25, .5), Rgba(0.0, 1.0, 0, 1));
-  meshcat->SetTransform("cylinder", RigidTransformd(Vector3d{-2, 0, 0}));
+  meshcat->SetTransform("cylinder", RigidTransformd(Vector3d{-3, 0, 0}));
 
   meshcat->SetObject("ellipsoid", Ellipsoid(.25, .25, .5), Rgba(1., 0, 1, .5));
-  meshcat->SetTransform("ellipsoid", RigidTransformd(Vector3d{-1, 0, 0}));
+  meshcat->SetTransform("ellipsoid", RigidTransformd(Vector3d{-2, 0, 0}));
 
   meshcat->SetObject("box", Box(.25, .25, .5), Rgba(0, 0, 1, 1));
-  meshcat->SetTransform("box", RigidTransformd(Vector3d{0, 0, 0}));
+  meshcat->SetTransform("box", RigidTransformd(Vector3d{-1, 0, 0}));
+
+  meshcat->SetObject("capsule", Capsule(.25, .5), Rgba(0, 1, 1, 1));
+  meshcat->SetTransform("capsule", RigidTransformd(Vector3d{0, 0, 0}));
 
   // Note that height (in z) is the first argument.
   meshcat->SetObject("cone", MeshcatCone(.5, .25, .5), Rgba(1, 0, 0, 1));
@@ -115,6 +120,31 @@ int do_main() {
                           RigidTransformd(Vector3d{7.75, -.25, 0}));
   }
 
+  // SetTriangleColorMesh.
+  {
+    // clang-format off
+    Eigen::Matrix3Xd vertices(3, 4);
+    vertices <<
+      0, 0.5, 0.5, 0,
+      0, 0,   0.5, 0.5,
+      0, 0,   0,   0.5;
+    Eigen::Matrix3Xi faces(3, 2);
+    faces <<
+      0, 2,
+      1, 3,
+      2, 0;
+    Eigen::Matrix3Xd colors(3, 4);
+    colors <<
+      1, 0, 0, 1,
+      0, 1, 0, 1,
+      0, 0, 1, 0;
+    // clang-format on
+    meshcat->SetTriangleColorMesh("triangle_color_mesh", vertices, faces,
+                                  colors);
+    meshcat->SetTransform("triangle_color_mesh",
+                          RigidTransformd(Vector3d{8.75, -.25, 0}));
+  }
+
   std::cout << R"""(
 Open up your browser to the URL above.
 
@@ -124,6 +154,7 @@ Open up your browser to the URL above.
   - a green cylinder (with the long axis in z)
   - a pink semi-transparent ellipsoid (long axis in z)
   - a blue box (long axis in z)
+  - a teal capsule (long axis in z)
   - a red cone (expanding in +z, twice as wide in y than in x)
   - a bright green cube (the green comes from a texture map)
   - a yellow mustard bottle w/ label
@@ -132,6 +163,7 @@ Open up your browser to the URL above.
   - 4 green vertical line segments (in z).
   - a purple triangle mesh with 2 faces.
   - the same purple triangle mesh drawn as a wireframe.
+  - the same triangle mesh drawn in multicolor.
 )""";
   std::cout << "[Press RETURN to continue]." << std::endl;
   std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
@@ -230,7 +262,7 @@ Open up your browser to the URL above.
     // Add the hydroelastic spheres and joints between them.
     const std::string hydro_sdf =
         FindResourceOrThrow("drake/multibody/meshcat/test/hydroelastic.sdf");
-    parser.AddModelFromFile(hydro_sdf);
+    parser.AddModels(hydro_sdf);
     const auto& body1 = plant.GetBodyByName("body1");
     plant.AddJoint<multibody::PrismaticJoint>("body1", plant.world_body(),
                                               std::nullopt, body1, std::nullopt,
@@ -256,7 +288,7 @@ Open up your browser to the URL above.
 
     plant.SetPositions(&plant.GetMyMutableContextFromRoot(context.get()),
                        Eigen::Vector2d{0.1, 0.3});
-    diagram->Publish(*context);
+    diagram->ForcedPublish(*context);
     std::cout << "- Now you should see three colliding hydroelastic spheres."
               << std::endl;
     std::cout << "[Press RETURN to continue]." << std::endl;
@@ -271,11 +303,11 @@ Open up your browser to the URL above.
     auto [plant, scene_graph] =
         multibody::AddMultibodyPlantSceneGraph(&builder, 0.001);
     multibody::Parser parser(&plant);
-    parser.AddModelFromFile(
+    parser.AddModels(
         FindResourceOrThrow("drake/manipulation/models/iiwa_description/urdf/"
                             "iiwa14_spheres_collision.urdf"));
     plant.WeldFrames(plant.world_frame(), plant.GetFrameByName("base"));
-    parser.AddModelFromFile(FindResourceOrThrow(
+    parser.AddModels(FindResourceOrThrow(
         "drake/examples/kuka_iiwa_arm/models/table/"
         "extra_heavy_duty_table_surface_only_collision.sdf"));
     const double table_height = 0.7645;
@@ -298,7 +330,7 @@ Open up your browser to the URL above.
     auto context = diagram->CreateDefaultContext();
     diagram->get_input_port().FixValue(context.get(), Eigen::VectorXd::Zero(7));
 
-    diagram->Publish(*context);
+    diagram->ForcedPublish(*context);
     std::cout
         << "- Now you should see a kuka model (from MultibodyPlant/SceneGraph)"
         << std::endl;
@@ -309,8 +341,6 @@ Open up your browser to the URL above.
     std::cout << "Now we'll run the simulation...\n"
               << "- You should see the robot fall down and hit the table\n"
               << "- You should see the contact force vectors (when it hits)\n"
-              << "- You will also see large forces near the wrist until we "
-                 "resolve #15965\n"
               << std::endl;
 
     systems::Simulator<double> simulator(*diagram, std::move(context));
@@ -375,7 +405,44 @@ Open up your browser to the URL above.
             << "Got " << meshcat->GetButtonClicks("Press t Key")
             << " clicks on \"Press t Key\".\n"
             << "Got " << meshcat->GetSliderValue("SliderTest")
-            << " value for SliderTest." << std::endl;
+            << " value for SliderTest.\n\n" << std::endl;
+
+  std::cout << "Next, we'll test gamepad (i.e., joystick) features.\n\n";
+  std::cout
+      << "While the Meshcat browser window has focus, click any button on "
+      << "your gamepad to activate gamepad support in the browser.\n\n";
+  std::cout
+      << "Then(after you press RETURN), we'll print the gamepad stats for 5 "
+      << "seconds. During that time, move the control sticks and hold some "
+      << "buttons and you should see those values reflected in the printouts. "
+      << "As long as you see varying values as you move the controls, that's "
+      << "sufficient to consider the test passing; the exact values do not "
+      << "matter.\n";
+
+  std::cout << "[Press RETURN to continue]." << std::endl;
+  std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+
+  Meshcat::Gamepad gamepad = meshcat->GetGamepad();
+  if (!gamepad.index) {
+    std::cout << "No gamepad activity detected.\n";
+  } else {
+    for (int i = 0; i < 5; ++i) {
+      gamepad = meshcat->GetGamepad();
+      std::cout << "Gamepad status:\n";
+      std::cout << "  gamepad index: " << *gamepad.index << "\n";
+      std::cout << "  buttons: ";
+      for (auto const& value : gamepad.button_values) {
+        std::cout << value << ", ";
+      }
+      std::cout << "\n";
+      std::cout << "  axes: ";
+      for (auto const& value : gamepad.axes) {
+        std::cout << value << ", ";
+      }
+      std::cout << "\n";
+      std::this_thread::sleep_for(std::chrono::seconds(1));
+    }
+  }
 
   std::cout << "Exiting..." << std::endl;
   return 0;

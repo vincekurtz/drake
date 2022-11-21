@@ -142,7 +142,17 @@ struct assert_if_is_constraint {
  */
 class MathematicalProgram {
  public:
-  DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(MathematicalProgram)
+  /** @name Does not allow copy, move, or assignment. */
+  /** @{ */
+#ifdef DRAKE_DOXYGEN_CXX
+  // Copy constructor is private for use in implementing Clone().
+  MathematicalProgram(const MathematicalProgram&) = delete;
+#endif
+  MathematicalProgram& operator=(const MathematicalProgram&) = delete;
+  MathematicalProgram(MathematicalProgram&&) = delete;
+  MathematicalProgram& operator=(MathematicalProgram&&) = delete;
+  /** @} */
+
   using VarType = symbolic::Variable::Type;
 
   /// The optimal cost is +∞ when the problem is globally infeasible.
@@ -165,8 +175,9 @@ class MathematicalProgram {
    * - solver settings
    * - initial guess
    *
-   * However, the clone's x values will be initialized to NaN, and all internal
-   * solvers will be freshly constructed.
+   * Note that this is currently a *shallow* clone. The costs and constraints
+   * are not themselves cloned.
+   *
    * @retval new_prog. The newly constructed mathematical program.
    */
   [[nodiscard]] std::unique_ptr<MathematicalProgram> Clone() const;
@@ -1110,8 +1121,7 @@ class MathematicalProgram {
   /**
    * Adds an L2 norm cost |Ax+b|₂ (notice this cost is not quadratic since we
    * don't take the square of the L2 norm).
-   * @note Currently no solver supports kL2NormCost, and the user will
-   * receive an error message if they add L2NormCost and call Solve().
+   * @note Currently only the SnoptSolver and IpoptSolver support kL2NormCost.
    * @pydrake_mkdoc_identifier{3args_A_b_vars}
    */
   // TODO(hongkai.dai): support L2NormCost in each solver.
@@ -3233,6 +3243,9 @@ class MathematicalProgram {
   //@}
 
  private:
+  // Copy constructor is private for use in implementing Clone().
+  explicit MathematicalProgram(const MathematicalProgram&);
+
   static void AppendNanToEnd(int new_var_size, Eigen::VectorXd* vector);
 
   // Removes a binding of a constraint/constraint, @p removal, from a given

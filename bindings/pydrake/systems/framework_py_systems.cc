@@ -92,9 +92,9 @@ struct Impl {
     using Base::DeclareDiscreteState;
     using Base::DeclareInitializationEvent;
     using Base::DeclareNumericParameter;
-    using Base::DeclarePeriodicDiscreteUpdate;
+    using Base::DeclarePeriodicDiscreteUpdateNoHandler;
     using Base::DeclarePeriodicEvent;
-    using Base::DeclarePeriodicPublish;
+    using Base::DeclarePeriodicPublishNoHandler;
     using Base::DeclarePeriodicUnrestrictedUpdateEvent;
     using Base::DeclarePerStepEvent;
     using Base::DeclareStateOutputPort;
@@ -104,6 +104,10 @@ struct Impl {
     using Base::get_mutable_forced_publish_events;
     using Base::get_mutable_forced_unrestricted_update_events;
     using Base::MakeWitnessFunction;
+
+    // Deprecated; remove 2023-03-01
+    using Base::DeclarePeriodicDiscreteUpdate;
+    using Base::DeclarePeriodicPublish;
 
     // Because `LeafSystem<T>::DoPublish` is protected, and we had to override
     // this method in `PyLeafSystem`, expose the method here for direct(-ish)
@@ -440,16 +444,13 @@ struct Impl {
             },
             py::arg("context"), py::arg("proposed_derivatives"),
             doc.System.CalcImplicitTimeDerivativesResidual.doc)
-        .def("CalcDiscreteVariableUpdates",
-            overload_cast_explicit<void, const Context<T>&, DiscreteValues<T>*>(
-                &System<T>::CalcDiscreteVariableUpdates),
-            py::arg("context"), py::arg("discrete_state"),
-            doc.System.CalcDiscreteVariableUpdates.doc_2args)
-        .def("CalcUnrestrictedUpdate",
-            overload_cast_explicit<void, const Context<T>&, State<T>*>(
-                &System<T>::CalcUnrestrictedUpdate),
-            py::arg("context"), py::arg("state"),
-            doc.System.CalcUnrestrictedUpdate.doc_2args)
+        .def("CalcForcedDiscreteVariableUpdate",
+            &System<T>::CalcForcedDiscreteVariableUpdate, py::arg("context"),
+            py::arg("discrete_state"),
+            doc.System.CalcForcedDiscreteVariableUpdate.doc)
+        .def("CalcForcedUnrestrictedUpdate",
+            &System<T>::CalcForcedUnrestrictedUpdate, py::arg("context"),
+            py::arg("state"), doc.System.CalcForcedUnrestrictedUpdate.doc)
         .def("GetSubsystemContext",
             overload_cast_explicit<const Context<T>&, const System<T>&,
                 const Context<T>&>(&System<T>::GetSubsystemContext),
@@ -486,13 +487,16 @@ struct Impl {
             py::arg("max_depth") = std::numeric_limits<int>::max(),
             doc.System.GetGraphvizString.doc)
         // Events.
-        .def("Publish",
-            overload_cast_explicit<void, const Context<T>&>(
-                &System<T>::Publish),
-            doc.System.Publish.doc_1args)
+        .def("ForcedPublish", &System<T>::ForcedPublish, py::arg("context"),
+            doc.System.ForcedPublish.doc)
         .def("GetUniquePeriodicDiscreteUpdateAttribute",
             &System<T>::GetUniquePeriodicDiscreteUpdateAttribute,
             doc.System.GetUniquePeriodicDiscreteUpdateAttribute.doc)
+        .def("EvalUniquePeriodicDiscreteUpdate",
+            &System<T>::EvalUniquePeriodicDiscreteUpdate, py_rvp::reference,
+            // Keep alive, ownership: `return` keeps `context` alive.
+            py::keep_alive<0, 2>(), py::arg("context"),
+            doc.System.EvalUniquePeriodicDiscreteUpdate.doc)
         .def(
             "IsDifferenceEquationSystem",
             [](const System<T>& self) {
@@ -541,6 +545,32 @@ Note: The above is for the C++ documentation. For Python, use
 Note: The above is for the C++ documentation. For Python, use
 `witnesses = GetWitnessFunctions(context)`)"")
                 .c_str());
+
+// Deprecated; remove 2023-03-01
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+    system_cls  // BR
+        .def("CalcDiscreteVariableUpdates",
+            WrapDeprecated(
+                doc.System.CalcDiscreteVariableUpdates.doc_deprecated_2args,
+                overload_cast_explicit<void, const Context<T>&,
+                    DiscreteValues<T>*>(
+                    &System<T>::CalcDiscreteVariableUpdates)),
+            py::arg("context"), py::arg("discrete_state"),
+            doc.System.CalcDiscreteVariableUpdates.doc_deprecated_2args)
+        .def("CalcUnrestrictedUpdate",
+            WrapDeprecated(doc.System.CalcUnrestrictedUpdate.doc_deprecated,
+                overload_cast_explicit<void, const Context<T>&, State<T>*>(
+                    &System<T>::CalcUnrestrictedUpdate)),
+            py::arg("context"), py::arg("state"),
+            doc.System.CalcUnrestrictedUpdate.doc_deprecated)
+        .def("Publish",
+            WrapDeprecated(doc.System.Publish.doc_deprecated,
+                overload_cast_explicit<void, const Context<T>&>(
+                    &System<T>::Publish)),
+            doc.System.Publish.doc_deprecated);
+#pragma GCC diagnostic pop
+
     auto def_to_scalar_type = [&system_cls, doc](auto dummy) {
       using U = decltype(dummy);
       AddTemplateMethod(
@@ -717,14 +747,14 @@ Note: The above is for the C++ documentation. For Python, use
               self->DeclareInitializationEvent(event);
             },
             py::arg("event"), doc.LeafSystem.DeclareInitializationEvent.doc)
-        .def("DeclarePeriodicPublish",
-            &LeafSystemPublic::DeclarePeriodicPublish, py::arg("period_sec"),
-            py::arg("offset_sec") = 0.,
-            doc.LeafSystem.DeclarePeriodicPublish.doc)
-        .def("DeclarePeriodicDiscreteUpdate",
-            &LeafSystemPublic::DeclarePeriodicDiscreteUpdate,
+        .def("DeclarePeriodicPublishNoHandler",
+            &LeafSystemPublic::DeclarePeriodicPublishNoHandler,
             py::arg("period_sec"), py::arg("offset_sec") = 0.,
-            doc.LeafSystem.DeclarePeriodicDiscreteUpdate.doc)
+            doc.LeafSystem.DeclarePeriodicPublishNoHandler.doc)
+        .def("DeclarePeriodicDiscreteUpdateNoHandler",
+            &LeafSystemPublic::DeclarePeriodicDiscreteUpdateNoHandler,
+            py::arg("period_sec"), py::arg("offset_sec") = 0.,
+            doc.LeafSystem.DeclarePeriodicDiscreteUpdateNoHandler.doc)
         .def("DeclarePeriodicPublishEvent",
             WrapCallbacks(
                 [](PyLeafSystem* self, double period_sec, double offset_sec,
@@ -937,7 +967,24 @@ Note: The above is for the C++ documentation. For Python, use
         .def("DeclareAbstractState",
             py::overload_cast<const AbstractValue&>(
                 &LeafSystemPublic::DeclareAbstractState),
-            doc.LeafSystem.DeclareAbstractState.doc);
+            py::arg("model_value"), doc.LeafSystem.DeclareAbstractState.doc);
+
+// Deprecated; remove 2023-03-01
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+    leaf_system_cls  // BR
+        .def("DeclarePeriodicPublish",
+            WrapDeprecated(doc.LeafSystem.DeclarePeriodicPublish.doc_deprecated,
+                &LeafSystemPublic::DeclarePeriodicPublish),
+            py::arg("period_sec"), py::arg("offset_sec") = 0.,
+            doc.LeafSystem.DeclarePeriodicPublish.doc_deprecated)
+        .def("DeclarePeriodicDiscreteUpdate",
+            WrapDeprecated(
+                doc.LeafSystem.DeclarePeriodicDiscreteUpdate.doc_deprecated,
+                &LeafSystemPublic::DeclarePeriodicDiscreteUpdate),
+            py::arg("period_sec"), py::arg("offset_sec") = 0.,
+            doc.LeafSystem.DeclarePeriodicDiscreteUpdate.doc_deprecated);
+#pragma GCC diagnostic pop
 
     DefineTemplateClassWithDefault<Diagram<T>, PyDiagram, System<T>>(
         m, "Diagram", GetPyParam<T>(), doc.Diagram.doc)

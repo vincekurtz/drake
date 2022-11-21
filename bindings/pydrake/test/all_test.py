@@ -40,7 +40,7 @@ class TestAll(unittest.TestCase):
 
         builder = DiagramBuilder()
         plant, _ = AddMultibodyPlantSceneGraph(builder, 0.0)
-        Parser(plant).AddModelFromFile(
+        Parser(plant).AddModels(
             FindResourceOrThrow("drake/examples/pendulum/Pendulum.urdf"))
         plant.Finalize()
         diagram = builder.Build()
@@ -53,7 +53,7 @@ class TestAll(unittest.TestCase):
 
         builder = DiagramBuilder()
         plant, _ = AddMultibodyPlantSceneGraph(builder, 0.0)
-        Parser(plant).AddModelFromFile(
+        Parser(plant).AddModels(
             FindResourceOrThrow("drake/examples/pendulum/Pendulum.urdf"))
         plant.Finalize()
         diagram = builder.Build()
@@ -65,7 +65,7 @@ class TestAll(unittest.TestCase):
         builder = pydrake.systems.framework.DiagramBuilder()
         plant, _ = pydrake.multibody.plant.AddMultibodyPlantSceneGraph(
             builder, 0.0)
-        pydrake.multibody.parsing.Parser(plant).AddModelFromFile(
+        pydrake.multibody.parsing.Parser(plant).AddModels(
             pydrake.common.FindResourceOrThrow(
                 "drake/examples/pendulum/Pendulum.urdf"))
         plant.Finalize()
@@ -194,9 +194,11 @@ class TestAll(unittest.TestCase):
             "Image",
             # visualization
             "AddDefaultVisualization",
-            # - meldis
+            # - _meldis
             "Meldis",
-            # - plotting
+            # -  model_visualizer
+            "ModelVisualizer",
+            # - _plotting
             "plot_sublevelset_quadratic",
         )
         # Ensure each symbol is exposed as globals from the above import

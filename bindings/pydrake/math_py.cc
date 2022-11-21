@@ -21,6 +21,7 @@
 #include "drake/math/compute_numerical_gradient.h"
 #include "drake/math/continuous_algebraic_riccati_equation.h"
 #include "drake/math/continuous_lyapunov_equation.h"
+#include "drake/math/cross_product.h"
 #include "drake/math/discrete_algebraic_riccati_equation.h"
 #include "drake/math/discrete_lyapunov_equation.h"
 #include "drake/math/matrix_util.h"
@@ -46,6 +47,8 @@ void DoScalarDependentDefinitions(py::module m, T) {
   // NOLINTNEXTLINE(build/namespaces): Emulate placement in namespace.
   using namespace drake::math;
   constexpr auto& doc = pydrake_doc.drake.math;
+
+  // N.B. Some classes define `__repr__` in `_math_extra.py`.
 
   {
     using Class = RigidTransform<T>;
@@ -106,11 +109,19 @@ void DoScalarDependentDefinitions(py::module m, T) {
             cls_doc.IsExactlyIdentity.doc)
         .def("IsNearlyIdentity", &Class::IsNearlyIdentity,
             py::arg("translation_tolerance"), cls_doc.IsNearlyIdentity.doc)
+        .def("IsExactlyEqualTo", &Class::IsExactlyEqualTo, py::arg("other"),
+            cls_doc.IsExactlyEqualTo.doc)
         .def("IsNearlyEqualTo", &Class::IsNearlyEqualTo, py::arg("other"),
             py::arg("tolerance"), cls_doc.IsNearlyEqualTo.doc)
         .def("inverse", &Class::inverse, cls_doc.inverse.doc)
         .def("InvertAndCompose", &Class::InvertAndCompose, py::arg("other"),
             cls_doc.InvertAndCompose.doc)
+        .def("GetMaximumAbsoluteDifference",
+            &Class::GetMaximumAbsoluteDifference, py::arg("other"),
+            cls_doc.GetMaximumAbsoluteDifference.doc)
+        .def("GetMaximumAbsoluteTranslationDifference",
+            &Class::GetMaximumAbsoluteTranslationDifference, py::arg("other"),
+            cls_doc.GetMaximumAbsoluteTranslationDifference.doc)
         .def(
             "multiply",
             [](const Class* self, const Class& other) { return *self * other; },
@@ -142,8 +153,6 @@ void DoScalarDependentDefinitions(py::module m, T) {
     cls.attr("__matmul__") = cls.attr("multiply");
     DefCopyAndDeepCopy(&cls);
     DefCast<T>(&cls, cls_doc.cast.doc);
-    // .def("IsNearlyEqualTo", ...)
-    // .def("IsExactlyEqualTo", ...)
     AddValueInstantiation<Class>(m);
     // Some ports need `Value<std::vector<Class>>`.
     AddValueInstantiation<std::vector<Class>>(m);
@@ -213,6 +222,8 @@ void DoScalarDependentDefinitions(py::module m, T) {
               return RotationMatrix<T>::ProjectToRotationMatrix(M);
             },
             py::arg("M"), cls_doc.ProjectToRotationMatrix.doc)
+        .def("ToRollPitchYaw", &Class::ToRollPitchYaw,
+            cls_doc.ToRollPitchYaw.doc)
         .def("ToQuaternion",
             overload_cast_explicit<Eigen::Quaternion<T>>(&Class::ToQuaternion),
             cls_doc.ToQuaternion.doc_0args)
@@ -341,6 +352,14 @@ void DoScalarDependentDefinitions(py::module m, T) {
 
   m.def("wrap_to", &wrap_to<T, T>, py::arg("value"), py::arg("low"),
       py::arg("high"), doc.wrap_to.doc);
+
+  // Cross product
+  m.def(
+      "VectorToSkewSymmetric",
+      [](const Eigen::Ref<const Vector3<T>>& p) {
+        return VectorToSkewSymmetric(p);
+      },
+      py::arg("p"), doc.VectorToSkewSymmetric.doc);
 }
 
 void DoScalarIndependentDefinitions(py::module m) {

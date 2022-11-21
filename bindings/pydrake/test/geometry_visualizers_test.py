@@ -9,7 +9,6 @@ from drake import lcmt_viewer_load_robot, lcmt_viewer_draw
 from pydrake.autodiffutils import AutoDiffXd
 from pydrake.common.value import AbstractValue
 from pydrake.common.test_utilities import numpy_compare
-from pydrake.common.test_utilities.deprecation import catch_drake_warnings
 from pydrake.lcm import DrakeLcm, Subscriber
 from pydrake.math import RigidTransform
 from pydrake.perception import PointCloud
@@ -130,6 +129,13 @@ class TestGeometryVisualizers(unittest.TestCase):
             rgba=mut.Rgba(0.3, 0.3, 0.3),
             wireframe=True,
             wireframe_line_width=2.0)
+        meshcat.SetTriangleColorMesh(
+            path="/test/triangle_mesh",
+            vertices=np.array([[0, 0, 0], [1, 0, 0], [1, 0, 1], [0, 0, 1]]).T,
+            faces=np.array([[0, 1, 2], [3, 0, 2]]).T,
+            colors=np.array([[1, 0, 0], [0, 1, 0], [0, 0, 1], [1, 1, 0]]).T,
+            wireframe=False,
+            wireframe_line_width=2.0)
         meshcat.SetProperty(path="/Background",
                             property="visible",
                             value=True)
@@ -157,6 +163,11 @@ class TestGeometryVisualizers(unittest.TestCase):
         meshcat.DeleteAddedControls()
         self.assertIn("data:application/octet-binary;base64",
                       meshcat.StaticHtml())
+        gamepad = meshcat.GetGamepad()
+        # Check default values (assuming no gamepad messages have arrived):
+        self.assertIsNone(gamepad.index)
+        self.assertEqual(len(gamepad.button_values), 0)
+        self.assertEqual(len(gamepad.axes), 0)
         meshcat.SetRealtimeRate(1.0)
         meshcat.Flush()
 
@@ -261,26 +272,6 @@ class TestGeometryVisualizers(unittest.TestCase):
         self.assertIsInstance(vis_autodiff,
                               mut.MeshcatVisualizer_[AutoDiffXd])
 
-    def test_deprecated_meshcat_visualizer_cpp_add(self):
-        """This checks a deprecated API spelling; remove this on 2022-11-01."""
-        T = float
-        builder = DiagramBuilder_[T]()
-        scene_graph = builder.AddSystem(mut.SceneGraph_[T]())
-        meshcat = mut.Meshcat()
-        with catch_drake_warnings(expected_count=1):
-            added = mut.MeshcatVisualizerCpp.AddToBuilder(
-                builder=builder, scene_graph=scene_graph, meshcat=meshcat)
-        self.assertIsInstance(added, mut.MeshcatVisualizer)
-
-    def test_deprecated_meshcat_visualizer_cpp_scalar_conversion(self):
-        """This checks a deprecated API spelling; remove this on 2022-11-01."""
-        meshcat = mut.Meshcat()
-        with catch_drake_warnings(expected_count=1):
-            vis = mut.MeshcatVisualizerCpp(meshcat)
-        vis_autodiff = vis.ToAutoDiffXd()
-        self.assertIsInstance(vis_autodiff,
-                              mut.MeshcatVisualizerCpp_[AutoDiffXd])
-
     @numpy_compare.check_nonsymbolic_types
     def test_meshcat_point_cloud_visualizer(self, T):
         meshcat = mut.Meshcat()
@@ -294,23 +285,12 @@ class TestGeometryVisualizers(unittest.TestCase):
         visualizer.cloud_input_port().FixValue(
           context, AbstractValue.Make(cloud))
         self.assertIsInstance(visualizer.pose_input_port(), InputPort_[T])
-        visualizer.Publish(context)
+        visualizer.ForcedPublish(context)
         visualizer.Delete()
         if T == float:
             ad_visualizer = visualizer.ToAutoDiffXd()
             self.assertIsInstance(
                 ad_visualizer, mut.MeshcatPointCloudVisualizer_[AutoDiffXd])
-
-    def test_deprecated_meshcat_point_cloud_visualizer_cpp(self):
-        """This checks a deprecated API spelling; remove this on 2022-11-01."""
-        meshcat = mut.Meshcat()
-        with catch_drake_warnings(expected_count=1):
-            visualizer = mut.MeshcatPointCloudVisualizerCpp(
-                meshcat=meshcat, path="cloud", publish_period=1/12.0)
-        visualizer.set_point_size(0.1)
-        ad_visualizer = visualizer.ToAutoDiffXd()
-        self.assertIsInstance(
-            ad_visualizer, mut.MeshcatPointCloudVisualizerCpp_[AutoDiffXd])
 
     def test_start_meshcat(self):
         # StartMeshcat only performs interesting work on cloud notebook hosts.
