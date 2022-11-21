@@ -1588,7 +1588,7 @@ GTEST_TEST(TrajectoryOptimizerTest, ExactHessian) {
   const VectorX<AutoDiffXd>& g_ad = optimizer_ad.EvalGradient(state_ad);
   MatrixXd H_ad = math::ExtractGradient(g_ad);
   H_ad.leftCols(2).setZero();
-  H_ad.block<2,2>(0,0).setIdentity();
+  H_ad.block<2, 2>(0, 0).setIdentity();
 
   // Compute the exact Hessian from the optimizer (also uses autodiff, but under
   // the hood). This only produces the exact hessian when params.exact_hessian =

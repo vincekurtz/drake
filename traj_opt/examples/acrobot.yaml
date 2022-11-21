@@ -36,7 +36,7 @@ linesearch : "armijo"       # linesearch strategy, {armino, backtracking}
 proximal_operator : false   # whether to add a proximal operator cost term
 rho_proximal : 1e-8         # the proximal cost multiplier
 
-exact_hessian : true
+exact_hessian : false
 
 # Method used to compute gradients of inverse dynamics, one of
 # {forward_differences, central_differences, central_differences4, autodiff}

@@ -137,13 +137,14 @@ class TrajectoryOptimizer {
   /**
    * Compute the exact Hessian of the unconstrained cost (including second-order
    * non-Gauss-Newton terms) using autodiff.
-   * 
-   * @warning for testing only: this is extremely slow. 
+   *
+   * @warning for testing only: this is extremely slow.
    *
    * @param state optimizer state
    * @return MatrixX<T> the hessian
    */
-  void CalcExactHessian(const TrajectoryOptimizerState<T>& state, PentaDiagonalMatrix<T>* H) const;
+  void CalcExactHessian(const TrajectoryOptimizerState<T>& state,
+                        PentaDiagonalMatrix<T>* H) const;
 
   /**
    * Solve the optimization from the given initial guess, which may or may not
