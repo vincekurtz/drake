@@ -41,7 +41,8 @@ tolerances:
   rel_state_change: 0
   abs_state_change: 0
 
-exact_hessian : true
+exact_hessian : false
+linear_solver : "dense_ldlt"
 
 # Method used to compute gradients of inverse dynamics, one of
 # {forward_differences, central_differences, central_differences4, autodiff}
