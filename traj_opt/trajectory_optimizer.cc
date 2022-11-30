@@ -101,6 +101,8 @@ TrajectoryOptimizer<T>::TrajectoryOptimizer(const Diagram<T>* diagram,
       DRAKE_DEMAND(plant_ad_ != nullptr);
       SolverParameters params_ad(params);
       if (params_.gradients_method == GradientsMethod::kAutoDiff) {
+        // If we're using autodiff to compute gradients, then the autodiff copy
+        // of the plant should not be able to compute its own gradients
         params_ad.gradients_method = GradientsMethod::kNoGradients;
       } else {
         params_ad.gradients_method = GradientsMethod::kCentralDifferences;

@@ -138,6 +138,9 @@ class TrajectoryOptimizer {
    * Compute the exact Hessian of the unconstrained cost (including second-order
    * non-Gauss-Newton terms) using autodiff.
    *
+   * This performs autodiff over the finite difference gradient, and is
+   * therefore subject to numerical differentiation errors.
+   *
    * @warning for testing only: this is extremely slow.
    *
    * @param state optimizer state
