@@ -2059,9 +2059,16 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
     VectorXd* dq, VectorXd* dqH) const {
   INSTRUMENT_FUNCTION("Find search direction with dogleg method.");
 
-  // N.B. We'll rescale pU and pH by Δ to avoid roundoff error
-  const VectorXd& g = EvalGradient(state);
-  const PentaDiagonalMatrix<double>& H = EvalHessian(state);
+  // N.B. We'll rescale pU and pH by Δ to avoid roundoff error, regardless of
+  // whether we rescale using the Hessian diagonal.
+  VectorXd g = EvalGradient(state);  // TODO: avoid extra allocations here
+  PentaDiagonalMatrix<double> H = EvalHessian(state);
+  VectorXd D = EvalScaleFactors(state);
+  if (params_.scaling) {
+    g = D.asDiagonal() * g;
+    H = EvalScaledHessian(state);
+  }
+
   VectorXd& Hg = state.workspace.q_times_num_steps_size_tmp;
   H.MultiplyBy(g, &Hg);
   const double gHg = g.transpose() * Hg;
@@ -2076,12 +2083,7 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
   VectorXd& pH = state.workspace.q_size_tmp2;
 
   pH = -g / Delta;  // normalize by Δ
-  //SolveLinearSystemInPlace(H, &pH);
-  const PentaDiagonalMatrix<double>& Htilde = EvalScaledHessian(state);
-  const VectorXd& D = EvalScaleFactors(state);
-  pH = D.asDiagonal() * pH;
-  SolveLinearSystemInPlace(Htilde, &pH);
-  pH = D.asDiagonal() * pH;
+  SolveLinearSystemInPlace(H, &pH);
 
   if (params_.debug_compare_against_dense) {
     // From experiments in penta_diagonal_solver_test.cc
@@ -2105,12 +2107,18 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
     // If so, δq is where the first leg of the dogleg path intersects the trust
     // region.
     *dq = (Delta / pU.norm()) * pU;
+    if (params_.scaling) {
+      *dq = D.asDiagonal() * (*dq);
+    }
     return true;  // the trust region constraint is active
   }
 
   // Check if the trust region is large enough to just take the full Newton step
   if (1.0 >= pH.norm()) {
     *dq = pH * Delta;
+    if (params_.scaling) {
+      *dq = D.asDiagonal() * (*dq);
+    }
     return false;  // the trust region constraint is not active
   }
 
@@ -2132,6 +2140,9 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
   const double s = SolveDoglegQuadratic(a, b, c);
 
   *dq = (pU + s * (pH - pU)) * Delta;
+  if (params_.scaling) {
+    *dq = D.asDiagonal() * (*dq);
+  }
   return true;  // the trust region constraint is active
 }
 
@@ -2391,7 +2402,7 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
   std::chrono::duration<double> solve_time;
 
   // Trust region parameters
-  const double Delta_max = 1.0;  // Maximum trust region size
+  const double Delta_max = 1e5;  // Maximum trust region size
   const double Delta0 = 1e0;     // Initial trust region size
   const double eta = 0.0;        // Trust ratio threshold - we accept steps if
                                  // the trust ratio is above this threshold
