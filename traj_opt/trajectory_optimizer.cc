@@ -93,16 +93,20 @@ TrajectoryOptimizer<T>::TrajectoryOptimizer(const Diagram<T>* diagram,
 
   // Create an autodiff optimizer if we need exact gradients
   if constexpr (std::is_same_v<T, double>) {
-    if (params_.gradients_method == GradientsMethod::kAutoDiff) {
+    if ((params_.gradients_method == GradientsMethod::kAutoDiff) ||
+        params_.exact_hessian) {
       diagram_ad_ = systems::System<double>::ToAutoDiffXd(*diagram);
       plant_ad_ = dynamic_cast<const MultibodyPlant<AutoDiffXd>*>(
           &diagram_ad_->GetSubsystemByName(plant->get_name()));
       DRAKE_DEMAND(plant_ad_ != nullptr);
       SolverParameters params_ad(params);
-      // N.B. We'll only use optimizer_ad_ to compute inverse dynamics with
-      // AutoDiffXd, not gradients. We state this explicitly so that we don't
-      // get the exception below at construction.
-      params_ad.gradients_method = GradientsMethod::kNoGradients;
+      if (params_.gradients_method == GradientsMethod::kAutoDiff) {
+        // If we're using autodiff to compute gradients, then the autodiff copy
+        // of the plant should not be able to compute its own gradients
+        params_ad.gradients_method = GradientsMethod::kNoGradients;
+      } else {
+        params_ad.gradients_method = GradientsMethod::kCentralDifferences;
+      }
       optimizer_ad_ = std::make_unique<TrajectoryOptimizer<AutoDiffXd>>(
           diagram_ad_.get(), plant_ad_, prob, params_ad);
       // TODO(vincekurtz): move state's destructor and possible other
@@ -1372,10 +1376,57 @@ template <typename T>
 const PentaDiagonalMatrix<T>& TrajectoryOptimizer<T>::EvalHessian(
     const TrajectoryOptimizerState<T>& state) const {
   if (!state.cache().hessian_up_to_date) {
-    CalcHessian(state, &state.mutable_cache().hessian);
+    if (params_.exact_hessian) {
+      CalcExactHessian(state, &state.mutable_cache().hessian);
+    } else {
+      CalcHessian(state, &state.mutable_cache().hessian);
+    }
     state.mutable_cache().hessian_up_to_date = true;
   }
   return state.cache().hessian;
+}
+
+template <typename T>
+void TrajectoryOptimizer<T>::CalcExactHessian(
+    const TrajectoryOptimizerState<T>&, PentaDiagonalMatrix<T>*) const {
+  throw std::runtime_error(
+      "TrajectoryOptimizer::CalcExactHessian only supports T=double");
+}
+
+template <>
+void TrajectoryOptimizer<double>::CalcExactHessian(
+    const TrajectoryOptimizerState<double>& state,
+    PentaDiagonalMatrix<double>* H) const {
+  const int nq = plant().num_positions();
+  const int num_vars = (num_steps() + 1) * nq;
+  DRAKE_DEMAND(H->is_symmetric());
+  DRAKE_DEMAND(H->block_rows() == num_steps() + 1);
+  DRAKE_DEMAND(H->block_size() == nq);
+
+  const std::vector<VectorX<double>>& q = state.q();
+  std::vector<VectorX<AutoDiffXd>> q_ad(num_steps() + 1,
+                                        VectorX<AutoDiffXd>(nq));
+
+  // Initialize q_ad
+  int ad_idx = 0;
+  for (int t = 0; t <= num_steps(); ++t) {
+    for (int i = 0; i < nq; ++i) {
+      q_ad[t].segment<1>(i) =
+          math::InitializeAutoDiff(q[t].segment<1>(i), num_vars, ad_idx);
+      ++ad_idx;
+    }
+  }
+  state_ad_->set_q(q_ad);
+
+  // Compute the autodiff gradient with finite differences
+  const VectorX<AutoDiffXd>& g_ad = optimizer_ad_->EvalGradient(*state_ad_);
+
+  // Extract the Hessian via autodiff
+  MatrixXd H_dense = math::ExtractGradient(g_ad);
+  H_dense.leftCols(nq).setZero();
+  H_dense.block(0, 0, nq, nq).setIdentity();
+
+  *H = H->MakeSymmetricFromLowerDense(H_dense, num_steps() + 1, nq);
 }
 
 template <typename T>
@@ -2322,7 +2373,16 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
 
     // Verify that dq is a descent direction
     const VectorXd& g = EvalGradient(state);
-    DRAKE_DEMAND(dq.transpose() * g < 0);
+
+    if (params_.print_debug_data) {
+      // Print some info about the Hessian
+      const MatrixXd Hdense = EvalHessian(state).MakeDense();
+      const double condition_number = 1 / Hdense.ldlt().rcond();
+      const bool is_positive = Hdense.ldlt().isPositive();
+      PRINT_VAR(condition_number);
+      PRINT_VAR(is_positive);
+      PRINT_VAR(dq.transpose() * g);
+    }
 
     // Compute some quantities for logging.
     // N.B. These should be computed before q is updated.
@@ -2333,6 +2393,18 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
 
     // Compute the trust region ratio
     rho = CalcTrustRatio(state, dq, &scratch_state);
+
+    // With a positive definite Hessian, steps should not oppose the descent
+    // direction
+    if (!params_.exact_hessian) {
+      DRAKE_DEMAND(dq.transpose() * g < 0);
+    } else {
+      // Reduce the trust region and reject the step if this is not a descent
+      // direction
+      if (dq.transpose() * g >= 0) {
+        rho = -1.0;
+      }
+    }
 
     // Save data related to our quadratic approximation (for the first two
     // variables)

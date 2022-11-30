@@ -135,6 +135,21 @@ class TrajectoryOptimizer {
                    PentaDiagonalMatrix<T>* H) const;
 
   /**
+   * Compute the exact Hessian of the unconstrained cost (including second-order
+   * non-Gauss-Newton terms) using autodiff.
+   *
+   * This performs autodiff over the finite difference gradient, and is
+   * therefore subject to numerical differentiation errors.
+   *
+   * @warning for testing only: this is extremely slow.
+   *
+   * @param state optimizer state
+   * @return MatrixX<T> the hessian
+   */
+  void CalcExactHessian(const TrajectoryOptimizerState<T>& state,
+                        PentaDiagonalMatrix<T>* H) const;
+
+  /**
    * Solve the optimization from the given initial guess, which may or may not
    * be dynamically feasible.
    *

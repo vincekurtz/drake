@@ -20,6 +20,9 @@
 #include "drake/traj_opt/trajectory_optimizer_workspace.h"
 #include "drake/traj_opt/velocity_partials.h"
 
+#define PRINT_VAR(a) std::cout << #a ": " << a << std::endl;
+#define PRINT_VARn(a) std::cout << #a ":\n" << a << std::endl;
+
 namespace drake {
 namespace traj_opt {
 
@@ -622,8 +625,7 @@ GTEST_TEST(TrajectoryOptimizerTest, HessianAcrobot) {
 }
 
 /**
- * Test our computation of the Hessian by comparing
- * with autodiff.
+ * Compare the Gauss-Newton Hessian with the exact (autodiff) Hessian.
  */
 GTEST_TEST(TrajectoryOptimizerTest, HessianPendulum) {
   // Define an optimization problem.
@@ -644,7 +646,7 @@ GTEST_TEST(TrajectoryOptimizerTest, HessianPendulum) {
     opt_prob.v_nom.push_back(Vector1d(-0.1));
   }
 
-  // Create a pendulum model
+  // Create a pendulum model without gravity
   DiagramBuilder<double> builder;
   MultibodyPlantConfig config;
   config.time_step = dt;
@@ -652,55 +654,37 @@ GTEST_TEST(TrajectoryOptimizerTest, HessianPendulum) {
   const std::string urdf_file =
       FindResourceOrThrow("drake/examples/pendulum/Pendulum.urdf");
   Parser(&plant).AddAllModelsFromFile(urdf_file);
+  plant.mutable_gravity_field().set_gravity_vector(VectorXd::Zero(3));
   plant.Finalize();
   auto diagram = builder.Build();
 
-  // Create an optimizer
-  TrajectoryOptimizer<double> optimizer(diagram.get(), &plant, opt_prob);
-  TrajectoryOptimizerState<double> state = optimizer.CreateState();
+  // Create two optimizers: one that uses a Gauss-Newton Hessian approximation
+  // and the other that uses an exact (autodiff) Hessian
+  TrajectoryOptimizer<double> optimizer_gn(diagram.get(), &plant, opt_prob);
+  TrajectoryOptimizerState<double> state_gn = optimizer_gn.CreateState();
+
+  SolverParameters params;
+  params.exact_hessian = true;
+  TrajectoryOptimizer<double> optimizer_exact(diagram.get(), &plant, opt_prob,
+                                              params);
+  TrajectoryOptimizerState<double> state_exact = optimizer_exact.CreateState();
 
   // Make some fake data
   std::vector<VectorXd> q(num_steps + 1);
   q[0] = opt_prob.q_init;
   for (int t = 1; t <= num_steps; ++t) {
-    q[t] = q[t - 1] + 0.1 * dt * VectorXd::Ones(1);
+    q[t] = q[t - 1] + 0.3 * dt * VectorXd::Ones(1);
   }
-  state.set_q(q);
+  state_gn.set_q(q);
+  state_exact.set_q(q);
 
-  // Compute the Hessian analytically
-  const int nq = plant.num_positions();
-  const int num_vars = nq * (num_steps + 1);
-  PentaDiagonalMatrix<double> H_sparse(num_steps + 1, nq);
-  optimizer.CalcHessian(state, &H_sparse);
-  MatrixXd H = H_sparse.MakeDense();
+  // Compare the Hessians
+  const MatrixXd H_gn = optimizer_gn.EvalHessian(state_gn).MakeDense();
+  const MatrixXd H_exact = optimizer_exact.EvalHessian(state_exact).MakeDense();
 
-  // Compute the Hessian using autodiff
-  // Note that this is the true Hessian, and not the Gauss-Newton approximation
-  // that we will use. But for this simple pendulum the two are very close
-  auto diagram_ad = systems::System<double>::ToAutoDiffXd(*diagram);
-  const auto& plant_ad = dynamic_cast<const MultibodyPlant<AutoDiffXd>&>(
-      diagram_ad->GetSubsystemByName(plant.get_name()));
-  TrajectoryOptimizer<AutoDiffXd> optimizer_ad(diagram_ad.get(), &plant_ad,
-                                               opt_prob);
-  TrajectoryOptimizerState<AutoDiffXd> state_ad = optimizer_ad.CreateState();
-
-  std::vector<VectorX<AutoDiffXd>> q_ad(num_steps + 1);
-  for (int t = 0; t <= num_steps; ++t) {
-    q_ad[t] = math::InitializeAutoDiff(q[t], num_steps + 1, t);
-  }
-  state_ad.set_q(q_ad);
-
-  VectorX<AutoDiffXd> g_ad(num_vars);
-  optimizer_ad.CalcGradient(state_ad, &g_ad);
-  MatrixXd H_ad = math::ExtractGradient(g_ad);
-
-  // We overwrite the first row and column of the Hessian, so we won't compare
-  // those
   const double kTolerance = sqrt(std::numeric_limits<double>::epsilon()) / dt;
   EXPECT_TRUE(
-      CompareMatrices(H.bottomRightCorner(num_steps * nq, num_steps * nq),
-                      H_ad.bottomRightCorner(num_steps * nq, num_steps * nq),
-                      kTolerance, MatrixCompareType::relative));
+      CompareMatrices(H_gn, H_exact, kTolerance, MatrixCompareType::relative));
 }
 
 GTEST_TEST(TrajectoryOptimizerTest, AutodiffGradient) {

@@ -41,6 +41,9 @@ tolerances:
   rel_state_change: 0
   abs_state_change: 0
 
+exact_hessian : false
+linear_solver : "pentadiagonal_lu"
+
 # Method used to compute gradients of inverse dynamics, one of
 # {forward_differences, central_differences, central_differences4, autodiff}
 gradients_method: "central_differences"
