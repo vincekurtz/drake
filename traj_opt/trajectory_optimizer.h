@@ -275,6 +275,31 @@ class TrajectoryOptimizer {
       const TrajectoryOptimizerState<T>& state) const;
 
   /**
+   * Evaluate a scaled version of the Hessian, given by
+   *
+   *     H̃ = DHD,
+   *
+   * where H is the original Hessian and D = 1/sqrt(diag(H)) is a diagonal
+   * scaling matrix.
+   *
+   * @param state optimizer state, including q, v, tau, gradients, etc.
+   * @return const PentaDiagonalMatrix<T>& the scaled Hessian
+   */
+  const PentaDiagonalMatrix<T>& EvalScaledHessian(
+      const TrajectoryOptimizerState<T>& state) const;
+
+  /**
+   * Evaluate a vector of scaling factors based on the diagonal of the Hessian,
+   *
+   *    D = 1/sqrt(diag(H)).
+   *
+   * @param state the optimizer state
+   * @return const VectorX<T>& the scaling vector D
+   */
+  const VectorX<T>& EvalScaleFactors(
+      const TrajectoryOptimizerState<T>& state) const;
+
+  /**
    * Evaluate the gradient of the unconstrained cost L(q).
    *
    * @param state optimizer state, including q, v, tau, gradients, etc.
@@ -860,6 +885,24 @@ class TrajectoryOptimizer {
 
   /* This methods normalizes all quaternions stored in state. */
   void NormalizeQuaternions(TrajectoryOptimizerState<T>* state) const;
+
+  /**
+   * Compute the scaled version of the Hessian, H̃ = DHD.
+   *
+   * @param state the optimizer state
+   * @param Htilde the scaled Hessian H̃
+   */
+  void CalcScaledHessian(const TrajectoryOptimizerState<T>& state,
+                         PentaDiagonalMatrix<T>* Htilde) const;
+
+  /**
+   * Compute the vector of scaling factors D = 1/sqrt(diag(H)).
+   *
+   * @param state the optimizer state
+   * @param D the vector of scale factors D
+   */
+  void CalcScaleFactors(const TrajectoryOptimizerState<T>& state,
+                       VectorX<T>* D) const;
 
   // Diagram of containing the plant_ model and scene graph. Needed to allocate
   // context resources.

@@ -1387,6 +1387,47 @@ const PentaDiagonalMatrix<T>& TrajectoryOptimizer<T>::EvalHessian(
 }
 
 template <typename T>
+void TrajectoryOptimizer<T>::CalcScaledHessian(
+    const TrajectoryOptimizerState<T>& state,
+    PentaDiagonalMatrix<T>* Htilde) const {
+  // TODO(vincekurtz): use sparse operations
+  MatrixX<T> H = EvalHessian(state).MakeDense();
+  const VectorX<T>& D = EvalScaleFactors(state);
+  H = D.asDiagonal() * H * D.asDiagonal();
+  *Htilde = PentaDiagonalMatrix<T>::MakeSymmetricFromLowerDense(
+      H, num_steps() + 1, plant().num_positions());
+}
+
+template <typename T>
+const PentaDiagonalMatrix<T>& TrajectoryOptimizer<T>::EvalScaledHessian(
+    const TrajectoryOptimizerState<T>& state) const {
+  if (!state.cache().scaled_hessian_up_to_date) {
+    CalcScaledHessian(state, &state.mutable_cache().scaled_hessian);
+    state.mutable_cache().scaled_hessian_up_to_date = true;
+  }
+  return state.cache().scaled_hessian;
+}
+
+template <typename T>
+void TrajectoryOptimizer<T>::CalcScaleFactors(
+    const TrajectoryOptimizerState<T>& state,
+    VectorX<T>* D) const {
+  // TODO(vincekurtz): use sparse operations
+  const MatrixX<T> H = EvalHessian(state).MakeDense();
+  *D = H.diagonal().cwiseSqrt().cwiseInverse();
+}
+
+template <typename T>
+const VectorX<T>& TrajectoryOptimizer<T>::EvalScaleFactors(
+    const TrajectoryOptimizerState<T>& state) const {
+  if (!state.cache().scale_factors_up_to_date) {
+    CalcScaleFactors(state, &state.mutable_cache().scale_factors);
+    state.mutable_cache().scale_factors_up_to_date = true;
+  }
+  return state.cache().scale_factors;
+}
+
+template <typename T>
 void TrajectoryOptimizer<T>::CalcExactHessian(
     const TrajectoryOptimizerState<T>&, PentaDiagonalMatrix<T>*) const {
   throw std::runtime_error(
