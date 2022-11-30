@@ -2016,38 +2016,22 @@ void TrajectoryOptimizer<T>::SolveLinearSystemInPlace(
 template <>
 void TrajectoryOptimizer<double>::SolveLinearSystemInPlace(
     const PentaDiagonalMatrix<double>& H, VectorX<double>* b) const {
-  // TODO(vincekurtz): refactor to avoid allocating here
-  PentaDiagonalMatrix<double> Htilde(H);
-  VectorXd D(Htilde.rows());
-
-  if (params_.scaling) {
-    // TODO(vincekurtz): make this more efficient by performing operations on
-    // Htilde directly rather than coverting to a dense matrix and back
-    MatrixXd Hdense = Htilde.MakeDense();
-    D = Hdense.diagonal().cwiseSqrt().cwiseInverse();
-    Hdense = D.asDiagonal() * Hdense * D.asDiagonal();
-    Htilde = PentaDiagonalMatrix<double>::MakeSymmetricFromLowerDense(
-        Hdense, num_steps() + 1, plant().num_positions());
-
-    *b = D.asDiagonal() * (*b);
-  }
-
   switch (params_.linear_solver) {
     case SolverParameters::LinearSolverType::kPentaDiagonalLu: {
-      PentaDiagonalFactorization Hlu(Htilde);
+      PentaDiagonalFactorization Hlu(H);
       DRAKE_DEMAND(Hlu.status() == PentaDiagonalFactorizationStatus::kSuccess);
       Hlu.SolveInPlace(b);
       break;
     }
     case SolverParameters::LinearSolverType::kDenseLdlt: {
-      const MatrixX<double> Hdense = Htilde.MakeDense();
+      const MatrixX<double> Hdense = H.MakeDense();
       const auto& Hldlt = Hdense.ldlt();
       *b = Hldlt.solve(*b);
       DRAKE_DEMAND(Hldlt.info() == Eigen::Success);
       break;
     }
     case SolverParameters::LinearSolverType::kPetsc: {
-      auto Hpetsc = internal::PentaDiagonalToPetscMatrix(Htilde);
+      auto Hpetsc = internal::PentaDiagonalToPetscMatrix(H);
       Hpetsc->set_relative_tolerance(
           params_.petsc_parameters.relative_tolerance);
       PetscSolverStatus status =
@@ -2056,9 +2040,6 @@ void TrajectoryOptimizer<double>::SolveLinearSystemInPlace(
       DRAKE_DEMAND(status == PetscSolverStatus::kSuccess);
       break;
     }
-  }
-  if (params_.scaling) {
-    *b = D.asDiagonal() * (*b);
   }
 }
 
@@ -2095,7 +2076,12 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
   VectorXd& pH = state.workspace.q_size_tmp2;
 
   pH = -g / Delta;  // normalize by Δ
-  SolveLinearSystemInPlace(H, &pH);
+  //SolveLinearSystemInPlace(H, &pH);
+  const PentaDiagonalMatrix<double>& Htilde = EvalScaledHessian(state);
+  const VectorXd& D = EvalScaleFactors(state);
+  pH = D.asDiagonal() * pH;
+  SolveLinearSystemInPlace(Htilde, &pH);
+  pH = D.asDiagonal() * pH;
 
   if (params_.debug_compare_against_dense) {
     // From experiments in penta_diagonal_solver_test.cc
@@ -2146,7 +2132,6 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
   const double s = SolveDoglegQuadratic(a, b, c);
 
   *dq = (pU + s * (pH - pU)) * Delta;
-
   return true;  // the trust region constraint is active
 }
 
