@@ -1978,6 +1978,8 @@ void TrajectoryOptimizer<double>::SolveLinearSystemInPlace(
   VectorXd D(Htilde.rows());
 
   if (params_.scaling) {
+    // TODO(vincekurtz): make this more efficient by performing operations on
+    // Htilde directly rather than coverting to a dense matrix and back
     MatrixXd Hdense = Htilde.MakeDense();
     D = Hdense.diagonal().cwiseSqrt().cwiseInverse();
     Hdense = D.asDiagonal() * Hdense * D.asDiagonal();
