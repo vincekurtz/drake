@@ -69,6 +69,7 @@ struct TrajOptExampleParams {
     a->Visit(DRAKE_NVP(petsc_solver));
     a->Visit(DRAKE_NVP(petsc_preconditioner));
     a->Visit(DRAKE_NVP(exact_hessian));
+    a->Visit(DRAKE_NVP(scaling));
   }
   // Initial state
   VectorXd q_init;
@@ -174,6 +175,9 @@ struct TrajOptExampleParams {
 
   // Whether to use an exact (autodiff on the finite diff gradient) Hessian
   bool exact_hessian = false;
+
+  // Whether to rescale the Hessian
+  bool scaling = true;
 };
 
 }  // namespace examples

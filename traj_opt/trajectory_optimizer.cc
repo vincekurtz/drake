@@ -1973,22 +1973,36 @@ void TrajectoryOptimizer<T>::SolveLinearSystemInPlace(
 template <>
 void TrajectoryOptimizer<double>::SolveLinearSystemInPlace(
     const PentaDiagonalMatrix<double>& H, VectorX<double>* b) const {
+  // TODO(vincekurtz): refactor to avoid allocating here
+  PentaDiagonalMatrix<double> Htilde(H);
+  VectorXd D(Htilde.rows());
+
+  if (params_.scaling) {
+    MatrixXd Hdense = Htilde.MakeDense();
+    D = Hdense.diagonal().cwiseSqrt().cwiseInverse();
+    Hdense = D.asDiagonal() * Hdense * D.asDiagonal();
+    Htilde = PentaDiagonalMatrix<double>::MakeSymmetricFromLowerDense(
+        Hdense, num_steps() + 1, plant().num_positions());
+
+    *b = D.asDiagonal() * (*b);
+  }
+
   switch (params_.linear_solver) {
     case SolverParameters::LinearSolverType::kPentaDiagonalLu: {
-      PentaDiagonalFactorization Hlu(H);
+      PentaDiagonalFactorization Hlu(Htilde);
       DRAKE_DEMAND(Hlu.status() == PentaDiagonalFactorizationStatus::kSuccess);
       Hlu.SolveInPlace(b);
       break;
     }
     case SolverParameters::LinearSolverType::kDenseLdlt: {
-      const MatrixX<double> Hdense = H.MakeDense();
+      const MatrixX<double> Hdense = Htilde.MakeDense();
       const auto& Hldlt = Hdense.ldlt();
       *b = Hldlt.solve(*b);
       DRAKE_DEMAND(Hldlt.info() == Eigen::Success);
       break;
     }
     case SolverParameters::LinearSolverType::kPetsc: {
-      auto Hpetsc = internal::PentaDiagonalToPetscMatrix(H);
+      auto Hpetsc = internal::PentaDiagonalToPetscMatrix(Htilde);
       Hpetsc->set_relative_tolerance(
           params_.petsc_parameters.relative_tolerance);
       PetscSolverStatus status =
@@ -1997,6 +2011,9 @@ void TrajectoryOptimizer<double>::SolveLinearSystemInPlace(
       DRAKE_DEMAND(status == PetscSolverStatus::kSuccess);
       break;
     }
+  }
+  if (params_.scaling) {
+    *b = D.asDiagonal() * (*b);
   }
 }
 
