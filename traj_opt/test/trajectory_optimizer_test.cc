@@ -625,8 +625,7 @@ GTEST_TEST(TrajectoryOptimizerTest, HessianAcrobot) {
 }
 
 /**
- * Test our computation of the Hessian by comparing
- * with autodiff.
+ * Compare the Gauss-Newton Hessian with the exact (autodiff) Hessian.
  */
 GTEST_TEST(TrajectoryOptimizerTest, HessianPendulum) {
   // Define an optimization problem.
@@ -647,7 +646,7 @@ GTEST_TEST(TrajectoryOptimizerTest, HessianPendulum) {
     opt_prob.v_nom.push_back(Vector1d(-0.1));
   }
 
-  // Create a pendulum model
+  // Create a pendulum model without gravity
   DiagramBuilder<double> builder;
   MultibodyPlantConfig config;
   config.time_step = dt;
@@ -655,55 +654,37 @@ GTEST_TEST(TrajectoryOptimizerTest, HessianPendulum) {
   const std::string urdf_file =
       FindResourceOrThrow("drake/examples/pendulum/Pendulum.urdf");
   Parser(&plant).AddAllModelsFromFile(urdf_file);
+  plant.mutable_gravity_field().set_gravity_vector(VectorXd::Zero(3));
   plant.Finalize();
   auto diagram = builder.Build();
 
-  // Create an optimizer
-  TrajectoryOptimizer<double> optimizer(diagram.get(), &plant, opt_prob);
-  TrajectoryOptimizerState<double> state = optimizer.CreateState();
+  // Create two optimizers: one that uses a Gauss-Newton Hessian approximation
+  // and the other that uses an exact (autodiff) Hessian
+  TrajectoryOptimizer<double> optimizer_gn(diagram.get(), &plant, opt_prob);
+  TrajectoryOptimizerState<double> state_gn = optimizer_gn.CreateState();
+
+  SolverParameters params;
+  params.exact_hessian = true;
+  TrajectoryOptimizer<double> optimizer_exact(diagram.get(), &plant, opt_prob,
+                                              params);
+  TrajectoryOptimizerState<double> state_exact = optimizer_exact.CreateState();
 
   // Make some fake data
   std::vector<VectorXd> q(num_steps + 1);
   q[0] = opt_prob.q_init;
   for (int t = 1; t <= num_steps; ++t) {
-    q[t] = q[t - 1] + 0.1 * dt * VectorXd::Ones(1);
+    q[t] = q[t - 1] + 0.3 * dt * VectorXd::Ones(1);
   }
-  state.set_q(q);
+  state_gn.set_q(q);
+  state_exact.set_q(q);
 
-  // Compute the Hessian analytically
-  const int nq = plant.num_positions();
-  const int num_vars = nq * (num_steps + 1);
-  PentaDiagonalMatrix<double> H_sparse(num_steps + 1, nq);
-  optimizer.CalcHessian(state, &H_sparse);
-  MatrixXd H = H_sparse.MakeDense();
+  // Compare the Hessians
+  const MatrixXd H_gn = optimizer_gn.EvalHessian(state_gn).MakeDense();
+  const MatrixXd H_exact = optimizer_exact.EvalHessian(state_exact).MakeDense();
 
-  // Compute the Hessian using autodiff
-  // Note that this is the true Hessian, and not the Gauss-Newton approximation
-  // that we will use. But for this simple pendulum the two are very close
-  auto diagram_ad = systems::System<double>::ToAutoDiffXd(*diagram);
-  const auto& plant_ad = dynamic_cast<const MultibodyPlant<AutoDiffXd>&>(
-      diagram_ad->GetSubsystemByName(plant.get_name()));
-  TrajectoryOptimizer<AutoDiffXd> optimizer_ad(diagram_ad.get(), &plant_ad,
-                                               opt_prob);
-  TrajectoryOptimizerState<AutoDiffXd> state_ad = optimizer_ad.CreateState();
-
-  std::vector<VectorX<AutoDiffXd>> q_ad(num_steps + 1);
-  for (int t = 0; t <= num_steps; ++t) {
-    q_ad[t] = math::InitializeAutoDiff(q[t], num_steps + 1, t);
-  }
-  state_ad.set_q(q_ad);
-
-  VectorX<AutoDiffXd> g_ad(num_vars);
-  optimizer_ad.CalcGradient(state_ad, &g_ad);
-  MatrixXd H_ad = math::ExtractGradient(g_ad);
-
-  // We overwrite the first row and column of the Hessian, so we won't compare
-  // those
   const double kTolerance = sqrt(std::numeric_limits<double>::epsilon()) / dt;
   EXPECT_TRUE(
-      CompareMatrices(H.bottomRightCorner(num_steps * nq, num_steps * nq),
-                      H_ad.bottomRightCorner(num_steps * nq, num_steps * nq),
-                      kTolerance, MatrixCompareType::relative));
+      CompareMatrices(H_gn, H_exact, kTolerance, MatrixCompareType::relative));
 }
 
 GTEST_TEST(TrajectoryOptimizerTest, AutodiffGradient) {
@@ -1515,91 +1496,6 @@ GTEST_TEST(TrajectoryOptimizerTest, ContactJacobians) {
                                 std::numeric_limits<double>::epsilon(),
                                 MatrixCompareType::relative));
   }
-}
-
-GTEST_TEST(TrajectoryOptimizerTest, ExactHessian) {
-  // Define an optimization problem.
-  const int num_steps = 5;
-  const double dt = 1e-2;
-
-  ProblemDefinition opt_prob;
-  opt_prob.num_steps = num_steps;
-  opt_prob.q_init = Vector2d(0.1, 0.2);
-  opt_prob.v_init = Vector2d(-0.01, 0.03);
-  opt_prob.Qq = 0.1 * MatrixXd::Identity(2, 2);
-  opt_prob.Qv = 0.2 * MatrixXd::Identity(2, 2);
-  opt_prob.Qf_q = 0.3 * MatrixXd::Identity(2, 2);
-  opt_prob.Qf_v = 0.4 * MatrixXd::Identity(2, 2);
-  opt_prob.R = 0.01 * MatrixXd::Identity(2, 2);
-
-  for (int t = 0; t <= num_steps; ++t) {
-    opt_prob.q_nom.push_back(Vector2d(1.5, -0.1));
-    opt_prob.v_nom.push_back(Vector2d(0.2, 0.1));
-  }
-
-  // Create an acrobot model
-  DiagramBuilder<double> builder;
-  MultibodyPlantConfig config;
-  config.time_step = dt;
-  auto [plant, scene_graph] = multibody::AddMultibodyPlant(config, &builder);
-  const std::string urdf_file =
-      FindResourceOrThrow("drake/multibody/benchmarks/acrobot/acrobot.urdf");
-  Parser(&plant).AddAllModelsFromFile(urdf_file);
-  plant.Finalize();
-  auto diagram = builder.Build();
-
-  // Create an optimizer
-  SolverParameters params;
-  params.exact_hessian = true;  // compute the exact Hessian
-  TrajectoryOptimizer<double> optimizer(diagram.get(), &plant, opt_prob,
-                                        params);
-  TrajectoryOptimizerState<double> state = optimizer.CreateState();
-
-  // Make some fake data
-  std::vector<VectorXd> q(num_steps + 1);
-  q[0] = opt_prob.q_init;
-  for (int t = 1; t <= num_steps; ++t) {
-    q[t] = q[t - 1] + dt * opt_prob.v_init;
-  }
-  state.set_q(q);
-
-  // Set up an autodiff copy of the optimizer and plant
-  auto diagram_ad = systems::System<double>::ToAutoDiffXd(*diagram);
-  const auto& plant_ad = dynamic_cast<const MultibodyPlant<AutoDiffXd>&>(
-      diagram_ad->GetSubsystemByName(plant.get_name()));
-  TrajectoryOptimizer<AutoDiffXd> optimizer_ad(diagram_ad.get(), &plant_ad,
-                                               opt_prob);
-  TrajectoryOptimizerState<AutoDiffXd> state_ad = optimizer_ad.CreateState();
-
-  std::vector<VectorX<AutoDiffXd>> q_ad(num_steps + 1, VectorX<AutoDiffXd>(2));
-  const int nq = plant.num_positions();
-  const int num_vars = (num_steps + 1) * nq;
-  int ad_idx = 0;  // index for autodiff variables
-  for (int t = 0; t <= num_steps; ++t) {
-    for (int i = 0; i < nq; ++i) {
-      q_ad[t].segment<1>(i) =
-          math::InitializeAutoDiff(q[t].segment<1>(i), num_vars, ad_idx);
-      ++ad_idx;
-    }
-  }
-  state_ad.set_q(q_ad);
-
-  // Compute the exact Hessian with autodiff
-  const VectorX<AutoDiffXd>& g_ad = optimizer_ad.EvalGradient(state_ad);
-  MatrixXd H_ad = math::ExtractGradient(g_ad);
-  H_ad.leftCols(2).setZero();
-  H_ad.block<2, 2>(0, 0).setIdentity();
-
-  // Compute the exact Hessian from the optimizer (also uses autodiff, but under
-  // the hood). This only produces the exact hessian when params.exact_hessian =
-  // true
-  MatrixXd H = optimizer.EvalHessian(state).MakeDense();
-
-  // N.B. tolerance is sqrt(epsilon) since finite differences are used to get
-  // the gradient
-  const double kTolerance = std::sqrt(std::numeric_limits<double>::epsilon());
-  EXPECT_TRUE(
-      CompareMatrices(H, H_ad, kTolerance, MatrixCompareType::relative));
 }
 
 }  // namespace internal
