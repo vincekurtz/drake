@@ -2027,11 +2027,20 @@ void TrajectoryOptimizer<T>::SolveLinearSystemInPlace(
 template <>
 void TrajectoryOptimizer<double>::SolveLinearSystemInPlace(
     const PentaDiagonalMatrix<double>& H, VectorX<double>* b) const {
+  MatrixXd Hd = H.MakeDense();
+  const VectorXd D = Hd.diagonal().cwiseSqrt().cwiseInverse();
+  Hd = D.asDiagonal() * Hd * D.asDiagonal();
+  const PentaDiagonalMatrix<double> Hscaled =
+      PentaDiagonalMatrix<double>::MakeSymmetricFromLowerDense(
+          Hd, num_steps() + 1, plant().num_positions());
   switch (params_.linear_solver) {
     case SolverParameters::LinearSolverType::kPentaDiagonalLu: {
-      PentaDiagonalFactorization Hlu(H);
+      PentaDiagonalFactorization Hlu(Hscaled);
       DRAKE_DEMAND(Hlu.status() == PentaDiagonalFactorizationStatus::kSuccess);
+
+      (*b) = D.asDiagonal() * (*b);
       Hlu.SolveInPlace(b);
+      (*b) = D.asDiagonal() * (*b);
       break;
     }
     case SolverParameters::LinearSolverType::kDenseLdlt: {
