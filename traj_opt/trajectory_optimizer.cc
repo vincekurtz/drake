@@ -1414,7 +1414,8 @@ void TrajectoryOptimizer<T>::CalcScaleFactors(
     VectorX<T>* D) const {
   // TODO(vincekurtz): use sparse operations
   const MatrixX<T> H = EvalHessian(state).MakeDense();
-  *D = H.diagonal().cwiseSqrt().cwiseInverse();
+  *D = H.diagonal().cwiseSqrt().cwiseSqrt().cwiseInverse();
+  //*D = VectorX<T>::Ones(H.rows());
 }
 
 template <typename T>
@@ -1943,12 +1944,14 @@ T TrajectoryOptimizer<T>::CalcTrustRatio(
     const TrajectoryOptimizerState<T>& state, const VectorX<T>& dq,
     TrajectoryOptimizerState<T>* scratch_state) const {
   // Compute predicted reduction in cost
-  const VectorX<T>& g = EvalGradient(state);
-  const PentaDiagonalMatrix<T>& H = EvalHessian(state);
-  const T gradient_term = g.dot(dq);
+  const VectorX<T>& D = EvalScaleFactors(state);
+  const VectorX<T> g_tilde = D.asDiagonal() * EvalGradient(state);
+  const PentaDiagonalMatrix<T>& H_tilde = EvalScaledHessian(state);
+  const VectorX<T> dq_tilde = D.cwiseInverse().asDiagonal() * dq;
+  const T gradient_term = g_tilde.dot(dq_tilde);
   VectorX<T>& Hdq = state.workspace.q_times_num_steps_size_tmp;
-  H.MultiplyBy(dq, &Hdq);
-  const T hessian_term = 0.5 * dq.transpose() * Hdq;
+  H_tilde.MultiplyBy(dq_tilde, &Hdq);
+  const T hessian_term = 0.5 * dq_tilde.transpose() * Hdq;
   const T predicted_reduction = -gradient_term - hessian_term;
 
   // Compute actual reduction in cost
@@ -2059,15 +2062,9 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
     VectorXd* dq, VectorXd* dqH) const {
   INSTRUMENT_FUNCTION("Find search direction with dogleg method.");
 
-  // N.B. We'll rescale pU and pH by Δ to avoid roundoff error, regardless of
-  // whether we rescale using the Hessian diagonal.
-  VectorXd g = EvalGradient(state);  // TODO: avoid extra allocations here
-  PentaDiagonalMatrix<double> H = EvalHessian(state);
-  VectorXd D = EvalScaleFactors(state);
-  if (params_.scaling) {
-    g = D.asDiagonal() * g;
-    H = EvalScaledHessian(state);
-  }
+  const PentaDiagonalMatrix<double>& H = EvalScaledHessian(state);
+  const VectorXd& D = EvalScaleFactors(state);
+  const VectorXd g = D.asDiagonal() * EvalGradient(state);
 
   VectorXd& Hg = state.workspace.q_times_num_steps_size_tmp;
   H.MultiplyBy(g, &Hg);
@@ -2107,18 +2104,14 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
     // If so, δq is where the first leg of the dogleg path intersects the trust
     // region.
     *dq = (Delta / pU.norm()) * pU;
-    if (params_.scaling) {
-      *dq = D.asDiagonal() * (*dq);
-    }
+    *dq = D.asDiagonal() * (*dq);
     return true;  // the trust region constraint is active
   }
 
   // Check if the trust region is large enough to just take the full Newton step
   if (1.0 >= pH.norm()) {
     *dq = pH * Delta;
-    if (params_.scaling) {
-      *dq = D.asDiagonal() * (*dq);
-    }
+    *dq = D.asDiagonal() * (*dq);
     return false;  // the trust region constraint is not active
   }
 
@@ -2140,9 +2133,7 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
   const double s = SolveDoglegQuadratic(a, b, c);
 
   *dq = (pU + s * (pH - pU)) * Delta;
-  if (params_.scaling) {
-    *dq = D.asDiagonal() * (*dq);
-  }
+  *dq = D.asDiagonal() * (*dq);
   return true;  // the trust region constraint is active
 }
 
