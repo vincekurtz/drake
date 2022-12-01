@@ -47,6 +47,7 @@ struct TrajectoryOptimizerCache {
     trajectory_data.a.assign(num_steps, VectorX<T>(nv));
     inverse_dynamics_cache.tau.assign(num_steps, VectorX<T>(nv));
     N_plus.assign(num_steps+1, MatrixX<T>::Zero(nv, nq));
+    scale_factors.setConstant(1e16);
     // TODO(amcastro-tri): We could allocate contact_jacobian_data here if we
     // knew the number of contacts. For now, we'll defer the allocation to a
     // later stage when the number of contacts is available.

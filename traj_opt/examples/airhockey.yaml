@@ -28,7 +28,7 @@ Qfv : [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
 
 # Problem definition parameters
 time_step : 0.05    # Discretization timestep (seconds)
-num_steps : 40      # number of timesteps
+num_steps : 20      # number of timesteps
 
 # Solver parameters
 max_iters : 1000             # maximum Gauss-Newton iterations
@@ -56,7 +56,7 @@ play_optimal_trajectory : true
 
 # Debugging parameters
 linesearch_plot_every_iteration : false
-print_debug_data : false
+print_debug_data : true
 save_solver_stats_csv : true
 
 # Contact model parameters. 

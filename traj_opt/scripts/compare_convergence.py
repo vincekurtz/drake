@@ -18,8 +18,11 @@ import os
 # Basic parameters: set these to define the location and name of the log files
 # that we'll compare, as well as corresponding legend labels
 example_name = "airhockey"
-csv_names = ["solver_stats_unscaled.csv", "solver_stats_scaled.csv", "solver_stats.csv"]
-labels = ["original", "D=1/sqrt(H)", "D=1/sqrt(sqrt(H))"]
+csv_names = ["solver_stats_unscaled.csv", "solver_stats_sqrt.csv",
+             "solver_stats_sqrt_sqrt.csv", "solver_stats_adaptive_sqrt.csv", 
+             "solver_stats_adaptive_sqrt_sqrt.csv"]
+labels = ["no scaling", "continuous sqrt", "continuous sqrt sqrt", 
+          "adaptive sqrt", "adaptive sqrt sqrt",]
 
 # Get file locations
 drake_root = os.getcwd()

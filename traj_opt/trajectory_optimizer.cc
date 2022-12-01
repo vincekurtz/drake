@@ -1412,10 +1412,18 @@ template <typename T>
 void TrajectoryOptimizer<T>::CalcScaleFactors(
     const TrajectoryOptimizerState<T>& state,
     VectorX<T>* D) const {
+  using std::sqrt;
+  using std::max;
   // TODO(vincekurtz): use sparse operations
   const MatrixX<T> H = EvalHessian(state).MakeDense();
-  *D = H.diagonal().cwiseSqrt().cwiseSqrt().cwiseInverse();
-  //*D = VectorX<T>::Ones(H.rows());
+  if (params_.scaling) {
+    for (int i=0; i < D->size(); ++i) {
+      (*D)(i) = 1/max(1/(*D)(i), sqrt(H(i,i)));
+      //(*D)(i) = 1/sqrt(H(i,i));
+    }
+  } else {
+    *D = VectorX<T>::Ones(H.rows());
+  }
 }
 
 template <typename T>
@@ -2423,12 +2431,12 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
 
     if (params_.print_debug_data) {
       // Print some info about the Hessian
-      const MatrixXd Hdense = EvalHessian(state).MakeDense();
-      const double condition_number = 1 / Hdense.ldlt().rcond();
-      const bool is_positive = Hdense.ldlt().isPositive();
+      const MatrixXd H = EvalHessian(state).MakeDense();
+      const MatrixXd H_scaled = EvalScaledHessian(state).MakeDense();
+      const double condition_number = 1 / H.ldlt().rcond();
+      const double condition_number_scaled = 1 / H_scaled.ldlt().rcond();
       PRINT_VAR(condition_number);
-      PRINT_VAR(is_positive);
-      PRINT_VAR(dq.transpose() * g);
+      PRINT_VAR(condition_number_scaled);
     }
 
     // Compute some quantities for logging.
