@@ -17,12 +17,11 @@ import os
 
 # Basic parameters: set these to define the location and name of the log files
 # that we'll compare, as well as corresponding legend labels
-example_name = "airhockey"
-csv_names = ["solver_stats_unscaled.csv", "solver_stats_sqrt.csv",
-             "solver_stats_sqrt_sqrt.csv", "solver_stats_adaptive_sqrt.csv", 
-             "solver_stats_adaptive_sqrt_sqrt.csv"]
-labels = ["no scaling", "continuous sqrt", "continuous sqrt sqrt", 
-          "adaptive sqrt", "adaptive sqrt sqrt",]
+example_name = "punyo_hug"
+csv_names = ["solver_stats_unscaled.csv", 
+             "solver_stats_adaptive.csv", 
+             "solver_stats_sqrt_sqrt.csv"]
+labels = ["no scaling", "adaptive scaling", "sqrt sqrt scaling"]
 
 # Get file locations
 drake_root = os.getcwd()
@@ -32,15 +31,22 @@ data_root = drake_root + f"/bazel-out/k8-opt/bin/traj_opt/examples/{example_name
 fig, ax = plt.subplots(2,1,sharex=True,figsize=(8,6))
 fig.suptitle(f"{example_name} convergence data")
 
-# Iterate over csv files
+# Get a baseline cost
 N = len(csv_names)
+baseline = np.inf
+for i in range(N):
+    data_file = data_root + csv_names[i]
+    data = np.genfromtxt(data_file, delimiter=',', names=True)
+    baseline = np.min([baseline, data["cost"][-1]])
+
+# Get the main data
 for i in range(N):
     # Read data from the file and format nicely
     data_file = data_root + csv_names[i]
     data = np.genfromtxt(data_file, delimiter=',', names=True)
     iters = data["iter"]
 
-    ax[0].plot(iters, data["cost"] - data["cost"][-1], label=labels[i])
+    ax[0].plot(iters, data["cost"] - baseline, label=labels[i])
     ax[0].set_ylabel("Cost (minus baseline)")
     ax[0].set_yscale("log")
 

@@ -74,5 +74,5 @@ smoothing_factor : 0.1
 force_at_a_distance : false
 
 # Friction
-friction_coefficient : 0.5  # Coefficient of friction.
+friction_coefficient : 0.7  # Coefficient of friction.
 stiction_velocity: 0.01     # Regularization velocity, in m/s.

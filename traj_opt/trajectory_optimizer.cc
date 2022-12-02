@@ -1418,8 +1418,8 @@ void TrajectoryOptimizer<T>::CalcScaleFactors(
   const MatrixX<T> H = EvalHessian(state).MakeDense();
   if (params_.scaling) {
     for (int i=0; i < D->size(); ++i) {
-      (*D)(i) = 1/max(1/(*D)(i), sqrt(H(i,i)));
-      //(*D)(i) = 1/sqrt(H(i,i));
+      //(*D)(i) = 1/max(1/(*D)(i), sqrt(H(i,i)));
+      //(*D)(i) = 1/sqrt(sqrt(H(i,i)));
     }
   } else {
     *D = VectorX<T>::Ones(H.rows());
