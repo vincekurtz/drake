@@ -1069,6 +1069,15 @@ drake_cc_googletest(
     ],
 )
 
+drake_cc_googletest(
+    name = "scalar_casting_test",
+    deps = [
+        ":autodiff",
+        ":extract_double",
+        "//common/symbolic:expression",
+    ],
+)
+
 add_lint_tests(
     python_lint_extra_srcs = [
         ":test/resource_tool_installed_test.py",
