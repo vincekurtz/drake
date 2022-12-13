@@ -1418,8 +1418,7 @@ void TrajectoryOptimizer<T>::CalcScaleFactors(
   const MatrixX<T> H = EvalHessian(state).MakeDense();
   if (params_.scaling) {
     for (int i=0; i < D->size(); ++i) {
-      //(*D)(i) = 1/max(1/(*D)(i), sqrt(H(i,i)));
-      //(*D)(i) = 1/sqrt(sqrt(H(i,i)));
+      (*D)(i) = 1/sqrt(sqrt(H(i,i)));
     }
   } else {
     *D = VectorX<T>::Ones(H.rows());
@@ -1952,14 +1951,12 @@ T TrajectoryOptimizer<T>::CalcTrustRatio(
     const TrajectoryOptimizerState<T>& state, const VectorX<T>& dq,
     TrajectoryOptimizerState<T>* scratch_state) const {
   // Compute predicted reduction in cost
-  const VectorX<T>& D = EvalScaleFactors(state);
-  const VectorX<T> g_tilde = D.asDiagonal() * EvalGradient(state);
-  const PentaDiagonalMatrix<T>& H_tilde = EvalScaledHessian(state);
-  const VectorX<T> dq_tilde = D.cwiseInverse().asDiagonal() * dq;
-  const T gradient_term = g_tilde.dot(dq_tilde);
+  const VectorX<T>& g = EvalGradient(state);
+  const PentaDiagonalMatrix<T>& H = EvalHessian(state);
+  const T gradient_term = g.dot(dq);
   VectorX<T>& Hdq = state.workspace.q_times_num_steps_size_tmp;
-  H_tilde.MultiplyBy(dq_tilde, &Hdq);
-  const T hessian_term = 0.5 * dq_tilde.transpose() * Hdq;
+  H.MultiplyBy(dq, &Hdq);
+  const T hessian_term = 0.5 * dq.transpose() * Hdq;
   const T predicted_reduction = -gradient_term - hessian_term;
 
   // Compute actual reduction in cost
