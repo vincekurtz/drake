@@ -48,18 +48,22 @@ class TrajOptExample {
   void SolveTrajectoryOptimization(const std::string options_file) const;
 
   /**
-   * Simulate the system from the given initial condition, reading control
-   * inputs and publishing (ground truth) state information over LCM.
+   * Use the optimizer as an MPC controller in simulation. The simulator reads
+   * control inputs sent over LCM, while in another thread, the controller reads
+   * system state from the controller and computes optimal control inputs,
+   * terminating the optimization early after a fixed number of iterations.
    *
-   * @param q0 The initial state to simulate from
-   * @param dt The simulator time step
-   * @param duration The amount of time, in seconds, to simulate for
+   * @param options_file YAML file containing cost function definition, solver
+   * parameters, initial state, etc.
+   * @param iters Number of optimizer iterations to run at each step.
+   * @param sim_time The time to simulate to, in seconds.
+   * @param sim_time_step The time-step for the simulator.
    */
-  void SimulateWithControlFromLcm(const VectorXd q0, const double dt,
-                                  const double duration) const;
-
-  // Debug
-  void CountToTen() const;
+  // TODO: consider making mpc_iters a YAML option
+  void RunModelPredictiveControl(const std::string options_file,
+                                 const double iters,
+                                 const double sim_time = 5.0,
+                                 const double sim_time_step = 1e-3) const;
 
  private:
   /**
@@ -121,6 +125,21 @@ class TrajOptExample {
     }
     return result;
   }
+
+  /**
+   * Simulate the system from the given initial condition, reading control
+   * inputs and publishing (ground truth) state information over LCM.
+   *
+   * @param q0 The initial system configuration
+   * @param v0 The initial system velocities
+   * @param dt The simulator time step
+   * @param duration The amount of time, in seconds, to simulate for
+   */
+  void SimulateWithControlFromLcm(const VectorXd q0, const VectorXd v0,
+                                  const double dt, const double duration) const;
+
+  // Debug
+  void CountToTen() const;
 };
 
 }  // namespace examples

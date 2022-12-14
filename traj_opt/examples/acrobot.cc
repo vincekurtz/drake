@@ -1,5 +1,3 @@
-#include <thread>
-
 #include "drake/common/find_resource.h"
 #include "drake/multibody/parsing/parser.h"
 #include "drake/multibody/plant/multibody_plant.h"
@@ -25,35 +23,16 @@ class AcrobotExample : public TrajOptExample {
 int do_main() {
   bool MPC = true;
   AcrobotExample acrobot_example;
+  const std::string yaml_file = "drake/traj_opt/examples/acrobot.yaml";
 
   if (MPC) {
-    // Use the optimizer as a controller via MPC
-
-    // Start an LCM instance
-    lcm::DrakeLcm lcm_instance();
-
-    // Simulator options
-    const Eigen::Vector2d q0(0.3, 0.0);  // TODO: read from YAML
-    const double sim_time_step = 1e-3;
-    const double sim_time = 5.0;
-
-    // Start the simulator, which reads control inputs and publishes the system
-    // state over LCM
-    std::thread sim_thread(&AcrobotExample::SimulateWithControlFromLcm,
-                           &acrobot_example, q0, sim_time_step, sim_time);
-
-    // Start the controller, which reads the system state and publishes
-    // control torques over LCM
-    std::thread counter_thread(&AcrobotExample::CountToTen, &acrobot_example);
-
-    // Wait for all threads to stop
-    sim_thread.join();
-    counter_thread.join();
+    // Use the optimizer for MPC
+    const double optimizer_iters = 10;
+    acrobot_example.RunModelPredictiveControl(yaml_file, optimizer_iters);
 
   } else {
     // Just solve for a single trajectory and play it on the visualizer
-    acrobot_example.SolveTrajectoryOptimization(
-        "drake/traj_opt/examples/acrobot.yaml");
+    acrobot_example.SolveTrajectoryOptimization(yaml_file);
   }
 
   return 0;

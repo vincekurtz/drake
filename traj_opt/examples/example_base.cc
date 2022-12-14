@@ -9,7 +9,35 @@ namespace drake {
 namespace traj_opt {
 namespace examples {
 
+void TrajOptExample::RunModelPredictiveControl(
+    const std::string options_file, const double iters, const double sim_time,
+    const double sim_time_step) const {
+  // Load parameters from file
+  TrajOptExampleParams default_options;
+  TrajOptExampleParams options = yaml::LoadYamlFile<TrajOptExampleParams>(
+      FindResourceOrThrow(options_file), {}, default_options);
+
+  // Start an LCM instance
+  lcm::DrakeLcm lcm_instance();
+
+  // Start the simulator, which reads control inputs and publishes the system
+  // state over LCM
+  std::thread sim_thread(&TrajOptExample::SimulateWithControlFromLcm, this,
+                         options.q_init, options.v_init, sim_time_step,
+                         sim_time);
+
+  // Start the controller, which reads the system state and publishes
+  // control torques over LCM
+  (void)iters;
+  std::thread counter_thread(&TrajOptExample::CountToTen, this);
+
+  // Wait for all threads to stop
+  sim_thread.join();
+  counter_thread.join();
+}
+
 void TrajOptExample::SimulateWithControlFromLcm(const VectorXd q0,
+                                                const VectorXd v0,
                                                 const double dt,
                                                 const double duration) const {
   // Set up the system diagram for the simulator
@@ -38,11 +66,11 @@ void TrajOptExample::SimulateWithControlFromLcm(const VectorXd q0,
 
   // Run the simulation
   plant.SetPositions(&plant_context, q0);
+  plant.SetVelocities(&plant_context, v0);
   systems::Simulator<double> simulator(*diagram, std::move(diagram_context));
   simulator.set_target_realtime_rate(1.0);
   simulator.Initialize();
   simulator.AdvanceTo(duration);
-
 }
 
 void TrajOptExample::CountToTen() const {

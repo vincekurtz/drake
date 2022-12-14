@@ -5,8 +5,8 @@
 ##
 
 # Initial state ([shoulder, elbow])
-q_init : [1.5, 0.0]
-v_init : [0.0, 0.0]
+q_init : [0.0, 0.0]
+v_init : [0.1, 0.0]
 
 # Target state
 q_nom_start : [3.1415, 0.0]
