@@ -27,7 +27,13 @@ class AcrobotExample : public TrajOptExample {
 
 int main() {
   drake::traj_opt::examples::acrobot::AcrobotExample acrobot_example;
-  acrobot_example.SolveTrajectoryOptimization(
-      "drake/traj_opt/examples/acrobot.yaml");
+  //acrobot_example.SolveTrajectoryOptimization(
+  //    "drake/traj_opt/examples/acrobot.yaml");
+
+  const int iters = 10;
+  const int sim_dt = 1e-3; 
+  const double sim_time = 5.0;
+  acrobot_example.RunModelPredictiveControl(
+      "drake/traj_opt/examples/acrobot.yaml", iters, sim_dt, sim_time);
   return 0;
 }

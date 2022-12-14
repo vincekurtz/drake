@@ -37,13 +37,29 @@ class TrajOptExample {
   virtual ~TrajOptExample() = default;
 
   /**
-   * Solve the optimizaiton problem, as defined by the parameters in the given
+   * Solve the optimization problem, as defined by the parameters in the given
    * YAML file.
    *
-   * @param options_file YAML file containing cost funciton definition, solver
+   * @param options_file YAML file containing cost function definition, solver
    * parameters, etc., with fields as defined in yaml_config.h.
    */
   void SolveTrajectoryOptimization(const std::string options_file) const;
+
+  /**
+   * Use the trajectory optimizer as a controller in simulation, solving the
+   * optimization problem for a fixed number of iterations, applying the
+   * corresponding control signal, and resolving the optimization problem.
+   *
+   * @param options_file YAML file containing the cost definition, initial
+   * state, and other parameters.
+   * @param iters The number of optimization iterations to take to determine
+   * each control tape. Overrides whatever parameters are set in the YAML file.
+   * @param simulator_dt Time step for the simulator
+   * @param simulator_time Time (in seconds) to run the simulation for
+   */
+  void RunModelPredictiveControl(const std::string options_file,
+                                 const int iters, const double simulator_dt,
+                                 const double simulator_time) const;
 
  private:
   /**

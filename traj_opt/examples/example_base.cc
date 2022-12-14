@@ -1,8 +1,32 @@
 #include "drake/traj_opt/examples/example_base.h"
+#include <thread>
+#include <chrono>
 
 namespace drake {
 namespace traj_opt {
 namespace examples {
+
+void TrajOptExample::RunModelPredictiveControl(
+    const std::string options_file, const int iters, const double simulator_dt,
+    const double simulator_time) const {
+  (void)options_file;
+  (void)iters;
+  (void)simulator_dt;
+  (void)simulator_time;
+
+  auto f = []() {
+    for (int i = 0; i<10; ++i) {
+      std::cout << i << std::endl;
+      std::this_thread::sleep_for(std::chrono::seconds(1));
+    }
+  };
+
+  std::thread my_thread(f);
+  std::thread your_thread(f);
+
+  my_thread.join();
+  your_thread.join();
+}
 
 void TrajOptExample::SolveTrajectoryOptimization(
     const std::string options_file) const {
