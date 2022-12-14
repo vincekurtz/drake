@@ -1,31 +1,55 @@
 #include "drake/traj_opt/examples/example_base.h"
-#include <thread>
+
 #include <chrono>
+#include <thread>
+
+#include "drake/systems/primitives/constant_vector_source.h"
 
 namespace drake {
 namespace traj_opt {
 namespace examples {
 
-void TrajOptExample::RunModelPredictiveControl(
-    const std::string options_file, const int iters, const double simulator_dt,
-    const double simulator_time) const {
-  (void)options_file;
-  (void)iters;
-  (void)simulator_dt;
-  (void)simulator_time;
+void TrajOptExample::SimulateWithControlFromLcm(const VectorXd q0,
+                                                const double dt,
+                                                const double duration) const {
+  // Set up the system diagram for the simulator
+  DiagramBuilder<double> builder;
+  MultibodyPlantConfig config;
+  config.time_step = dt;
+  auto [plant, scene_graph] = AddMultibodyPlant(config, &builder);
+  CreatePlantModel(&plant);
+  plant.Finalize();
 
-  auto f = []() {
+  geometry::DrakeVisualizerParams vis_params;
+  vis_params.role = geometry::Role::kIllustration;
+  DrakeVisualizerd::AddToBuilder(&builder, scene_graph, {}, vis_params);
+
+  //TODO: replace with LCM controller
+  const VectorXd u = VectorXd::Zero(plant.num_actuators());
+  auto controller = builder.AddSystem<systems::ConstantVectorSource>(u);
+  builder.Connect(controller->get_output_port(),
+                  plant.get_actuation_input_port());
+  
+  auto diagram = builder.Build();
+  std::unique_ptr<systems::Context<double>> diagram_context =
+      diagram->CreateDefaultContext();
+  systems::Context<double>& plant_context =
+      diagram->GetMutableSubsystemContext(plant, diagram_context.get());
+
+  // Run the simulation
+  plant.SetPositions(&plant_context, q0);
+  systems::Simulator<double> simulator(*diagram, std::move(diagram_context));
+  simulator.set_target_realtime_rate(1.0);
+  simulator.Initialize();
+  simulator.AdvanceTo(duration);
+
+}
+
+void TrajOptExample::CountToTen() const {
     for (int i = 0; i<10; ++i) {
       std::cout << i << std::endl;
       std::this_thread::sleep_for(std::chrono::seconds(1));
     }
-  };
-
-  std::thread my_thread(f);
-  std::thread your_thread(f);
-
-  my_thread.join();
-  your_thread.join();
 }
 
 void TrajOptExample::SolveTrajectoryOptimization(

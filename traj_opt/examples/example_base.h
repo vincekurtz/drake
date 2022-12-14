@@ -10,9 +10,11 @@
 #include "drake/common/find_resource.h"
 #include "drake/geometry/drake_visualizer.h"
 #include "drake/geometry/scene_graph.h"
+#include "drake/lcm/drake_lcm.h"
 #include "drake/multibody/parsing/parser.h"
 #include "drake/multibody/plant/multibody_plant.h"
 #include "drake/multibody/plant/multibody_plant_config_functions.h"
+#include "drake/systems/analysis/simulator.h"
 #include "drake/systems/framework/diagram_builder.h"
 #include "drake/traj_opt/examples/yaml_config.h"
 #include "drake/traj_opt/problem_definition.h"
@@ -46,20 +48,18 @@ class TrajOptExample {
   void SolveTrajectoryOptimization(const std::string options_file) const;
 
   /**
-   * Use the trajectory optimizer as a controller in simulation, solving the
-   * optimization problem for a fixed number of iterations, applying the
-   * corresponding control signal, and resolving the optimization problem.
+   * Simulate the system from the given initial condition, reading control
+   * inputs and publishing (ground truth) state information over LCM.
    *
-   * @param options_file YAML file containing the cost definition, initial
-   * state, and other parameters.
-   * @param iters The number of optimization iterations to take to determine
-   * each control tape. Overrides whatever parameters are set in the YAML file.
-   * @param simulator_dt Time step for the simulator
-   * @param simulator_time Time (in seconds) to run the simulation for
+   * @param q0 The initial state to simulate from
+   * @param dt The simulator time step
+   * @param duration The amount of time, in seconds, to simulate for
    */
-  void RunModelPredictiveControl(const std::string options_file,
-                                 const int iters, const double simulator_dt,
-                                 const double simulator_time) const;
+  void SimulateWithControlFromLcm(const VectorXd q0, const double dt,
+                                  const double duration) const;
+
+  // Debug
+  void CountToTen() const;
 
  private:
   /**
