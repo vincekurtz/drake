@@ -3,6 +3,11 @@
 #include <chrono>
 #include <thread>
 
+#include "drake/examples/acrobot/acrobot_lcm.h"
+#include "drake/lcmt_acrobot_u.hpp"
+#include "drake/systems/lcm/lcm_interface_system.h"
+#include "drake/systems/lcm/lcm_publisher_system.h"
+#include "drake/systems/lcm/lcm_subscriber_system.h"
 #include "drake/systems/primitives/constant_vector_source.h"
 
 namespace drake {
@@ -28,12 +33,58 @@ void TrajOptExample::RunModelPredictiveControl(
 
   // Start the controller, which reads the system state and publishes
   // control torques over LCM
-  (void)iters;
-  std::thread counter_thread(&TrajOptExample::CountToTen, this);
+  std::thread ctrl_thread(&TrajOptExample::ControlWithStateFromLcm, this,
+                          options_file, iters, sim_time);
 
   // Wait for all threads to stop
   sim_thread.join();
-  counter_thread.join();
+  ctrl_thread.join();
+}
+
+void TrajOptExample::ControlWithStateFromLcm(const std::string options_file,
+                                             const int mpc_iters,
+                                             const double duration) const {
+  (void) options_file;
+  (void) mpc_iters;
+
+  // Here we'll set up a whole separate system diagram with LCM reciever,
+  // controller, and LCM publisher:
+  //
+  //    state_subscriber -> 
+  //      state_reciever -> 
+  //        controller ->
+  //          command_sender ->
+  //            command_publisher
+  DiagramBuilder<double> builder;
+  auto lcm = builder.AddSystem<systems::lcm::LcmInterfaceSystem>();
+
+  // Control command publisher
+  auto command_publisher =
+      builder.AddSystem(systems::lcm::LcmPublisherSystem::Make<lcmt_acrobot_u>(
+          "robot_u", lcm, 0.001));
+  auto command_sender =
+      builder.AddSystem<drake::examples::acrobot::AcrobotCommandSender>();
+  builder.Connect(command_sender->get_output_port(0),
+                  command_publisher->get_input_port());
+  
+  VectorXd u(1);
+  u << 1.234;
+  auto controller = builder.AddSystem<systems::ConstantVectorSource>(u);
+  builder.Connect(controller->get_output_port(),
+                  command_sender->get_input_port());
+
+  // Run this system diagram, which recieves states over LCM and publishes
+  // controls over LCM
+  auto diagram = builder.Build();
+  systems::Simulator<double> simulator(*diagram);
+  simulator.set_target_realtime_rate(1.0);
+  simulator.Initialize();
+  simulator.AdvanceTo(duration);
+
+  for (int i = 0; i < 10; ++i) {
+    std::cout << i << std::endl;
+    std::this_thread::sleep_for(std::chrono::seconds(1));
+  }
 }
 
 void TrajOptExample::SimulateWithControlFromLcm(const VectorXd q0,
@@ -52,12 +103,12 @@ void TrajOptExample::SimulateWithControlFromLcm(const VectorXd q0,
   vis_params.role = geometry::Role::kIllustration;
   DrakeVisualizerd::AddToBuilder(&builder, scene_graph, {}, vis_params);
 
-  //TODO: replace with LCM controller
+  // TODO: replace with LCM controller
   const VectorXd u = VectorXd::Zero(plant.num_actuators());
   auto controller = builder.AddSystem<systems::ConstantVectorSource>(u);
   builder.Connect(controller->get_output_port(),
                   plant.get_actuation_input_port());
-  
+
   auto diagram = builder.Build();
   std::unique_ptr<systems::Context<double>> diagram_context =
       diagram->CreateDefaultContext();
@@ -71,13 +122,6 @@ void TrajOptExample::SimulateWithControlFromLcm(const VectorXd q0,
   simulator.set_target_realtime_rate(1.0);
   simulator.Initialize();
   simulator.AdvanceTo(duration);
-}
-
-void TrajOptExample::CountToTen() const {
-    for (int i = 0; i<10; ++i) {
-      std::cout << i << std::endl;
-      std::this_thread::sleep_for(std::chrono::seconds(1));
-    }
 }
 
 void TrajOptExample::SolveTrajectoryOptimization(
@@ -314,8 +358,7 @@ void TrajOptExample::SetSolverParameters(
     solver_params->linear_solver =
         SolverParameters::LinearSolverType::kDenseLdlt;
   } else if (options.linear_solver == "petsc") {
-    solver_params->linear_solver =
-        SolverParameters::LinearSolverType::kPetsc;
+    solver_params->linear_solver = SolverParameters::LinearSolverType::kPetsc;
   } else {
     throw std::runtime_error(
         fmt::format("Unknown linear solver '{}'", options.linear_solver));

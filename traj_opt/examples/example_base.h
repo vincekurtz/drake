@@ -138,8 +138,17 @@ class TrajOptExample {
   void SimulateWithControlFromLcm(const VectorXd q0, const VectorXd v0,
                                   const double dt, const double duration) const;
 
-  // Debug
-  void CountToTen() const;
+  /**
+   * Use MPC to control the system, reading state measurements from LCM and
+   * sending control inputs back over LCM.
+   *
+   * @param options_file YAML file defining the cost function
+   * @param mpc_iters Number of optimizer iterations to take at each step
+   * @param duration The amount of time, in seconds, to run the controller for
+   */
+  void ControlWithStateFromLcm(const std::string options_file,
+                               const int mpc_iters,
+                               const double duration) const;
 };
 
 }  // namespace examples
