@@ -5,6 +5,8 @@
 
 #include "drake/examples/acrobot/acrobot_lcm.h"
 #include "drake/lcmt_acrobot_u.hpp"
+#include "drake/lcmt_traj_opt_x.hpp"
+#include "drake/lcmt_traj_opt_u.hpp"
 #include "drake/systems/lcm/lcm_interface_system.h"
 #include "drake/systems/lcm/lcm_publisher_system.h"
 #include "drake/systems/lcm/lcm_subscriber_system.h"

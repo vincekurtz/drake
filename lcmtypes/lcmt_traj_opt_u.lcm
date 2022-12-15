@@ -1,0 +1,8 @@
+package drake;
+
+struct lcmt_traj_opt_u
+{
+  int64_t utime;
+  int16_t nu;
+  float u[nu];
+}
