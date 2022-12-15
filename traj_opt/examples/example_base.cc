@@ -57,29 +57,27 @@ void TrajOptExample::ControlWithStateFromLcm(const std::string options_file,
   // Here we'll set up a whole separate system diagram with LCM reciever,
   // controller, and LCM publisher:
   //
-  //    state_subscriber -> 
-  //      state_reciever -> 
-  //        controller ->
-  //          command_sender ->
-  //            command_publisher
+  //    state_subscriber -> controller -> command_publisher
+  //
   DiagramBuilder<double> builder;
   auto lcm = builder.AddSystem<LcmInterfaceSystem>();
 
-  // Control command publisher
+  auto state_subscriber =
+      builder.AddSystem(LcmSubscriberSystem::Make<lcmt_traj_opt_x>(
+          "traj_opt_x", lcm));
+  
+  // TODO: use plant as constructor argument for traj opt controller
+  auto controller = builder.AddSystem<TrajOptLcmController>(2, 2, 1);
+
   auto command_publisher =
-      builder.AddSystem(LcmPublisherSystem::Make<lcmt_acrobot_u>(
-          "robot_u", lcm, 0.001));
-  auto command_sender =
-      builder.AddSystem<drake::examples::acrobot::AcrobotCommandSender>();
-  builder.Connect(command_sender->get_output_port(0),
+      builder.AddSystem(LcmPublisherSystem::Make<lcmt_traj_opt_u>(
+          "traj_opt_u", lcm, 0.001));
+  
+  builder.Connect(state_subscriber->get_output_port(),
+                  controller->get_input_port());
+  builder.Connect(controller->get_output_port(),
                   command_publisher->get_input_port());
   
-  VectorXd u(1);
-  u << 1.234;
-  auto controller = builder.AddSystem<systems::ConstantVectorSource>(u);
-  builder.Connect(controller->get_output_port(),
-                  command_sender->get_input_port());
-
   // Run this system diagram, which recieves states over LCM and publishes
   // controls over LCM
   auto diagram = builder.Build();

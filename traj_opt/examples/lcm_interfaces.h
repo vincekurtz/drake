@@ -55,13 +55,16 @@ class StateSender : public LeafSystem<double> {
 ///
 /// Control torques are determined by solving the trajectory optimizaiton
 /// problem for a fixed number of iterations.
-class LcmController : public LeafSystem<double> {
+class TrajOptLcmController : public LeafSystem<double> {
  public:
-  LcmController(const int nq, const int nv, const int nu);
+  TrajOptLcmController(const int nq, const int nv, const int nu);
 
  private:
   void OutputCommand(const Context<double>& context,
                      lcmt_traj_opt_u* output) const;
+  const int nq_;
+  const int nv_;
+  const int nu_;
 };
 
 }  // namespace examples
