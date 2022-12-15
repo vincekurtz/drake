@@ -3,6 +3,7 @@
 #include <chrono>
 #include <thread>
 
+#include "drake/traj_opt/examples/lcm_interfaces.h"
 #include "drake/examples/acrobot/acrobot_lcm.h"
 #include "drake/lcmt_acrobot_u.hpp"
 #include "drake/lcmt_traj_opt_x.hpp"
@@ -15,6 +16,10 @@
 namespace drake {
 namespace traj_opt {
 namespace examples {
+
+using systems::lcm::LcmPublisherSystem;
+using systems::lcm::LcmSubscriberSystem;
+using systems::lcm::LcmInterfaceSystem;
 
 void TrajOptExample::RunModelPredictiveControl(
     const std::string options_file, const double iters, const double sim_time,
@@ -58,11 +63,11 @@ void TrajOptExample::ControlWithStateFromLcm(const std::string options_file,
   //          command_sender ->
   //            command_publisher
   DiagramBuilder<double> builder;
-  auto lcm = builder.AddSystem<systems::lcm::LcmInterfaceSystem>();
+  auto lcm = builder.AddSystem<LcmInterfaceSystem>();
 
   // Control command publisher
   auto command_publisher =
-      builder.AddSystem(systems::lcm::LcmPublisherSystem::Make<lcmt_acrobot_u>(
+      builder.AddSystem(LcmPublisherSystem::Make<lcmt_acrobot_u>(
           "robot_u", lcm, 0.001));
   auto command_sender =
       builder.AddSystem<drake::examples::acrobot::AcrobotCommandSender>();
@@ -82,11 +87,6 @@ void TrajOptExample::ControlWithStateFromLcm(const std::string options_file,
   simulator.set_target_realtime_rate(1.0);
   simulator.Initialize();
   simulator.AdvanceTo(duration);
-
-  for (int i = 0; i < 10; ++i) {
-    std::cout << i << std::endl;
-    std::this_thread::sleep_for(std::chrono::seconds(1));
-  }
 }
 
 void TrajOptExample::SimulateWithControlFromLcm(const VectorXd q0,
@@ -95,12 +95,16 @@ void TrajOptExample::SimulateWithControlFromLcm(const VectorXd q0,
                                                 const double duration) const {
   // Set up the system diagram for the simulator
   DiagramBuilder<double> builder;
+  auto lcm = builder.AddSystem<LcmInterfaceSystem>();
+
+  // Construct the multibody plant system model  
   MultibodyPlantConfig config;
   config.time_step = dt;
   auto [plant, scene_graph] = AddMultibodyPlant(config, &builder);
   CreatePlantModel(&plant);
   plant.Finalize();
 
+  // Connect to the visualizer
   geometry::DrakeVisualizerParams vis_params;
   vis_params.role = geometry::Role::kIllustration;
   DrakeVisualizerd::AddToBuilder(&builder, scene_graph, {}, vis_params);
@@ -111,6 +115,18 @@ void TrajOptExample::SimulateWithControlFromLcm(const VectorXd q0,
   builder.Connect(controller->get_output_port(),
                   plant.get_actuation_input_port());
 
+  // Send state estimates out over LCM
+  auto state_sender = builder.AddSystem<StateSender>(plant.num_positions(),
+                                                     plant.num_velocities());
+  auto state_publisher =
+      builder.AddSystem(LcmPublisherSystem::Make<lcmt_traj_opt_x>(
+          "traj_opt_x", lcm));
+  builder.Connect(plant.get_state_output_port(),
+                  state_sender->get_input_port());
+  builder.Connect(state_sender->get_output_port(),
+                  state_publisher->get_input_port());
+
+  // Compile the diagram
   auto diagram = builder.Build();
   std::unique_ptr<systems::Context<double>> diagram_context =
       diagram->CreateDefaultContext();

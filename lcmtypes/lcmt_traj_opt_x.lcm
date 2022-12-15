@@ -5,6 +5,6 @@ struct lcmt_traj_opt_x
   int64_t utime;
   int16_t nq;
   int16_t nv;
-  float q[nq];
-  float v[nv];
+  double q[nq];
+  double v[nv];
 }

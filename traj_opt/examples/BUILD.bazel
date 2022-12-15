@@ -215,6 +215,17 @@ drake_cc_binary(
 )
 
 drake_cc_library(
+    name = "lcm_interfaces",
+    srcs = ["lcm_interfaces.cc"],
+    hdrs = ["lcm_interfaces.h"],
+    deps = [
+        "//lcmtypes:traj_opt",
+        "//systems/framework:leaf_system",
+        "//systems/framework:vector",
+    ],
+)
+
+drake_cc_library(
     name = "example_base",
     srcs = ["example_base.cc"],
     hdrs = ["example_base.h"],
@@ -233,17 +244,7 @@ drake_cc_library(
         "//systems/primitives:constant_vector_source",
         "//traj_opt:problem_definition",
         "//traj_opt:trajectory_optimizer",
-    ],
-)
-
-drake_cc_library(
-    name = "lcm_interfaces",
-    srcs = ["lcm_interfaces.cc"],
-    hdrs = ["lcm_interfaces.h"],
-    deps = [
-        "//lcmtypes:traj_opt",
-        "//systems/framework:leaf_system",
-        "//systems/framework:vector",
+        ":lcm_interfaces",
     ],
 )
 
