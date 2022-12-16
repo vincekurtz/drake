@@ -222,6 +222,10 @@ drake_cc_library(
         "//lcmtypes:traj_opt",
         "//systems/framework:leaf_system",
         "//systems/framework:vector",
+        "//traj_opt:problem_definition",
+        "//traj_opt:trajectory_optimizer",
+        "//multibody/plant",
+        "//systems/framework:diagram",
     ],
 )
 

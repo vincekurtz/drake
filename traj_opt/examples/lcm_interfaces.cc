@@ -36,20 +36,39 @@ CommandReciever::CommandReciever(const int nu) : nu_(nu) {
 }
 
 void CommandReciever::OutputCommandAsVector(
-    const Context<double>& context, systems::BasicVector<double>* output) const {
+    const Context<double>& context,
+    systems::BasicVector<double>* output) const {
   const AbstractValue* abstract_command = this->EvalAbstractInput(context, 0);
   const auto& command = abstract_command->get_value<lcmt_traj_opt_u>();
-  DRAKE_DEMAND(static_cast<int>(command.nu) == nu_);
-  for (int i=0; i<nu_; ++i) {
-    output->SetAtIndex(i, command.u[i]);
+
+  if (static_cast<int>(command.nu) == nu_) {
+    // We sometimes need to wait to get the right data on the channel
+    for (int i = 0; i < nu_; ++i) {
+      output->SetAtIndex(i, command.u[i]);
+    }
+  } else {
+    // If we're not getting any data, just set control torques to zero
+    for (int i = 0; i < nu_; ++i) {
+      output->SetAtIndex(i, 0.0);
+    }
   }
 }
 
-TrajOptLcmController::TrajOptLcmController(const int nq, const int nv, const int nu)
-    : nq_(nq), nv_(nv), nu_(nu) {
+TrajOptLcmController::TrajOptLcmController(const Diagram<double>* diagram,
+                                           const MultibodyPlant<double>* plant,
+                                           const ProblemDefinition& prob,
+                                           const SolverParameters& params)
+    : optimizer_(diagram, plant, prob, params),
+      nq_(plant->num_positions()),
+      nv_(plant->num_velocities()),
+      nu_(plant->num_actuators()) {
   this->DeclareAbstractInputPort("lcmt_traj_opt_x", Value<lcmt_traj_opt_x>());
   this->DeclareAbstractOutputPort("lcmt_traj_opt_u",
                                   &TrajOptLcmController::OutputCommand);
+
+  // TODO(vincekurtz): consider providing initial guess as argument, or solving
+  // the optimization once with more iterations
+  q_guess_.assign(prob.num_steps + 1, prob.q_init);
 }
 
 void TrajOptLcmController::OutputCommand(const Context<double>& context,
@@ -62,17 +81,21 @@ void TrajOptLcmController::OutputCommand(const Context<double>& context,
   output->nu = static_cast<int16_t>(nu_);
   output->u.resize(nu_);
 
-  // Sometimes we need to wait a bit to get non-zero inputs
-  if (state.nq > 0) {
+// Sometimes we need to wait a bit to get non-zero inputs
+if (state.nq > 0) {
     DRAKE_DEMAND(state.nq == nq_);
     DRAKE_DEMAND(state.nv == nv_);
-    
-    // TODO: compute control w/ optimization
+
+    // Set initial state
+
+    // Solve trajectory optimization
+    TrajectoryOptimizerStats<double> stats;
+    TrajectoryOptimizerSolution<double> solution;
+    optimizer_.Solve(q_guess_, &solution, &stats);
 
     // Set the control input
-    output->u[0] = -10*state.v[1];
-
-  }
+    output->u[0] = solution.tau[0][1];
+}
 }
 
 }  // namespace examples

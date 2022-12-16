@@ -51,8 +51,28 @@ void TrajOptExample::RunModelPredictiveControl(
 void TrajOptExample::ControlWithStateFromLcm(const std::string options_file,
                                              const int mpc_iters,
                                              const double duration) const {
-  (void) options_file;
-  (void) mpc_iters;
+  // Load parameters from file
+  TrajOptExampleParams default_options;
+  TrajOptExampleParams options = yaml::LoadYamlFile<TrajOptExampleParams>(
+      FindResourceOrThrow(options_file), {}, default_options);
+
+  // Create a system model for the controller
+  DiagramBuilder<double> builder_ctrl;
+  MultibodyPlantConfig config;
+  config.time_step = options.time_step;
+  auto [plant, scene_graph] = AddMultibodyPlant(config, &builder_ctrl);
+  CreatePlantModel(&plant);
+  plant.Finalize();
+  auto diagram_ctrl = builder_ctrl.Build();
+
+  // Define the optimization problem
+  ProblemDefinition opt_prob;
+  SetProblemDefinition(options, &opt_prob);
+
+  // Set our solver parameters
+  SolverParameters solver_params;
+  SetSolverParameters(options, &solver_params);
+  solver_params.max_iterations = mpc_iters;
 
   // Here we'll set up a whole separate system diagram with LCM reciever,
   // controller, and LCM publisher:
@@ -65,9 +85,9 @@ void TrajOptExample::ControlWithStateFromLcm(const std::string options_file,
   auto state_subscriber =
       builder.AddSystem(LcmSubscriberSystem::Make<lcmt_traj_opt_x>(
           "traj_opt_x", lcm));
-  
-  // TODO: use plant as constructor argument for traj opt controller
-  auto controller = builder.AddSystem<TrajOptLcmController>(2, 2, 1);
+
+  auto controller = builder.AddSystem<TrajOptLcmController>(
+      diagram_ctrl.get(), &plant, opt_prob, solver_params);
 
   auto command_publisher =
       builder.AddSystem(LcmPublisherSystem::Make<lcmt_traj_opt_u>(
@@ -138,7 +158,7 @@ void TrajOptExample::SimulateWithControlFromLcm(const VectorXd q0,
   plant.SetPositions(&plant_context, q0);
   plant.SetVelocities(&plant_context, v0);
   systems::Simulator<double> simulator(*diagram, std::move(diagram_context));
-  simulator.set_target_realtime_rate(1.0);
+  simulator.set_target_realtime_rate(0.1);
   simulator.Initialize();
   simulator.AdvanceTo(duration);
 }

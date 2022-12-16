@@ -27,7 +27,7 @@ int do_main() {
 
   if (MPC) {
     // Use the optimizer for MPC
-    const double optimizer_iters = 10;
+    const double optimizer_iters = 20;
     acrobot_example.RunModelPredictiveControl(yaml_file, optimizer_iters);
 
   } else {

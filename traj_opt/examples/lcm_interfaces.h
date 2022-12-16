@@ -8,6 +8,10 @@
 #include "drake/lcmt_traj_opt_x.hpp"
 #include "drake/systems/framework/basic_vector.h"
 #include "drake/systems/framework/leaf_system.h"
+#include "drake/multibody/plant/multibody_plant.h"
+#include "drake/traj_opt/problem_definition.h"
+#include "drake/traj_opt/solver_parameters.h"
+#include "drake/traj_opt/trajectory_optimizer.h"
 
 namespace drake {
 namespace traj_opt {
@@ -16,6 +20,7 @@ namespace examples {
 using systems::BasicVector;
 using systems::Context;
 using systems::LeafSystem;
+using systems::Diagram;
 
 /// Recieves the output of an LcmSubscriberSystem that subscribes to a channel
 /// with control inputs, of type lcmt_traj_opt_u, and outputs the same control
@@ -58,14 +63,35 @@ class StateSender : public LeafSystem<double> {
 /// problem for a fixed number of iterations.
 class TrajOptLcmController : public LeafSystem<double> {
  public:
-  TrajOptLcmController(const int nq, const int nv, const int nu);
+  /**
+   * Construct an MPC controller that reads state info over LCM and sends
+   * control torques over LCM.
+   *
+   * @param diagram System diagram for the controller's internal model
+   * @param plant MultibodyPlant model of the system, part of diagram
+   * @param prob Problem definition, including cost, target state, etc
+   * @param params Solver parameters, including max iterations, etc
+   */
+  TrajOptLcmController(const Diagram<double>* diagram,
+                       const MultibodyPlant<double>* plant,
+                       const ProblemDefinition& prob,
+                       const SolverParameters& params = SolverParameters{});
 
  private:
   void OutputCommand(const Context<double>& context,
                      lcmt_traj_opt_u* output) const;
+  
+  // Optimizer used to compute control inputs at each time step
+  TrajectoryOptimizer<double> optimizer_;
+
+  // Initial guess of sequence of generalized positions, used to warm start the optimizer
+  std::vector<VectorXd> q_guess_;
+
   const int nq_;
   const int nv_;
   const int nu_;
+
+  
 };
 
 }  // namespace examples
