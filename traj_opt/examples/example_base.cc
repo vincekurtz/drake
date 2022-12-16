@@ -107,10 +107,13 @@ void TrajOptExample::SimulateWithControlFromLcm(const VectorXd q0,
   vis_params.role = geometry::Role::kIllustration;
   DrakeVisualizerd::AddToBuilder(&builder, scene_graph, {}, vis_params);
 
-  // TODO: replace with LCM controller
-  const VectorXd u = VectorXd::Zero(plant.num_actuators());
-  auto controller = builder.AddSystem<systems::ConstantVectorSource>(u);
-  builder.Connect(controller->get_output_port(),
+  // Recieve control inputs from LCM
+  auto command_subscriber = builder.AddSystem(
+      LcmSubscriberSystem::Make<lcmt_traj_opt_u>("traj_opt_u", lcm));
+  auto command_reciever = builder.AddSystem<CommandReciever>(plant.num_actuators());
+  builder.Connect(command_subscriber->get_output_port(),
+                  command_reciever->get_input_port());
+  builder.Connect(command_reciever->get_output_port(),
                   plant.get_actuation_input_port());
 
   // Send state estimates out over LCM

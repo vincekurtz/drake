@@ -30,6 +30,7 @@ class CommandReciever : public LeafSystem<double> {
  private:
   void OutputCommandAsVector(const Context<double>& context,
                              BasicVector<double>* output) const;
+  const int nu_;
 };
 
 /// Recieves the multibody state as input and publishes that same state with

@@ -29,6 +29,22 @@ void StateSender::OutputState(const Context<double>& context,
   }
 }
 
+CommandReciever::CommandReciever(const int nu) : nu_(nu) {
+  this->DeclareAbstractInputPort("lcmt_traj_opt_u", Value<lcmt_traj_opt_u>());
+  this->DeclareVectorOutputPort("control_torques", nu_,
+                                &CommandReciever::OutputCommandAsVector);
+}
+
+void CommandReciever::OutputCommandAsVector(
+    const Context<double>& context, systems::BasicVector<double>* output) const {
+  const AbstractValue* abstract_command = this->EvalAbstractInput(context, 0);
+  const auto& command = abstract_command->get_value<lcmt_traj_opt_u>();
+  DRAKE_DEMAND(static_cast<int>(command.nu) == nu_);
+  for (int i=0; i<nu_; ++i) {
+    output->SetAtIndex(i, command.u[i]);
+  }
+}
+
 TrajOptLcmController::TrajOptLcmController(const int nq, const int nv, const int nu)
     : nq_(nq), nv_(nv), nu_(nu) {
   this->DeclareAbstractInputPort("lcmt_traj_opt_x", Value<lcmt_traj_opt_x>());
@@ -54,7 +70,7 @@ void TrajOptLcmController::OutputCommand(const Context<double>& context,
     // TODO: compute control w/ optimization
 
     // Set the control input
-    output->u[0] = - state.v[1];
+    output->u[0] = -10*state.v[1];
 
   }
 }
