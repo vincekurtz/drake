@@ -80,12 +80,14 @@ class TrajOptLcmController : public LeafSystem<double> {
  private:
   void OutputCommand(const Context<double>& context,
                      lcmt_traj_opt_u* output) const;
-  
-  // Optimizer used to compute control inputs at each time step
-  TrajectoryOptimizer<double> optimizer_;
 
-  // Initial guess of sequence of generalized positions, used to warm start the optimizer
-  std::vector<VectorXd> q_guess_;
+  // Optimizer used to compute control inputs at each time step. Mutable because
+  // the stored intitial conditions must be updated at each step.
+  mutable TrajectoryOptimizer<double> optimizer_;
+
+  // Initial guess of sequence of generalized positions, used to warm start the
+  // optimizer at each step.
+  mutable std::vector<VectorXd> q_guess_;
 
   const int nq_;
   const int nv_;

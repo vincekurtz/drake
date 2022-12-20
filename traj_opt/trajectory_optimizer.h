@@ -316,6 +316,21 @@ class TrajectoryOptimizer {
   const typename TrajectoryOptimizerCache<T>::ContactJacobianData&
   EvalContactJacobianData(const TrajectoryOptimizerState<T>& state) const;
 
+  /**
+   * Overwrite the initial conditions x0 = [q0, v0] stored in the solver
+   * parameters. This is particularly useful when re-solving the optimization
+   * problem for MPC.
+   *
+   * @param q_init Initial generalized positions
+   * @param v_init Initial generalized velocities
+   */
+  void ResetInitialConditions(const VectorXd& q_init, const VectorXd& v_init) {
+    DRAKE_DEMAND(q_init.size() == plant().num_positions());
+    DRAKE_DEMAND(v_init.size() == plant().num_velocities());
+    prob_.q_init = q_init;
+    prob_.v_init = v_init;
+  }
+
  private:
   // Friend class to facilitate testing.
   friend class TrajectoryOptimizerTester;
@@ -881,7 +896,7 @@ class TrajectoryOptimizer {
 
   // Stores the problem definition, including cost, time horizon, initial state,
   // target state, etc.
-  const ProblemDefinition prob_;
+  ProblemDefinition prob_;
 
   // Joint damping coefficients for the plant under consideration
   VectorX<T> joint_damping_;

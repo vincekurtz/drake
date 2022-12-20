@@ -86,7 +86,19 @@ if (state.nq > 0) {
     DRAKE_DEMAND(state.nq == nq_);
     DRAKE_DEMAND(state.nv == nv_);
 
-    // Set initial state
+    // Set initial state from the input port (state estimate)
+    VectorXd q0(nq_);
+    VectorXd v0(nv_);
+    for (int i=0; i<nq_; ++i) {
+      q0(i) = state.q[i];
+    }
+    for (int i=0; i<nv_; ++i) {
+      v0(i) = state.v[i];
+    }
+    optimizer_.ResetInitialConditions(q0, v0);
+
+    // Make sure the guess is consistent with the initial conditions
+    q_guess_[0] = q0;
 
     // Solve trajectory optimization
     TrajectoryOptimizerStats<double> stats;
@@ -94,8 +106,11 @@ if (state.nq > 0) {
     optimizer_.Solve(q_guess_, &solution, &stats);
 
     // Set the control input
-    //output->u[0] = solution.tau[0][1];
-    output->u[0] = 0.0;
+    output->u[0] = solution.tau[0][1];
+
+    // Save the solution to warm-start the next iteration
+    // TODO: shift the guess in time
+    q_guess_ = solution.q;
 }
 }
 
