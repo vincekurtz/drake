@@ -110,7 +110,7 @@ void TrajOptExample::ControlWithStateFromLcm(const std::string options_file,
   systems::Simulator<double> simulator(*diagram);
   simulator.set_target_realtime_rate(1.0);
   simulator.Initialize();
-  simulator.AdvanceTo(duration);
+  simulator.AdvanceTo(10*duration);
 }
 
 void TrajOptExample::SimulateWithControlFromLcm(const VectorXd q0,
@@ -164,7 +164,7 @@ void TrajOptExample::SimulateWithControlFromLcm(const VectorXd q0,
   plant.SetPositions(&plant_context, q0);
   plant.SetVelocities(&plant_context, v0);
   systems::Simulator<double> simulator(*diagram, std::move(diagram_context));
-  simulator.set_target_realtime_rate(1.0);
+  simulator.set_target_realtime_rate(0.1);
   simulator.Initialize();
   simulator.AdvanceTo(duration);
 }
