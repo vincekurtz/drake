@@ -94,7 +94,8 @@ if (state.nq > 0) {
     optimizer_.Solve(q_guess_, &solution, &stats);
 
     // Set the control input
-    output->u[0] = solution.tau[0][1];
+    //output->u[0] = solution.tau[0][1];
+    output->u[0] = 0.0;
 }
 }
 
