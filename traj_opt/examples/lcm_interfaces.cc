@@ -59,6 +59,7 @@ TrajOptLcmController::TrajOptLcmController(const Diagram<double>* diagram,
                                            const ProblemDefinition& prob,
                                            const SolverParameters& params)
     : optimizer_(diagram, plant, prob, params),
+      B_(plant->MakeActuationMatrix()),
       nq_(plant->num_positions()),
       nv_(plant->num_velocities()),
       nu_(plant->num_actuators()) {
@@ -106,10 +107,14 @@ if (state.nq > 0) {
     optimizer_.Solve(q_guess_, &solution, &stats);
 
     // Set the control input
-    output->u[0] = solution.tau[0][1];
+    // TODO(vincekurtz): consider using a PD+ controller
+    const VectorXd u = B_.transpose() * solution.tau[0];
+    for (int i=0; i<nu_; ++i) {
+      output->u[i] = u[i];
+    }
 
     // Save the solution to warm-start the next iteration
-    // TODO: shift the guess in time
+    // TODO(vincekurtz): consider shifting the guess in time
     q_guess_ = solution.q;
 }
 }

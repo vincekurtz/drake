@@ -89,6 +89,10 @@ class TrajOptLcmController : public LeafSystem<double> {
   // optimizer at each step.
   mutable std::vector<VectorXd> q_guess_;
 
+  // Map from generalized forces to control torques
+  const MatrixXd B_;
+
+  // Number of positions, velocities, and actuators
   const int nq_;
   const int nv_;
   const int nu_;
