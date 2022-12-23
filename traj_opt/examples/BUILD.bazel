@@ -243,6 +243,7 @@ drake_cc_library(
         "//lcmtypes:traj_opt",
         "//multibody/parsing",
         "//multibody/plant",
+        "//multibody/plant:contact_results_to_lcm",
         "//systems/analysis:simulator",
         "//systems/framework:diagram",
         "//systems/lcm",

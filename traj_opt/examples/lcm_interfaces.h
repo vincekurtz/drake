@@ -73,11 +73,13 @@ class TrajOptLcmController : public LeafSystem<double> {
    * @param diagram System diagram for the controller's internal model
    * @param plant MultibodyPlant model of the system, part of diagram
    * @param prob Problem definition, including cost, target state, etc
+   * @param q_guess Initial guess for the first MPC iteration
    * @param params Solver parameters, including max iterations, etc
    */
   TrajOptLcmController(const Diagram<double>* diagram,
                        const MultibodyPlant<double>* plant,
                        const ProblemDefinition& prob,
+                       const std::vector<VectorXd>& q_guess,
                        const SolverParameters& params = SolverParameters{});
 
  private:

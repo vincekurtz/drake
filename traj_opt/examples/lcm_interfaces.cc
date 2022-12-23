@@ -55,19 +55,20 @@ void CommandReciever::OutputCommandAsVector(
 TrajOptLcmController::TrajOptLcmController(const Diagram<double>* diagram,
                                            const MultibodyPlant<double>* plant,
                                            const ProblemDefinition& prob,
+                                           const std::vector<VectorXd>& q_guess,
                                            const SolverParameters& params)
     : optimizer_(diagram, plant, prob, params),
+      q_guess_(q_guess),
       B_(plant->MakeActuationMatrix()),
       nq_(plant->num_positions()),
       nv_(plant->num_velocities()),
       nu_(plant->num_actuators()) {
+  DRAKE_DEMAND(static_cast<int>(q_guess.size()) == prob.num_steps + 1);
+  DRAKE_DEMAND(static_cast<int>(q_guess[0].size()) == nq_);
+
   this->DeclareAbstractInputPort("lcmt_traj_opt_x", Value<lcmt_traj_opt_x>());
   this->DeclareAbstractOutputPort("lcmt_traj_opt_u",
                                   &TrajOptLcmController::OutputCommand);
-
-  // TODO(vincekurtz): consider providing initial guess as argument, or solving
-  // the optimization once with more iterations
-  q_guess_.assign(prob.num_steps + 1, prob.q_init);
 }
 
 void TrajOptLcmController::OutputCommand(const Context<double>& context,

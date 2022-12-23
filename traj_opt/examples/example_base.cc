@@ -8,6 +8,7 @@
 #include "drake/lcmt_acrobot_u.hpp"
 #include "drake/lcmt_traj_opt_u.hpp"
 #include "drake/lcmt_traj_opt_x.hpp"
+#include "drake/multibody/plant/contact_results_to_lcm.h"
 #include "drake/systems/lcm/lcm_interface_system.h"
 #include "drake/systems/lcm/lcm_publisher_system.h"
 #include "drake/systems/lcm/lcm_subscriber_system.h"
@@ -84,6 +85,12 @@ void TrajOptExample::ControlWithStateFromLcm(const TrajOptExampleParams options,
   SetSolverParameters(options, &solver_params);
   solver_params.max_iterations = mpc_iters;
 
+  // Set the initial guess based on YAML parameters. This initial guess is just
+  // used for the first MPC iteration: later iterations are warm-started with
+  // the solution from the previous iteration.
+  std::vector<VectorXd> q_guess = MakeLinearInterpolation(
+      opt_prob.q_init, options.q_guess, opt_prob.num_steps + 1);
+
   // Here we'll set up a whole separate system diagram with LCM reciever,
   // controller, and LCM publisher:
   //
@@ -96,7 +103,7 @@ void TrajOptExample::ControlWithStateFromLcm(const TrajOptExampleParams options,
       LcmSubscriberSystem::Make<lcmt_traj_opt_x>("traj_opt_x", lcm));
 
   auto controller = builder.AddSystem<TrajOptLcmController>(
-      diagram_ctrl.get(), &plant, opt_prob, solver_params);
+      diagram_ctrl.get(), &plant, opt_prob, q_guess, solver_params);
 
   auto command_publisher =
       builder.AddSystem(LcmPublisherSystem::Make<lcmt_traj_opt_u>(
@@ -134,6 +141,8 @@ void TrajOptExample::SimulateWithControlFromLcm(
   geometry::DrakeVisualizerParams vis_params;
   vis_params.role = geometry::Role::kIllustration;
   DrakeVisualizerd::AddToBuilder(&builder, scene_graph, {}, vis_params);
+  multibody::ConnectContactResultsToDrakeVisualizer(&builder, plant,
+                                                    scene_graph);
 
   // Recieve control inputs from LCM
   auto command_subscriber = builder.AddSystem(

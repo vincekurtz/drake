@@ -34,7 +34,7 @@ class HopperExample : public TrajOptExample {
                                   Box(25, 25, 10), "ground", green);
     plant->RegisterCollisionGeometry(plant->world_body(), X_ground,
                                      Box(25, 25, 10), "ground",
-                                     CoulombFriction<double>());
+                                     CoulombFriction<double>(0.5, 0.5));
   }
 };
 
