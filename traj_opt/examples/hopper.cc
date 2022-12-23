@@ -45,6 +45,6 @@ class HopperExample : public TrajOptExample {
 
 int main() {
   drake::traj_opt::examples::hopper::HopperExample example;
-  example.SolveTrajectoryOptimization("drake/traj_opt/examples/hopper.yaml");
+  example.RunExample("drake/traj_opt/examples/hopper.yaml");
   return 0;
 }

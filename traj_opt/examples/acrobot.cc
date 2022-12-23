@@ -20,33 +20,15 @@ class AcrobotExample : public TrajOptExample {
   }
 };
 
-int do_main() {
-  bool MPC = true;
-  AcrobotExample acrobot_example;
-  const std::string yaml_file = "drake/traj_opt/examples/acrobot.yaml";
-
-  if (MPC) {
-    // Use the optimizer to do MPC
-    const double mpc_iters = 10;
-    const double controller_frequency = 30;
-    const double sim_time = 10.0;
-    const double sim_time_step = 1e-3;
-    const double sim_realtime_rate = 1.0;
-    acrobot_example.RunModelPredictiveControl(yaml_file, mpc_iters,
-                                              controller_frequency, sim_time,
-                                              sim_time_step, sim_realtime_rate);
-
-  } else {
-    // Just solve for a single trajectory and play it on the visualizer
-    acrobot_example.SolveTrajectoryOptimization(yaml_file);
-  }
-
-  return 0;
-}
-
 }  // namespace acrobot
 }  // namespace examples
 }  // namespace traj_opt
 }  // namespace drake
 
-int main() { return drake::traj_opt::examples::acrobot::do_main(); }
+int main() {
+  drake::traj_opt::examples::acrobot::AcrobotExample example;
+  const std::string yaml_file = "drake/traj_opt/examples/acrobot.yaml";
+  example.RunExample(yaml_file);
+
+  return 0;
+}

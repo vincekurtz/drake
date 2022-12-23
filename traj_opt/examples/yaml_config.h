@@ -69,6 +69,12 @@ struct TrajOptExampleParams {
     a->Visit(DRAKE_NVP(petsc_solver));
     a->Visit(DRAKE_NVP(petsc_preconditioner));
     a->Visit(DRAKE_NVP(exact_hessian));
+    a->Visit(DRAKE_NVP(mpc));
+    a->Visit(DRAKE_NVP(mpc_iters));
+    a->Visit(DRAKE_NVP(controller_frequency));
+    a->Visit(DRAKE_NVP(sim_time));
+    a->Visit(DRAKE_NVP(sim_time_step));
+    a->Visit(DRAKE_NVP(sim_realtime_rate));
   }
   // Initial state
   VectorXd q_init;
@@ -174,6 +180,18 @@ struct TrajOptExampleParams {
 
   // Whether to use an exact (autodiff on the finite diff gradient) Hessian
   bool exact_hessian = false;
+
+  // MPC-related parameters
+  bool mpc = false;    // whether to do MPC
+  int mpc_iters = 10;  // fixed number of optimizer iterations
+  double controller_frequency =
+      30;  // target control frequency, should be slow enough to allow for the
+           // optimizer to finish the prescribed number of iterations
+  double sim_time = 10.0;       // Time to simulate for, in seconds
+  double sim_time_step = 1e-3;  // Simulator time step
+  double sim_realtime_rate =
+      1.0;  // Simulator realtime rate. Allows us to imitate a faster controller
+            // by slowing down the simulation.
 };
 
 }  // namespace examples

@@ -1,7 +1,5 @@
 #include "drake/traj_opt/examples/lcm_interfaces.h"
 
-#include <iostream>
-
 namespace drake {
 namespace traj_opt {
 namespace examples {
@@ -73,27 +71,27 @@ TrajOptLcmController::TrajOptLcmController(const Diagram<double>* diagram,
 }
 
 void TrajOptLcmController::OutputCommand(const Context<double>& context,
-                                  lcmt_traj_opt_u* output) const {
+                                         lcmt_traj_opt_u* output) const {
   const AbstractValue* abstract_state = this->EvalAbstractInput(context, 0);
   const auto& state = abstract_state->get_value<lcmt_traj_opt_x>();
 
-  // Set header data 
+  // Set header data
   output->utime = static_cast<int64_t>(context.get_time() * 1e6);
   output->nu = static_cast<int16_t>(nu_);
   output->u.resize(nu_);
 
-// Sometimes we need to wait a bit to get non-zero inputs
-if (state.nq > 0) {
+  // Sometimes we need to wait a bit to get non-zero inputs
+  if (state.nq > 0) {
     DRAKE_DEMAND(state.nq == nq_);
     DRAKE_DEMAND(state.nv == nv_);
 
     // Set initial state from the input port (state estimate)
     VectorXd q0(nq_);
     VectorXd v0(nv_);
-    for (int i=0; i<nq_; ++i) {
+    for (int i = 0; i < nq_; ++i) {
       q0(i) = state.q[i];
     }
-    for (int i=0; i<nv_; ++i) {
+    for (int i = 0; i < nv_; ++i) {
       v0(i) = state.v[i];
     }
     optimizer_.ResetInitialConditions(q0, v0);
@@ -109,14 +107,14 @@ if (state.nq > 0) {
     // Set the control input
     // TODO(vincekurtz): consider using a PD+ controller
     const VectorXd u = B_.transpose() * solution.tau[0];
-    for (int i=0; i<nu_; ++i) {
+    for (int i = 0; i < nu_; ++i) {
       output->u[i] = u[i];
     }
 
     // Save the solution to warm-start the next iteration
     // TODO(vincekurtz): consider shifting the guess in time
     q_guess_ = solution.q;
-}
+  }
 }
 
 }  // namespace examples

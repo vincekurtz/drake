@@ -26,7 +26,6 @@ class PendulumExample : public TrajOptExample {
 
 int main() {
   drake::traj_opt::examples::pendulum::PendulumExample pendulum_example;
-  pendulum_example.SolveTrajectoryOptimization(
-      "drake/traj_opt/examples/pendulum.yaml");
+  pendulum_example.RunExample("drake/traj_opt/examples/pendulum.yaml");
   return 0;
 }

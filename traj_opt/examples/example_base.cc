@@ -2,62 +2,70 @@
 
 #include <chrono>
 #include <thread>
+#include <utility>
 
-#include "drake/traj_opt/examples/lcm_interfaces.h"
 #include "drake/examples/acrobot/acrobot_lcm.h"
 #include "drake/lcmt_acrobot_u.hpp"
-#include "drake/lcmt_traj_opt_x.hpp"
 #include "drake/lcmt_traj_opt_u.hpp"
+#include "drake/lcmt_traj_opt_x.hpp"
 #include "drake/systems/lcm/lcm_interface_system.h"
 #include "drake/systems/lcm/lcm_publisher_system.h"
 #include "drake/systems/lcm/lcm_subscriber_system.h"
 #include "drake/systems/primitives/constant_vector_source.h"
+#include "drake/traj_opt/examples/lcm_interfaces.h"
 
 namespace drake {
 namespace traj_opt {
 namespace examples {
 
+using systems::lcm::LcmInterfaceSystem;
 using systems::lcm::LcmPublisherSystem;
 using systems::lcm::LcmSubscriberSystem;
-using systems::lcm::LcmInterfaceSystem;
 
-void TrajOptExample::RunModelPredictiveControl(
-    const std::string options_file, const double iters,
-    const double controller_frequency, const double sim_time,
-    const double sim_time_step, const double sim_realtime_rate) const {
+void TrajOptExample::RunExample(const std::string options_file) const {
   // Load parameters from file
   TrajOptExampleParams default_options;
   TrajOptExampleParams options = yaml::LoadYamlFile<TrajOptExampleParams>(
       FindResourceOrThrow(options_file), {}, default_options);
 
+  if (options.mpc) {
+    // Do MPC with a simulator in one thread and a controller in another,
+    // communicating over LCM
+    RunModelPredictiveControl(options);
+  } else {
+    // Solve a single instance of the optimization problem and play back the
+    // result on the visualizer
+    SolveTrajectoryOptimization(options);
+  }
+}
+
+void TrajOptExample::RunModelPredictiveControl(
+    const TrajOptExampleParams options) const {
   // Start an LCM instance
   lcm::DrakeLcm lcm_instance();
 
   // Start the simulator, which reads control inputs and publishes the system
   // state over LCM
   std::thread sim_thread(&TrajOptExample::SimulateWithControlFromLcm, this,
-                         options.q_init, options.v_init, sim_time_step,
-                         sim_time, sim_realtime_rate);
+                         options.q_init, options.v_init, options.sim_time_step,
+                         options.sim_time, options.sim_realtime_rate);
 
   // Start the controller, which reads the system state and publishes
   // control torques over LCM
   std::thread ctrl_thread(&TrajOptExample::ControlWithStateFromLcm, this,
-                          options_file, iters, controller_frequency, sim_time / sim_realtime_rate);
+                          options, options.mpc_iters,
+                          options.controller_frequency,
+                          options.sim_time / options.sim_realtime_rate);
 
   // Wait for all threads to stop
   sim_thread.join();
   ctrl_thread.join();
 }
 
-void TrajOptExample::ControlWithStateFromLcm(const std::string options_file,
+void TrajOptExample::ControlWithStateFromLcm(const TrajOptExampleParams options,
                                              const int mpc_iters,
                                              const double frequency,
                                              const double duration) const {
-  // Load parameters from file
-  TrajOptExampleParams default_options;
-  TrajOptExampleParams options = yaml::LoadYamlFile<TrajOptExampleParams>(
-      FindResourceOrThrow(options_file), {}, default_options);
-
   // Create a system model for the controller
   DiagramBuilder<double> builder_ctrl;
   MultibodyPlantConfig config;
@@ -84,22 +92,21 @@ void TrajOptExample::ControlWithStateFromLcm(const std::string options_file,
   DiagramBuilder<double> builder;
   auto lcm = builder.AddSystem<LcmInterfaceSystem>();
 
-  auto state_subscriber =
-      builder.AddSystem(LcmSubscriberSystem::Make<lcmt_traj_opt_x>(
-          "traj_opt_x", lcm));
+  auto state_subscriber = builder.AddSystem(
+      LcmSubscriberSystem::Make<lcmt_traj_opt_x>("traj_opt_x", lcm));
 
   auto controller = builder.AddSystem<TrajOptLcmController>(
       diagram_ctrl.get(), &plant, opt_prob, solver_params);
 
   auto command_publisher =
       builder.AddSystem(LcmPublisherSystem::Make<lcmt_traj_opt_u>(
-          "traj_opt_u", lcm, 1./frequency));
-  
+          "traj_opt_u", lcm, 1. / frequency));
+
   builder.Connect(state_subscriber->get_output_port(),
                   controller->get_input_port());
   builder.Connect(controller->get_output_port(),
                   command_publisher->get_input_port());
-  
+
   // Run this system diagram, which recieves states over LCM and publishes
   // controls over LCM
   auto diagram = builder.Build();
@@ -116,7 +123,7 @@ void TrajOptExample::SimulateWithControlFromLcm(
   DiagramBuilder<double> builder;
   auto lcm = builder.AddSystem<LcmInterfaceSystem>();
 
-  // Construct the multibody plant system model  
+  // Construct the multibody plant system model
   MultibodyPlantConfig config;
   config.time_step = dt;
   auto [plant, scene_graph] = AddMultibodyPlant(config, &builder);
@@ -131,7 +138,8 @@ void TrajOptExample::SimulateWithControlFromLcm(
   // Recieve control inputs from LCM
   auto command_subscriber = builder.AddSystem(
       LcmSubscriberSystem::Make<lcmt_traj_opt_u>("traj_opt_u", lcm));
-  auto command_reciever = builder.AddSystem<CommandReciever>(plant.num_actuators());
+  auto command_reciever =
+      builder.AddSystem<CommandReciever>(plant.num_actuators());
   builder.Connect(command_subscriber->get_output_port(),
                   command_reciever->get_input_port());
   builder.Connect(command_reciever->get_output_port(),
@@ -140,9 +148,8 @@ void TrajOptExample::SimulateWithControlFromLcm(
   // Send state estimates out over LCM
   auto state_sender = builder.AddSystem<StateSender>(plant.num_positions(),
                                                      plant.num_velocities());
-  auto state_publisher =
-      builder.AddSystem(LcmPublisherSystem::Make<lcmt_traj_opt_x>(
-          "traj_opt_x", lcm));
+  auto state_publisher = builder.AddSystem(
+      LcmPublisherSystem::Make<lcmt_traj_opt_x>("traj_opt_x", lcm));
   builder.Connect(plant.get_state_output_port(),
                   state_sender->get_input_port());
   builder.Connect(state_sender->get_output_port(),
@@ -165,12 +172,7 @@ void TrajOptExample::SimulateWithControlFromLcm(
 }
 
 void TrajOptExample::SolveTrajectoryOptimization(
-    const std::string options_file) const {
-  // Load parameters from file
-  TrajOptExampleParams default_options;
-  TrajOptExampleParams options = yaml::LoadYamlFile<TrajOptExampleParams>(
-      FindResourceOrThrow(options_file), {}, default_options);
-
+    const TrajOptExampleParams options) const {
   // Create a system model
   // N.B. we need a whole diagram, including scene_graph, to handle contact
   DiagramBuilder<double> builder;

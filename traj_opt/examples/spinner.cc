@@ -32,7 +32,6 @@ class SpinnerExample : public TrajOptExample {
 
 int main() {
   drake::traj_opt::examples::spinner::SpinnerExample spinner_example;
-  spinner_example.SolveTrajectoryOptimization(
-      "drake/traj_opt/examples/spinner.yaml");
+  spinner_example.RunExample("drake/traj_opt/examples/spinner.yaml");
   return 0;
 }

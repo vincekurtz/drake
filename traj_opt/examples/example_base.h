@@ -39,13 +39,22 @@ class TrajOptExample {
   virtual ~TrajOptExample() = default;
 
   /**
-   * Solve the optimization problem, as defined by the parameters in the given
-   * YAML file.
+   * Run the example, either solving a single trajectory optimization problem or
+   * running MPC, as specified by the options in the YAML file.
    *
    * @param options_file YAML file containing cost function definition, solver
    * parameters, etc., with fields as defined in yaml_config.h.
    */
-  void SolveTrajectoryOptimization(const std::string options_file) const;
+  void RunExample(const std::string options_file) const;
+
+  /**
+   * Solve the optimization problem, as defined by the parameters in the given
+   * YAML file.
+   *
+   * @param options YAML options, incluidng cost function definition, solver
+   * parameters, etc.
+   */
+  void SolveTrajectoryOptimization(const TrajOptExampleParams options) const;
 
   /**
    * Use the optimizer as an MPC controller in simulation. The simulator reads
@@ -53,21 +62,10 @@ class TrajOptExample {
    * system state from the controller and computes optimal control inputs,
    * terminating the optimization early after a fixed number of iterations.
    *
-   * @param options_file YAML file containing cost function definition, solver
-   * parameters, initial state, etc.
-   * @param iters Number of optimizer iterations to run at each step.
-   * @param controller_frequency target frequency, in Hz, for the MPC controller
-   * @param sim_time The time to simulate to, in seconds.
-   * @param sim_time_step The time-step for the simulator.
-   * @param sim_realtime_rate realtime rate for the simulator. Allows us to imitate
-   * a faster controller by slowing down the simulation. 
+   * @param options YAML options, incluidng cost function definition, solver
+   * parameters, etc.
    */
-  void RunModelPredictiveControl(const std::string options_file,
-                                 const double iters,
-                                 const double controller_frequency,
-                                 const double sim_time = 5.0,
-                                 const double sim_time_step = 1e-3,
-                                 const double sim_realtime_rate = 1.0) const;
+  void RunModelPredictiveControl(const TrajOptExampleParams options) const;
 
  private:
   /**
@@ -149,13 +147,14 @@ class TrajOptExample {
    * Use MPC to control the system, reading state measurements from LCM and
    * sending control inputs back over LCM.
    *
-   * @param options_file YAML file defining the cost function
+   * @param options parameters, read from a YAML file, defining the cost
+   * function
    * @param mpc_iters Number of optimizer iterations to take at each step
    * @param frequency Target controller frequency, in Hz. This should be slow
    * enough that the optimizer returns a solution in 1/frequency seconds.
    * @param duration The amount of time, in seconds, to run the controller for
    */
-  void ControlWithStateFromLcm(const std::string options_file,
+  void ControlWithStateFromLcm(const TrajOptExampleParams options,
                                const int mpc_iters,
                                const double frequency,
                                const double duration) const;

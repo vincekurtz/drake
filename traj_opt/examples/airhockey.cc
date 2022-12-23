@@ -97,6 +97,6 @@ class AirHockeyExample : public TrajOptExample {
 
 int main() {
   drake::traj_opt::examples::airhockey::AirHockeyExample example;
-  example.SolveTrajectoryOptimization("drake/traj_opt/examples/airhockey.yaml");
+  example.RunExample("drake/traj_opt/examples/airhockey.yaml");
   return 0;
 }

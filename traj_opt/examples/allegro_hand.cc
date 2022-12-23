@@ -86,13 +86,13 @@ int main(int argc, char* argv[]) {
   gflags::ParseCommandLineFlags(&argc, &argv, true);
 
   drake::traj_opt::examples::allegro_hand::AllegroHandExample example;
+  std::string yaml_file;
   if (FLAGS_upside_down) {
-    example.SolveTrajectoryOptimization(
-        "drake/traj_opt/examples/allegro_hand_upside_down.yaml");
+    yaml_file = "drake/traj_opt/examples/allegro_hand_upside_down.yaml";
   } else {
-    example.SolveTrajectoryOptimization(
-        "drake/traj_opt/examples/allegro_hand.yaml");
+    yaml_file = "drake/traj_opt/examples/allegro_hand.yaml";
   }
+  example.RunExample(yaml_file);
 
   return 0;
 }

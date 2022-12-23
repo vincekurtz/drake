@@ -220,12 +220,12 @@ drake_cc_library(
     hdrs = ["lcm_interfaces.h"],
     deps = [
         "//lcmtypes:traj_opt",
+        "//multibody/plant",
+        "//systems/framework:diagram",
         "//systems/framework:leaf_system",
         "//systems/framework:vector",
         "//traj_opt:problem_definition",
         "//traj_opt:trajectory_optimizer",
-        "//multibody/plant",
-        "//systems/framework:diagram",
     ],
 )
 
@@ -234,21 +234,21 @@ drake_cc_library(
     srcs = ["example_base.cc"],
     hdrs = ["example_base.h"],
     deps = [
+        ":lcm_interfaces",
         ":yaml_config",
         "//common:find_resource",
+        "//examples/acrobot:acrobot_lcm",
         "//geometry:drake_visualizer",
         "//lcmtypes:acrobot",
         "//lcmtypes:traj_opt",
         "//multibody/parsing",
         "//multibody/plant",
-        "//systems/framework:diagram",
         "//systems/analysis:simulator",
+        "//systems/framework:diagram",
         "//systems/lcm",
-        "//examples/acrobot:acrobot_lcm",
         "//systems/primitives:constant_vector_source",
         "//traj_opt:problem_definition",
         "//traj_opt:trajectory_optimizer",
-        ":lcm_interfaces",
     ],
 )
 

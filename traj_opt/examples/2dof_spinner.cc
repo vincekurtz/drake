@@ -27,7 +27,6 @@ class TwoDofSpinnerExample : public TrajOptExample {
 int main() {
   drake::traj_opt::examples::two_dof_spinner::TwoDofSpinnerExample
       spinner_example;
-  spinner_example.SolveTrajectoryOptimization(
-      "drake/traj_opt/examples/2dof_spinner.yaml");
+  spinner_example.RunExample("drake/traj_opt/examples/2dof_spinner.yaml");
   return 0;
 }

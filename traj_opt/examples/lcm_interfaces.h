@@ -4,11 +4,14 @@
 /// information for trajectory optimization over LCM. Based heavily on the
 /// example in drake/acrobot/acrobot_lcm.h.
 
+#include <iostream>
+#include <vector>
+
 #include "drake/lcmt_traj_opt_u.hpp"
 #include "drake/lcmt_traj_opt_x.hpp"
+#include "drake/multibody/plant/multibody_plant.h"
 #include "drake/systems/framework/basic_vector.h"
 #include "drake/systems/framework/leaf_system.h"
-#include "drake/multibody/plant/multibody_plant.h"
 #include "drake/traj_opt/problem_definition.h"
 #include "drake/traj_opt/solver_parameters.h"
 #include "drake/traj_opt/trajectory_optimizer.h"
@@ -19,8 +22,8 @@ namespace examples {
 
 using systems::BasicVector;
 using systems::Context;
-using systems::LeafSystem;
 using systems::Diagram;
+using systems::LeafSystem;
 
 /// Recieves the output of an LcmSubscriberSystem that subscribes to a channel
 /// with control inputs, of type lcmt_traj_opt_u, and outputs the same control
@@ -30,7 +33,7 @@ class CommandReciever : public LeafSystem<double> {
   /**
    * @param nu number of control torques/forces to send
    */
-  CommandReciever(const int nu);
+  explicit CommandReciever(const int nu);
 
  private:
   void OutputCommandAsVector(const Context<double>& context,
@@ -96,8 +99,6 @@ class TrajOptLcmController : public LeafSystem<double> {
   const int nq_;
   const int nv_;
   const int nu_;
-
-  
 };
 
 }  // namespace examples

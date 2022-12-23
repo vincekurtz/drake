@@ -30,7 +30,7 @@ class WallBallExample : public TrajOptExample {
 
 int main() {
   drake::traj_opt::examples::wall_ball::WallBallExample wall_ball_example;
-  wall_ball_example.SolveTrajectoryOptimization(
+  wall_ball_example.RunExample(
       "drake/traj_opt/examples/wall_ball.yaml");
   return 0;
 }

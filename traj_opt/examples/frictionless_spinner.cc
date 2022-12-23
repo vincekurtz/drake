@@ -53,7 +53,6 @@ int main(int argc, char* argv[]) {
 
   drake::traj_opt::examples::frictionless_spinner::FrictionlessSpinnerExample
       example;
-  example.SolveTrajectoryOptimization(
-      "drake/traj_opt/examples/frictionless_spinner.yaml");
+  example.RunExample("drake/traj_opt/examples/frictionless_spinner.yaml");
   return 0;
 }

@@ -64,3 +64,11 @@ verbose : true
 linesearch_plot_every_iteration : false
 print_debug_data : false
 save_solver_stats_csv : true
+
+# MPC parameters
+mpc : true
+mpc_iters : 10
+controller_frequency : 30
+sim_time : 5
+sim_time_step : 1e-3
+sim_realtime_rate : 1.0
