@@ -56,14 +56,18 @@ class TrajOptExample {
    * @param options_file YAML file containing cost function definition, solver
    * parameters, initial state, etc.
    * @param iters Number of optimizer iterations to run at each step.
+   * @param controller_frequency target frequency, in Hz, for the MPC controller
    * @param sim_time The time to simulate to, in seconds.
    * @param sim_time_step The time-step for the simulator.
+   * @param sim_realtime_rate realtime rate for the simulator. Allows us to imitate
+   * a faster controller by slowing down the simulation. 
    */
-  // TODO: consider making mpc_iters a YAML option
   void RunModelPredictiveControl(const std::string options_file,
                                  const double iters,
+                                 const double controller_frequency,
                                  const double sim_time = 5.0,
-                                 const double sim_time_step = 1e-3) const;
+                                 const double sim_time_step = 1e-3,
+                                 const double sim_realtime_rate = 1.0) const;
 
  private:
   /**
@@ -134,9 +138,12 @@ class TrajOptExample {
    * @param v0 The initial system velocities
    * @param dt The simulator time step
    * @param duration The amount of time, in seconds, to simulate for
+   * @param realtime_rate The realtime rate for the simulator. 1 is real time,
+   * 0.1 is 10X slower than real time.
    */
   void SimulateWithControlFromLcm(const VectorXd q0, const VectorXd v0,
-                                  const double dt, const double duration) const;
+                                  const double dt, const double duration,
+                                  const double realtime_rate) const;
 
   /**
    * Use MPC to control the system, reading state measurements from LCM and
@@ -144,10 +151,13 @@ class TrajOptExample {
    *
    * @param options_file YAML file defining the cost function
    * @param mpc_iters Number of optimizer iterations to take at each step
+   * @param frequency Target controller frequency, in Hz. This should be slow
+   * enough that the optimizer returns a solution in 1/frequency seconds.
    * @param duration The amount of time, in seconds, to run the controller for
    */
   void ControlWithStateFromLcm(const std::string options_file,
                                const int mpc_iters,
+                               const double frequency,
                                const double duration) const;
 };
 

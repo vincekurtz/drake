@@ -22,8 +22,9 @@ using systems::lcm::LcmSubscriberSystem;
 using systems::lcm::LcmInterfaceSystem;
 
 void TrajOptExample::RunModelPredictiveControl(
-    const std::string options_file, const double iters, const double sim_time,
-    const double sim_time_step) const {
+    const std::string options_file, const double iters,
+    const double controller_frequency, const double sim_time,
+    const double sim_time_step, const double sim_realtime_rate) const {
   // Load parameters from file
   TrajOptExampleParams default_options;
   TrajOptExampleParams options = yaml::LoadYamlFile<TrajOptExampleParams>(
@@ -36,12 +37,12 @@ void TrajOptExample::RunModelPredictiveControl(
   // state over LCM
   std::thread sim_thread(&TrajOptExample::SimulateWithControlFromLcm, this,
                          options.q_init, options.v_init, sim_time_step,
-                         sim_time);
+                         sim_time, sim_realtime_rate);
 
   // Start the controller, which reads the system state and publishes
   // control torques over LCM
   std::thread ctrl_thread(&TrajOptExample::ControlWithStateFromLcm, this,
-                          options_file, iters, sim_time);
+                          options_file, iters, controller_frequency, sim_time / sim_realtime_rate);
 
   // Wait for all threads to stop
   sim_thread.join();
@@ -50,6 +51,7 @@ void TrajOptExample::RunModelPredictiveControl(
 
 void TrajOptExample::ControlWithStateFromLcm(const std::string options_file,
                                              const int mpc_iters,
+                                             const double frequency,
                                              const double duration) const {
   // Load parameters from file
   TrajOptExampleParams default_options;
@@ -73,12 +75,6 @@ void TrajOptExample::ControlWithStateFromLcm(const std::string options_file,
   SolverParameters solver_params;
   SetSolverParameters(options, &solver_params);
   solver_params.max_iterations = mpc_iters;
-  
-  // Frequency, in Hz to try to send control inputs at. This should be slow
-  // enough that the optimizer can find a solution in 1/control_frequency
-  // seconds.
-  // TODO(vincekurtz): make this a parameter somewhere
-  const double control_frequency = 10.0;
 
   // Here we'll set up a whole separate system diagram with LCM reciever,
   // controller, and LCM publisher:
@@ -97,7 +93,7 @@ void TrajOptExample::ControlWithStateFromLcm(const std::string options_file,
 
   auto command_publisher =
       builder.AddSystem(LcmPublisherSystem::Make<lcmt_traj_opt_u>(
-          "traj_opt_u", lcm, 1./control_frequency));
+          "traj_opt_u", lcm, 1./frequency));
   
   builder.Connect(state_subscriber->get_output_port(),
                   controller->get_input_port());
@@ -110,13 +106,12 @@ void TrajOptExample::ControlWithStateFromLcm(const std::string options_file,
   systems::Simulator<double> simulator(*diagram);
   simulator.set_target_realtime_rate(1.0);
   simulator.Initialize();
-  simulator.AdvanceTo(10*duration);
+  simulator.AdvanceTo(duration);
 }
 
-void TrajOptExample::SimulateWithControlFromLcm(const VectorXd q0,
-                                                const VectorXd v0,
-                                                const double dt,
-                                                const double duration) const {
+void TrajOptExample::SimulateWithControlFromLcm(
+    const VectorXd q0, const VectorXd v0, const double dt,
+    const double duration, const double realtime_rate) const {
   // Set up the system diagram for the simulator
   DiagramBuilder<double> builder;
   auto lcm = builder.AddSystem<LcmInterfaceSystem>();
@@ -164,7 +159,7 @@ void TrajOptExample::SimulateWithControlFromLcm(const VectorXd q0,
   plant.SetPositions(&plant_context, q0);
   plant.SetVelocities(&plant_context, v0);
   systems::Simulator<double> simulator(*diagram, std::move(diagram_context));
-  simulator.set_target_realtime_rate(0.1);
+  simulator.set_target_realtime_rate(realtime_rate);
   simulator.Initialize();
   simulator.AdvanceTo(duration);
 }

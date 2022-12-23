@@ -26,9 +26,15 @@ int do_main() {
   const std::string yaml_file = "drake/traj_opt/examples/acrobot.yaml";
 
   if (MPC) {
-    // Use the optimizer for MPC
-    const double optimizer_iters = 20;
-    acrobot_example.RunModelPredictiveControl(yaml_file, optimizer_iters);
+    // Use the optimizer to do MPC
+    const double mpc_iters = 10;
+    const double controller_frequency = 30;
+    const double sim_time = 10.0;
+    const double sim_time_step = 1e-3;
+    const double sim_realtime_rate = 1.0;
+    acrobot_example.RunModelPredictiveControl(yaml_file, mpc_iters,
+                                              controller_frequency, sim_time,
+                                              sim_time_step, sim_realtime_rate);
 
   } else {
     // Just solve for a single trajectory and play it on the visualizer
