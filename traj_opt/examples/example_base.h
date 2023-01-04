@@ -148,16 +148,9 @@ class TrajOptExample {
    * sending control inputs back over LCM.
    *
    * @param options parameters, read from a YAML file, defining the cost
-   * function
-   * @param mpc_iters Number of optimizer iterations to take at each step
-   * @param frequency Target controller frequency, in Hz. This should be slow
-   * enough that the optimizer returns a solution in 1/frequency seconds.
-   * @param duration The amount of time, in seconds, to run the controller for
+   * function, MPC parameters, etc.
    */
-  void ControlWithStateFromLcm(const TrajOptExampleParams options,
-                               const int mpc_iters,
-                               const double frequency,
-                               const double duration) const;
+  void ControlWithStateFromLcm(const TrajOptExampleParams options) const;
 };
 
 }  // namespace examples

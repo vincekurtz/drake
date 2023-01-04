@@ -54,19 +54,15 @@ void TrajOptExample::RunModelPredictiveControl(
   // Start the controller, which reads the system state and publishes
   // control torques over LCM
   std::thread ctrl_thread(&TrajOptExample::ControlWithStateFromLcm, this,
-                          options, options.mpc_iters,
-                          options.controller_frequency,
-                          options.sim_time / options.sim_realtime_rate);
+                          options);
 
   // Wait for all threads to stop
   sim_thread.join();
   ctrl_thread.join();
 }
 
-void TrajOptExample::ControlWithStateFromLcm(const TrajOptExampleParams options,
-                                             const int mpc_iters,
-                                             const double frequency,
-                                             const double duration) const {
+void TrajOptExample::ControlWithStateFromLcm(
+    const TrajOptExampleParams options) const {
   // Create a system model for the controller
   DiagramBuilder<double> builder_ctrl;
   MultibodyPlantConfig config;
@@ -83,7 +79,7 @@ void TrajOptExample::ControlWithStateFromLcm(const TrajOptExampleParams options,
   // Set our solver parameters
   SolverParameters solver_params;
   SetSolverParameters(options, &solver_params);
-  solver_params.max_iterations = mpc_iters;
+  solver_params.max_iterations = options.mpc_iters;
 
   // Set the initial guess based on YAML parameters. This initial guess is just
   // used for the first MPC iteration: later iterations are warm-started with
@@ -107,7 +103,7 @@ void TrajOptExample::ControlWithStateFromLcm(const TrajOptExampleParams options,
 
   auto command_publisher =
       builder.AddSystem(LcmPublisherSystem::Make<lcmt_traj_opt_u>(
-          "traj_opt_u", lcm, 1. / frequency));
+          "traj_opt_u", lcm, 1. / options.controller_frequency));
 
   builder.Connect(state_subscriber->get_output_port(),
                   controller->get_input_port());
@@ -120,7 +116,7 @@ void TrajOptExample::ControlWithStateFromLcm(const TrajOptExampleParams options,
   systems::Simulator<double> simulator(*diagram);
   simulator.set_target_realtime_rate(1.0);
   simulator.Initialize();
-  simulator.AdvanceTo(duration);
+  simulator.AdvanceTo(options.sim_time / options.sim_realtime_rate);
 }
 
 void TrajOptExample::SimulateWithControlFromLcm(
