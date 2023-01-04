@@ -59,6 +59,9 @@ void TrajOptExample::RunModelPredictiveControl(
   // Wait for all threads to stop
   sim_thread.join();
   ctrl_thread.join();
+
+  // Print profiling info
+  std::cout << TableOfAverages() << std::endl;
 }
 
 void TrajOptExample::ControlWithStateFromLcm(
