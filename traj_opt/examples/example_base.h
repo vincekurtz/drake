@@ -132,16 +132,10 @@ class TrajOptExample {
    * Simulate the system from the given initial condition, reading control
    * inputs and publishing (ground truth) state information over LCM.
    *
-   * @param q0 The initial system configuration
-   * @param v0 The initial system velocities
-   * @param dt The simulator time step
-   * @param duration The amount of time, in seconds, to simulate for
-   * @param realtime_rate The realtime rate for the simulator. 1 is real time,
-   * 0.1 is 10X slower than real time.
+   * @param options parameters, read from a YAML file, defining the initial
+   * condition, simulation time, realtime rate, etc.
    */
-  void SimulateWithControlFromLcm(const VectorXd q0, const VectorXd v0,
-                                  const double dt, const double duration,
-                                  const double realtime_rate) const;
+  void SimulateWithControlFromLcm(const TrajOptExampleParams options) const;
 
   /**
    * Use MPC to control the system, reading state measurements from LCM and

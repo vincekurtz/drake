@@ -75,6 +75,8 @@ struct TrajOptExampleParams {
     a->Visit(DRAKE_NVP(sim_time));
     a->Visit(DRAKE_NVP(sim_time_step));
     a->Visit(DRAKE_NVP(sim_realtime_rate));
+    a->Visit(DRAKE_NVP(Kp));
+    a->Visit(DRAKE_NVP(Kd));
   }
   // Initial state
   VectorXd q_init;
@@ -192,6 +194,11 @@ struct TrajOptExampleParams {
   double sim_realtime_rate =
       1.0;  // Simulator realtime rate. Allows us to imitate a faster controller
             // by slowing down the simulation.
+
+  // Gains for the low-level PD+ controller that operates between MPC
+  // iterations. Terms related to unactuated DoFs are ignored.
+  VectorXd Kp;
+  VectorXd Kd;
 };
 
 }  // namespace examples

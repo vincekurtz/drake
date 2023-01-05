@@ -69,6 +69,8 @@ save_solver_stats_csv : true
 mpc : true
 mpc_iters : 10
 controller_frequency : 20
-sim_time : 5
+sim_time : 10
 sim_time_step : 1e-3
 sim_realtime_rate : 1.0
+Kp : [0.0, 20.0]
+Kd : [0.0, 1.0]

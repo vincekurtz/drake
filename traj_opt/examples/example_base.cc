@@ -47,9 +47,7 @@ void TrajOptExample::RunModelPredictiveControl(
 
   // Start the simulator, which reads control inputs and publishes the system
   // state over LCM
-  std::thread sim_thread(&TrajOptExample::SimulateWithControlFromLcm, this,
-                         options.q_init, options.v_init, options.sim_time_step,
-                         options.sim_time, options.sim_realtime_rate);
+  std::thread sim_thread(&TrajOptExample::SimulateWithControlFromLcm, this, options);
 
   // Start the controller, which reads the system state and publishes
   // control torques over LCM
@@ -123,15 +121,14 @@ void TrajOptExample::ControlWithStateFromLcm(
 }
 
 void TrajOptExample::SimulateWithControlFromLcm(
-    const VectorXd q0, const VectorXd v0, const double dt,
-    const double duration, const double realtime_rate) const {
+    const TrajOptExampleParams options) const {
   // Set up the system diagram for the simulator
   DiagramBuilder<double> builder;
   auto lcm = builder.AddSystem<LcmInterfaceSystem>();
 
   // Construct the multibody plant system model
   MultibodyPlantConfig config;
-  config.time_step = dt;
+  config.time_step = options.sim_time_step;
   auto [plant, scene_graph] = AddMultibodyPlant(config, &builder);
   CreatePlantModel(&plant);
   plant.Finalize();
@@ -147,9 +144,15 @@ void TrajOptExample::SimulateWithControlFromLcm(
   auto command_subscriber = builder.AddSystem(
       LcmSubscriberSystem::Make<lcmt_traj_opt_u>("traj_opt_u", lcm));
 
-  // TODO: get PD gains from yaml
-  const VectorXd Kp = 10.0*VectorXd::Ones(plant.num_positions());
-  const VectorXd Kd = 1.0*VectorXd::Ones(plant.num_velocities());
+  // Set PD gains for lower level controller to zero if they aren't defined
+  VectorXd Kp = options.Kp;
+  VectorXd Kd = options.Kd;
+  if (Kp.size() != options.q_init.size()) {
+    Kp.setZero(options.q_init.size());
+  }
+  if (Kd.size() != options.v_init.size()) {
+    Kd.setZero(options.v_init.size());
+  }
 
   auto controller = builder.AddSystem<PdPlusController>(
       plant.MakeActuationMatrix(), Kp, Kd, plant.num_actuators(),
@@ -179,12 +182,12 @@ void TrajOptExample::SimulateWithControlFromLcm(
       diagram->GetMutableSubsystemContext(plant, diagram_context.get());
 
   // Run the simulation
-  plant.SetPositions(&plant_context, q0);
-  plant.SetVelocities(&plant_context, v0);
+  plant.SetPositions(&plant_context, options.q_init);
+  plant.SetVelocities(&plant_context, options.v_init);
   systems::Simulator<double> simulator(*diagram, std::move(diagram_context));
-  simulator.set_target_realtime_rate(realtime_rate);
+  simulator.set_target_realtime_rate(options.sim_realtime_rate);
   simulator.Initialize();
-  simulator.AdvanceTo(duration);
+  simulator.AdvanceTo(options.sim_time);
 }
 
 void TrajOptExample::SolveTrajectoryOptimization(
