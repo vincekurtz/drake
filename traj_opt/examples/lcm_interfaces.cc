@@ -79,7 +79,11 @@ void TrajOptLcmController::OutputCommand(const Context<double>& context,
   // Set header data
   output->utime = static_cast<int64_t>(context.get_time() * 1e6);
   output->nu = static_cast<int16_t>(nu_);
+  output->nq = static_cast<int16_t>(nq_);
+  output->nv = static_cast<int16_t>(nv_);
   output->u.resize(nu_);
+  output->q.resize(nq_);
+  output->v.resize(nv_);
 
   // Sometimes we need to wait a bit to get non-zero inputs
   if (state.nq > 0) {
@@ -106,10 +110,18 @@ void TrajOptLcmController::OutputCommand(const Context<double>& context,
     optimizer_.Solve(q_guess_, &solution, &stats);
 
     // Set the control input
-    // TODO(vincekurtz): consider using a PD+ controller
     const VectorXd u = B_.transpose() * solution.tau[0];
     for (int i = 0; i < nu_; ++i) {
       output->u[i] = u[i];
+    }
+
+    // Send target positions and velocities for the next time step. These can be
+    // used in a PD+ controller in conjunction with u.
+    for (int i = 0; i < nq_; ++i) {
+      output->q[i] = solution.q[1][i];
+    }
+    for (int i = 0; i < nv_; ++i) {
+      output->v[i] = solution.v[1][i];
     }
 
     // Save the solution to warm-start the next iteration
