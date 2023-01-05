@@ -146,11 +146,19 @@ void TrajOptExample::SimulateWithControlFromLcm(
   // Recieve control inputs from LCM
   auto command_subscriber = builder.AddSystem(
       LcmSubscriberSystem::Make<lcmt_traj_opt_u>("traj_opt_u", lcm));
-  auto command_reciever =
-      builder.AddSystem<CommandReciever>(plant.num_actuators());
+
+  // TODO: get PD gains from yaml
+  const VectorXd Kp = 10.0*VectorXd::Ones(plant.num_positions());
+  const VectorXd Kd = 1.0*VectorXd::Ones(plant.num_velocities());
+
+  auto controller = builder.AddSystem<PdPlusController>(
+      plant.MakeActuationMatrix(), Kp, Kd, plant.num_actuators(),
+      plant.num_positions(), plant.num_velocities());
   builder.Connect(command_subscriber->get_output_port(),
-                  command_reciever->get_input_port());
-  builder.Connect(command_reciever->get_output_port(),
+                  controller->get_control_input_port());
+  builder.Connect(plant.get_state_output_port(),
+                  controller->get_state_estimate_input_port());
+  builder.Connect(controller->get_output_port(),
                   plant.get_actuation_input_port());
 
   // Send state estimates out over LCM

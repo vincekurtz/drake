@@ -7,7 +7,7 @@ struct lcmt_traj_opt_u
 
   // Joint torques
   int16_t nu;
-  float u[nu];
+  double u[nu];
 
   // Nominal positions
   int16_t nq;

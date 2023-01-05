@@ -27,28 +27,57 @@ void StateSender::OutputState(const Context<double>& context,
   }
 }
 
-CommandReciever::CommandReciever(const int nu) : nu_(nu) {
-  this->DeclareAbstractInputPort("lcmt_traj_opt_u", Value<lcmt_traj_opt_u>());
+PdPlusController::PdPlusController(const MatrixXd B, const VectorXd Kp,
+                                   const VectorXd Kd, const int nu,
+                                   const int nq, const int nv)
+    : nu_(nu),
+      nq_(nq),
+      nv_(nv),
+      Kp_(B.transpose() * Kp.asDiagonal()),
+      Kd_(B.transpose() * Kd.asDiagonal()) {
+  // Some size sanity checks
+  DRAKE_DEMAND(Kp_.rows() == nu_);
+  DRAKE_DEMAND(Kp_.cols() == nq_);
+  DRAKE_DEMAND(Kd_.rows() == nu_);
+  DRAKE_DEMAND(Kd_.cols() == nv_);
+
+  // Define input and output ports
+  control_port_ = this->DeclareAbstractInputPort("lcmt_traj_opt_u",
+                                                 Value<lcmt_traj_opt_u>())
+                      .get_index();
+  state_estimate_port_ =
+      this->DeclareVectorInputPort("state_estimate", nq_ + nv_).get_index();
   this->DeclareVectorOutputPort("control_torques", nu_,
-                                &CommandReciever::OutputCommandAsVector);
+                                &PdPlusController::OutputCommandAsVector);
 }
 
-void CommandReciever::OutputCommandAsVector(
+void PdPlusController::OutputCommandAsVector(
     const Context<double>& context,
     systems::BasicVector<double>* output) const {
-  const AbstractValue* abstract_command = this->EvalAbstractInput(context, 0);
+  const AbstractValue* abstract_command =
+      this->EvalAbstractInput(context, control_port_);
+  const systems::BasicVector<double>* state_estimate =
+      this->EvalVectorInput(context, state_estimate_port_);
+
   const auto& command = abstract_command->get_value<lcmt_traj_opt_u>();
+  const VectorXd& x = state_estimate->value();
+  DRAKE_DEMAND(x.size() == nq_ + nv_);
+
+  // Define q, v, q_nom, v_nom, and u_nom
+  const auto& q = x.topRows(nq_);
+  const auto& v = x.bottomRows(nv_);
+  Eigen::Map<const VectorXd> u_nom(command.u.data(), command.u.size());
+  Eigen::Map<const VectorXd> q_nom(command.q.data(), command.q.size());
+  Eigen::Map<const VectorXd> v_nom(command.v.data(), command.v.size());
 
   if (static_cast<int>(command.nu) == nu_) {
     // We sometimes need to wait to get the right data on the channel
-    for (int i = 0; i < nu_; ++i) {
-      output->SetAtIndex(i, command.u[i]);
-    }
+    VectorXd u = u_nom - Kp_ * (q - q_nom) - Kd_ * (v - v_nom);
+    output->SetFromVector(u);
+
   } else {
     // If we're not getting any data, just set control torques to zero
-    for (int i = 0; i < nu_; ++i) {
-      output->SetAtIndex(i, 0.0);
-    }
+    output->SetZero();
   }
 }
 

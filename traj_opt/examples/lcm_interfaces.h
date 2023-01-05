@@ -23,22 +23,66 @@ namespace examples {
 using systems::BasicVector;
 using systems::Context;
 using systems::Diagram;
+using systems::InputPort;
 using systems::LeafSystem;
+using systems::InputPortIndex;
+using systems::System;
 
-/// Recieves the output of an LcmSubscriberSystem that subscribes to a channel
-/// with control inputs, of type lcmt_traj_opt_u, and outputs the same control
-/// inputs as a BasicVector.
-class CommandReciever : public LeafSystem<double> {
+/// Recieves nominal input and state (x_nom, u_nom) from an LcmSubscriberSystem
+/// and state measurement (x_hat) from the plant. Outputs control inputs
+///
+///     u = u_nom + K(x_hat - x_nom)
+///
+/// to be applied to the plant. 
+class PdPlusController : public LeafSystem<double> {
  public:
   /**
+   * @param B the actuation matrix for the system to be controlled
+   * @param Kp proportional gains for all generalized positions. Gains related
+   *           to unactuated DoFs will be ignored.
+   * @param Kd derivative gains for all generalized velocities. Gains related
+   *           to unactuated DoFs will be ignored.
    * @param nu number of control torques/forces to send
+   * @param nq number of generalized positions
+   * @param nv number of generalized velocities
    */
-  explicit CommandReciever(const int nu);
+  PdPlusController(const MatrixXd B, const VectorXd Kp, const VectorXd Kd,
+                   const int nu, const int nq, const int nv);
+
+  /**
+   * Returns a constant reference to the input port that takes state
+   * measurements (x_hat) from the plant.
+   */
+  const InputPort<double>& get_state_estimate_input_port() const {
+    return System<double>::get_input_port(state_estimate_port_);
+  }
+
+  /**
+   * Returns a constant reference to the input port that takes the nominal
+   * control input u_nom and nominal state x_nom from an LcmSubscriberSystem.
+   *
+   * @return const InputPort<double>&
+   */
+  const InputPort<double>& get_control_input_port() const {
+    return System<double>::get_input_port(control_port_);
+  }
 
  private:
+  // Main function used to take inputs and compute outputs
   void OutputCommandAsVector(const Context<double>& context,
                              BasicVector<double>* output) const;
+
+  // Number of actuators, positions, and velocities
   const int nu_;
+  const int nq_;
+  const int nv_;
+
+  // Matrices of PD gains, of size (nu x nq) and (nu x nv)
+  const MatrixXd Kp_;
+  const MatrixXd Kd_;
+
+  InputPortIndex control_port_;
+  InputPortIndex state_estimate_port_;
 };
 
 /// Recieves the multibody state as input and publishes that same state with
