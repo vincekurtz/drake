@@ -28,26 +28,21 @@ using systems::LeafSystem;
 using systems::InputPortIndex;
 using systems::System;
 
-/// Recieves nominal input and state (x_nom, u_nom) from an LcmSubscriberSystem
-/// and state measurement (x_hat) from the plant. Outputs control inputs
-///
-///     u = u_nom + K(x_hat - x_nom)
-///
-/// to be applied to the plant. 
-class PdPlusController : public LeafSystem<double> {
+/// A low-level controller that recieves nominal input and state (x_nom, u_nom)
+/// from an LcmSubscriberSystem and state measurement (x_hat) from the plant.
+/// Outputs control inputs to be applied directly to the plant, typically at a
+/// much higher frequency than we recieve u_nom.
+class LowLevelController : public LeafSystem<double> {
  public:
   /**
-   * @param B the actuation matrix for the system to be controlled
+   * @param plant multibody plant model of the system
    * @param Kp proportional gains for all generalized positions. Gains related
    *           to unactuated DoFs will be ignored.
    * @param Kd derivative gains for all generalized velocities. Gains related
    *           to unactuated DoFs will be ignored.
-   * @param nu number of control torques/forces to send
-   * @param nq number of generalized positions
-   * @param nv number of generalized velocities
    */
-  PdPlusController(const MatrixXd B, const VectorXd Kp, const VectorXd Kd,
-                   const int nu, const int nq, const int nv);
+  LowLevelController(const MultibodyPlant<double>* plant, const VectorXd Kp,
+                     const VectorXd Kd, const double Vmax_);
 
   /**
    * Returns a constant reference to the input port that takes state
@@ -83,6 +78,13 @@ class PdPlusController : public LeafSystem<double> {
   // Matrices of PD gains, of size (nu x nq) and (nu x nv)
   const MatrixXd Kp_;
   const MatrixXd Kd_;
+
+  // User-specified bound on system energy
+  const double Vmax_;
+
+  // Internal system model
+  const MultibodyPlant<double>* plant_{nullptr};
+  std::unique_ptr<Context<double>> context_;
 
   InputPortIndex control_port_;
   InputPortIndex state_estimate_port_;

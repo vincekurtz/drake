@@ -154,9 +154,9 @@ void TrajOptExample::SimulateWithControlFromLcm(
     Kd.setZero(options.v_init.size());
   }
 
-  auto controller = builder.AddSystem<PdPlusController>(
-      plant.MakeActuationMatrix(), Kp, Kd, plant.num_actuators(),
-      plant.num_positions(), plant.num_velocities());
+  // Connect the low-level controller
+  auto controller =
+      builder.AddSystem<LowLevelController>(&plant, Kp, Kd, options.Vmax);
   builder.Connect(command_subscriber->get_output_port(),
                   controller->get_control_input_port());
   builder.Connect(plant.get_state_output_port(),

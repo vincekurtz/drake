@@ -27,15 +27,17 @@ void StateSender::OutputState(const Context<double>& context,
   }
 }
 
-PdPlusController::PdPlusController(const MatrixXd B, const VectorXd Kp,
-                                   const VectorXd Kd, const int nu,
-                                   const int nq, const int nv)
-    : nu_(nu),
-      nq_(nq),
-      nv_(nv),
-      B_(B),
-      Kp_(B.transpose() * Kp.asDiagonal()),
-      Kd_(B.transpose() * Kd.asDiagonal()) {
+LowLevelController::LowLevelController(const MultibodyPlant<double>* plant,
+                                       const VectorXd Kp, const VectorXd Kd,
+                                       const double Vmax)
+    : nu_(plant->num_actuators()),
+      nq_(plant->num_positions()),
+      nv_(plant->num_velocities()),
+      B_(plant->MakeActuationMatrix()),
+      Kp_(B_.transpose() * Kp.asDiagonal()),
+      Kd_(B_.transpose() * Kd.asDiagonal()),
+      Vmax_(Vmax),
+      plant_(plant) {
   // Some size sanity checks
   DRAKE_DEMAND(Kp_.rows() == nu_);
   DRAKE_DEMAND(Kp_.cols() == nq_);
@@ -49,10 +51,13 @@ PdPlusController::PdPlusController(const MatrixXd B, const VectorXd Kp,
   state_estimate_port_ =
       this->DeclareVectorInputPort("state_estimate", nq_ + nv_).get_index();
   this->DeclareVectorOutputPort("control_torques", nu_,
-                                &PdPlusController::OutputCommandAsVector);
+                                &LowLevelController::OutputCommandAsVector);
+
+  // Set up system context
+  context_ = plant_->CreateDefaultContext();
 }
 
-void PdPlusController::OutputCommandAsVector(
+void LowLevelController::OutputCommandAsVector(
     const Context<double>& context,
     systems::BasicVector<double>* output) const {
   const AbstractValue* abstract_command =
@@ -71,15 +76,19 @@ void PdPlusController::OutputCommandAsVector(
   Eigen::Map<const VectorXd> q_nom(command.q.data(), command.q.size());
   Eigen::Map<const VectorXd> v_nom(command.v.data(), command.v.size());
 
+  // We sometimes need to wait to get the right data on the channel
   if (static_cast<int>(command.nu) == nu_) {
-    // We sometimes need to wait to get the right data on the channel
+    // Set PD+ input to track the trajectory from the optimizer. This will be
+    // applied if system energy is sufficiently low.
     VectorXd u = u_nom - Kp_ * (q - q_nom) - Kd_ * (v - v_nom);
 
-    const double Vmax = 200;
-    const double V = v.transpose() * v;  // TODO: use energy instead
-    const double y = V / Vmax;
-    const double gamma = y*y*y*y;
+    // Compute current system energy
+    plant_->SetPositionsAndVelocities(context_.get(), x);
+    const double V = plant_->EvalKineticEnergy(*context_) +
+                     plant_->EvalPotentialEnergy(*context_);
 
+    // Apply a barrier function to bound the system energy
+    const double gamma = std::pow(V / Vmax_, 4);
     if ((0 <= gamma) && (gamma <= 1)) {
       u = (1-gamma) * u - gamma * B_.transpose() * v;
     } else if (gamma > 1) {

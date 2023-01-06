@@ -77,6 +77,7 @@ struct TrajOptExampleParams {
     a->Visit(DRAKE_NVP(sim_realtime_rate));
     a->Visit(DRAKE_NVP(Kp));
     a->Visit(DRAKE_NVP(Kd));
+    a->Visit(DRAKE_NVP(Vmax));
   }
   // Initial state
   VectorXd q_init;
@@ -199,6 +200,10 @@ struct TrajOptExampleParams {
   // iterations. Terms related to unactuated DoFs are ignored.
   VectorXd Kp;
   VectorXd Kd;
+
+  // Desired bound on system energy for the low-level controller used in
+  // conjunction with MPC.
+  double Vmax = 1e16;
 };
 
 }  // namespace examples
