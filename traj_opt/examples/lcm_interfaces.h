@@ -77,6 +77,9 @@ class PdPlusController : public LeafSystem<double> {
   const int nq_;
   const int nv_;
 
+  // Actuator selection matrix
+  const MatrixXd B_;
+
   // Matrices of PD gains, of size (nu x nq) and (nu x nv)
   const MatrixXd Kp_;
   const MatrixXd Kd_;

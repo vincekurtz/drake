@@ -33,6 +33,7 @@ PdPlusController::PdPlusController(const MatrixXd B, const VectorXd Kp,
     : nu_(nu),
       nq_(nq),
       nv_(nv),
+      B_(B),
       Kp_(B.transpose() * Kp.asDiagonal()),
       Kd_(B.transpose() * Kd.asDiagonal()) {
   // Some size sanity checks
@@ -73,6 +74,18 @@ void PdPlusController::OutputCommandAsVector(
   if (static_cast<int>(command.nu) == nu_) {
     // We sometimes need to wait to get the right data on the channel
     VectorXd u = u_nom - Kp_ * (q - q_nom) - Kd_ * (v - v_nom);
+
+    const double Vmax = 200;
+    const double V = v.transpose() * v;  // TODO: use energy instead
+    const double y = V / Vmax;
+    const double gamma = y*y*y*y;
+
+    if ((0 <= gamma) && (gamma <= 1)) {
+      u = (1-gamma) * u - gamma * B_.transpose() * v;
+    } else if (gamma > 1) {
+      u = - gamma * B_.transpose() * v;
+    }
+
     output->SetFromVector(u);
 
   } else {
