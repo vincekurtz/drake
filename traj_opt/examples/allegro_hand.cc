@@ -34,7 +34,7 @@ class AllegroHandExample : public TrajOptExample {
 
     // Add a model of the hand
     std::string sdf_file =
-        FindResourceOrThrow("drake/traj_opt/examples/allegro_hand.sdf");
+        FindResourceOrThrow("drake/traj_opt/examples/models/allegro_hand.sdf");
     Parser(plant).AddAllModelsFromFile(sdf_file);
     RigidTransformd X_hand(RollPitchYawd(0, -M_PI_2, 0), Vector3d(0, 0, 0));
     plant->WeldFrames(plant->world_frame(), plant->GetFrameByName("hand_root"),

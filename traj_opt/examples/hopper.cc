@@ -25,7 +25,7 @@ class HopperExample : public TrajOptExample {
 
     // Add a hopper
     std::string urdf_file =
-        FindResourceOrThrow("drake/traj_opt/examples/hopper.urdf");
+        FindResourceOrThrow("drake/traj_opt/examples/models/hopper.urdf");
     Parser(plant).AddAllModelsFromFile(urdf_file);
 
     // Add collision with the ground

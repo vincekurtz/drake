@@ -19,8 +19,8 @@ class SpinnerExample : public TrajOptExample {
     // N.B. geometry of the spinner is chosen via gflags rather than yaml so
     // that we can use the same yaml format for all of the examples, without
     // cluttering it with spinner-specific options.
-    std::string urdf_file =
-        FindResourceOrThrow("drake/traj_opt/examples/spinner_friction.urdf");
+    std::string urdf_file = FindResourceOrThrow(
+        "drake/traj_opt/examples/models/spinner_friction.urdf");
     Parser(plant).AddAllModelsFromFile(urdf_file);
   }
 };

@@ -46,8 +46,8 @@ drake_cc_binary(
     srcs = ["hopper.cc"],
     add_test_rule = 1,
     data = [
-        ":hopper.urdf",
         ":hopper.yaml",
+        ":models",
     ],
     test_rule_args = [],
     deps = [
@@ -79,8 +79,8 @@ drake_cc_binary(
     srcs = ["punyo_hug.cc"],
     add_test_rule = 1,
     data = [
+        ":models",
         ":punyo_hug.yaml",
-        ":punyoid.sdf",
     ],
     deps = [
         ":example_base",
@@ -95,9 +95,9 @@ drake_cc_binary(
     srcs = ["allegro_hand.cc"],
     add_test_rule = 1,
     data = [
-        ":allegro_hand.sdf",
         ":allegro_hand.yaml",
         ":allegro_hand_upside_down.yaml",
+        ":models",
         "//manipulation/models/allegro_hand_description:models",
     ],
     deps = [
@@ -114,8 +114,8 @@ drake_cc_binary(
     srcs = ["2dof_spinner.cc"],
     add_test_rule = 1,
     data = [
-        ":2dof_spinner.urdf",
         ":2dof_spinner.yaml",
+        ":models",
     ],
     test_rule_args = [],
     deps = [
@@ -146,7 +146,7 @@ drake_cc_binary(
     srcs = ["wall_ball.cc"],
     add_test_rule = 1,
     data = [
-        ":wall_ball.urdf",
+        ":models",
         ":wall_ball.yaml",
     ],
     test_rule_args = [],
@@ -164,10 +164,7 @@ drake_cc_binary(
     add_test_rule = 1,
     data = [
         ":frictionless_spinner.yaml",
-        ":spinner_capsule.urdf",
-        ":spinner_rectangle.urdf",
-        ":spinner_sphere.urdf",
-        ":spinner_square.urdf",
+        ":models",
     ],
     test_rule_args = [],
     deps = [
@@ -201,8 +198,8 @@ drake_cc_binary(
     srcs = ["spinner.cc"],
     add_test_rule = 1,
     data = [
+        ":models",
         ":spinner.yaml",
-        ":spinner_friction.urdf",
     ],
     test_rule_args = [],
     deps = [

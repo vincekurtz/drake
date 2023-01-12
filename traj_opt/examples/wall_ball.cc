@@ -18,7 +18,7 @@ using multibody::Parser;
 class WallBallExample : public TrajOptExample {
   void CreatePlantModel(MultibodyPlant<double>* plant) const {
     const std::string urdf_file =
-        FindResourceOrThrow("drake/traj_opt/examples/wall_ball.urdf");
+        FindResourceOrThrow("drake/traj_opt/examples/models/wall_ball.urdf");
     Parser(plant).AddAllModelsFromFile(urdf_file);
   }
 };
