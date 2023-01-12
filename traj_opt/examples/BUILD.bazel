@@ -59,6 +59,23 @@ drake_cc_binary(
 )
 
 drake_cc_binary(
+    name = "mini_cheetah",
+    srcs = ["mini_cheetah.cc"],
+    add_test_rule = 1,
+    data = [
+        ":mini_cheetah.yaml",
+        ":models",
+    ],
+    test_rule_args = [],
+    deps = [
+        ":example_base",
+        "//common:find_resource",
+        "//multibody/parsing",
+        "//multibody/plant",
+    ],
+)
+
+drake_cc_binary(
     name = "pendulum",
     srcs = ["pendulum.cc"],
     add_test_rule = 1,
