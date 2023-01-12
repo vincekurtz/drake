@@ -60,17 +60,18 @@ play_initial_guess : false
 play_optimal_trajectory : true
 
 # Debugging parameters
-verbose : false
+verbose : true
 linesearch_plot_every_iteration : false
 print_debug_data : false
 save_solver_stats_csv : true
 
 # MPC parameters
-mpc : true
+mpc : false
 mpc_iters : 10
-controller_frequency : 20
+controller_frequency : 15
 sim_time : 10
 sim_time_step : 1e-3
 sim_realtime_rate : 1.0
-#Kp : [0.0, 20.0]
-#Kd : [0.0, 1.0]
+Kp : [0.0, 20.0]
+Kd : [0.0, 1.0]
+Vmax : 100

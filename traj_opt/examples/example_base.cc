@@ -47,7 +47,8 @@ void TrajOptExample::RunModelPredictiveControl(
 
   // Start the simulator, which reads control inputs and publishes the system
   // state over LCM
-  std::thread sim_thread(&TrajOptExample::SimulateWithControlFromLcm, this, options);
+  std::thread sim_thread(&TrajOptExample::SimulateWithControlFromLcm, this,
+                         options);
 
   // Start the controller, which reads the system state and publishes
   // control torques over LCM

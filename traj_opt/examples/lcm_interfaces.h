@@ -5,6 +5,7 @@
 /// example in drake/acrobot/acrobot_lcm.h.
 
 #include <iostream>
+#include <memory>
 #include <vector>
 
 #include "drake/lcmt_traj_opt_u.hpp"
