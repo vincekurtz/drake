@@ -31,19 +31,19 @@ Mac are available to download as attachments from Drake's GitHub
 [releases](https://github.com/RobotLocomotion/drake/releases) page.
 
 The most recent release is
-[v1.10.0](https://github.com/RobotLocomotion/drake/releases/tag/v1.10.0):
+[v1.12.0](https://github.com/RobotLocomotion/drake/releases/tag/v1.12.0):
 
-* [https://github.com/RobotLocomotion/drake/releases/download/v1.10.0/drake-20221116-focal.tar.gz](https://github.com/RobotLocomotion/drake/releases/download/v1.10.0/drake-20221116-focal.tar.gz)
-* [https://github.com/RobotLocomotion/drake/releases/download/v1.10.0/drake-20221116-jammy.tar.gz](https://github.com/RobotLocomotion/drake/releases/download/v1.10.0/drake-20221116-jammy.tar.gz)
-* [https://github.com/RobotLocomotion/drake/releases/download/v1.10.0/drake-20221116-mac.tar.gz](https://github.com/RobotLocomotion/drake/releases/download/v1.10.0/drake-20221116-mac.tar.gz) (for x86_64)
-* [https://github.com/RobotLocomotion/drake/releases/download/v1.10.0/drake-20221116-mac-arm64.tar.gz](https://github.com/RobotLocomotion/drake/releases/download/v1.10.0/drake-20221116-mac-arm64.tar.gz) (for arm64)
+* [https://github.com/RobotLocomotion/drake/releases/download/v1.12.0/drake-20230112-focal.tar.gz](https://github.com/RobotLocomotion/drake/releases/download/v1.12.0/drake-20230112-focal.tar.gz)
+* [https://github.com/RobotLocomotion/drake/releases/download/v1.12.0/drake-20230112-jammy.tar.gz](https://github.com/RobotLocomotion/drake/releases/download/v1.12.0/drake-20230112-jammy.tar.gz)
+* [https://github.com/RobotLocomotion/drake/releases/download/v1.12.0/drake-20230112-mac.tar.gz](https://github.com/RobotLocomotion/drake/releases/download/v1.12.0/drake-20230112-mac.tar.gz) (for x86_64)
+* [https://github.com/RobotLocomotion/drake/releases/download/v1.12.0/drake-20230112-mac-arm64.tar.gz](https://github.com/RobotLocomotion/drake/releases/download/v1.12.0/drake-20230112-mac-arm64.tar.gz) (for arm64)
 
 Users of macOS must download using a command-line tool such as ``curl`` instead
 of using a web browser, to avoid hassles from Gatekeeper checks for malicious
 software. For example:
 
 ```
-curl -fsSLO https://github.com/RobotLocomotion/drake/releases/download/v1.10.0/drake-20221116-mac-arm64.tar.gz
+curl -fsSLO https://github.com/RobotLocomotion/drake/releases/download/v1.11.0/drake-20221214-mac-arm64.tar.gz
 ```
 
 ### Use as a C++ library
@@ -68,7 +68,7 @@ Download the binary release ``*.tar.gz`` file, using one of the links above.
 In the example below, we'll use ``drake.tar.gz`` to refer to it, but your
 download will have a more version-specific filename.
 
-Create and activate the envionment:
+Create and activate the environment:
 
 ```bash
 mkdir -p env
@@ -98,12 +98,12 @@ Mac are generated nightly and are available to download at:
 * [https://drake-packages.csail.mit.edu/drake/nightly/drake-latest-mac-arm64.tar.gz](https://drake-packages.csail.mit.edu/drake/nightly/drake-latest-mac-arm64.tar.gz) (for arm64)
 
 Older packages for specific dates are available by replacing ``latest`` with an
-8-digit date, e.g., ``20221005`` for October 5th, 2022.
+8-digit date, e.g., ``20230112`` for January 12th, 2023.
 
-* [https://drake-packages.csail.mit.edu/drake/nightly/drake-20221005-focal.tar.gz](https://drake-packages.csail.mit.edu/drake/nightly/drake-20221005-focal.tar.gz)
-* [https://drake-packages.csail.mit.edu/drake/nightly/drake-20221005-jammy.tar.gz](https://drake-packages.csail.mit.edu/drake/nightly/drake-20221005-jammy.tar.gz)
-* [https://drake-packages.csail.mit.edu/drake/nightly/drake-20221005-mac.tar.gz](https://drake-packages.csail.mit.edu/drake/nightly/drake-20221005-mac.tar.gz) (for x86_64)
-* [https://drake-packages.csail.mit.edu/drake/nightly/drake-20221005-mac-arm64.tar.gz](https://drake-packages.csail.mit.edu/drake/nightly/drake-20221005-mac-arm64.tar.gz) (for arm64)
+* [https://drake-packages.csail.mit.edu/drake/nightly/drake-20230112-focal.tar.gz](https://drake-packages.csail.mit.edu/drake/nightly/drake-20230112-focal.tar.gz)
+* [https://drake-packages.csail.mit.edu/drake/nightly/drake-20230112-jammy.tar.gz](https://drake-packages.csail.mit.edu/drake/nightly/drake-20230112-jammy.tar.gz)
+* [https://drake-packages.csail.mit.edu/drake/nightly/drake-20230112-mac.tar.gz](https://drake-packages.csail.mit.edu/drake/nightly/drake-20230112-mac.tar.gz) (for x86_64)
+* [https://drake-packages.csail.mit.edu/drake/nightly/drake-20230112-mac-arm64.tar.gz](https://drake-packages.csail.mit.edu/drake/nightly/drake-20230112-mac-arm64.tar.gz) (for arm64)
 
 Nightly archives are retained for 56 days from their date of creation.
 

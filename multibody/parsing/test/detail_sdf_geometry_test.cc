@@ -194,7 +194,7 @@ class SceneGraphParserDetail : public ::testing::Test {
  public:
   SceneGraphParserDetail() {
     // Don't let warnings leak into spdlog; tests should always specifically
-    // handle any warnings that apppear.
+    // handle any warnings that appear.
     diagnostic_.SetActionForWarnings(&DiagnosticPolicy::ErrorDefaultAction);
   }
 
@@ -398,7 +398,7 @@ TEST_F(SceneGraphParserDetail, MakeMeshFromSdfGeometry) {
   // TODO(amcastro-tri): Be warned, the result of this test might (should)
   // change as we add support allowing to specify paths relative to the SDF file
   // location.
-  const std::string absolute_file_path = "path/to/some/mesh.obj";
+  const std::string absolute_file_path = "/path/to/some/mesh.obj";
   unique_ptr<sdf::Geometry> sdf_geometry = MakeSdfGeometryFromString(
       "<mesh>"
       "  <uri>" + absolute_file_path + "</uri>"
@@ -413,7 +413,7 @@ TEST_F(SceneGraphParserDetail, MakeMeshFromSdfGeometry) {
 
 // Verify MakeShapeFromSdfGeometry can make a convex mesh from an sdf::Geometry.
 TEST_F(SceneGraphParserDetail, MakeConvexFromSdfGeometry) {
-  const std::string absolute_file_path = "path/to/some/mesh.obj";
+  const std::string absolute_file_path = "/path/to/some/mesh.obj";
   unique_ptr<sdf::Geometry> sdf_geometry = MakeSdfGeometryFromString(
       "<mesh xmlns:drake='http://drake.mit.edu'>"
       "  <drake:declare_convex/>"

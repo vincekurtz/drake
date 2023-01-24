@@ -20,9 +20,9 @@
 
 #include <App.h>
 #include <common_robotics_utilities/base64_helpers.hpp>
+#include <drake_vendor/msgpack.hpp>
+#include <drake_vendor/uuid.h>
 #include <fmt/format.h>
-#include <msgpack.hpp>
-#include <uuid.h>
 
 #include "drake/common/drake_throw.h"
 #include "drake/common/find_resource.h"
@@ -1088,7 +1088,9 @@ class Meshcat::Impl {
     });
   }
 
-  // This function is public via the PIMPL.
+  // This function is public via the PIMPL. We'll set linker visibility to
+  // avoid a warning about our std::visit's lambda capture of a msgpack object.
+  __attribute__((visibility("hidden")))
   void SetAnimation(const MeshcatAnimation& animation) {
     DRAKE_DEMAND(IsThread(main_thread_id_));
 
@@ -1793,7 +1795,7 @@ class Meshcat::Impl {
       // Quietly ignore messages that don't match our expected message type.
       // This violates the style guide, but msgpack does not provide any other
       // mechanism for checking the message type.
-      drake::log()->debug("Meshcat ignored an unparseable message");
+      drake::log()->debug("Meshcat ignored an unparsable message");
       return;
     }
     std::lock_guard<std::mutex> lock(controls_mutex_);

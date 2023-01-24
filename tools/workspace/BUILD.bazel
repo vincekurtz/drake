@@ -51,6 +51,7 @@ drake_py_binary(
         # These should all be of the form "@foo_internal//:__pkg__".
         "@gz_math_internal//:__pkg__",
         "@gz_utils_internal//:__pkg__",
+        "@msgpack_internal//:__pkg__",
         "@nlopt_internal//:__pkg__",
         "@qhull_internal//:__pkg__",
         "@sdformat_internal//:__pkg__",
@@ -76,17 +77,18 @@ drake_py_binary(
 )
 
 _DRAKE_EXTERNAL_PACKAGE_INSTALLS = ["@%s//:install" % p for p in [
-    "ccd",
+    "ccd_internal",
     "com_jidesoft_jide_oss",
     "common_robotics_utilities",
     "commons_io",
     "curl_internal",
-    "fcl",
+    "fcl_internal",
     "fmt",
     "gz_math_internal",
     "gz_utils_internal",
     "lcm",
     "meshcat",
+    "msgpack_internal",
     "net_sf_jchart2d",
     "nanoflann_internal",
     "nlopt_internal",
@@ -97,6 +99,7 @@ _DRAKE_EXTERNAL_PACKAGE_INSTALLS = ["@%s//:install" % p for p in [
     "sdformat_internal",
     "spdlog",
     "statsjs",
+    "stduuid_internal",
     "tinyobjloader",
     "tinyxml2_internal",
     "usockets",
@@ -109,6 +112,7 @@ _DRAKE_EXTERNAL_PACKAGE_INSTALLS = ["@%s//:install" % p for p in [
     "cds",
     "drake_visualizer",
     "dreal",
+    "gflags",
     "optitrack_driver",
     "picosat",
 ]] + select({

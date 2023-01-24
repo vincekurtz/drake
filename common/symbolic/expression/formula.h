@@ -341,9 +341,9 @@ Formula isfinite(const Expression& e);
  *
  * @note This method checks if @p m is symmetric, which can be costly. If you
  * want to avoid it, please consider using
- * `positive_semidefinite(m.triangularView<Eigen::Lower>())` or
- * `positive_semidefinite(m.triangularView<Eigen::Upper>())` instead of
- * `positive_semidefinite(m)`.
+ * `positive_semidefinite(m.triangularView<...>())` instead of
+ * `positive_semidefinite(m)`, where `...` is either `Eigen::Lower` or
+ * `Eigen::Upper`.
  *
  * @pydrake_mkdoc_identifier{1args_m}
  */
@@ -1344,7 +1344,7 @@ namespace numext {
 // guards as an optimization to skip expensive computation if it can show
 // that the end result will remain unchanged. If our Expression has any
 // unbound variables during that guard, we will throw instead of skipping
-// the optimizaton. Therefore, we tweak these guards to special-case the
+// the optimization. Therefore, we tweak these guards to special-case the
 // result when either of the operands is a literal zero, with no throwing
 // even if the other operand has unbound variables.
 //

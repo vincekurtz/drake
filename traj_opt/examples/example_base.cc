@@ -497,6 +497,9 @@ void TrajOptExample::SetSolverParameters(
 
   // Type of Hessian approximation
   solver_params->exact_hessian = options.exact_hessian;
+
+  // Hessian rescaling
+  solver_params->scaling = options.scaling;
 }
 
 }  // namespace examples
