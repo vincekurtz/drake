@@ -27,8 +27,7 @@ template<typename T> class Joint;
 ///
 /// @tparam_default_scalar
 template <typename T>
-class JointActuator final
-    : public MultibodyElement<JointActuator, T, JointActuatorIndex> {
+class JointActuator final : public MultibodyElement<T> {
  public:
   DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(JointActuator)
 
@@ -48,6 +47,11 @@ class JointActuator final
   ///   for prismatic joints.
   JointActuator(const std::string& name, const Joint<T>& joint,
                 double effort_limit = std::numeric_limits<double>::infinity());
+
+  /// Returns this element's unique index.
+  JointActuatorIndex index() const {
+    return this->template index_impl<JointActuatorIndex>();
+  }
 
   /// Returns the name of the actuator.
   const std::string& name() const { return name_; }
@@ -74,7 +78,7 @@ class JointActuator final
   ///   this method will throw an exception.
   /// @param[in] joint_tau
   ///   Generalized force corresponding to the degree of freedom indicated by
-  ///   `joint_dof` to be added into `forces`. Refere to the specific Joint
+  ///   `joint_dof` to be added into `forces`. Refer to the specific Joint
   ///   sub-class documentation for details on the meaning and units for this
   ///   degree of freedom.
   /// @param[out] forces
@@ -295,8 +299,7 @@ class JointActuator final
   void DoDeclareParameters(
       internal::MultibodyTreeSystem<T>* tree_system) final {
     // Declare parent classes' parameters
-    MultibodyElement<JointActuator, T, JointActuatorIndex>::DoDeclareParameters(
-        tree_system);
+    MultibodyElement<T>::DoDeclareParameters(tree_system);
     rotor_inertia_parameter_index_ = this->DeclareNumericParameter(
         tree_system,
         systems::BasicVector<T>(Vector1<T>(default_rotor_inertia_)));

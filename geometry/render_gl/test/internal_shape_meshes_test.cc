@@ -46,7 +46,7 @@ GTEST_TEST(LoadMeshFromObjTest, ErrorModes) {
         "OBJ has no normals; RenderEngineGl requires OBJs with normals.+");
   }
   {
-    // Case: not all faces reference normals. Note: the face specification is
+    // Case: Not all faces reference normals. Note: the face specification is
     // otherwise invalid in that it references vertex positions that don't
     // exist.
     std::stringstream in_stream(R"""(
@@ -59,18 +59,17 @@ f 1 2 3
                                 "Not all faces reference normals.+");
   }
   {
-    // Case: not all faces reference uvs. Note: the face specification is
+    // Case: Not all faces reference uvs. Note: the face specification is
     // otherwise invalid in that it references vertex positions that don't
     // exist.
-    std::stringstream in_stream(R"""()
+    std::stringstream in_stream(R"""(
 v 1 2 3
 vn 0 0 1
 vt 0 0
-f 1//0 2//0 3//0
+f 1//1 2//1 3//1
 )""");
-    DRAKE_EXPECT_THROWS_MESSAGE(
-        LoadMeshFromObj(&in_stream),
-        "tinyobj::LoadObj failed to load file.+");
+    DRAKE_EXPECT_THROWS_MESSAGE(LoadMeshFromObj(&in_stream),
+                                "Not all faces reference texture.+");
   }
 }
 
@@ -485,7 +484,7 @@ GTEST_TEST(PrimitiveMeshTests, NormalCone) {
     const float cos_theta_expected = std::cos(theta);
     // Note: We're not using RotationMatrix because it cannot support `float`;
     // RotationMatrix::ThrowIfInvalid calls ExtractDoubleOrThrow which throws
-    // for T = float. It's not worthing supporting float just to support this
+    // for T = float. It's not worth supporting float just to support this
     // bizarre corner of computation.
     const AngleAxisf R(theta, Vector3f(-2, 1, 0).normalized());
     const Vector3f n0 = R * expected_ray;

@@ -66,6 +66,187 @@ GTEST_TEST(SpatialInertia, MakeUnitary) {
   EXPECT_EQ(M_unit_products, Vector3<double>::Zero());
 }
 
+// Tests the static method for the spatial inertia of a solid box.
+GTEST_TEST(SpatialInertia, SolidBoxWithDensity) {
+  const double density = 1000;  // Water is 1 g/ml = 1000 kg/m³.
+  const double lx = 1.0;
+  const double ly = 2.0;
+  const double lz = 3.0;
+  const double volume = lx * ly * lz;
+  const double mass = density * volume;
+  const Vector3<double> p_BoBcm_B = Vector3<double>::Zero();
+  const UnitInertia<double>G_BBo_B = UnitInertia<double>::SolidBox(lx, ly, lz);
+  const SpatialInertia<double> M_expected(mass, p_BoBcm_B, G_BBo_B);
+  const SpatialInertia<double> M =
+      SpatialInertia<double>::SolidBoxWithDensity(density, lx, ly, lz);
+  EXPECT_TRUE(
+      CompareMatrices(M_expected.CopyToFullMatrix6(), M.CopyToFullMatrix6()));
+
+  // Ensure a negative or zero length, width, or height throws an exception.
+  // There is not an exhaustive test of each parameter being zero or negative.
+  // Instead, each parameter is tested with a single bad value and we assume a
+  // single value sufficiently tests the full domain of invalid values.
+  DRAKE_EXPECT_THROWS_MESSAGE(
+      SpatialInertia<double>::SolidBoxWithDensity(density, 0, ly, lz),
+      "[^]* One or more dimensions of a solid box is negative or zero: "
+      "(.*, .*, .*).");
+  DRAKE_EXPECT_THROWS_MESSAGE(
+      SpatialInertia<double>::SolidBoxWithDensity(density, ly, -0.1, lz),
+      "[^]* One or more dimensions of a solid box is negative or zero: "
+      "(.*, .*, .*).");
+  DRAKE_EXPECT_THROWS_MESSAGE(
+      SpatialInertia<double>::SolidBoxWithDensity(density, ly, ly, -1E-15),
+      "[^]* One or more dimensions of a solid box is negative or zero: "
+      "(.*, .*, .*).");
+}
+
+// Tests the static method for the spatial inertia of a solid capsule.
+GTEST_TEST(SpatialInertia, SolidCapsuleWithDensity) {
+  const double density = 1000;  // Water is 1 g/ml = 1000 kg/m³.
+  const double r = 1.0;
+  const double l = 2.0;
+  const double volume = 4.0/3.0 * M_PI * std::pow(r, 3) + M_PI * r * r * l;
+  const double mass = density * volume;
+  const Vector3<double> p_BoBcm_B = Vector3<double>::Zero();
+
+  // Test a solid capsule B whose unit_vector is in the z-direction.
+  Vector3<double> unit_vec(0, 0, 1);
+  UnitInertia<double>G_BBo_B =
+      UnitInertia<double>::SolidCapsule(r, l, unit_vec);
+  SpatialInertia<double> M_expected(mass, p_BoBcm_B, G_BBo_B);
+  SpatialInertia<double> M =
+      SpatialInertia<double>::SolidCapsuleWithDensity(density, r, l, unit_vec);
+  EXPECT_TRUE(
+      CompareMatrices(M_expected.CopyToFullMatrix6(), M.CopyToFullMatrix6()));
+
+  // Test a solid capsule B with a different unit vector direction.
+  unit_vec = Vector3<double>(0.5, -0.5, 1.0 / std::sqrt(2));
+  G_BBo_B = UnitInertia<double>::SolidCapsule(r, l, unit_vec);
+  M_expected = SpatialInertia<double>(mass, p_BoBcm_B, G_BBo_B);
+  M = SpatialInertia<double>::SolidCapsuleWithDensity(density, r, l, unit_vec);
+  EXPECT_TRUE(
+      CompareMatrices(M_expected.CopyToFullMatrix6(), M.CopyToFullMatrix6()));
+
+  // Ensure a negative or zero radius or length throws an exception.
+  // There is not an exhaustive test of each parameter being zero or negative.
+  // Instead, each parameter is tested with a single bad value and we assume a
+  // single value sufficiently tests the full domain of invalid values.
+  DRAKE_EXPECT_THROWS_MESSAGE(
+      SpatialInertia<double>::SolidCapsuleWithDensity(density, 0, l, unit_vec),
+      "[^]* A solid capsule's radius = .* or length = .* "
+      "is negative or zero.");
+  DRAKE_EXPECT_THROWS_MESSAGE(
+      SpatialInertia<double>::SolidCapsuleWithDensity(density, r, -2, unit_vec),
+      "[^]* A solid capsule's radius = .* or length = .* "
+      "is negative or zero.");
+}
+
+// Tests the static method for the spatial inertia of a solid cylinder.
+GTEST_TEST(SpatialInertia, SolidCylinderWithDensity) {
+  const double density = 1000;  // Water is 1 g/ml = 1000 kg/m³.
+  const double r = 1.0;
+  const double l = 2.0;
+  const double volume = M_PI * r * r * l;
+  const double mass = density * volume;
+  const Vector3<double> p_BoBcm_B = Vector3<double>::Zero();
+
+  // Test a solid cylinder B whose unit_vector is in the z-direction.
+  Vector3<double> unit_vec(0, 0, 1);
+  UnitInertia<double>G_BBo_B =
+      UnitInertia<double>::SolidCylinder(r, l, unit_vec);
+  SpatialInertia<double> M_expected(mass, p_BoBcm_B, G_BBo_B);
+  SpatialInertia<double> M =
+      SpatialInertia<double>::SolidCylinderWithDensity(density, r, l, unit_vec);
+  EXPECT_TRUE(
+      CompareMatrices(M_expected.CopyToFullMatrix6(), M.CopyToFullMatrix6()));
+
+  // Test a solid cylinder B with a different unit vector direction.
+  unit_vec = Vector3<double>(0.5, -0.5, 1.0 / std::sqrt(2));
+  G_BBo_B = UnitInertia<double>::SolidCylinder(r, l, unit_vec);
+  M_expected = SpatialInertia<double>(mass, p_BoBcm_B, G_BBo_B);
+  M = SpatialInertia<double>::SolidCylinderWithDensity(density, r, l, unit_vec);
+  EXPECT_TRUE(
+      CompareMatrices(M_expected.CopyToFullMatrix6(), M.CopyToFullMatrix6()));
+
+  // Ensure a negative or zero radius or length throws an exception.
+  // There is not an exhaustive test of each parameter being zero or negative.
+  // Instead, each parameter is tested with a single bad value and we assume a
+  // single value sufficiently tests the full domain of invalid values.
+  DRAKE_EXPECT_THROWS_MESSAGE(
+      SpatialInertia<double>::SolidCylinderWithDensity(density, 0, l, unit_vec),
+      "[^]* A solid cylinder's radius = .* or length = .* "
+      "is negative or zero.");
+
+  DRAKE_EXPECT_THROWS_MESSAGE(
+      SpatialInertia<double>::SolidCylinderWithDensity(density,
+          -0.1, l, unit_vec),
+      "[^]* A solid cylinder's radius = .* or length = .* "
+      "is negative or zero.");
+
+  // Ensure a bad unit vector throws an exception.
+  const Vector3<double> bad_vec(1, 0.1, 0);
+  DRAKE_EXPECT_THROWS_MESSAGE(
+      SpatialInertia<double>::SolidCylinderWithDensity(density, r, l, bad_vec),
+      "[^]* The unit_vector argument .* is not a unit vector.");
+}
+
+// Tests the static method for the spatial inertia of a solid ellipsoid.
+GTEST_TEST(SpatialInertia, SolidEllipsoidWithDensity) {
+  const double density = 1000;  // Water is 1 g/ml = 1000 kg/m³.
+  const double a = 0.2;
+  const double b = 0.3;
+  const double c = 0.4;
+  const double volume = 4.0 / 3.0 * M_PI * a * b * c;
+  const double mass = density * volume;
+  const Vector3<double> p_BoBcm_B = Vector3<double>::Zero();
+  UnitInertia<double>G_BBo_B = UnitInertia<double>::SolidEllipsoid(a, b, c);
+  SpatialInertia<double> M_expected(mass, p_BoBcm_B, G_BBo_B);
+  SpatialInertia<double> M =
+      SpatialInertia<double>::SolidEllipsoidWithDensity(density, a, b, c);
+  EXPECT_TRUE(
+      CompareMatrices(M_expected.CopyToFullMatrix6(), M.CopyToFullMatrix6()));
+
+  // Ensure a negative or zero semi-axis length throws an exception.
+  // There is not an exhaustive test of each parameter being zero or negative.
+  // Instead, each parameter is tested with a single bad value and we assume a
+  // single value sufficiently tests the full domain of invalid values.
+  DRAKE_EXPECT_THROWS_MESSAGE(
+      SpatialInertia<double>::SolidEllipsoidWithDensity(density, 0, b, c),
+      "[^]* A solid ellipsoid's semi-axis a = .* or b = .* or c = .* "
+      "is negative or zero.");
+  DRAKE_EXPECT_THROWS_MESSAGE(
+      SpatialInertia<double>::SolidEllipsoidWithDensity(density, a, -2, c),
+      "[^]* A solid ellipsoid's semi-axis a = .* or b = .* or c = .* "
+      "is negative or zero.");
+  DRAKE_EXPECT_THROWS_MESSAGE(
+      SpatialInertia<double>::SolidEllipsoidWithDensity(density, a, b, -0.01),
+      "[^]* A solid ellipsoid's semi-axis a = .* or b = .* or c = .* "
+      "is negative or zero.");
+}
+
+// Tests the static method for the spatial inertia of a solid sphere.
+GTEST_TEST(SpatialInertia, SolidSphereWithDensity) {
+  const double density = 1000;  // Water is 1 g/ml = 1000 kg/m³.
+  const double r = 0.2;
+  const double volume = 4.0 / 3.0 * M_PI * std::pow(r, 3);
+  const double mass = density * volume;
+  const Vector3<double> p_BoBcm_B = Vector3<double>::Zero();
+  const UnitInertia<double>G_BBo_B = UnitInertia<double>::SolidSphere(r);
+  const SpatialInertia<double> M_expected(mass, p_BoBcm_B, G_BBo_B);
+  const SpatialInertia<double> M =
+      SpatialInertia<double>::SolidSphereWithDensity(density, r);
+  EXPECT_TRUE(
+      CompareMatrices(M_expected.CopyToFullMatrix6(), M.CopyToFullMatrix6()));
+
+  // Ensure a negative or zero radius throws an exception.
+  DRAKE_EXPECT_THROWS_MESSAGE(
+      SpatialInertia<double>::SolidSphereWithDensity(density, 0),
+      "[^]* A solid sphere's radius = .* is negative or zero.");
+  DRAKE_EXPECT_THROWS_MESSAGE(
+      SpatialInertia<double>::SolidSphereWithDensity(density, -0.2),
+      "[^]* A solid sphere's radius = .* is negative or zero.");
+}
+
 // Test the construction from the mass, center of mass, and unit inertia of a
 // body. Also tests:
 //   - Getters.
@@ -481,7 +662,7 @@ GTEST_TEST(SpatialInertia, MakeFromCentralInertia) {
 // Verifies the operator*(const SpatialVelocity&) by computing the kinetic
 // energy of a cylindrical body B with spatial velocity V_WBp, where P is a
 // point that is fixed in the body frame B.
-// The computation involves the product ot the body's spatial inertia M_Bp_W
+// The computation involves the product of the body's spatial inertia M_Bp_W
 // with its spatial velocity V_WBp: ke_WB = 0.5 * V_WBp.dot(M_Bp_W * V_WBp).
 // This result is verified against a calculation invoving quantities about the
 // bodies COM: ke_WB = 0.5 * mass * v_WBcm² + 0.5 * w_WBᵀ * I_Bcm_W * w_WB.

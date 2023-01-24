@@ -14,6 +14,7 @@
 #include "drake/multibody/contact_solvers/contact_solver_results.h"
 #include "drake/multibody/plant/constraint_specs.h"
 #include "drake/multibody/plant/contact_jacobians.h"
+#include "drake/multibody/plant/contact_results.h"
 #include "drake/multibody/plant/coulomb_friction.h"
 #include "drake/multibody/plant/discrete_contact_pair.h"
 #include "drake/multibody/plant/scalar_convertible_component.h"
@@ -54,7 +55,7 @@ class DiscreteUpdateManager : public ScalarConvertibleComponent<T> {
    with the scalar type `ScalarType`. This method is meant to be called only by
    MultibodyPlant. MultibodyPlant guarantees the call to ExtactModelInfo() after
    this object is scalar converted. Therefore this clone method is only
-   resposible for deep copying to a state *before* the call to
+   responsible for deep copying to a state *before* the call to
    ExtactModelInfo().
    @tparam_default_scalar */
   template <typename ScalarType>
@@ -133,6 +134,14 @@ class DiscreteUpdateManager : public ScalarConvertibleComponent<T> {
                           systems::DiscreteValues<T>* updates) const {
     DRAKE_DEMAND(updates != nullptr);
     DoCalcDiscreteValues(context, updates);
+  }
+
+  /* MultibodyPlant invokes this method to report contact results. */
+  void CalcContactResults(const systems::Context<T>& context,
+                          ContactResults<T>* contact_results) const {
+    DRAKE_DEMAND(contact_results != nullptr);
+    plant().ValidateContext(context);
+    DoCalcContactResults(context, contact_results);
   }
 
   /* TODO(amcastro-tri): Remove this function when #16955 is resolved. Right now
@@ -238,6 +247,8 @@ class DiscreteUpdateManager : public ScalarConvertibleComponent<T> {
 
   const std::vector<internal::DistanceConstraintSpecs>&
   distance_constraints_specs() const;
+
+  BodyIndex FindBodyByGeometryId(geometry::GeometryId geometry_id) const;
   /* @} */
 
   /* Concrete DiscreteUpdateManagers must override these NVI Calc methods to
@@ -254,6 +265,10 @@ class DiscreteUpdateManager : public ScalarConvertibleComponent<T> {
   virtual void DoCalcDiscreteValues(
       const systems::Context<T>& context,
       systems::DiscreteValues<T>* updates) const = 0;
+
+  virtual void DoCalcContactResults(
+      const systems::Context<T>& context,
+      ContactResults<T>* contact_results) const = 0;
 
  private:
   const MultibodyPlant<T>* plant_{nullptr};
