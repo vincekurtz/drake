@@ -923,7 +923,7 @@ class TrajectoryOptimizer {
                           VectorX<T>* gtilde) const;
 
   /**
-   * Compute the vector of scaling factors D = 1/sqrt(diag(H)).
+   * Compute the vector of scaling factors D = 1/sqrt(sqrt(diag(H))).
    *
    * @param state the optimizer state
    * @param D the vector of scale factors D
