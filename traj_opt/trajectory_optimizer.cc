@@ -313,9 +313,9 @@ void TrajectoryOptimizer<T>::CalcContactForceContribution(
 
       // Geometry poses in body frames.
       const math::RigidTransform<T> X_AGa =
-          inspector.GetPoseInParent(geometryA_id).template cast<T>();
+          inspector.GetPoseInFrame(geometryA_id).template cast<T>();
       const math::RigidTransform<T> X_BGb =
-          inspector.GetPoseInParent(geometryB_id).template cast<T>();
+          inspector.GetPoseInFrame(geometryB_id).template cast<T>();
 
       // Position of the witness points in the world frame.
       const auto& p_GaCa_Ga = pair.p_ACa;
@@ -488,9 +488,9 @@ void TrajectoryOptimizer<T>::CalcContactJacobian(
 
     // Geometry poses in body frames.
     const math::RigidTransform<T> X_AGa =
-        inspector.GetPoseInParent(geometryA_id).template cast<T>();
+        inspector.GetPoseInFrame(geometryA_id).template cast<T>();
     const math::RigidTransform<T> X_BGb =
-        inspector.GetPoseInParent(geometryB_id).template cast<T>();
+        inspector.GetPoseInFrame(geometryB_id).template cast<T>();
 
     // Position of the witness points in the world frame.
     const auto& p_GaCa_Ga = pair.p_ACa;
