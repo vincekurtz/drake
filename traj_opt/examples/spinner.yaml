@@ -42,7 +42,7 @@ tolerances:
   abs_gradient_along_dq: 0
   rel_state_change: 0
   abs_state_change: 0
-scaling : false
+scaling : true
 
 # Method used to compute gradients of inverse dynamics, one of
 # {forward_differences, central_differences, central_differences4, autodiff}
