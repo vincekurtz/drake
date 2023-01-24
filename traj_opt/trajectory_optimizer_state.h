@@ -42,12 +42,13 @@ struct TrajectoryOptimizerCache {
         gradient((num_steps + 1) * nq),
         hessian(num_steps + 1, nq),
         scaled_hessian(num_steps + 1, nq),
+        scaled_gradient(num_steps + 1, nq),
         scale_factors((num_steps + 1) * nq) {
     trajectory_data.v.assign(num_steps + 1, VectorX<T>(nv));
     trajectory_data.a.assign(num_steps, VectorX<T>(nv));
     inverse_dynamics_cache.tau.assign(num_steps, VectorX<T>(nv));
     N_plus.assign(num_steps+1, MatrixX<T>::Zero(nv, nq));
-    scale_factors.setConstant(1e16);
+    scale_factors.setConstant(1.0);
     // TODO(amcastro-tri): We could allocate contact_jacobian_data here if we
     // knew the number of contacts. For now, we'll defer the allocation to a
     // later stage when the number of contacts is available.
@@ -166,6 +167,10 @@ struct TrajectoryOptimizerCache {
   // The scaled version of the Hessian, H̃ = DHD
   PentaDiagonalMatrix<T> scaled_hessian;
   bool scaled_hessian_up_to_date{false};
+
+  // The scaled version of the gradient, g̃ = Dg
+  VectorX<T> scaled_gradient;
+  bool scaled_gradient_up_to_date{false};
 
   // Vector of scaling factors D = 1/sqrt(diag(D))
   VectorX<T> scale_factors;
@@ -377,6 +382,7 @@ class TrajectoryOptimizerState {
     cache_.sdf_data.up_to_date = false;
     cache_.n_plus_up_to_date = false;
     cache_.scaled_hessian_up_to_date = false;
+    cache_.scaled_gradient_up_to_date = false;
     cache_.scale_factors_up_to_date = false;
   }
 };

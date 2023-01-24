@@ -1399,11 +1399,36 @@ void TrajectoryOptimizer<T>::CalcScaledHessian(
 template <typename T>
 const PentaDiagonalMatrix<T>& TrajectoryOptimizer<T>::EvalScaledHessian(
     const TrajectoryOptimizerState<T>& state) const {
+   // Early exit if we're not using scaling
+  if (!params_.scaling) return EvalHessian(state);
+
   if (!state.cache().scaled_hessian_up_to_date) {
     CalcScaledHessian(state, &state.mutable_cache().scaled_hessian);
     state.mutable_cache().scaled_hessian_up_to_date = true;
   }
   return state.cache().scaled_hessian;
+}
+
+template <typename T>
+void TrajectoryOptimizer<T>::CalcScaledGradient(
+    const TrajectoryOptimizerState<T>& state,
+    VectorX<T>* gtilde) const {
+  const VectorX<T>& g = EvalGradient(state);
+  const VectorX<T>& D = EvalScaleFactors(state);
+  *gtilde = D.asDiagonal() * g;
+}
+
+template <typename T>
+const VectorX<T>& TrajectoryOptimizer<T>::EvalScaledGradient(
+    const TrajectoryOptimizerState<T>& state) const {
+   // Early exit if we're not using scaling
+  if (!params_.scaling) return EvalGradient(state);
+
+  if (!state.cache().scaled_gradient_up_to_date) {
+    CalcScaledGradient(state, &state.mutable_cache().scaled_gradient);
+    state.mutable_cache().scaled_gradient_up_to_date = true;
+  }
+  return state.cache().scaled_gradient;
 }
 
 template <typename T>
@@ -1413,12 +1438,8 @@ void TrajectoryOptimizer<T>::CalcScaleFactors(
   using std::sqrt;
   using std::max;
   const PentaDiagonalMatrix<T>& H = EvalHessian(state);
-  if (params_.scaling) {
-    H.ExtractDiagonal(D);
-    *D = D->cwiseSqrt().cwiseSqrt().cwiseInverse();
-  } else {
-    D->setOnes();
-  }
+  H.ExtractDiagonal(D);
+  *D = D->cwiseSqrt().cwiseSqrt().cwiseInverse();
 }
 
 template <typename T>
@@ -2072,9 +2093,11 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
     VectorXd* dq, VectorXd* dqH) const {
   INSTRUMENT_FUNCTION("Find search direction with dogleg method.");
 
+  // N.B. there is no extra cost to these evaluations if params_.scaling =
+  // false. If params_.scaling = false, then EvalScaledHessian returns the
+  // regular Hessian, and EvalScaledGradient returns the regular gradient. 
   const PentaDiagonalMatrix<double>& H = EvalScaledHessian(state);
-  const VectorXd& D = EvalScaleFactors(state);
-  const VectorXd g = D.asDiagonal() * EvalGradient(state);
+  const VectorXd& g = EvalScaledGradient(state);
 
   VectorXd& Hg = state.workspace.q_times_num_steps_size_tmp;
   H.MultiplyBy(g, &Hg);
@@ -2114,14 +2137,18 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
     // If so, δq is where the first leg of the dogleg path intersects the trust
     // region.
     *dq = (Delta / pU.norm()) * pU;
-    *dq = D.asDiagonal() * (*dq);
+    if (params_.scaling) {
+      *dq = EvalScaleFactors(state).asDiagonal() * (*dq);
+    }
     return true;  // the trust region constraint is active
   }
 
   // Check if the trust region is large enough to just take the full Newton step
   if (1.0 >= pH.norm()) {
     *dq = pH * Delta;
-    *dq = D.asDiagonal() * (*dq);
+    if (params_.scaling) {
+      *dq = EvalScaleFactors(state).asDiagonal() * (*dq);
+    }
     return false;  // the trust region constraint is not active
   }
 
@@ -2143,7 +2170,9 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
   const double s = SolveDoglegQuadratic(a, b, c);
 
   *dq = (pU + s * (pH - pU)) * Delta;
-  *dq = D.asDiagonal() * (*dq);
+  if (params_.scaling) {
+    *dq = EvalScaleFactors(state).asDiagonal() * (*dq);
+  }
   return true;  // the trust region constraint is active
 }
 

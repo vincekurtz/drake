@@ -279,8 +279,10 @@ class TrajectoryOptimizer {
    *
    *     H̃ = DHD,
    *
-   * where H is the original Hessian and D = 1/sqrt(diag(H)) is a diagonal
+   * where H is the original Hessian and D = 1/sqrt(sqrt(diag(H))) is a diagonal
    * scaling matrix.
+   *
+   * @note if params_.scaling = false, this returns the ordinary Hessian H.
    *
    * @param state optimizer state, including q, v, tau, gradients, etc.
    * @return const PentaDiagonalMatrix<T>& the scaled Hessian
@@ -289,9 +291,25 @@ class TrajectoryOptimizer {
       const TrajectoryOptimizerState<T>& state) const;
 
   /**
+   * Evaluate a scaled version of the gradient, given by
+   *
+   *     g̃ = Dg,
+   *
+   * where g is the original gradient and D = 1/sqrt(sqrt(diag(H))) is a
+   * diagonal scaling matrix.
+   *
+   * @note if params_.scaling = false, this returns the ordinary gradient g.
+   *
+   * @param state optimizer state, including q, v, tau, gradients, etc.
+   * @return const VectorX<T>& the scaled gradient
+   */
+  const VectorX<T>& EvalScaledGradient(
+      const TrajectoryOptimizerState<T>& state) const;
+
+  /**
    * Evaluate a vector of scaling factors based on the diagonal of the Hessian,
    *
-   *    D = 1/sqrt(diag(H)).
+   *    D = 1/sqrt(sqrt(diag(H))).
    *
    * @param state the optimizer state
    * @return const VectorX<T>& the scaling vector D
@@ -894,6 +912,15 @@ class TrajectoryOptimizer {
    */
   void CalcScaledHessian(const TrajectoryOptimizerState<T>& state,
                          PentaDiagonalMatrix<T>* Htilde) const;
+
+  /**
+   * Compute the scaled version of the gradient, g̃ = Dg.
+   * 
+   * @param state the optimizer state
+   * @param gtilde the scaled gradient g̃
+   */
+  void CalcScaledGradient(const TrajectoryOptimizerState<T>& state,
+                          VectorX<T>* gtilde) const;
 
   /**
    * Compute the vector of scaling factors D = 1/sqrt(diag(H)).
