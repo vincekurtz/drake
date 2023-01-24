@@ -179,7 +179,7 @@ bool PentaDiagonalMatrix<T>::VerifyAllBlocksOfSameSize(
 
 template <typename T>
 void PentaDiagonalMatrix<T>::MultiplyBy(const VectorX<T>& v,
-                                              VectorX<T>* result) const {
+                                        VectorX<T>* result) const {
   DRAKE_DEMAND(v.size() == rows());
   DRAKE_DEMAND(result->size() == cols());
   const int bs = block_size();
@@ -212,7 +212,7 @@ void PentaDiagonalMatrix<T>::ExtractDiagonal(VectorX<T>* diagonal) const {
   DRAKE_DEMAND(diagonal->size() == rows());
 
   const int bs = block_size();
-  for (int i=0; i < block_rows(); ++i) {
+  for (int i = 0; i < block_rows(); ++i) {
     diagonal->segment(i * bs, bs) = C_[i].diagonal();
   }
 }
@@ -221,7 +221,7 @@ template <typename T>
 void PentaDiagonalMatrix<T>::ScaleByDiagonal(const VectorX<T>& scale_factor) {
   DRAKE_DEMAND(is_symmetric());
   DRAKE_DEMAND(scale_factor.size() == rows());
-  
+
   const int bs = block_size();
   const int size = A_.size();
 

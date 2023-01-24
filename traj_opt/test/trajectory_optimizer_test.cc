@@ -309,7 +309,10 @@ GTEST_TEST(TrajectoryOptimizerTest, DoglegPoint) {
   plant.Finalize();
   auto diagram = builder.Build();
 
-  TrajectoryOptimizer<double> optimizer(diagram.get(), &plant, opt_prob);
+  SolverParameters solver_params;
+  solver_params.scaling = false;
+  TrajectoryOptimizer<double> optimizer(diagram.get(), &plant, opt_prob,
+                                        solver_params);
   TrajectoryOptimizerState<double> state = optimizer.CreateState();
 
   // Choose a q that is away from the optimal solution

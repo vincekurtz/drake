@@ -915,7 +915,7 @@ class TrajectoryOptimizer {
 
   /**
    * Compute the scaled version of the gradient, g̃ = Dg.
-   * 
+   *
    * @param state the optimizer state
    * @param gtilde the scaled gradient g̃
    */
@@ -929,7 +929,7 @@ class TrajectoryOptimizer {
    * @param D the vector of scale factors D
    */
   void CalcScaleFactors(const TrajectoryOptimizerState<T>& state,
-                       VectorX<T>* D) const;
+                        VectorX<T>* D) const;
 
   // Diagram of containing the plant_ model and scene graph. Needed to allocate
   // context resources.

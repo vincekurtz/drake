@@ -365,25 +365,22 @@ GTEST_TEST(PentaDiagonalMatrixTest, SolvePentaDiagonal) {
   std::cout << "P(ldlt):\n"
             << ldlt.transpositionsP().indices().transpose() << std::endl;
   double wall_clock_time = std::chrono::duration<double>(end - start).count();
-  fmt::print(
-      "LDLT.\n  Wall clock: {:.4g} seconds. error: {}\n",
-      wall_clock_time, (x_ldlt - x_gt).norm() / x_gt.norm());
+  fmt::print("LDLT.\n  Wall clock: {:.4g} seconds. error: {}\n",
+             wall_clock_time, (x_ldlt - x_gt).norm() / x_gt.norm());
 
   start = steady_clock::now();
   const VectorXd x_llt = Hdense.llt().solve(b);
   end = steady_clock::now();
   wall_clock_time = std::chrono::duration<double>(end - start).count();
-  fmt::print(
-      "LLT.\n  Wall clock: {:.4g} seconds. error: {}\n",
-      wall_clock_time, (x_llt - x_gt).norm() / x_gt.norm());
+  fmt::print("LLT.\n  Wall clock: {:.4g} seconds. error: {}\n", wall_clock_time,
+             (x_llt - x_gt).norm() / x_gt.norm());
 
   start = steady_clock::now();
   const VectorXd x_lu = Hdense.partialPivLu().solve(b);
   end = steady_clock::now();
   wall_clock_time = std::chrono::duration<double>(end - start).count();
-  fmt::print(
-      "LU (partial piv.)\n  Wall clock: {:.4g} seconds. error: {}\n",
-      wall_clock_time, (x_llt - x_gt).norm() / x_gt.norm());
+  fmt::print("LU (partial piv.)\n  Wall clock: {:.4g} seconds. error: {}\n",
+             wall_clock_time, (x_llt - x_gt).norm() / x_gt.norm());
 
   VectorXd x_sparse = b;
   // Solution with our pentadiagonal solver.
@@ -523,14 +520,14 @@ GTEST_TEST(PentaDiagonalMatrixTest, ExtractDiagonal) {
   const MatrixXd P = MatrixXd::Identity(size, size) + A.transpose() * A;
   PentaDiagonalMatrix<double> H =
       PentaDiagonalMatrix<double>::MakeSymmetricFromLowerDense(P, num_blocks,
-                                                                block_size);
+                                                               block_size);
   MatrixXd Hdense = H.MakeDense();
 
   // Compute diagonal with dense and sparse operations
   const VectorXd dense_diagonal = Hdense.diagonal();
   VectorXd sparse_diagonal(size);
   H.ExtractDiagonal(&sparse_diagonal);
-  
+
   const double kTolerance = std::numeric_limits<double>::epsilon();
   EXPECT_TRUE(CompareMatrices(dense_diagonal, sparse_diagonal, kTolerance,
                               MatrixCompareType::relative));
@@ -540,13 +537,13 @@ GTEST_TEST(PentaDiagonalMatrixTest, ScaleByDiagonal) {
   const int block_size = 5;
   const int num_blocks = 30;
   const int size = num_blocks * block_size;
-  
+
   // Generate a random matrix H
   const MatrixXd A = MatrixXd::Random(size, size);
   const MatrixXd P = MatrixXd::Identity(size, size) + A.transpose() * A;
   PentaDiagonalMatrix<double> H =
       PentaDiagonalMatrix<double>::MakeSymmetricFromLowerDense(P, num_blocks,
-                                                                block_size);
+                                                               block_size);
   const MatrixXd Hdense = H.MakeDense();
 
   // Generate a random scaling factor
@@ -557,7 +554,7 @@ GTEST_TEST(PentaDiagonalMatrixTest, ScaleByDiagonal) {
       scale_factor.asDiagonal() * Hdense * scale_factor.asDiagonal();
   H.ScaleByDiagonal(scale_factor);
   const MatrixXd H_scaled_sparse = H.MakeDense();
-  
+
   const double kTolerance = std::numeric_limits<double>::epsilon();
   EXPECT_TRUE(CompareMatrices(H_scaled_dense, H_scaled_sparse, kTolerance,
                               MatrixCompareType::relative));

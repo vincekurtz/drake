@@ -361,7 +361,7 @@ void TrajectoryOptimizer<T>::CalcContactForceContribution(
       // of 2F/delta Newtons per meter, with some smoothing that may or may not
       // allow for force at a distance.
       T compliant_fn;
-      const T x = - pair.distance / delta;
+      const T x = -pair.distance / delta;
       if (params_.force_at_a_distance) {
         if (x / sigma >= 37) {
           // If the exponent is going to be very large, replace with the
@@ -1399,7 +1399,7 @@ void TrajectoryOptimizer<T>::CalcScaledHessian(
 template <typename T>
 const PentaDiagonalMatrix<T>& TrajectoryOptimizer<T>::EvalScaledHessian(
     const TrajectoryOptimizerState<T>& state) const {
-   // Early exit if we're not using scaling
+  // Early exit if we're not using scaling
   if (!params_.scaling) return EvalHessian(state);
 
   if (!state.cache().scaled_hessian_up_to_date) {
@@ -1411,8 +1411,7 @@ const PentaDiagonalMatrix<T>& TrajectoryOptimizer<T>::EvalScaledHessian(
 
 template <typename T>
 void TrajectoryOptimizer<T>::CalcScaledGradient(
-    const TrajectoryOptimizerState<T>& state,
-    VectorX<T>* gtilde) const {
+    const TrajectoryOptimizerState<T>& state, VectorX<T>* gtilde) const {
   const VectorX<T>& g = EvalGradient(state);
   const VectorX<T>& D = EvalScaleFactors(state);
   *gtilde = D.asDiagonal() * g;
@@ -1421,7 +1420,7 @@ void TrajectoryOptimizer<T>::CalcScaledGradient(
 template <typename T>
 const VectorX<T>& TrajectoryOptimizer<T>::EvalScaledGradient(
     const TrajectoryOptimizerState<T>& state) const {
-   // Early exit if we're not using scaling
+  // Early exit if we're not using scaling
   if (!params_.scaling) return EvalGradient(state);
 
   if (!state.cache().scaled_gradient_up_to_date) {
@@ -1433,10 +1432,9 @@ const VectorX<T>& TrajectoryOptimizer<T>::EvalScaledGradient(
 
 template <typename T>
 void TrajectoryOptimizer<T>::CalcScaleFactors(
-    const TrajectoryOptimizerState<T>& state,
-    VectorX<T>* D) const {
-  using std::sqrt;
+    const TrajectoryOptimizerState<T>& state, VectorX<T>* D) const {
   using std::max;
+  using std::sqrt;
   const PentaDiagonalMatrix<T>& H = EvalHessian(state);
   H.ExtractDiagonal(D);
   *D = D->cwiseSqrt().cwiseSqrt().cwiseInverse();
@@ -2086,7 +2084,7 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
 
   // N.B. there is no extra cost to these evaluations if params_.scaling =
   // false. If params_.scaling = false, then EvalScaledHessian returns the
-  // regular Hessian, and EvalScaledGradient returns the regular gradient. 
+  // regular Hessian, and EvalScaledGradient returns the regular gradient.
   const PentaDiagonalMatrix<double>& H = EvalScaledHessian(state);
   const VectorXd& g = EvalScaledGradient(state);
 
