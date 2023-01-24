@@ -513,6 +513,30 @@ GTEST_TEST(PentaDiagonalMatrixTest, ConditionNumber) {
   }
 }
 
+GTEST_TEST(PentaDiagonalMatrixTest, ExtractDiagonal) {
+  const int block_size = 5;
+  const int num_blocks = 30;
+  const int size = num_blocks * block_size;
+
+  // Generate a random matrix H
+  const MatrixXd A = MatrixXd::Random(size, size);
+  const MatrixXd P = MatrixXd::Identity(size, size) + A.transpose() * A;
+  PentaDiagonalMatrix<double> H =
+      PentaDiagonalMatrix<double>::MakeSymmetricFromLowerDense(P, num_blocks,
+                                                                block_size);
+  MatrixXd Hdense = H.MakeDense();
+
+  // Compute diagonal with dense and sparse operations
+  const VectorXd dense_diagonal = Hdense.diagonal();
+  VectorXd sparse_diagonal(size);
+  H.ExtractDiagonal(&sparse_diagonal);
+  
+  const double kTolerance = std::numeric_limits<double>::epsilon();
+  EXPECT_TRUE(CompareMatrices(dense_diagonal, sparse_diagonal, kTolerance,
+                              MatrixCompareType::relative));
+
+}
+
 }  // namespace internal
 }  // namespace traj_opt
 }  // namespace drake

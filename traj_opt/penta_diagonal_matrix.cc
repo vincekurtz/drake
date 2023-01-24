@@ -206,6 +206,17 @@ void PentaDiagonalMatrix<T>::MultiplyBy(const VectorX<T>& v,
   }
 }
 
+template <typename T>
+void PentaDiagonalMatrix<T>::ExtractDiagonal(VectorX<T>* diagonal) const {
+  DRAKE_DEMAND(is_symmetric());
+  DRAKE_DEMAND(diagonal->size() == rows());
+
+  const int bs = block_size();
+  for (int i=0; i < block_rows(); ++i) {
+    diagonal->segment(i * bs, bs) = C_[i].diagonal();
+  }
+}
+
 }  // namespace internal
 }  // namespace traj_opt
 }  // namespace drake

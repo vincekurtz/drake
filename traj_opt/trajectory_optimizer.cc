@@ -1414,14 +1414,12 @@ void TrajectoryOptimizer<T>::CalcScaleFactors(
     VectorX<T>* D) const {
   using std::sqrt;
   using std::max;
-  // TODO(vincekurtz): use sparse operations
-  const MatrixX<T> H = EvalHessian(state).MakeDense();
+  const PentaDiagonalMatrix<T>& H = EvalHessian(state);
   if (params_.scaling) {
-    for (int i=0; i < D->size(); ++i) {
-      (*D)(i) = 1/sqrt(sqrt(H(i,i)));
-    }
+    H.ExtractDiagonal(D);
+    *D = D->cwiseSqrt().cwiseSqrt().cwiseInverse();
   } else {
-    *D = VectorX<T>::Ones(H.rows());
+    D->setOnes();
   }
 }
 

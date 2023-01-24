@@ -95,6 +95,9 @@ class PentaDiagonalMatrix {
   // Multiply this matrix by a vector of the correct size
   void MultiplyBy(const VectorX<T>& v, VectorX<T>* result) const;
 
+  // Extract the diagonal of this matrix to the given vector
+  void ExtractDiagonal(VectorX<T>* diagonal) const;
+
   // The size k of each of the blocks in the diagonals. All blocks have the same
   // size k x k.
   int block_size() const { return A_.size() == 0 ? 0 : A_[0].rows(); }
