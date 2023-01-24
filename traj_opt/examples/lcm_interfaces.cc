@@ -87,13 +87,21 @@ void LowLevelController::OutputCommandAsVector(
     const double V = plant_->EvalKineticEnergy(*context_) +
                      plant_->EvalPotentialEnergy(*context_);
 
+    std::cout << V << std::endl;
+
     // Apply a barrier function to bound the system energy
-    const double gamma = std::exp(10 * V / Vmax_ - 10);
+    //const double gamma = std::exp(10 * V / Vmax_ - 10);
+    const double gamma = std::pow(V / Vmax_, 4);
     if ((0 <= gamma) && (gamma <= 1)) {
       u = (1 - gamma) * u - gamma * B_.transpose() * v;
     } else if (gamma > 1) {
       u = -gamma * B_.transpose() * v;
     }
+
+    // Apply torque limits
+    // TODO(vincekurtz): make this a yaml parameter
+    const double tau_max = 10;
+    u = u.cwiseMin(tau_max).cwiseMax(-tau_max);
 
     output->SetFromVector(u);
 

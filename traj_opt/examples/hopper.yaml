@@ -37,7 +37,7 @@ tolerances:
   rel_state_change: 0
   abs_state_change: 0
 
-scaling : true
+scaling : false
 
 # Method used to compute gradients of inverse dynamics, one of
 # {forward_differences, central_differences, central_differences4, autodiff}
@@ -72,13 +72,13 @@ friction_coefficient : 0.5  # Coefficient of friction.
 stiction_velocity: 0.05     # Regularization velocity, in m/s.
 
 # MPC parameters
-mpc : false
+mpc : true
 mpc_iters : 10
 controller_frequency : 10
 sim_time : 5
 sim_time_step : 1e-3
-sim_realtime_rate : 0.1
-#Vmax : 100
+sim_realtime_rate : 0.5
+#Vmax : 8
 
-#Kp : [0, 0, 0, 1.0, 1.0]
-#Kd : [0, 0, 0, 0.1, 0.1]
+Kp : [0, 0, 0, 1.0, 1.0]
+Kd : [0, 0, 0, 0.1, 0.1]
