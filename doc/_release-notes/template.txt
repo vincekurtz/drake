@@ -1,6 +1,7 @@
 <!-- This document is the template used by tools/release_engineering/relnotes. -->
 ---
 title: Drake {version}
+date: YYYY-MM-DD
 released: YYYY-MM-DD
 ---
 
@@ -91,10 +92,6 @@ New features
 * TBD
 
 Fixes
-
-* TBD
-
-Newly bound
 
 * TBD
 

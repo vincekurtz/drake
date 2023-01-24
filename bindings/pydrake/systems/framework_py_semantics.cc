@@ -549,6 +549,8 @@ void DoScalarDependentDefinitions(py::module m) {
           // Keep alive, ownership: `system` keeps `self` alive.
           py::keep_alive<3, 1>(), doc.DiagramBuilder.AddNamedSystem.doc)
       .def("empty", &DiagramBuilder<T>::empty, doc.DiagramBuilder.empty.doc)
+      .def("already_built", &DiagramBuilder<T>::already_built,
+          doc.DiagramBuilder.already_built.doc)
       .def(
           "GetSystems",
           [](DiagramBuilder<T>* self) {
@@ -645,7 +647,9 @@ void DoScalarDependentDefinitions(py::module m) {
           py::keep_alive<1, 0>(), doc.DiagramBuilder.Build.doc)
       .def("BuildInto", &DiagramBuilder<T>::BuildInto, py::arg("target"),
           // Keep alive, ownership (tr.): `target` keeps `self` alive.
-          py::keep_alive<2, 1>(), doc.DiagramBuilder.BuildInto.doc);
+          py::keep_alive<2, 1>(), doc.DiagramBuilder.BuildInto.doc)
+      .def("IsConnectedOrExported", &DiagramBuilder<T>::IsConnectedOrExported,
+          py::arg("port"), doc.DiagramBuilder.IsConnectedOrExported.doc);
 
   DefineTemplateClassWithDefault<OutputPort<T>>(
       m, "OutputPort", GetPyParam<T>(), doc.OutputPort.doc)
@@ -771,7 +775,7 @@ void DoScalarDependentDefinitions(py::module m) {
           py::keep_alive<0, 2>(), doc.InputPort.FixValue.doc)
       .def("HasValue", &InputPort<T>::HasValue, py::arg("context"),
           doc.InputPort.HasValue.doc)
-      .def("Allocate", &InputPort<T>::Allocate, doc.InputPort.Allocate.doc)
+      .def("Allocate", &InputPort<T>::Allocate, doc.InputPortBase.Allocate.doc)
       .def("get_system", &InputPort<T>::get_system, py_rvp::reference,
           doc.InputPort.get_system.doc);
 

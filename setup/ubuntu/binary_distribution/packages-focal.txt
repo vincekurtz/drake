@@ -10,7 +10,6 @@ libdouble-conversion3
 libeigen3-dev
 libexpat1
 libfreetype6
-libgflags2.2
 libgfortran5
 libglew2.1
 libglib2.0-0
@@ -40,8 +39,6 @@ libspdlog-dev
 libsqlite3-0
 libtheora0
 libtiff5
-libtinyxml2-dev
-libtinyxml2.6.2v5
 libx11-6
 libxml2
 libxt6

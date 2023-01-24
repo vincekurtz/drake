@@ -49,19 +49,6 @@ set(libtiff_url "http://download.osgeo.org/libtiff/tiff-${libtiff_version}.tar.g
 set(libtiff_md5 "2165e7aba557463acc0664e71a3ed424")
 list(APPEND ALL_PROJECTS libtiff)
 
-# msgpack
-set(msgpack_version 3.1.0)
-set(msgpack_url "https://github.com/msgpack/msgpack-c/releases/download/cpp-${msgpack_version}/msgpack-${msgpack_version}.tar.gz")
-set(msgpack_md5 "57bdba5ae83831c7c04aad39e479b225")
-list(APPEND ALL_PROJECTS msgpack)
-
-# gflags
-set(gflags_version 2.2.1)
-set(gflags_url "https://github.com/gflags/gflags/archive/v${gflags_version}.tar.gz")
-set(gflags_md5 "b98e772b4490c84fc5a87681973f75d1")
-set(gflags_dlname "gflags-${gflags_version}.tar.gz")
-list(APPEND ALL_PROJECTS gflags)
-
 # eigen
 if(APPLE)
     # This version mimics homebrew.

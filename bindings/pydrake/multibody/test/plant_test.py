@@ -20,7 +20,6 @@ from pydrake.multibody.tree import (
     BodyIndex,
     CalcSpatialInertia,
     ConstraintIndex,
-    default_model_instance,
     DoorHinge_,
     DoorHingeConfig,
     FixedOffsetFrame_,
@@ -52,6 +51,7 @@ from pydrake.multibody.tree import (
     UnitInertia_,
     UniversalJoint_,
     WeldJoint_,
+    default_model_instance,
     world_frame_index,
     world_index,
     world_model_instance,
@@ -159,8 +159,6 @@ class TestPlant(unittest.TestCase):
         unittest.TestCase.setUp(self)
         # For some reason, something in how `unittest` tries to scope warnings
         # causes the previous filters to be lost. Re-install here.
-        # TODO(eric.cousineau): This used to be necessary for PY3-only, but
-        # with NumPy 1.16, it became PY2 too. Figure out why.
         install_numpy_warning_filters(force=True)
 
     def test_type_safe_indices(self):
@@ -432,9 +430,9 @@ class TestPlant(unittest.TestCase):
         self.assertIsInstance(body.get_num_flexible_velocities(), int)
         self.assertIsInstance(body.is_floating(), bool)
         self.assertIsInstance(body.has_quaternion_dofs(), bool)
-        self.assertIsInstance(body.floating_positions_start(), int)
-        self.assertIsInstance(body.floating_velocities_start(), int)
         self.assertIsInstance(body.default_mass(), float)
+        # Other APIs can't be called on a Body that isn't part of
+        # a multibody system.
 
     @numpy_compare.check_all_types
     def test_body_context_methods(self, T):
@@ -630,6 +628,9 @@ class TestPlant(unittest.TestCase):
         self.assertIsInstance(
             UnitInertia.SolidCylinder(r=1.5, L=2, b_E=[1, 2, 3]), UnitInertia)
         self.assertIsInstance(UnitInertia.SolidCapsule(r=1, L=2), UnitInertia)
+        self.assertIsInstance(UnitInertia.SolidCapsule(r=1, L=2,
+                                                       unit_vector=[0, 0, 1]),
+                              UnitInertia)
         self.assertIsInstance(UnitInertia.SolidCylinderAboutEnd(r=1, L=2),
                               UnitInertia)
         self.assertIsInstance(
