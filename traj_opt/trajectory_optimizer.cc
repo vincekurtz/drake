@@ -361,7 +361,7 @@ void TrajectoryOptimizer<T>::CalcContactForceContribution(
       // of 2F/delta Newtons per meter, with some smoothing that may or may not
       // allow for force at a distance.
       T compliant_fn;
-      const T x = - pair.distance / delta;
+      const T x = -pair.distance / delta;
       if (params_.force_at_a_distance) {
         if (x / sigma >= 37) {
           // If the exponent is going to be very large, replace with the
@@ -1387,6 +1387,70 @@ const PentaDiagonalMatrix<T>& TrajectoryOptimizer<T>::EvalHessian(
 }
 
 template <typename T>
+void TrajectoryOptimizer<T>::CalcScaledHessian(
+    const TrajectoryOptimizerState<T>& state,
+    PentaDiagonalMatrix<T>* Htilde) const {
+  const PentaDiagonalMatrix<T>& H = EvalHessian(state);
+  const VectorX<T>& D = EvalScaleFactors(state);
+  *Htilde = PentaDiagonalMatrix<T>(H);
+  Htilde->ScaleByDiagonal(D);
+}
+
+template <typename T>
+const PentaDiagonalMatrix<T>& TrajectoryOptimizer<T>::EvalScaledHessian(
+    const TrajectoryOptimizerState<T>& state) const {
+  // Early exit if we're not using scaling
+  if (!params_.scaling) return EvalHessian(state);
+
+  if (!state.cache().scaled_hessian_up_to_date) {
+    CalcScaledHessian(state, &state.mutable_cache().scaled_hessian);
+    state.mutable_cache().scaled_hessian_up_to_date = true;
+  }
+  return state.cache().scaled_hessian;
+}
+
+template <typename T>
+void TrajectoryOptimizer<T>::CalcScaledGradient(
+    const TrajectoryOptimizerState<T>& state, VectorX<T>* gtilde) const {
+  const VectorX<T>& g = EvalGradient(state);
+  const VectorX<T>& D = EvalScaleFactors(state);
+  *gtilde = D.asDiagonal() * g;
+}
+
+template <typename T>
+const VectorX<T>& TrajectoryOptimizer<T>::EvalScaledGradient(
+    const TrajectoryOptimizerState<T>& state) const {
+  // Early exit if we're not using scaling
+  if (!params_.scaling) return EvalGradient(state);
+
+  if (!state.cache().scaled_gradient_up_to_date) {
+    CalcScaledGradient(state, &state.mutable_cache().scaled_gradient);
+    state.mutable_cache().scaled_gradient_up_to_date = true;
+  }
+  return state.cache().scaled_gradient;
+}
+
+template <typename T>
+void TrajectoryOptimizer<T>::CalcScaleFactors(
+    const TrajectoryOptimizerState<T>& state, VectorX<T>* D) const {
+  using std::max;
+  using std::sqrt;
+  const PentaDiagonalMatrix<T>& H = EvalHessian(state);
+  H.ExtractDiagonal(D);
+  *D = D->cwiseSqrt().cwiseSqrt().cwiseInverse();
+}
+
+template <typename T>
+const VectorX<T>& TrajectoryOptimizer<T>::EvalScaleFactors(
+    const TrajectoryOptimizerState<T>& state) const {
+  if (!state.cache().scale_factors_up_to_date) {
+    CalcScaleFactors(state, &state.mutable_cache().scale_factors);
+    state.mutable_cache().scale_factors_up_to_date = true;
+  }
+  return state.cache().scale_factors;
+}
+
+template <typename T>
 void TrajectoryOptimizer<T>::CalcExactHessian(
     const TrajectoryOptimizerState<T>&, PentaDiagonalMatrix<T>*) const {
   throw std::runtime_error(
@@ -2018,9 +2082,12 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
     VectorXd* dq, VectorXd* dqH) const {
   INSTRUMENT_FUNCTION("Find search direction with dogleg method.");
 
-  // N.B. We'll rescale pU and pH by Δ to avoid roundoff error
-  const VectorXd& g = EvalGradient(state);
-  const PentaDiagonalMatrix<double>& H = EvalHessian(state);
+  // N.B. there is no extra cost to these evaluations if params_.scaling =
+  // false. If params_.scaling = false, then EvalScaledHessian returns the
+  // regular Hessian, and EvalScaledGradient returns the regular gradient.
+  const PentaDiagonalMatrix<double>& H = EvalScaledHessian(state);
+  const VectorXd& g = EvalScaledGradient(state);
+
   VectorXd& Hg = state.workspace.q_times_num_steps_size_tmp;
   H.MultiplyBy(g, &Hg);
   const double gHg = g.transpose() * Hg;
@@ -2059,12 +2126,18 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
     // If so, δq is where the first leg of the dogleg path intersects the trust
     // region.
     *dq = (Delta / pU.norm()) * pU;
+    if (params_.scaling) {
+      *dq = EvalScaleFactors(state).asDiagonal() * (*dq);
+    }
     return true;  // the trust region constraint is active
   }
 
   // Check if the trust region is large enough to just take the full Newton step
   if (1.0 >= pH.norm()) {
     *dq = pH * Delta;
+    if (params_.scaling) {
+      *dq = EvalScaleFactors(state).asDiagonal() * (*dq);
+    }
     return false;  // the trust region constraint is not active
   }
 
@@ -2086,7 +2159,9 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
   const double s = SolveDoglegQuadratic(a, b, c);
 
   *dq = (pU + s * (pH - pU)) * Delta;
-
+  if (params_.scaling) {
+    *dq = EvalScaleFactors(state).asDiagonal() * (*dq);
+  }
   return true;  // the trust region constraint is active
 }
 
@@ -2346,7 +2421,7 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
   std::chrono::duration<double> solve_time;
 
   // Trust region parameters
-  const double Delta_max = 1.0;  // Maximum trust region size
+  const double Delta_max = 1e5;  // Maximum trust region size
   const double Delta0 = 1e0;     // Initial trust region size
   const double eta = 0.0;        // Trust ratio threshold - we accept steps if
                                  // the trust ratio is above this threshold
@@ -2376,12 +2451,12 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
 
     if (params_.print_debug_data) {
       // Print some info about the Hessian
-      const MatrixXd Hdense = EvalHessian(state).MakeDense();
-      const double condition_number = 1 / Hdense.ldlt().rcond();
-      const bool is_positive = Hdense.ldlt().isPositive();
+      const MatrixXd H = EvalHessian(state).MakeDense();
+      const MatrixXd H_scaled = EvalScaledHessian(state).MakeDense();
+      const double condition_number = 1 / H.ldlt().rcond();
+      const double condition_number_scaled = 1 / H_scaled.ldlt().rcond();
       PRINT_VAR(condition_number);
-      PRINT_VAR(is_positive);
-      PRINT_VAR(dq.transpose() * g);
+      PRINT_VAR(condition_number_scaled);
     }
 
     // Compute some quantities for logging.

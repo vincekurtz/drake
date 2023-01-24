@@ -139,6 +139,9 @@ struct SolverParameters {
   // Flag for choosing between the exact Hessian (autodiff, very slow) and a
   // Gauss-Newton approximation
   bool exact_hessian = false;
+
+  // Flag for rescaling the Hessian, for better numerical conditioning
+  bool scaling = true;
 };
 
 }  // namespace traj_opt
