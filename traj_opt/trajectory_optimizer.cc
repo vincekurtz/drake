@@ -1390,12 +1390,10 @@ template <typename T>
 void TrajectoryOptimizer<T>::CalcScaledHessian(
     const TrajectoryOptimizerState<T>& state,
     PentaDiagonalMatrix<T>* Htilde) const {
-  // TODO(vincekurtz): use sparse operations
-  MatrixX<T> H = EvalHessian(state).MakeDense();
+  const PentaDiagonalMatrix<T>& H = EvalHessian(state);
   const VectorX<T>& D = EvalScaleFactors(state);
-  H = D.asDiagonal() * H * D.asDiagonal();
-  *Htilde = PentaDiagonalMatrix<T>::MakeSymmetricFromLowerDense(
-      H, num_steps() + 1, plant().num_positions());
+  *Htilde = PentaDiagonalMatrix<T>(H);
+  Htilde->ScaleByDiagonal(D);
 }
 
 template <typename T>

@@ -98,6 +98,12 @@ class PentaDiagonalMatrix {
   // Extract the diagonal of this matrix to the given vector
   void ExtractDiagonal(VectorX<T>* diagonal) const;
 
+  // Scale this matrix (H) by a the given diagonal matrix, equivalent to
+  //
+  //    H = scale_factor.asDiagonal() * H * scale_factor.asDiagonal()
+  //
+  void ScaleByDiagonal(const VectorX<T>& scale_factor);
+
   // The size k of each of the blocks in the diagonals. All blocks have the same
   // size k x k.
   int block_size() const { return A_.size() == 0 ? 0 : A_[0].rows(); }

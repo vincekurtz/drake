@@ -217,6 +217,45 @@ void PentaDiagonalMatrix<T>::ExtractDiagonal(VectorX<T>* diagonal) const {
   }
 }
 
+template <typename T>
+void PentaDiagonalMatrix<T>::ScaleByDiagonal(const VectorX<T>& scale_factor) {
+  DRAKE_DEMAND(is_symmetric());
+  DRAKE_DEMAND(scale_factor.size() == rows());
+  
+  const int bs = block_size();
+  const int size = A_.size();
+
+  for (int i = 0; i < block_rows(); ++i) {
+    // Diagonal blocks are always present
+    C_[i] = scale_factor.segment(i * bs, bs).asDiagonal() * C_[i] *
+            scale_factor.segment(i * bs, bs).asDiagonal();
+
+    // Off-diagonal blocks may not exist for first and last rows
+    if (i >= 1) {
+      B_[i] = scale_factor.segment(i * bs, bs).asDiagonal() * B_[i] *
+              scale_factor.segment((i - 1) * bs, bs).asDiagonal();
+    }
+    if (i >= 2) {
+      A_[i] = scale_factor.segment(i * bs, bs).asDiagonal() * A_[i] *
+              scale_factor.segment((i - 2) * bs, bs).asDiagonal();
+    }
+  }
+
+  // D = B'
+  if (size >= 2) {
+    for (int i = 0; i < size - 1; ++i) {
+      D_[i] = B_[i + 1].transpose();
+    }
+  }
+
+  // E = A'
+  if (size >= 3) {
+    for (int i = 0; i < size - 2; ++i) {
+      E_[i] = A_[i + 2].transpose();
+    }
+  }
+}
+
 }  // namespace internal
 }  // namespace traj_opt
 }  // namespace drake

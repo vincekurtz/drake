@@ -534,7 +534,33 @@ GTEST_TEST(PentaDiagonalMatrixTest, ExtractDiagonal) {
   const double kTolerance = std::numeric_limits<double>::epsilon();
   EXPECT_TRUE(CompareMatrices(dense_diagonal, sparse_diagonal, kTolerance,
                               MatrixCompareType::relative));
+}
 
+GTEST_TEST(PentaDiagonalMatrixTest, ScaleByDiagonal) {
+  const int block_size = 5;
+  const int num_blocks = 30;
+  const int size = num_blocks * block_size;
+  
+  // Generate a random matrix H
+  const MatrixXd A = MatrixXd::Random(size, size);
+  const MatrixXd P = MatrixXd::Identity(size, size) + A.transpose() * A;
+  PentaDiagonalMatrix<double> H =
+      PentaDiagonalMatrix<double>::MakeSymmetricFromLowerDense(P, num_blocks,
+                                                                block_size);
+  const MatrixXd Hdense = H.MakeDense();
+
+  // Generate a random scaling factor
+  const VectorXd scale_factor = VectorXd::Random(size);
+
+  // Compare dense and sparse versions
+  const MatrixXd H_scaled_dense =
+      scale_factor.asDiagonal() * Hdense * scale_factor.asDiagonal();
+  H.ScaleByDiagonal(scale_factor);
+  const MatrixXd H_scaled_sparse = H.MakeDense();
+  
+  const double kTolerance = std::numeric_limits<double>::epsilon();
+  EXPECT_TRUE(CompareMatrices(H_scaled_dense, H_scaled_sparse, kTolerance,
+                              MatrixCompareType::relative));
 }
 
 }  // namespace internal
