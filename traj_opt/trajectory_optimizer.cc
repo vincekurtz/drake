@@ -1495,6 +1495,43 @@ const VectorX<T>& TrajectoryOptimizer<T>::EvalEqualityConstraintViolations(
 }
 
 template <typename T>
+void TrajectoryOptimizer<T>::CalcEqualityConstraintJacobian(
+    const TrajectoryOptimizerState<T>& state, MatrixX<T>* J) const {
+  DRAKE_DEMAND(J->cols() == (num_steps() + 1) * plant().num_positions());
+  DRAKE_DEMAND(J->rows() == num_equality_constraints());
+
+  const InverseDynamicsPartials<T>& id_partials =
+      EvalInverseDynamicsPartials(state);
+
+  const int nq = plant().num_positions();
+  const int n_steps = num_steps();
+  const int n_unactuated = unactuated_dofs().size();
+
+  for (int t = 0; t < n_steps; ++t) {
+    for (int i = 0; i < n_unactuated; ++i) {
+      J->block(t * n_unactuated + i, t * nq, 1, nq) =
+          id_partials.dtau_dqt[t].row(i);
+      J->block(t * n_unactuated + i, (t + 1) * nq, 1, nq) =
+          id_partials.dtau_dqp[t].row(i);
+      if (t > 0) {
+        J->block(t * n_unactuated + i, (t - 1) * nq, 1, nq) =
+            id_partials.dtau_dqm[t].row(i);
+      }
+    }
+  }
+}
+
+template <typename T>
+const MatrixX<T>& TrajectoryOptimizer<T>::EvalEqualityConstraintJacobian(
+    const TrajectoryOptimizerState<T>& state) const {
+  if (!state.cache().constraint_jacobian_up_to_date) {
+    CalcEqualityConstraintJacobian(state,
+                                   &state.mutable_cache().constraint_jacobian);
+  }
+  return state.cache().constraint_jacobian;
+}
+
+template <typename T>
 void TrajectoryOptimizer<T>::CalcExactHessian(
     const TrajectoryOptimizerState<T>&, PentaDiagonalMatrix<T>*) const {
   throw std::runtime_error(

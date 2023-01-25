@@ -349,6 +349,15 @@ class TrajectoryOptimizer {
       const TrajectoryOptimizerState<T>& state) const;
 
   /**
+   * Evaluate the Jacobian J = ∂h(q)/∂q of the equality constraints h(q) = 0.
+   *
+   * @param state the optimizer state
+   * @return const MatrixX<T>& the Jacobian of equality constraints
+   */
+  const MatrixX<T>& EvalEqualityConstraintJacobian(
+      const TrajectoryOptimizerState<T>& state) const;
+
+  /**
    * Evaluate the gradient of the unconstrained cost L(q).
    *
    * @param state optimizer state, including q, v, tau, gradients, etc.
@@ -973,6 +982,15 @@ class TrajectoryOptimizer {
    */
   void CalcEqualityConstraintViolations(
       const TrajectoryOptimizerState<T>& state, VectorX<T>* violations) const;
+
+  /**
+   * Compute the Jacobian J = ∂h(q)/∂q of the equality constraints h(q) = 0.
+   *
+   * @param state the optimizer state
+   * @param J the constraint jacobian ∂h(q)/∂q
+   */
+  void CalcEqualityConstraintJacobian(const TrajectoryOptimizerState<T>& state,
+                                      MatrixX<T>* J) const;
 
   // Diagram of containing the plant_ model and scene graph. Needed to allocate
   // context resources.

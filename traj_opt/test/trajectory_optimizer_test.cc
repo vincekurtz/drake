@@ -1536,7 +1536,7 @@ GTEST_TEST(TrajectoryOptimizerTest, EqualityConstraints) {
   // Create an optimizer
   TrajectoryOptimizer<double> optimizer(diagram.get(), &plant, opt_prob);
   TrajectoryOptimizerState<double> state = optimizer.CreateState();
-  
+
   // Make some fake data
   std::vector<VectorXd> q(num_steps + 1);
   q[0] = opt_prob.q_init;
@@ -1545,11 +1545,44 @@ GTEST_TEST(TrajectoryOptimizerTest, EqualityConstraints) {
   }
   state.set_q(q);
 
+  // Compute equality constraint violations
   VectorXd h = optimizer.EvalEqualityConstraintViolations(state);
-  
-  
-  PRINT_VAR(optimizer.unactuated_dofs().size());
-  PRINT_VARn(h);
+  EXPECT_TRUE(h[0] != 0.0);
+  EXPECT_TRUE(h.size() == num_steps);
+
+  // Set up an autodiff copy of the optimizer and plant
+  auto diagram_ad = systems::System<double>::ToAutoDiffXd(*diagram);
+  const auto& plant_ad = dynamic_cast<const MultibodyPlant<AutoDiffXd>&>(
+      diagram_ad->GetSubsystemByName(plant.get_name()));
+  TrajectoryOptimizer<AutoDiffXd> optimizer_ad(diagram_ad.get(), &plant_ad,
+                                               opt_prob);
+  TrajectoryOptimizerState<AutoDiffXd> state_ad = optimizer_ad.CreateState();
+
+  std::vector<VectorX<AutoDiffXd>> q_ad(num_steps + 1, VectorX<AutoDiffXd>(2));
+  int ad_idx = 0;  // index for autodiff variables
+  const int nq = plant.num_positions();
+  const int num_vars = (num_steps + 1) * nq;
+  for (int t = 0; t <= num_steps; ++t) {
+    for (int i = 0; i < nq; ++i) {
+      q_ad[t].segment<1>(i) =
+          math::InitializeAutoDiff(q[t].segment<1>(i), num_vars, ad_idx);
+      ++ad_idx;
+    }
+  }
+  state_ad.set_q(q_ad);
+
+  VectorX<AutoDiffXd> h_ad =
+      optimizer_ad.EvalEqualityConstraintViolations(state_ad);
+  MatrixXd J_ad = math::ExtractGradient(h_ad);
+  MatrixXd J = optimizer.EvalEqualityConstraintJacobian(state);
+
+  // We get a factor of sqrt(epsilon) since we're doing finite differences to
+  // get inverse dynamics partials. The first column from autodiff is not
+  // accurate since q0 is not a decision variable.
+  const double kTolerance = std::sqrt(std::numeric_limits<double>::epsilon());
+  EXPECT_TRUE(CompareMatrices(J_ad.rightCols(num_steps * nq),
+                              J.rightCols(num_steps * nq), kTolerance,
+                              MatrixCompareType::relative));
 }
 
 }  // namespace internal
