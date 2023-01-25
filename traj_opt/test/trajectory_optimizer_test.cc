@@ -1501,6 +1501,47 @@ GTEST_TEST(TrajectoryOptimizerTest, ContactJacobians) {
   }
 }
 
+// Test our computation of equality constraints (torques on unactuated DoFs)
+GTEST_TEST(TrajectoryOptimizerTest, EqualityConstraints) {
+  // Define an optimization problem.
+  const int num_steps = 5;
+  const double dt = 1e-2;
+
+  ProblemDefinition opt_prob;
+  opt_prob.num_steps = num_steps;
+  opt_prob.q_init = Vector2d(0.1, 0.2);
+  opt_prob.v_init = Vector2d(-0.01, 0.03);
+  opt_prob.Qq = 0.1 * MatrixXd::Identity(2, 2);
+  opt_prob.Qv = 0.2 * MatrixXd::Identity(2, 2);
+  opt_prob.Qf_q = 0.3 * MatrixXd::Identity(2, 2);
+  opt_prob.Qf_v = 0.4 * MatrixXd::Identity(2, 2);
+  opt_prob.R = 0.01 * MatrixXd::Identity(2, 2);
+
+  for (int t = 0; t <= num_steps; ++t) {
+    opt_prob.q_nom.push_back(Vector2d(1.5, -0.1));
+    opt_prob.v_nom.push_back(Vector2d(0.2, 0.1));
+  }
+
+  // Create an acrobot model
+  DiagramBuilder<double> builder;
+  MultibodyPlantConfig config;
+  config.time_step = dt;
+  auto [plant, scene_graph] = multibody::AddMultibodyPlant(config, &builder);
+  const std::string urdf_file =
+      FindResourceOrThrow("drake/multibody/benchmarks/acrobot/acrobot.urdf");
+  Parser(&plant).AddAllModelsFromFile(urdf_file);
+  plant.Finalize();
+  auto diagram = builder.Build();
+
+  // Create an optimizer
+  TrajectoryOptimizer<double> optimizer(diagram.get(), &plant, opt_prob);
+  TrajectoryOptimizerState<double> state = optimizer.CreateState();
+
+  PRINT_VAR(optimizer.unactuated_dofs().size());
+  (void) state;
+
+}
+
 }  // namespace internal
 }  // namespace traj_opt
 }  // namespace drake

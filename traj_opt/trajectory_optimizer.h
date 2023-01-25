@@ -89,6 +89,15 @@ class TrajectoryOptimizer {
   int num_steps() const { return prob_.num_steps; }
 
   /**
+   * Return indices of the unactuated degrees of freedom in the model.
+   * 
+   * @return const std::vector<int>& indices for the unactuated DoFs
+   */
+  const std::vector<int>& unactuated_dofs() const {
+    return unactuated_dofs_;
+  }
+
+  /**
    * Convienience function to get a const reference to the multibody plant that
    * we are optimizing over.
    *
@@ -315,6 +324,18 @@ class TrajectoryOptimizer {
    * @return const VectorX<T>& the scaling vector D
    */
   const VectorX<T>& EvalScaleFactors(
+      const TrajectoryOptimizerState<T>& state) const;
+
+  /**
+   * Evaluate the vector of violations of equality constrants h(q) = 0.
+   *
+   * Currently, these equality constraints consist of torques on unactuated
+   * degrees of freedom.
+   *
+   * @param state the optimizer state
+   * @return const VectorX<T>& violations h(q)
+   */
+  const VectorX<T>& EvalEqualityConstraintViolations(
       const TrajectoryOptimizerState<T>& state) const;
 
   /**
@@ -931,6 +952,18 @@ class TrajectoryOptimizer {
   void CalcScaleFactors(const TrajectoryOptimizerState<T>& state,
                         VectorX<T>* D) const;
 
+  /**
+   * Compute a vector violations of equality constrants h(q) = 0.
+   *
+   * Currently, these equality constraints consist of torques on unactuated
+   * degrees of freedom.
+   *
+   * @param state the optimizer state
+   * @param violations vector of constraint violiations h
+   */
+  void CalcEqualityConstraintViolations(
+      const TrajectoryOptimizerState<T>& state, VectorX<T>* violations) const;
+
   // Diagram of containing the plant_ model and scene graph. Needed to allocate
   // context resources.
   const Diagram<T>* diagram_{nullptr};
@@ -955,6 +988,9 @@ class TrajectoryOptimizer {
 
   // Joint damping coefficients for the plant under consideration
   VectorX<T> joint_damping_;
+
+  // Indices of unactuated degrees of freedom
+  std::vector<int> unactuated_dofs_;
 
   // Various parameters
   const SolverParameters params_;
