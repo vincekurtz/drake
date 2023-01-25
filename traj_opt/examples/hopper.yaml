@@ -15,7 +15,7 @@ q_guess : [ 0.5, 0.61, 0.3,-0.5, 0.2]
 Qq : [10.0, 0.1, 0.1, 1.0, 0.1]      # Running cost
 Qv : [0.1, 0.1, 0.1, 0.1, 0.1]
 
-R : [1e3, 1e3, 1e3, 0.1, 0.1]
+R : [1e4, 1e4, 1e4, 0.1, 0.1]
 
 Qfq : [10, 10, 10, 10, 10]  # Terminal cost
 Qfv : [1.0, 1.0, 1.0, 1.0, 1.0]
@@ -37,7 +37,7 @@ tolerances:
   rel_state_change: 0
   abs_state_change: 0
 
-scaling : false
+scaling : true
 
 # Method used to compute gradients of inverse dynamics, one of
 # {forward_differences, central_differences, central_differences4, autodiff}
@@ -49,6 +49,7 @@ play_initial_guess : true
 play_optimal_trajectory : true
 
 # Debugging parameters
+verbose : true
 linesearch_plot_every_iteration : false
 print_debug_data : false
 save_solver_stats_csv : true
@@ -77,8 +78,8 @@ mpc_iters : 10
 controller_frequency : 10
 sim_time : 5
 sim_time_step : 1e-3
-sim_realtime_rate : 0.5
-#Vmax : 8
-
-Kp : [0, 0, 0, 1.0, 1.0]
-Kd : [0, 0, 0, 0.1, 0.1]
+sim_realtime_rate : 0.1
+#Vmax : 10
+#
+#Kp : [0, 0, 0, 1.0, 1.0]
+#Kd : [0, 0, 0, 0.1, 0.1]
