@@ -1509,7 +1509,7 @@ GTEST_TEST(TrajectoryOptimizerTest, EqualityConstraints) {
 
   ProblemDefinition opt_prob;
   opt_prob.num_steps = num_steps;
-  opt_prob.q_init = Vector2d(0.1, 0.2);
+  opt_prob.q_init = Vector2d(-0.1, -0.2);
   opt_prob.v_init = Vector2d(-0.01, 0.03);
   opt_prob.Qq = 0.1 * MatrixXd::Identity(2, 2);
   opt_prob.Qv = 0.2 * MatrixXd::Identity(2, 2);
@@ -1536,10 +1536,20 @@ GTEST_TEST(TrajectoryOptimizerTest, EqualityConstraints) {
   // Create an optimizer
   TrajectoryOptimizer<double> optimizer(diagram.get(), &plant, opt_prob);
   TrajectoryOptimizerState<double> state = optimizer.CreateState();
+  
+  // Make some fake data
+  std::vector<VectorXd> q(num_steps + 1);
+  q[0] = opt_prob.q_init;
+  for (int t = 1; t <= num_steps; ++t) {
+    q[t] = q[t - 1] + dt * opt_prob.v_init;
+  }
+  state.set_q(q);
 
+  VectorXd h = optimizer.EvalEqualityConstraintViolations(state);
+  
+  
   PRINT_VAR(optimizer.unactuated_dofs().size());
-  (void) state;
-
+  PRINT_VARn(h);
 }
 
 }  // namespace internal

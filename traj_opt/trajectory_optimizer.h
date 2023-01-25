@@ -90,11 +90,19 @@ class TrajectoryOptimizer {
 
   /**
    * Return indices of the unactuated degrees of freedom in the model.
-   * 
+   *
    * @return const std::vector<int>& indices for the unactuated DoFs
    */
-  const std::vector<int>& unactuated_dofs() const {
-    return unactuated_dofs_;
+  const std::vector<int>& unactuated_dofs() const { return unactuated_dofs_; }
+
+  /**
+   * Convienience function to get the number of equality constraints (i.e.,
+   * torques on unactuated DoFs at each time step)
+   *
+   * @return int the number of equality constraints
+   */
+  int num_equality_constraints() const {
+    return unactuated_dofs().size() * num_steps();
   }
 
   /**
@@ -116,9 +124,11 @@ class TrajectoryOptimizer {
   TrajectoryOptimizerState<T> CreateState() const {
     INSTRUMENT_FUNCTION("Creates state object with caching.");
     if (diagram_ != nullptr) {
-      return TrajectoryOptimizerState<T>(num_steps(), *diagram_, plant());
+      return TrajectoryOptimizerState<T>(num_steps(), *diagram_, plant(),
+                                         num_equality_constraints());
     }
-    return TrajectoryOptimizerState<T>(num_steps(), plant());
+    return TrajectoryOptimizerState<T>(num_steps(), plant(),
+                                       num_equality_constraints());
   }
 
   /**

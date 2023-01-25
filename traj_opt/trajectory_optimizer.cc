@@ -46,12 +46,22 @@ TrajectoryOptimizer<T>::TrajectoryOptimizer(const MultibodyPlant<T>* plant,
     : plant_(plant), context_(context), prob_(prob), params_(params) {
   // Define joint damping coefficients.
   joint_damping_ = VectorX<T>::Zero(plant_->num_velocities());
-
   for (JointIndex j(0); j < plant_->num_joints(); ++j) {
     const Joint<T>& joint = plant_->get_joint(j);
     const int velocity_start = joint.velocity_start();
     const int nv = joint.num_velocities();
     joint_damping_.segment(velocity_start, nv) = joint.damping_vector();
+  }
+
+  // Define unactuated degrees of freedom
+  const MatrixX<T> B = plant_->MakeActuationMatrix();
+  if (B.size() > 0) {
+    // if B is of size zero, assume the system is fully actuated
+    for (int i = 0; i < plant_->num_velocities(); ++i) {
+      if (B.row(i).sum() == 0) {
+        unactuated_dofs_.push_back(i);
+      }
+    }
   }
 
   // Must have a target position and velocity specified for each time step
@@ -88,9 +98,9 @@ TrajectoryOptimizer<T>::TrajectoryOptimizer(const Diagram<T>* diagram,
 
   // Define unactuated degrees of freedom
   const MatrixX<T> B = plant_->MakeActuationMatrix();
-  if (B.size() > 0 ) {
+  if (B.size() > 0) {
     // if B is of size zero, assume the system is fully actuated
-    for (int i=0; i < plant_->num_velocities(); ++i) {
+    for (int i = 0; i < plant_->num_velocities(); ++i) {
       if (B.row(i).sum() == 0) {
         unactuated_dofs_.push_back(i);
       }
@@ -123,7 +133,8 @@ TrajectoryOptimizer<T>::TrajectoryOptimizer(const Diagram<T>* diagram,
       // implementation to the source?
       state_ad_ = std::unique_ptr<TrajectoryOptimizerState<AutoDiffXd>>(
           new TrajectoryOptimizerState<AutoDiffXd>(num_steps(), *diagram_ad_,
-                                                   *plant_ad_));
+                                                   *plant_ad_,
+                                                   num_equality_constraints()));
     }
   } else {
     if (params_.gradients_method == GradientsMethod::kAutoDiff) {
@@ -1458,6 +1469,29 @@ const VectorX<T>& TrajectoryOptimizer<T>::EvalScaleFactors(
     state.mutable_cache().scale_factors_up_to_date = true;
   }
   return state.cache().scale_factors;
+}
+
+template <typename T>
+void TrajectoryOptimizer<T>::CalcEqualityConstraintViolations(
+    const TrajectoryOptimizerState<T>& state, VectorX<T>* violations) const {
+  const std::vector<VectorX<T>>& tau = EvalTau(state);
+  const int num_unactuated_dofs = unactuated_dofs().size();
+
+  for (int t = 0; t < num_steps(); ++t) {
+    for (int j = 0; j < num_unactuated_dofs; ++j) {
+      (*violations)(t * num_unactuated_dofs + j) = tau[t][unactuated_dofs()[j]];
+    }
+  }
+}
+
+template <typename T>
+const VectorX<T>& TrajectoryOptimizer<T>::EvalEqualityConstraintViolations(
+    const TrajectoryOptimizerState<T>& state) const {
+  if (!state.cache().constraint_violation_up_to_date) {
+    CalcEqualityConstraintViolations(
+        state, &state.mutable_cache().constraint_violation);
+  }
+  return state.cache().constraint_violation;
 }
 
 template <typename T>

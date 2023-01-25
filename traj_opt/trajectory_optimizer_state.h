@@ -37,17 +37,31 @@ template <typename T>
 struct TrajectoryOptimizerCache {
   DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(TrajectoryOptimizerCache);
 
-  TrajectoryOptimizerCache(const int num_steps, const int nv, const int nq)
+  /**
+   * Construct a cache for the trajectory optimizer. This is stored inside a
+   * TrajectoryOptimizerState, and stores just about anything that you could
+   * compute from the decision variables q. That includes the cost, the
+   * gradient, the Hessian, derivatives, etc.
+   *
+   * @param num_steps number of time steps in the optimization problem
+   * @param nv number of velocities for the plant
+   * @param nq number of positions for the plant
+   * @param num_eq_constraints number of equality constraints
+   */
+  TrajectoryOptimizerCache(const int num_steps, const int nv, const int nq,
+                           const int num_eq_constraints)
       : derivatives_data(num_steps, nv, nq),
         gradient((num_steps + 1) * nq),
         hessian(num_steps + 1, nq),
         scaled_hessian(num_steps + 1, nq),
         scaled_gradient(num_steps + 1, nq),
-        scale_factors((num_steps + 1) * nq) {
+        scale_factors((num_steps + 1) * nq),
+        constraint_violation(num_eq_constraints),
+        constraint_jacobian(num_eq_constraints, (num_steps + 1) * nq) {
     trajectory_data.v.assign(num_steps + 1, VectorX<T>(nv));
     trajectory_data.a.assign(num_steps, VectorX<T>(nv));
     inverse_dynamics_cache.tau.assign(num_steps, VectorX<T>(nv));
-    N_plus.assign(num_steps+1, MatrixX<T>::Zero(nv, nq));
+    N_plus.assign(num_steps + 1, MatrixX<T>::Zero(nv, nq));
     scale_factors.setConstant(1.0);
     // TODO(amcastro-tri): We could allocate contact_jacobian_data here if we
     // knew the number of contacts. For now, we'll defer the allocation to a
@@ -55,9 +69,10 @@ struct TrajectoryOptimizerCache {
   }
 
   TrajectoryOptimizerCache(const int num_steps, const Diagram<T>& diagram,
-                           const MultibodyPlant<T>& plant)
+                           const MultibodyPlant<T>& plant,
+                           const int num_eq_constraints)
       : TrajectoryOptimizerCache(num_steps, plant.num_velocities(),
-                                 plant.num_positions()) {
+                                 plant.num_positions(), num_eq_constraints) {
     context_cache = std::make_unique<ContextCache>(num_steps, diagram, plant);
   }
 
@@ -175,6 +190,14 @@ struct TrajectoryOptimizerCache {
   // Vector of scaling factors D = 1/sqrt(diag(D))
   VectorX<T> scale_factors;
   bool scale_factors_up_to_date{false};
+
+  // Vector of equality constraint violations for the constraint h(q) = 0
+  VectorX<T> constraint_violation;
+  bool constraint_violation_up_to_date{false};
+
+  // Jacobian of equality constraints J = ∂h(q)/∂q
+  MatrixX<T> constraint_jacobian;
+  bool constraint_jacobian_up_to_date{false};
 };
 
 template <typename T>
@@ -220,14 +243,16 @@ class TrajectoryOptimizerState {
    * Constructor which allocates things of the proper sizes.
    *
    * @param num_steps number of timesteps in the optimization problem
-   * @param nv number of multibody velocities
-   * @param nq number of multipody positions
+   * @param plant multibody plant system model
+   * @param num_eq_constraints number of equality constraints
    */
-  TrajectoryOptimizerState(const int num_steps, const MultibodyPlant<T>& plant)
+  TrajectoryOptimizerState(const int num_steps, const MultibodyPlant<T>& plant,
+                           const int num_eq_constraints)
       : workspace(num_steps, plant),
         num_steps_(num_steps),
         nq_(plant.num_positions()),
-        cache_(num_steps, plant.num_velocities(), plant.num_positions()) {
+        cache_(num_steps, plant.num_velocities(), plant.num_positions(),
+               num_eq_constraints) {
     const int nq = plant.num_positions();
     q_.assign(num_steps + 1, VectorX<T>(nq));
     proximal_operator_data_.q_last.assign(num_steps + 1, VectorX<T>(nq));
@@ -236,11 +261,12 @@ class TrajectoryOptimizerState {
 
   // TrajectoryOptimizer state for a `plant` model within `diagram`.
   TrajectoryOptimizerState(const int num_steps, const Diagram<T>& diagram,
-                           const MultibodyPlant<T>& plant)
+                           const MultibodyPlant<T>& plant,
+                           const int num_eq_constraints)
       : workspace(num_steps, plant),
         num_steps_(num_steps),
         nq_(plant.num_positions()),
-        cache_(num_steps, diagram, plant) {
+        cache_(num_steps, diagram, plant, num_eq_constraints) {
     const int nq = plant.num_positions();
     q_.assign(num_steps + 1, VectorX<T>(nq));
     proximal_operator_data_.q_last.assign(num_steps + 1, VectorX<T>(nq));
@@ -384,6 +410,8 @@ class TrajectoryOptimizerState {
     cache_.scaled_hessian_up_to_date = false;
     cache_.scaled_gradient_up_to_date = false;
     cache_.scale_factors_up_to_date = false;
+    cache_.constraint_violation_up_to_date = false;
+    cache_.constraint_jacobian_up_to_date = false;
   }
 };
 
