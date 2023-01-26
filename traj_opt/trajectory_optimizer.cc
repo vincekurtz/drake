@@ -1938,7 +1938,9 @@ std::tuple<double, int> TrajectoryOptimizer<T>::BacktrackingLinesearch(
   using std::abs;
 
   // Compute the cost and gradient
-  const T L = EvalCost(state);
+  const double mu = 1e3;
+  const VectorX<T>& h = EvalEqualityConstraintViolations(state);
+  const T L = EvalCost(state) + mu * h.cwiseAbs().sum();
   const VectorX<T>& g = EvalGradient(state);
 
   // Linesearch parameters
@@ -1946,7 +1948,8 @@ std::tuple<double, int> TrajectoryOptimizer<T>::BacktrackingLinesearch(
   const double rho = 0.8;
 
   double alpha = 1.0;
-  T L_prime = g.transpose() * dq;  // gradient of L w.r.t. alpha
+  T L_prime =
+      g.transpose() * dq - mu * h.cwiseAbs().sum();  // gradient of L w.r.t. alpha
 
   // Make sure this is a descent direction
   DRAKE_DEMAND(L_prime <= 0);
@@ -1961,7 +1964,8 @@ std::tuple<double, int> TrajectoryOptimizer<T>::BacktrackingLinesearch(
   // Try with alpha = 1
   scratch_state->set_q(state.q());
   scratch_state->AddToQ(alpha * dq);
-  T L_old = EvalCost(*scratch_state);
+  T L_old = EvalCost(*scratch_state) +
+            mu * EvalEqualityConstraintViolations(*scratch_state).cwiseAbs().sum();
 
   // L_new stores cost at iteration i:   L(q + alpha_i * dq)
   // L_old stores cost at iteration i-1: L(q + alpha_{i-1} * dq)
@@ -1982,7 +1986,8 @@ std::tuple<double, int> TrajectoryOptimizer<T>::BacktrackingLinesearch(
     // Compute L_new = L(q + alpha_i * dq)
     scratch_state->set_q(state.q());
     scratch_state->AddToQ(alpha * dq);
-    L_new = EvalCost(*scratch_state);
+    L_new = EvalCost(*scratch_state) +
+            mu * EvalEqualityConstraintViolations(*scratch_state).cwiseAbs().sum();
 
     // Check the Armijo conditions
     if (L_new <= L + c * alpha * L_prime) {
@@ -2360,6 +2365,8 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithLinesearch(
 
     VectorXd x = A.ldlt().solve(b);
     dq = x.topRows(g.size());
+
+    //dq = H.MakeDense().ldlt().solve(-g);
 
     //VectorXd lambda_ref = x.bottomRows(h.size());
 
