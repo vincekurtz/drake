@@ -2343,13 +2343,41 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithLinesearch(
     const VectorXd& g = EvalGradient(state);
     const PentaDiagonalMatrix<double>& H = EvalHessian(state);
 
+    // Solve KKT conditions for the search direction
+    // TODO: make more efficient
+    const VectorXd& h = EvalEqualityConstraintViolations(state);
+    const MatrixXd& J = EvalEqualityConstraintJacobian(state);
+
+    const int size = H.rows() + J.rows();
+    MatrixXd A = MatrixXd::Zero(size, size);
+    A.topLeftCorner(H.rows(), H.cols()) = H.MakeDense();
+    A.bottomLeftCorner(J.rows(), J.cols()) = J;
+    A.topRightCorner(J.cols(), J.rows()) = J.transpose();
+
+    VectorXd b(size);
+    b.topRows(g.size()) = -g;
+    b.bottomRows(h.size()) = -h;
+
+    VectorXd x = A.ldlt().solve(b);
+    dq = x.topRows(g.size());
+
+    //VectorXd lambda_ref = x.bottomRows(h.size());
+
+    //const MatrixXd Hinv = H.MakeDense().inverse();
+    //const VectorXd lambda =
+    //    (J * Hinv * J.transpose()).inverse() * (h - J * Hinv * g);
+
+    //PRINT_VAR((lambda - lambda_ref).norm());
+    //dq = Hinv * (-g + J.transpose() * lambda);
+    //dq = Hinv * (-g);
+
     // Solve for search direction H*dq = -g
-    dq = -g;
-    PentaDiagonalFactorization Hchol(H);
-    if (Hchol.status() != PentaDiagonalFactorizationStatus::kSuccess) {
-      return SolverFlag::kFactorizationFailed;
-    }
-    Hchol.SolveInPlace(&dq);
+    //dq = -g;
+    //PentaDiagonalFactorization Hchol(H);
+    //if (Hchol.status() != PentaDiagonalFactorizationStatus::kSuccess) {
+    //  return SolverFlag::kFactorizationFailed;
+    //}
+    //Hchol.SolveInPlace(&dq);
 
     // Solve the linsearch
     // N.B. we use a separate state variable since we will need to compute
