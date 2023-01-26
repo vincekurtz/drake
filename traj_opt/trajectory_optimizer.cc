@@ -2322,7 +2322,7 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithLinesearch(
                  "---------"
               << std::endl;
     std::cout << "|  iter  |   cost   |  alpha  |  LS_iters  |  time (s)  |  "
-                 "|g|/cost  |"
+                 "|g|/cost  | con. viol. |"
               << std::endl;
     std::cout << "-------------------------------------------------------------"
                  "---------"
@@ -2432,7 +2432,8 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithLinesearch(
       printf("| %7.4f ", alpha);
       printf("| %6d     ", ls_iters);
       printf("| %8.8f ", iter_time.count());
-      printf("| %10.3e |\n", g.norm() / cost);
+      printf("| %10.3e ", g.norm() / cost);
+      printf("| %10.3e |\n", h.cwiseAbs().maxCoeff());
     }
 
     // Print additional debuging information
