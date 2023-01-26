@@ -1509,17 +1509,23 @@ GTEST_TEST(TrajectoryOptimizerTest, EqualityConstraints) {
 
   ProblemDefinition opt_prob;
   opt_prob.num_steps = num_steps;
-  opt_prob.q_init = Vector2d(-0.1, -0.2);
-  opt_prob.v_init = Vector2d(-0.01, 0.03);
-  opt_prob.Qq = 0.1 * MatrixXd::Identity(2, 2);
-  opt_prob.Qv = 0.2 * MatrixXd::Identity(2, 2);
-  opt_prob.Qf_q = 0.3 * MatrixXd::Identity(2, 2);
-  opt_prob.Qf_v = 0.4 * MatrixXd::Identity(2, 2);
-  opt_prob.R = 0.01 * MatrixXd::Identity(2, 2);
+  opt_prob.q_init.resize(5);
+  opt_prob.q_init << 0.0, 0.6, 0.3, -0.5, 0.2;
+  opt_prob.v_init.resize(5);
+  opt_prob.v_init << 1.0, -0.2, 0.1, -0.3, 0.4;
+  opt_prob.Qq = 0.1 * MatrixXd::Identity(5, 5);
+  opt_prob.Qv = 0.2 * MatrixXd::Identity(5, 5);
+  opt_prob.Qf_q = 0.3 * MatrixXd::Identity(5, 5);
+  opt_prob.Qf_v = 0.4 * MatrixXd::Identity(5, 5);
+  opt_prob.R = 0.01 * MatrixXd::Identity(5, 5);
 
   for (int t = 0; t <= num_steps; ++t) {
-    opt_prob.q_nom.push_back(Vector2d(1.5, -0.1));
-    opt_prob.v_nom.push_back(Vector2d(0.2, 0.1));
+    VectorXd q_nom(5);
+    VectorXd v_nom(5);
+    q_nom << 0.5, 0.5, 0.3, -0.4, 0.1;
+    v_nom << 0.01, 0.0, 0.2, 0.1, -0.1;
+    opt_prob.q_nom.push_back(q_nom);
+    opt_prob.v_nom.push_back(v_nom);
   }
 
   // Create an acrobot model
@@ -1528,7 +1534,7 @@ GTEST_TEST(TrajectoryOptimizerTest, EqualityConstraints) {
   config.time_step = dt;
   auto [plant, scene_graph] = multibody::AddMultibodyPlant(config, &builder);
   const std::string urdf_file =
-      FindResourceOrThrow("drake/multibody/benchmarks/acrobot/acrobot.urdf");
+      FindResourceOrThrow("drake/traj_opt/examples/hopper.urdf");
   Parser(&plant).AddAllModelsFromFile(urdf_file);
   plant.Finalize();
   auto diagram = builder.Build();
@@ -1547,8 +1553,9 @@ GTEST_TEST(TrajectoryOptimizerTest, EqualityConstraints) {
 
   // Compute equality constraint violations
   VectorXd h = optimizer.EvalEqualityConstraintViolations(state);
+
   EXPECT_TRUE(h[0] != 0.0);
-  EXPECT_TRUE(h.size() == num_steps);
+  EXPECT_TRUE(h.size() == num_steps * 3);
 
   // Set up an autodiff copy of the optimizer and plant
   auto diagram_ad = systems::System<double>::ToAutoDiffXd(*diagram);
@@ -1558,7 +1565,7 @@ GTEST_TEST(TrajectoryOptimizerTest, EqualityConstraints) {
                                                opt_prob);
   TrajectoryOptimizerState<AutoDiffXd> state_ad = optimizer_ad.CreateState();
 
-  std::vector<VectorX<AutoDiffXd>> q_ad(num_steps + 1, VectorX<AutoDiffXd>(2));
+  std::vector<VectorX<AutoDiffXd>> q_ad(num_steps + 1, VectorX<AutoDiffXd>(5));
   int ad_idx = 0;  // index for autodiff variables
   const int nq = plant.num_positions();
   const int num_vars = (num_steps + 1) * nq;
