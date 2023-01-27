@@ -176,12 +176,9 @@ T TrajectoryOptimizer<T>::CalcCost(
     }
   }
 
-  // DEBUG: least squares lagrangian
+  // DEBUG: l1 exact penalty
   const VectorX<T>& h = EvalEqualityConstraintViolations(state);
-  const MatrixX<T>& J = EvalEqualityConstraintJacobian(state);
-  VectorX<T> g = EvalGradient(state);
-  const VectorX<T> lambda = (J*J.transpose()).ldlt().solve(J*g);
-  cost -= T(lambda.transpose() * h);
+  cost += 0 * h.cwiseAbs().sum();
 
   return cost;
 }
@@ -1308,10 +1305,20 @@ void TrajectoryOptimizer<T>::CalcGradient(
     }
   }
   
-  // DEBUG: least squares lagrangian
+  // DEBUG: l1 exact penalty
+  const VectorX<T>& h = EvalEqualityConstraintViolations(state);
   const MatrixX<T>& J = EvalEqualityConstraintJacobian(state);
-  const VectorX<T> lambda = (J*J.transpose()).ldlt().solve(J*(*g));
-  *g -= lambda.transpose() * J;
+  VectorX<T> sign_h(h.size());
+  for (int i=0; i<h.size();++i) {
+    if (h[i] > 0 ) {
+      sign_h[i] = 1.0;
+    } else if (h[i] < 0) {
+      sign_h[i] = -1.0;
+    } else {
+      sign_h[i] = 0.0;
+    }
+  }
+  *g += 0.0 * sign_h * J;
 }
 
 template <typename T>
@@ -1531,6 +1538,10 @@ void TrajectoryOptimizer<T>::CalcEqualityConstraintJacobian(
       }
     }
   }
+
+  // Hack to eliminate dependence on q0
+  // TODO: fix id_partials accordingly
+  J->leftCols(nq).setZero();
 }
 
 template <typename T>
