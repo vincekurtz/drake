@@ -176,6 +176,13 @@ T TrajectoryOptimizer<T>::CalcCost(
     }
   }
 
+  // DEBUG: least squares lagrangian
+  const VectorX<T>& h = EvalEqualityConstraintViolations(state);
+  const MatrixX<T>& J = EvalEqualityConstraintJacobian(state);
+  VectorX<T> g = EvalGradient(state);
+  const VectorX<T> lambda = (J*J.transpose()).ldlt().solve(J*g);
+  cost -= T(lambda.transpose() * h);
+
   return cost;
 }
 
@@ -1300,6 +1307,11 @@ void TrajectoryOptimizer<T>::CalcGradient(
           params_.rho_proximal * H_diag[t].asDiagonal() * (q[t] - q_last[t]);
     }
   }
+  
+  // DEBUG: least squares lagrangian
+  const MatrixX<T>& J = EvalEqualityConstraintJacobian(state);
+  const VectorX<T> lambda = (J*J.transpose()).ldlt().solve(J*(*g));
+  *g -= lambda.transpose() * J;
 }
 
 template <typename T>
@@ -1938,7 +1950,7 @@ std::tuple<double, int> TrajectoryOptimizer<T>::BacktrackingLinesearch(
   using std::abs;
 
   // Compute the cost and gradient
-  const double mu = 1e3;
+  const double mu = 0.0;
   const VectorX<T>& h = EvalEqualityConstraintViolations(state);
   const T L = EvalCost(state) + mu * h.cwiseAbs().sum();
   const VectorX<T>& g = EvalGradient(state);
@@ -2467,7 +2479,7 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithLinesearch(
                      dq.norm(),          // step size
                      trust_ratio,        // trust ratio
                      g.norm(),           // gradient size
-                     dL_dq,              // gradient along dqH (dqH = dq)
+                     h.cwiseAbs().maxCoeff(),              // gradient along dqH (dqH = dq)
                      dL_dq);             // Gradient along dq
 
     ++k;
