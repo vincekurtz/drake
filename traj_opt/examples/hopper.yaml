@@ -14,7 +14,7 @@ q_guess :   [ 0.5, 0.61, 0.3,-0.5, 0.2]
 Qq : [10, 0.1, 0.1, 10, 0.1]      # Running cost
 Qv : [0.1, 0.1, 0.1, 0.1, 0.1]
 
-R : [1e3, 1e3, 1e3, 0.1, 0.1]
+R : [1e0, 1e0, 1e0, 0.1, 0.1]
 
 Qfq : [10, 10, 10, 10, 10]  # Terminal cost
 Qfv : [1.0, 1.0, 1.0, 1.0, 1.0]
@@ -24,8 +24,8 @@ time_step : 0.05   # Discretization timestep (seconds)
 num_steps : 40    # number of timesteps
 
 # Solver parameters
-max_iters : 500            # maximum Gauss-Newton iterations
-method : "trust_region"       # solver method, {linesearch, trust_region}
+max_iters : 2000            # maximum Gauss-Newton iterations
+method : "linesearch"       # solver method, {linesearch, trust_region}
 linesearch: "backtracking"
 
 # Convergence thresholds

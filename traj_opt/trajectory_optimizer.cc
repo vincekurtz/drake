@@ -1961,7 +1961,7 @@ std::tuple<double, int> TrajectoryOptimizer<T>::BacktrackingLinesearch(
   using std::abs;
 
   // Compute the cost and gradient
-  const double mu = 0.0;
+  const double mu = 1e5;
   const VectorX<T>& h = EvalEqualityConstraintViolations(state);
   const T L = EvalCost(state) + mu * h.cwiseAbs().sum();
   const VectorX<T>& g = EvalGradient(state);
