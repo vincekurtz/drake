@@ -178,7 +178,9 @@ T TrajectoryOptimizer<T>::CalcCost(
 
   // DEBUG: l1 exact penalty
   const VectorX<T>& h = EvalEqualityConstraintViolations(state);
-  cost += 0 * h.cwiseAbs().sum();
+  //cost += 0 * h.cwiseAbs().sum();
+  const double mu = 100;
+  cost += T(mu / 2 * h.transpose() * h);
 
   return cost;
 }
@@ -1308,17 +1310,19 @@ void TrajectoryOptimizer<T>::CalcGradient(
   // DEBUG: l1 exact penalty
   const VectorX<T>& h = EvalEqualityConstraintViolations(state);
   const MatrixX<T>& J = EvalEqualityConstraintJacobian(state);
-  VectorX<T> sign_h(h.size());
-  for (int i=0; i<h.size();++i) {
-    if (h[i] > 0 ) {
-      sign_h[i] = 1.0;
-    } else if (h[i] < 0) {
-      sign_h[i] = -1.0;
-    } else {
-      sign_h[i] = 0.0;
-    }
-  }
-  *g += 0.0 * sign_h * J;
+  //VectorX<T> sign_h(h.size());
+  //for (int i=0; i<h.size();++i) {
+  //  if (h[i] > 0 ) {
+  //    sign_h[i] = 1.0;
+  //  } else if (h[i] < 0) {
+  //    sign_h[i] = -1.0;
+  //  } else {
+  //    sign_h[i] = 0.0;
+  //  }
+  //}
+  //*g += 0.0 * sign_h * J;
+  const double mu = 100;
+  *g += mu * h * J.transpose();
 }
 
 template <typename T>
@@ -1410,6 +1414,14 @@ void TrajectoryOptimizer<T>::CalcHessian(
 
   // Copy lower triangular part to upper triangular part
   H->MakeSymmetric();
+
+  // DEBUG: exact penalty function
+  const double mu = 100;
+  const MatrixX<T>& J = EvalEqualityConstraintJacobian(state);
+  MatrixX<T> new_H = H->MakeDense() + mu * J * J.transpose();
+
+  *H = H->MakeSymmetricFromLowerDense(new_H, num_steps() + 1,
+                                      plant().num_positions());
 }
 
 template <typename T>
