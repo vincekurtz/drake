@@ -1322,7 +1322,7 @@ void TrajectoryOptimizer<T>::CalcGradient(
   //}
   //*g += 0.0 * sign_h * J;
   const double mu = params_.underactuation_penalty;
-  *g += mu * h * J.transpose();
+  *g += mu * J.transpose() * h;
 }
 
 template <typename T>

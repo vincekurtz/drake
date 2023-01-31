@@ -1594,18 +1594,19 @@ GTEST_TEST(TrajectoryOptimizerTest, EqualityConstraints) {
 
 GTEST_TEST(TrajectoryOptimizerTest, PenaltyFunction)  {
   // Define an optimization problem.
-  const int num_steps = 5;
+  const int num_steps = 2;
   const double dt = 1e-2;
 
   ProblemDefinition opt_prob;
   opt_prob.num_steps = num_steps;
   opt_prob.q_init = Vector2d(0.1, 0.2);
   opt_prob.v_init = Vector2d(-0.01, 0.03);
-  opt_prob.Qq = 0.1 * MatrixXd::Identity(2, 2);
-  opt_prob.Qv = 0.2 * MatrixXd::Identity(2, 2);
-  opt_prob.Qf_q = 0.3 * MatrixXd::Identity(2, 2);
-  opt_prob.Qf_v = 0.4 * MatrixXd::Identity(2, 2);
+  opt_prob.Qq = 0.0 * MatrixXd::Identity(2, 2);
+  opt_prob.Qv = 0.0 * MatrixXd::Identity(2, 2);
+  opt_prob.Qf_q = 0.0 * MatrixXd::Identity(2, 2);
+  opt_prob.Qf_v = 0.0 * MatrixXd::Identity(2, 2);
   opt_prob.R = 1.0 * MatrixXd::Identity(2, 2);
+  opt_prob.R(1,1) = 0.0;
 
   for (int t = 0; t <= num_steps; ++t) {
     opt_prob.q_nom.push_back(Vector2d(1.5, -0.1));
@@ -1637,10 +1638,10 @@ GTEST_TEST(TrajectoryOptimizerTest, PenaltyFunction)  {
 
   // Create an optimizer that adds a quadratic penalty separately, not through R
   ProblemDefinition opt_prob2(opt_prob);
-  opt_prob2.R(0,0) = 1.0;
+  opt_prob2.R(0,0) = 0.0;
   SolverParameters params;
-  params.underactuation_penalty = 1.0;
-  TrajectoryOptimizer<double> optimizer2(diagram.get(), &plant, opt_prob, params);
+  params.underactuation_penalty = 2 * dt * 1.0;
+  TrajectoryOptimizer<double> optimizer2(diagram.get(), &plant, opt_prob2, params);
   TrajectoryOptimizerState<double> state2 = optimizer2.CreateState();
   state2.set_q(q);
 
@@ -1648,8 +1649,17 @@ GTEST_TEST(TrajectoryOptimizerTest, PenaltyFunction)  {
   const double cost = optimizer.EvalCost(state);
   const double cost2 = optimizer2.EvalCost(state2);
 
-  PRINT_VAR(cost);
-  PRINT_VAR(cost2);
+  const double kEpsilon = std::numeric_limits<double>::epsilon();
+  EXPECT_NEAR(cost, cost2, kEpsilon);
+
+  // Compare gradients
+  const VectorXd& g = optimizer.EvalGradient(state);
+  const VectorXd& g2 = optimizer2.EvalGradient(state2);
+
+  EXPECT_TRUE(CompareMatrices(g, g2, kEpsilon,
+                              MatrixCompareType::relative));
+
+  // Compare hessians
 
 }
 
