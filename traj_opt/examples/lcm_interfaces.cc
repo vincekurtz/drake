@@ -98,8 +98,8 @@ void LowLevelController::OutputCommandAsVector(
 
     // Apply torque limits
     // TODO(vincekurtz): make this a yaml parameter
-    const double tau_max = 10;
-    u = u.cwiseMin(tau_max).cwiseMax(-tau_max);
+    //const double tau_max = 10;
+    //u = u.cwiseMin(tau_max).cwiseMax(-tau_max);
 
     output->SetFromVector(u);
 
