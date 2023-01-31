@@ -1418,7 +1418,7 @@ void TrajectoryOptimizer<T>::CalcHessian(
   // DEBUG: exact penalty function
   const double mu = params_.underactuation_penalty;
   const MatrixX<T>& J = EvalEqualityConstraintJacobian(state);
-  MatrixX<T> new_H = H->MakeDense() + mu * J * J.transpose();
+  MatrixX<T> new_H = H->MakeDense() + mu * J.transpose() * J;
 
   *H = H->MakeSymmetricFromLowerDense(new_H, num_steps() + 1,
                                       plant().num_positions());

@@ -1594,19 +1594,18 @@ GTEST_TEST(TrajectoryOptimizerTest, EqualityConstraints) {
 
 GTEST_TEST(TrajectoryOptimizerTest, PenaltyFunction)  {
   // Define an optimization problem.
-  const int num_steps = 2;
+  const int num_steps = 5;
   const double dt = 1e-2;
 
   ProblemDefinition opt_prob;
   opt_prob.num_steps = num_steps;
   opt_prob.q_init = Vector2d(0.1, 0.2);
   opt_prob.v_init = Vector2d(-0.01, 0.03);
-  opt_prob.Qq = 0.0 * MatrixXd::Identity(2, 2);
-  opt_prob.Qv = 0.0 * MatrixXd::Identity(2, 2);
-  opt_prob.Qf_q = 0.0 * MatrixXd::Identity(2, 2);
-  opt_prob.Qf_v = 0.0 * MatrixXd::Identity(2, 2);
+  opt_prob.Qq = 0.1 * MatrixXd::Identity(2, 2);
+  opt_prob.Qv = 0.2 * MatrixXd::Identity(2, 2);
+  opt_prob.Qf_q = 0.3 * MatrixXd::Identity(2, 2);
+  opt_prob.Qf_v = 0.4 * MatrixXd::Identity(2, 2);
   opt_prob.R = 1.0 * MatrixXd::Identity(2, 2);
-  opt_prob.R(1,1) = 0.0;
 
   for (int t = 0; t <= num_steps; ++t) {
     opt_prob.q_nom.push_back(Vector2d(1.5, -0.1));
@@ -1656,10 +1655,15 @@ GTEST_TEST(TrajectoryOptimizerTest, PenaltyFunction)  {
   const VectorXd& g = optimizer.EvalGradient(state);
   const VectorXd& g2 = optimizer2.EvalGradient(state2);
 
-  EXPECT_TRUE(CompareMatrices(g, g2, kEpsilon,
+  EXPECT_TRUE(CompareMatrices(g, g2, kEpsilon / dt,
                               MatrixCompareType::relative));
 
   // Compare hessians
+  const MatrixXd& H = optimizer.EvalHessian(state).MakeDense();
+  const MatrixXd& H2 = optimizer2.EvalHessian(state2).MakeDense();
+  
+  EXPECT_TRUE(CompareMatrices(H, H2, kEpsilon / dt,
+                              MatrixCompareType::relative));
 
 }
 
