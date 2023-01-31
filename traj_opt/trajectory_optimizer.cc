@@ -179,7 +179,7 @@ T TrajectoryOptimizer<T>::CalcCost(
   // DEBUG: l1 exact penalty
   const VectorX<T>& h = EvalEqualityConstraintViolations(state);
   //cost += 0 * h.cwiseAbs().sum();
-  const double mu = 100;
+  const double mu = params_.underactuation_penalty;
   cost += T(mu / 2 * h.transpose() * h);
 
   return cost;
@@ -1321,7 +1321,7 @@ void TrajectoryOptimizer<T>::CalcGradient(
   //  }
   //}
   //*g += 0.0 * sign_h * J;
-  const double mu = 100;
+  const double mu = params_.underactuation_penalty;
   *g += mu * h * J.transpose();
 }
 
@@ -1416,7 +1416,7 @@ void TrajectoryOptimizer<T>::CalcHessian(
   H->MakeSymmetric();
 
   // DEBUG: exact penalty function
-  const double mu = 100;
+  const double mu = params_.underactuation_penalty;
   const MatrixX<T>& J = EvalEqualityConstraintJacobian(state);
   MatrixX<T> new_H = H->MakeDense() + mu * J * J.transpose();
 

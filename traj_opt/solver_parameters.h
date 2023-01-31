@@ -142,6 +142,9 @@ struct SolverParameters {
 
   // Flag for rescaling the Hessian, for better numerical conditioning
   bool scaling = true;
+
+  // Coefficient for penalty on unactuated torques
+  double underactuation_penalty = 0.0;
 };
 
 }  // namespace traj_opt
