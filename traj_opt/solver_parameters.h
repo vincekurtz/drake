@@ -144,7 +144,7 @@ struct SolverParameters {
   bool scaling = true;
 
   // Coefficient for penalty on unactuated torques
-  double underactuation_penalty = 10.0;
+  double underactuation_penalty = 1.0;
 };
 
 }  // namespace traj_opt

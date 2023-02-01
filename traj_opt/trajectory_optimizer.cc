@@ -178,9 +178,9 @@ T TrajectoryOptimizer<T>::CalcCost(
 
   // DEBUG: l1 exact penalty
   const VectorX<T>& h = EvalEqualityConstraintViolations(state);
-  //cost += 0 * h.cwiseAbs().sum();
   const double mu = params_.underactuation_penalty;
-  cost += T(mu / 2 * h.transpose() * h);
+  cost += mu * h.cwiseAbs().sum();
+  //cost += T(mu / 2 * h.transpose() * h);
 
   return cost;
 }
@@ -1310,19 +1310,19 @@ void TrajectoryOptimizer<T>::CalcGradient(
   // DEBUG: l1 exact penalty
   const VectorX<T>& h = EvalEqualityConstraintViolations(state);
   const MatrixX<T>& J = EvalEqualityConstraintJacobian(state);
-  //VectorX<T> sign_h(h.size());
-  //for (int i=0; i<h.size();++i) {
-  //  if (h[i] > 0 ) {
-  //    sign_h[i] = 1.0;
-  //  } else if (h[i] < 0) {
-  //    sign_h[i] = -1.0;
-  //  } else {
-  //    sign_h[i] = 0.0;
-  //  }
-  //}
-  //*g += 0.0 * sign_h * J;
+  VectorX<T> sign_h(h.size());
+  for (int i=0; i<h.size();++i) {
+    if (h[i] > 0 ) {
+      sign_h[i] = 1.0;
+    } else if (h[i] < 0) {
+      sign_h[i] = -1.0;
+    } else {
+      sign_h[i] = 0.0;
+    }
+  }
   const double mu = params_.underactuation_penalty;
-  *g += mu * J.transpose() * h;
+  *g += mu * J.transpose() * sign_h;
+  //*g += mu * J.transpose() * h;
 }
 
 template <typename T>
@@ -1416,12 +1416,12 @@ void TrajectoryOptimizer<T>::CalcHessian(
   H->MakeSymmetric();
 
   // DEBUG: exact penalty function
-  const double mu = params_.underactuation_penalty;
-  const MatrixX<T>& J = EvalEqualityConstraintJacobian(state);
-  MatrixX<T> new_H = H->MakeDense() + mu * J.transpose() * J;
+  //const double mu = params_.underactuation_penalty;
+  //const MatrixX<T>& J = EvalEqualityConstraintJacobian(state);
+  //MatrixX<T> new_H = H->MakeDense() + mu * J.transpose() * J;
 
-  *H = H->MakeSymmetricFromLowerDense(new_H, num_steps() + 1,
-                                      plant().num_positions());
+  //*H = H->MakeSymmetricFromLowerDense(new_H, num_steps() + 1,
+  //                                    plant().num_positions());
 }
 
 template <typename T>
