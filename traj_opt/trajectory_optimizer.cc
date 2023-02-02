@@ -177,10 +177,16 @@ T TrajectoryOptimizer<T>::CalcCost(
   }
 
   // DEBUG: l1 exact penalty
-  const VectorX<T>& h = EvalEqualityConstraintViolations(state);
-  const double mu = params_.underactuation_penalty;
-  cost += mu * h.cwiseAbs().sum();
-  //cost += T(mu / 2 * h.transpose() * h);
+  //const VectorX<T>& h = EvalEqualityConstraintViolations(state);
+  ////const double mu = params_.underactuation_penalty;
+  ////cost += T(mu / 2 * h.transpose() * h);
+  ////cost += mu * h.cwiseAbs().sum();
+
+  //const MatrixX<T>& J = EvalEqualityConstraintJacobian(state);
+  //const VectorX<T>& g = EvalGradient(state);
+  //const VectorX<T> lambda = (J.transpose()*J).inverse() * J * g;
+
+  //cost += T(lambda.transpose() * h);
 
   return cost;
 }
@@ -1308,21 +1314,23 @@ void TrajectoryOptimizer<T>::CalcGradient(
   }
   
   // DEBUG: l1 exact penalty
-  const VectorX<T>& h = EvalEqualityConstraintViolations(state);
-  const MatrixX<T>& J = EvalEqualityConstraintJacobian(state);
-  VectorX<T> sign_h(h.size());
-  for (int i=0; i<h.size();++i) {
-    if (h[i] > 0 ) {
-      sign_h[i] = 1.0;
-    } else if (h[i] < 0) {
-      sign_h[i] = -1.0;
-    } else {
-      sign_h[i] = 0.0;
-    }
-  }
-  const double mu = params_.underactuation_penalty;
-  *g += mu * J.transpose() * sign_h;
+  //const VectorX<T>& h = EvalEqualityConstraintViolations(state);
+  //const MatrixX<T>& J = EvalEqualityConstraintJacobian(state);
+  //const double mu = params_.underactuation_penalty;
   //*g += mu * J.transpose() * h;
+  //VectorX<T> sign_h(h.size());
+  //for (int i=0; i<h.size();++i) {
+  //  if (h[i] > 0 ) {
+  //    sign_h[i] = 1.0;
+  //  } else if (h[i] < 0) {
+  //    sign_h[i] = -1.0;
+  //  } else {
+  //    sign_h[i] = 0.0;
+  //  }
+  //}
+  //*g += mu * J.transpose() * sign_h;
+  //const VectorX<T> lambda = (J.transpose()*J).inverse() * J * (*g);
+  //*g += lambda;
 }
 
 template <typename T>
@@ -1973,7 +1981,7 @@ std::tuple<double, int> TrajectoryOptimizer<T>::BacktrackingLinesearch(
   using std::abs;
 
   // Compute the cost and gradient
-  const double mu = 1e5;
+  const double mu = 1e3;
   const VectorX<T>& h = EvalEqualityConstraintViolations(state);
   const T L = EvalCost(state) + mu * h.cwiseAbs().sum();
   const VectorX<T>& g = EvalGradient(state);
@@ -2387,30 +2395,10 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithLinesearch(
     // TODO: make more efficient
     const VectorXd& h = EvalEqualityConstraintViolations(state);
     const MatrixXd& J = EvalEqualityConstraintJacobian(state);
-
-    const int size = H.rows() + J.rows();
-    MatrixXd A = MatrixXd::Zero(size, size);
-    A.topLeftCorner(H.rows(), H.cols()) = H.MakeDense();
-    A.bottomLeftCorner(J.rows(), J.cols()) = J;
-    A.topRightCorner(J.cols(), J.rows()) = J.transpose();
-
-    VectorXd b(size);
-    b.topRows(g.size()) = -g;
-    b.bottomRows(h.size()) = -h;
-
-    VectorXd x = A.ldlt().solve(b);
-    dq = x.topRows(g.size());
-
-    //dq = H.MakeDense().ldlt().solve(-g);
-
-    //VectorXd lambda_ref = x.bottomRows(h.size());
-
-    //const MatrixXd Hinv = H.MakeDense().inverse();
-    //const VectorXd lambda =
-    //    (J * Hinv * J.transpose()).inverse() * (h - J * Hinv * g);
-
-    //PRINT_VAR((lambda - lambda_ref).norm());
-    //dq = Hinv * (-g + J.transpose() * lambda);
+    const MatrixXd Hinv = H.MakeDense().inverse();
+    const VectorXd lambda =
+        (J * Hinv * J.transpose()).inverse() * (h - J * Hinv * g);
+    dq = Hinv * (-g - J.transpose() * lambda);
     //dq = Hinv * (-g);
 
     // Solve for search direction H*dq = -g
