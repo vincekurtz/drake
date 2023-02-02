@@ -143,8 +143,8 @@ struct SolverParameters {
   // Flag for rescaling the Hessian, for better numerical conditioning
   bool scaling = true;
 
-  // Coefficient for penalty on unactuated torques
-  double underactuation_penalty = 2.0;
+  // Parameter for activating hard equality constraints on unactuated DoFs
+  bool equality_constraints = false;
 };
 
 }  // namespace traj_opt

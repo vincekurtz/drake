@@ -176,18 +176,6 @@ T TrajectoryOptimizer<T>::CalcCost(
     }
   }
 
-  // DEBUG: l1 exact penalty
-  //const VectorX<T>& h = EvalEqualityConstraintViolations(state);
-  ////const double mu = params_.underactuation_penalty;
-  ////cost += T(mu / 2 * h.transpose() * h);
-  ////cost += mu * h.cwiseAbs().sum();
-
-  //const MatrixX<T>& J = EvalEqualityConstraintJacobian(state);
-  //const VectorX<T>& g = EvalGradient(state);
-  //const VectorX<T> lambda = (J.transpose()*J).inverse() * J * g;
-
-  //cost += T(lambda.transpose() * h);
-
   return cost;
 }
 
@@ -1312,25 +1300,6 @@ void TrajectoryOptimizer<T>::CalcGradient(
           params_.rho_proximal * H_diag[t].asDiagonal() * (q[t] - q_last[t]);
     }
   }
-  
-  // DEBUG: l1 exact penalty
-  //const VectorX<T>& h = EvalEqualityConstraintViolations(state);
-  //const MatrixX<T>& J = EvalEqualityConstraintJacobian(state);
-  //const double mu = params_.underactuation_penalty;
-  //*g += mu * J.transpose() * h;
-  //VectorX<T> sign_h(h.size());
-  //for (int i=0; i<h.size();++i) {
-  //  if (h[i] > 0 ) {
-  //    sign_h[i] = 1.0;
-  //  } else if (h[i] < 0) {
-  //    sign_h[i] = -1.0;
-  //  } else {
-  //    sign_h[i] = 0.0;
-  //  }
-  //}
-  //*g += mu * J.transpose() * sign_h;
-  //const VectorX<T> lambda = (J.transpose()*J).inverse() * J * (*g);
-  //*g += lambda;
 }
 
 template <typename T>
@@ -1422,14 +1391,6 @@ void TrajectoryOptimizer<T>::CalcHessian(
 
   // Copy lower triangular part to upper triangular part
   H->MakeSymmetric();
-
-  // DEBUG: exact penalty function
-  //const double mu = params_.underactuation_penalty;
-  //const MatrixX<T>& J = EvalEqualityConstraintJacobian(state);
-  //MatrixX<T> new_H = H->MakeDense() + mu * J.transpose() * J;
-
-  //*H = H->MakeSymmetricFromLowerDense(new_H, num_steps() + 1,
-  //                                    plant().num_positions());
 }
 
 template <typename T>
@@ -1981,7 +1942,13 @@ std::tuple<double, int> TrajectoryOptimizer<T>::BacktrackingLinesearch(
   using std::abs;
 
   // Compute the cost and gradient
-  const double mu = 1e3;
+  double mu = 0.0;
+  if (params_.equality_constraints) {
+    // Use an exact l1 penalty function as the merit function if equality
+    // constraints are enforced exactly.
+    // TODO: add equality constraints to Armijo linesearch
+    mu = 1e3;
+  }
   const VectorX<T>& h = EvalEqualityConstraintViolations(state);
   const T L = EvalCost(state) + mu * h.cwiseAbs().sum();
   const VectorX<T>& g = EvalGradient(state);
@@ -2215,16 +2182,23 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
   // false. If params_.scaling = false, then EvalScaledHessian returns the
   // regular Hessian, and EvalScaledGradient returns the regular gradient.
   const PentaDiagonalMatrix<double>& H = EvalScaledHessian(state);
-  //const VectorXd& g = EvalScaledGradient(state);
 
-  // DEBUG: constrained step direction
+  // TODO: make more efficient
   VectorXd g = EvalScaledGradient(state);
-  const VectorXd& h = EvalEqualityConstraintViolations(state);
-  const MatrixXd& J = EvalEqualityConstraintJacobian(state);
-  const MatrixXd Hinv = H.MakeDense().inverse();
-  const VectorXd lambda =
-      (J * Hinv * J.transpose()).inverse() * (h - J * Hinv * g);
-  g = g + J.transpose() * lambda;
+  if (params_.equality_constraints) {
+    // Instead of the gradient, use the "constrained gradient" g + J'λ.
+    // This means the full step pH satisfies the KKT conditions
+    //     [H  J']*[pH] = [-g]
+    //     [J  0 ] [ λ]   [-h]
+    // while the shortened step pU minimizes the quadratic approximation in the
+    // direction of -g - J'λ.
+    const VectorXd& h = EvalEqualityConstraintViolations(state);
+    const MatrixXd& J = EvalEqualityConstraintJacobian(state);
+    const MatrixXd Hinv = H.MakeDense().inverse();
+    const VectorXd lambda =
+        (J * Hinv * J.transpose()).inverse() * (h - J * Hinv * g);
+    g = g + J.transpose() * lambda;
+  }
 
   VectorXd& Hg = state.workspace.q_times_num_steps_size_tmp;
   H.MultiplyBy(g, &Hg);
@@ -2400,23 +2374,27 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithLinesearch(
     const VectorXd& g = EvalGradient(state);
     const PentaDiagonalMatrix<double>& H = EvalHessian(state);
 
-    // Solve KKT conditions for the search direction
-    // TODO: make more efficient
+    // TODO: don't need to compute this if equality constraints aren't enforced
     const VectorXd& h = EvalEqualityConstraintViolations(state);
-    const MatrixXd& J = EvalEqualityConstraintJacobian(state);
-    const MatrixXd Hinv = H.MakeDense().inverse();
-    const VectorXd lambda =
-        (J * Hinv * J.transpose()).inverse() * (h - J * Hinv * g);
-    dq = Hinv * (-g - J.transpose() * lambda);
-    //dq = Hinv * (-g);
-
-    // Solve for search direction H*dq = -g
-    //dq = -g;
-    //PentaDiagonalFactorization Hchol(H);
-    //if (Hchol.status() != PentaDiagonalFactorizationStatus::kSuccess) {
-    //  return SolverFlag::kFactorizationFailed;
-    //}
-    //Hchol.SolveInPlace(&dq);
+    if (params_.equality_constraints) {
+      // Solve KKT conditions for the search direction
+      // [H  J']*[dq] = [-g]
+      // [J  0 ] [ λ]   [-h]
+      // TODO: make more efficient
+      const MatrixXd& J = EvalEqualityConstraintJacobian(state);
+      const MatrixXd Hinv = H.MakeDense().inverse();
+      const VectorXd lambda =
+          (J * Hinv * J.transpose()).inverse() * (h - J * Hinv * g);
+      dq = Hinv * (-g - J.transpose() * lambda);
+    } else {
+      // Solve for search direction H*dq = -g
+      dq = -g;
+      PentaDiagonalFactorization Hchol(H);
+      if (Hchol.status() != PentaDiagonalFactorizationStatus::kSuccess) {
+        return SolverFlag::kFactorizationFailed;
+      }
+      Hchol.SolveInPlace(&dq);
+    }
 
     // Solve the linsearch
     // N.B. we use a separate state variable since we will need to compute
@@ -2621,7 +2599,8 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
     // With a positive definite Hessian, steps should not oppose the descent
     // direction
     if (!params_.exact_hessian) {
-      DRAKE_DEMAND(dq.transpose() * g < 0);
+      // TODO: what's the right criterion if we use constraints?
+      //DRAKE_DEMAND(dq.transpose() * g < 0);
     } else {
       // Reduce the trust region and reject the step if this is not a descent
       // direction

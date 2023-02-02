@@ -319,6 +319,9 @@ void TrajOptExample::SetSolverParameters(
 
   // Hessian rescaling
   solver_params->scaling = options.scaling;
+
+  // Equality constriant (unactuated DoF torques) enforcement
+  solver_params->equality_constraints = options.equality_constraints;
 }
 
 }  // namespace examples

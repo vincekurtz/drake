@@ -70,6 +70,7 @@ struct TrajOptExampleParams {
     a->Visit(DRAKE_NVP(petsc_preconditioner));
     a->Visit(DRAKE_NVP(exact_hessian));
     a->Visit(DRAKE_NVP(scaling));
+    a->Visit(DRAKE_NVP(equality_constraints));
   }
   // Initial state
   VectorXd q_init;
@@ -178,6 +179,9 @@ struct TrajOptExampleParams {
 
   // Whether to rescale the Hessian
   bool scaling = true;
+
+  // Whether to enforce strict equality constraints
+  bool equality_constraints = false;
 };
 
 }  // namespace examples
