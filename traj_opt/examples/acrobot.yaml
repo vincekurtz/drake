@@ -30,14 +30,14 @@ time_step : 0.05   # Discretization timestep (seconds)
 num_steps : 40      # number of timesteps
 
 # Solver parameters
-max_iters : 40             # maximum Gauss-Newton iterations
+max_iters : 200             # maximum Gauss-Newton iterations
 method : "trust_region"     # solver method, {linesearch, trust_region}
-linesearch : "backtracking"       # linesearch strategy, {armino, backtracking}
+linesearch : "backtracking" # linesearch strategy, {armino, backtracking}
 proximal_operator : false   # whether to add a proximal operator cost term
 rho_proximal : 1e-8         # the proximal cost multiplier
 exact_hessian : false
 scaling : false
-equality_constraints : true
+equality_constraints : false
 
 # Convergence thresholds
 tolerances:

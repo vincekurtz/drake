@@ -2345,13 +2345,13 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithLinesearch(
   if (params_.verbose) {
     // Define printout data
     std::cout << "-------------------------------------------------------------"
-                 "---------"
+                 "----------------------"
               << std::endl;
     std::cout << "|  iter  |   cost   |  alpha  |  LS_iters  |  time (s)  |  "
-                 "|g|/cost  | con. viol. |"
+                 "|g|/cost  |    |h|     |"
               << std::endl;
     std::cout << "-------------------------------------------------------------"
-                 "---------"
+                 "----------------------"
               << std::endl;
   }
 
@@ -2443,7 +2443,7 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithLinesearch(
       printf("| %6d     ", ls_iters);
       printf("| %8.8f ", iter_time.count());
       printf("| %10.3e ", g.norm() / cost);
-      printf("| %10.3e |\n", h.cwiseAbs().maxCoeff());
+      printf("| %10.3e |\n", h.norm());
     }
 
     // Print additional debuging information
@@ -2486,7 +2486,7 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithLinesearch(
   // End the problem data printout
   if (params_.verbose) {
     std::cout << "-------------------------------------------------------------"
-                 "---------"
+                 "----------------------"
               << std::endl;
   }
 
@@ -2563,10 +2563,10 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
   // Define printout data
   const std::string separator_bar =
       "------------------------------------------------------------------------"
-      "--------";
+      "---------------------";
   const std::string printout_labels =
       "|  iter  |   cost   |    Δ    |    ρ    |  time (s)  |  |g|/cost  | "
-      "dL_dq/cost |";
+      "dL_dq/cost |    |h|     |";
 
   double previous_cost = EvalCost(state);
   while (k < params_.max_iterations) {
@@ -2646,6 +2646,7 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
     iter_start_time = std::chrono::high_resolution_clock::now();
 
     // Printout statistics from this iteration
+    const VectorXd& h = EvalEqualityConstraintViolations(state);
     if (params_.verbose) {
       if ((k % 50) == 0) {
         // Refresh the labels for easy reading
@@ -2653,10 +2654,12 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
         std::cout << printout_labels << std::endl;
         std::cout << separator_bar << std::endl;
       }
+      // TODO: if equality constraints are active, use |g + J'λ| instead of |g|
       std::cout << fmt::format(
           "| {:>6} | {:>8.3g} | {:>7.2} | {:>7.1} | {:>10.5} | {:>10.5} | "
-          "{:>10.4} |\n",
-          k, cost, Delta, rho, iter_time.count(), g.norm() / cost, dL_dq);
+          "{:>10.4} | {:>10.4} |\n",
+          k, cost, Delta, rho, iter_time.count(), g.norm() / cost, dL_dq,
+          h.norm());
     }
 
     // Record statistics from this iteration
