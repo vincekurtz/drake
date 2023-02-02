@@ -2215,7 +2215,16 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
   // false. If params_.scaling = false, then EvalScaledHessian returns the
   // regular Hessian, and EvalScaledGradient returns the regular gradient.
   const PentaDiagonalMatrix<double>& H = EvalScaledHessian(state);
-  const VectorXd& g = EvalScaledGradient(state);
+  //const VectorXd& g = EvalScaledGradient(state);
+
+  // DEBUG: constrained step direction
+  VectorXd g = EvalScaledGradient(state);
+  const VectorXd& h = EvalEqualityConstraintViolations(state);
+  const MatrixXd& J = EvalEqualityConstraintJacobian(state);
+  const MatrixXd Hinv = H.MakeDense().inverse();
+  const VectorXd lambda =
+      (J * Hinv * J.transpose()).inverse() * (h - J * Hinv * g);
+  g = g + J.transpose() * lambda;
 
   VectorXd& Hg = state.workspace.q_times_num_steps_size_tmp;
   H.MultiplyBy(g, &Hg);
