@@ -79,9 +79,9 @@ ax[1,1].plot(iters_tr_accepted, tr_accepted)
 ax[1,1].set_ylabel("trust ratio")
 ax[1,1].set_ylim((-1,3))
 
-ax[2,1].plot(iters, data["time"])
-ax[2,1].set_ylabel("Compute Time (s)")
-ax[2,1].set_ylim((0,0.02))
+ax[2,1].plot(iters, data["h_norm"])
+ax[2,1].set_ylabel("Constraint Viol.")
+ax[2,1].set_yscale("log")
 
 ax[3,1].plot(iters, data["ls_iters"])
 ax[3,1].set_ylabel("Linesearch Iters")

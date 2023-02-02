@@ -2477,8 +2477,8 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithLinesearch(
                      dq.norm(),          // step size
                      trust_ratio,        // trust ratio
                      g.norm(),           // gradient size
-                     h.cwiseAbs().maxCoeff(),              // gradient along dqH (dqH = dq)
-                     dL_dq);             // Gradient along dq
+                     dL_dq,              // gradient along dq
+                     h.norm());          // equality constraint violation
 
     ++k;
   } while (k < params_.max_iterations && !linesearch_failed);
@@ -2589,7 +2589,6 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
     // Compute some quantities for logging.
     // N.B. These should be computed before q is updated.
     const double cost = EvalCost(state);
-    const double dL_dqH = g.dot(dqH) / cost;
     const double dL_dq = g.dot(dq) / cost;
     const double q_norm = state.norm();
 
@@ -2673,8 +2672,8 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
                      dqH.norm(),         // Unconstrained step size
                      rho,                // trust region ratio
                      g.norm(),           // gradient size
-                     dL_dqH,             // Gradient along dqH
-                     dL_dq);             // Gradient along dq
+                     dL_dq,              // gradient along dq
+                     h.norm());          // equality constraint violation
 
     // Only check convergence criteria for valid steps.
     ConvergenceReason reason{
