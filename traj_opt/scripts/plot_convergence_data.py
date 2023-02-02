@@ -62,7 +62,8 @@ ax[4,0].plot(iters, -data["dL_dq"])
 ax[4,0].set_ylabel(r"$\frac{|g' \Delta q|}{cost}$")
 ax[4,0].set_yscale("log")
 
-ax[0,1].plot(iters, data["cost"] - data["cost"][-1])
+baseline = np.min(data["cost"])
+ax[0,1].plot(iters, data["cost"] - baseline)
 ax[0,1].set_ylabel("Cost (minus baseline)")
 ax[0,1].set_yscale("log")
 
