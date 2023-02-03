@@ -79,6 +79,7 @@ struct TrajOptExampleParams {
     a->Visit(DRAKE_NVP(Kp));
     a->Visit(DRAKE_NVP(Kd));
     a->Visit(DRAKE_NVP(Vmax));
+    a->Visit(DRAKE_NVP(lqr));
   }
   // Initial state
   VectorXd q_init;
@@ -208,6 +209,9 @@ struct TrajOptExampleParams {
   // Desired bound on system energy for the low-level controller used in
   // conjunction with MPC.
   double Vmax = 1e16;
+
+  // Whether to use the LQR controller instead of PD+.
+  bool lqr = false;
 };
 
 }  // namespace examples

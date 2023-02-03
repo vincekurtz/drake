@@ -42,8 +42,9 @@ class LowLevelController : public LeafSystem<double> {
    * @param Kd derivative gains for all generalized velocities. Gains related
    *           to unactuated DoFs will be ignored.
    */
-  LowLevelController(const MultibodyPlant<double>* plant, const VectorXd Kp,
-                     const VectorXd Kd, const double Vmax_);
+  LowLevelController(const MultibodyPlant<double>* plant,
+                     const MultibodyPlant<double>* plant_lqr, const VectorXd Kp,
+                     const VectorXd Kd, const double Vmax_, bool lqr_);
 
   /**
    * Returns a constant reference to the input port that takes state
@@ -83,9 +84,16 @@ class LowLevelController : public LeafSystem<double> {
   // User-specified bound on system energy
   const double Vmax_;
 
+  // LQR-related parameters
+  const bool lqr_;
+  const MatrixXd Q_;
+  const MatrixXd R_;
+
   // Internal system model
   const MultibodyPlant<double>* plant_{nullptr};
+  const MultibodyPlant<double>* plant_lqr_{nullptr};
   std::unique_ptr<Context<double>> context_;
+  std::unique_ptr<Context<double>> context_lqr_;
 
   InputPortIndex control_port_;
   InputPortIndex state_estimate_port_;

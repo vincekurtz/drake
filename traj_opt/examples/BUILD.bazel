@@ -224,6 +224,8 @@ drake_cc_library(
         "//systems/framework:diagram",
         "//systems/framework:leaf_system",
         "//systems/framework:vector",
+        "//systems/controllers:linear_quadratic_regulator",
+        "//systems/primitives:linear_system",
         "//traj_opt:problem_definition",
         "//traj_opt:trajectory_optimizer",
     ],
