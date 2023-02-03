@@ -2061,21 +2061,45 @@ template <typename T>
 T TrajectoryOptimizer<T>::CalcTrustRatio(
     const TrajectoryOptimizerState<T>& state, const VectorX<T>& dq,
     TrajectoryOptimizerState<T>* scratch_state) const {
+  // Quantities at the current iteration (k)
+  const T L_k = EvalCost(state);
+  const VectorX<T>& g_k = EvalGradient(state);
+  const PentaDiagonalMatrix<T>& H_k = EvalHessian(state);
+    
+  const VectorX<T>& h_k = EvalEqualityConstraintViolations(state);
+  const MatrixX<T>& J_k = EvalEqualityConstraintJacobian(state);
+  const MatrixX<T> Hinv_k = H_k.MakeDense().inverse();
+  const VectorX<T> lambda_k =
+        (J_k * Hinv_k * J_k.transpose()).inverse() * (h_k - J_k * Hinv_k * g_k);
+
+  const T augmented_cost_k = L_k + T(h_k.transpose() * lambda_k);
+
+  // Quantities at the next iteration if we accept the step (kp = k+1)
+  // TODO(vincekurtz): if we do end up accepting the step, it would be nice to
+  // somehow reuse these cached quantities, which we're currently trashing
+  scratch_state->set_q(state.q());
+  scratch_state->AddToQ(dq);
+  const T L_kp = EvalCost(*scratch_state);
+  
+  const VectorX<T>& g_kp = EvalGradient(*scratch_state);
+  const PentaDiagonalMatrix<T>& H_kp = EvalHessian(*scratch_state);
+  const VectorX<T>& h_kp = EvalEqualityConstraintViolations(*scratch_state);
+  const MatrixX<T>& J_kp = EvalEqualityConstraintJacobian(*scratch_state);
+  const MatrixX<T> Hinv_kp = H_kp.MakeDense().inverse();
+  const VectorX<T> lambda_kp = (J_kp * Hinv_kp * J_kp.transpose()).inverse() *
+                             (h_kp - J_kp * Hinv_kp * g_kp);
+  
+  const T augmented_cost_kp = L_kp + T(h_kp.transpose() * lambda_kp);
+
   // Compute predicted reduction in cost
-  const VectorX<T>& g = EvalGradient(state);
-  const PentaDiagonalMatrix<T>& H = EvalHessian(state);
-  const T gradient_term = g.dot(dq);
   VectorX<T>& Hdq = state.workspace.q_times_num_steps_size_tmp;
-  H.MultiplyBy(dq, &Hdq);
+  H_k.MultiplyBy(dq, &Hdq);  // Hdq = H_k * dq
   const T hessian_term = 0.5 * dq.transpose() * Hdq;
+  const T gradient_term = (g_k + J_k.transpose()*lambda_k).dot(dq);
   const T predicted_reduction = -gradient_term - hessian_term;
 
   // Compute actual reduction in cost
-  scratch_state->set_q(state.q());
-  scratch_state->AddToQ(dq);
-  const T L_old = EvalCost(state);           // L(q)
-  const T L_new = EvalCost(*scratch_state);  // L(q + dq)
-  const T actual_reduction = L_old - L_new;
+  const T actual_reduction = augmented_cost_k - augmented_cost_kp;
 
   // Threshold for determining when the actual and predicted reduction in cost
   // are essentially zero. This is determined by the approximate level of
@@ -2548,6 +2572,7 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
   std::chrono::duration<double> solve_time;
 
   // Trust region parameters
+  // TODO: choose larger, more reasonable initial values
   const double Delta_max = 1e-1;  // Maximum trust region size
   const double Delta0 = 1e-2;     // Initial trust region size
   const double eta = 0.0;        // Trust ratio threshold - we accept steps if
