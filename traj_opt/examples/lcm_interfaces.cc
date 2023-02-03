@@ -1,5 +1,8 @@
 #include "drake/traj_opt/examples/lcm_interfaces.h"
 
+#include "drake/systems/controllers/linear_quadratic_regulator.h"
+#include "drake/systems/primitives/linear_system.h"
+
 namespace drake {
 namespace traj_opt {
 namespace examples {
@@ -28,8 +31,9 @@ void StateSender::OutputState(const Context<double>& context,
 }
 
 LowLevelController::LowLevelController(const MultibodyPlant<double>* plant,
+                                       const MultibodyPlant<double>* plant_lqr,
                                        const VectorXd Kp, const VectorXd Kd,
-                                       const double Vmax)
+                                       const double Vmax, const bool lqr)
     : nu_(plant->num_actuators()),
       nq_(plant->num_positions()),
       nv_(plant->num_velocities()),
@@ -37,7 +41,11 @@ LowLevelController::LowLevelController(const MultibodyPlant<double>* plant,
       Kp_(B_.transpose() * Kp.asDiagonal()),
       Kd_(B_.transpose() * Kd.asDiagonal()),
       Vmax_(Vmax),
-      plant_(plant) {
+      lqr_(lqr),
+      Q_(1e0 * MatrixXd::Identity(nq_ + nv_, nq_ + nv_)),
+      R_(1e-3 * MatrixXd::Identity(nu_, nu_)),
+      plant_(plant),
+      plant_lqr_(plant_lqr) {
   // Some size sanity checks
   DRAKE_DEMAND(Kp_.rows() == nu_);
   DRAKE_DEMAND(Kp_.cols() == nq_);
@@ -55,6 +63,8 @@ LowLevelController::LowLevelController(const MultibodyPlant<double>* plant,
 
   // Set up system context
   context_ = plant_->CreateDefaultContext();
+  // Create context for the LQR plant
+  context_lqr_ = plant_lqr_->CreateDefaultContext();
 }
 
 void LowLevelController::OutputCommandAsVector(
@@ -78,28 +88,54 @@ void LowLevelController::OutputCommandAsVector(
 
   // We sometimes need to wait to get the right data on the channel
   if (static_cast<int>(command.nu) == nu_) {
-    // Set PD+ input to track the trajectory from the optimizer. This will be
-    // applied if system energy is sufficiently low.
-    VectorXd u = u_nom - Kp_ * (q - q_nom) - Kd_ * (v - v_nom);
+    // Initialize the control input to the nominal values
+    VectorXd u = u_nom;
 
-    // Compute current system energy
-    plant_->SetPositionsAndVelocities(context_.get(), x);
-    const double V = plant_->EvalKineticEnergy(*context_) +
-                     plant_->EvalPotentialEnergy(*context_);
+    // Use the PD+ controller if the LQR is not enabled
+    if (!lqr_) {
+      // Set PD+ input to track the trajectory from the optimizer. This will be
+      // applied if system energy is sufficiently low.
+      u = u_nom - Kp_ * (q - q_nom) - Kd_ * (v - v_nom);
 
-    // Apply a barrier function to bound the system energy
-    //const double gamma = std::exp(15 * V / Vmax_ - 15);
-    const double gamma = std::pow(V / Vmax_, 4);
-    if ((0 <= gamma) && (gamma <= 1)) {
-      u = (1 - gamma) * u - gamma * B_.transpose() * v;
-    } else if (gamma > 1) {
-      u = -gamma * B_.transpose() * v;
+      // Compute current system energy
+      plant_->SetPositionsAndVelocities(context_.get(), x);
+      const double V = plant_->EvalKineticEnergy(*context_) +
+                       plant_->EvalPotentialEnergy(*context_);
+
+      // Apply a barrier function to bound the system energy
+      // const double gamma = std::exp(15 * V / Vmax_ - 15);
+      const double gamma = std::pow(V / Vmax_, 4);
+      if ((0 <= gamma) && (gamma <= 1)) {
+        u = (1 - gamma) * u - gamma * B_.transpose() * v;
+      } else if (gamma > 1) {
+        u = -gamma * B_.transpose() * v;
+      }
+
+      // Apply torque limits
+      // TODO(vincekurtz): make this a yaml parameter
+      // const double tau_max = 10;
+      // u = u.cwiseMin(tau_max).cwiseMax(-tau_max);
+    } else {
+      // Setup the LQR plant and context
+      plant_lqr_->SetPositionsAndVelocities(context_lqr_.get(), x);
+      plant_lqr_->get_actuation_input_port().FixValue(context_lqr_.get(),
+                                                      u_nom);
+      // Linearize the forward dynamics about the current operating point
+      // NOTE: The equilibrium tolerance is practically ignored using a very
+      // large tolerance since we rarely operate at an equilibrium.
+      auto linear_system =
+          Linearize(*plant_lqr_, *context_lqr_,
+                    plant_lqr_->get_actuation_input_port().get_index(),
+                    systems::OutputPortSelection::kNoOutput, 1e20);
+      // Solve the continuous Riccati equations to get the feedback law.
+      auto lqr_result = systems::controllers::LinearQuadraticRegulator(
+          linear_system->A(), linear_system->B(), Q_, R_);
+      // Evaluate the LQR compensation.
+      auto u_lqr = lqr_result.K.leftCols(nq_) * (q - q_nom) +
+                   lqr_result.K.rightCols(nv_) * (v - v_nom);
+      // Apply the LQR contribution to the control input.
+      u = u_nom - u_lqr;
     }
-
-    // Apply torque limits
-    // TODO(vincekurtz): make this a yaml parameter
-    //const double tau_max = 10;
-    //u = u.cwiseMin(tau_max).cwiseMax(-tau_max);
 
     output->SetFromVector(u);
 

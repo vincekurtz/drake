@@ -134,6 +134,11 @@ void TrajOptExample::SimulateWithControlFromLcm(
   CreatePlantModel(&plant);
   plant.Finalize();
 
+  // Create a continuous time plant for LQR
+  multibody::MultibodyPlant<double> plant_lqr(0.0);
+  CreatePlantModel(&plant_lqr);
+  plant_lqr.Finalize();
+
   // Connect to the visualizer
   geometry::DrakeVisualizerParams vis_params;
   vis_params.role = geometry::Role::kIllustration;
@@ -156,8 +161,8 @@ void TrajOptExample::SimulateWithControlFromLcm(
   }
 
   // Connect the low-level controller
-  auto controller =
-      builder.AddSystem<LowLevelController>(&plant, Kp, Kd, options.Vmax);
+  auto controller = builder.AddSystem<LowLevelController>(
+      &plant, &plant_lqr, Kp, Kd, options.Vmax, options.lqr);
   builder.Connect(command_subscriber->get_output_port(),
                   controller->get_control_input_port());
   builder.Connect(plant.get_state_output_port(),
