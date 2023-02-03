@@ -59,3 +59,4 @@ controller_frequency : 50
 sim_time : 5
 sim_time_step : 1e-3
 sim_realtime_rate : 1.0
+lqr : true        # use LQR instead of PD+

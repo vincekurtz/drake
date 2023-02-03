@@ -72,6 +72,7 @@ controller_frequency : 30
 sim_time : 10
 sim_time_step : 1e-3
 sim_realtime_rate : 1.0
-#Kp : [0.0, 20.0]
-#Kd : [0.0, 1.0]
-#Vmax : 100
+Kp : [0.0, 20.0]
+Kd : [0.0, 1.0]
+Vmax : 100
+lqr : true        # use LQR instead of PD+
