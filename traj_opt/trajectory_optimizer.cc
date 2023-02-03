@@ -2081,15 +2081,15 @@ T TrajectoryOptimizer<T>::CalcTrustRatio(
   scratch_state->AddToQ(dq);
   const T L_kp = EvalCost(*scratch_state);
   
-  const VectorX<T>& g_kp = EvalGradient(*scratch_state);
-  const PentaDiagonalMatrix<T>& H_kp = EvalHessian(*scratch_state);
+  //const VectorX<T>& g_kp = EvalGradient(*scratch_state);
+  //const PentaDiagonalMatrix<T>& H_kp = EvalHessian(*scratch_state);
   const VectorX<T>& h_kp = EvalEqualityConstraintViolations(*scratch_state);
-  const MatrixX<T>& J_kp = EvalEqualityConstraintJacobian(*scratch_state);
-  const MatrixX<T> Hinv_kp = H_kp.MakeDense().inverse();
-  const VectorX<T> lambda_kp = (J_kp * Hinv_kp * J_kp.transpose()).inverse() *
-                             (h_kp - J_kp * Hinv_kp * g_kp);
+  //const MatrixX<T>& J_kp = EvalEqualityConstraintJacobian(*scratch_state);
+  //const MatrixX<T> Hinv_kp = H_kp.MakeDense().inverse();
+  //const VectorX<T> lambda_kp = (J_kp * Hinv_kp * J_kp.transpose()).inverse() *
+  //                           (h_kp - J_kp * Hinv_kp * g_kp);
   
-  const T augmented_cost_kp = L_kp + T(h_kp.transpose() * lambda_kp);
+  const T augmented_cost_kp = L_kp + T(h_kp.transpose() * lambda_k);
 
   // Compute predicted reduction in cost
   VectorX<T>& Hdq = state.workspace.q_times_num_steps_size_tmp;
