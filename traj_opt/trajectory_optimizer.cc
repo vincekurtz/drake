@@ -2065,14 +2065,16 @@ T TrajectoryOptimizer<T>::CalcTrustRatio(
   const T L_k = EvalCost(state);
   const VectorX<T>& g_k = EvalGradient(state);
   const PentaDiagonalMatrix<T>& H_k = EvalHessian(state);
-    
-  const VectorX<T>& h_k = EvalEqualityConstraintViolations(state);
-  const MatrixX<T>& J_k = EvalEqualityConstraintJacobian(state);
-  const MatrixX<T> Hinv_k = H_k.MakeDense().inverse();
-  const VectorX<T> lambda_k =
-        (J_k * Hinv_k * J_k.transpose()).inverse() * (h_k - J_k * Hinv_k * g_k);
+  T merit_function_k = L_k;
 
-  const T augmented_cost_k = L_k + T(h_k.transpose() * lambda_k);
+  //const VectorX<T>& h_k = EvalEqualityConstraintViolations(state);
+  //const MatrixX<T>& J_k = EvalEqualityConstraintJacobian(state);
+  //const MatrixX<T> Hinv_k = H_k.MakeDense().inverse();
+  //const VectorX<T> lambda_k =
+  //      (J_k * Hinv_k * J_k.transpose()).inverse() * (h_k - J_k * Hinv_k * g_k);
+  //if (params_.equality_constraints) {
+  //  merit_function_k += h_k.dot(lambda_k);
+  //}
 
   // Quantities at the next iteration if we accept the step (kp = k+1)
   // TODO(vincekurtz): if we do end up accepting the step, it would be nice to
@@ -2080,26 +2082,31 @@ T TrajectoryOptimizer<T>::CalcTrustRatio(
   scratch_state->set_q(state.q());
   scratch_state->AddToQ(dq);
   const T L_kp = EvalCost(*scratch_state);
-  
-  //const VectorX<T>& g_kp = EvalGradient(*scratch_state);
-  //const PentaDiagonalMatrix<T>& H_kp = EvalHessian(*scratch_state);
-  const VectorX<T>& h_kp = EvalEqualityConstraintViolations(*scratch_state);
-  //const MatrixX<T>& J_kp = EvalEqualityConstraintJacobian(*scratch_state);
-  //const MatrixX<T> Hinv_kp = H_kp.MakeDense().inverse();
-  //const VectorX<T> lambda_kp = (J_kp * Hinv_kp * J_kp.transpose()).inverse() *
-  //                           (h_kp - J_kp * Hinv_kp * g_kp);
-  
-  const T augmented_cost_kp = L_kp + T(h_kp.transpose() * lambda_k);
+  T merit_function_kp = L_kp;
 
-  // Compute predicted reduction in cost
+  //if (params_.equality_constraints) {
+  //  const VectorX<T>& g_kp = EvalGradient(*scratch_state);
+  //  const PentaDiagonalMatrix<T>& H_kp = EvalHessian(*scratch_state);
+  //  const VectorX<T>& h_kp = EvalEqualityConstraintViolations(*scratch_state);
+  //  const MatrixX<T>& J_kp = EvalEqualityConstraintJacobian(*scratch_state);
+  //  const MatrixX<T> Hinv_kp = H_kp.MakeDense().inverse();
+  //  const VectorX<T> lambda_kp = (J_kp * Hinv_kp * J_kp.transpose()).inverse() *
+  //                             (h_kp - J_kp * Hinv_kp * g_kp);
+  //  merit_function_kp += h_kp.dot(lambda_kp);
+  //} 
+
+  // Compute predicted reduction in the merit function
   VectorX<T>& Hdq = state.workspace.q_times_num_steps_size_tmp;
   H_k.MultiplyBy(dq, &Hdq);  // Hdq = H_k * dq
   const T hessian_term = 0.5 * dq.transpose() * Hdq;
-  const T gradient_term = (g_k + J_k.transpose()*lambda_k).dot(dq);
+  T gradient_term = g_k.dot(dq);
+  //if (params_.equality_constraints) {
+  //  gradient_term += (J_k.transpose()*lambda_k).dot(dq);
+  //}
   const T predicted_reduction = -gradient_term - hessian_term;
 
   // Compute actual reduction in cost
-  const T actual_reduction = augmented_cost_k - augmented_cost_kp;
+  const T actual_reduction = merit_function_k - merit_function_kp;
 
   // Threshold for determining when the actual and predicted reduction in cost
   // are essentially zero. This is determined by the approximate level of
