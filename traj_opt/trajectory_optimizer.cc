@@ -2548,8 +2548,8 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
   std::chrono::duration<double> solve_time;
 
   // Trust region parameters
-  const double Delta_max = 1e5;  // Maximum trust region size
-  const double Delta0 = 1e0;     // Initial trust region size
+  const double Delta_max = 1e-1;  // Maximum trust region size
+  const double Delta0 = 1e-2;     // Initial trust region size
   const double eta = 0.0;        // Trust ratio threshold - we accept steps if
                                  // the trust ratio is above this threshold
 
@@ -2591,6 +2591,15 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
     const double cost = EvalCost(state);
     const double dL_dq = g.dot(dq) / cost;
     const double q_norm = state.norm();
+
+    // DEBUG
+    // TODO: log this properly instead of replacing linesearch iters 
+    const VectorXd& h = EvalEqualityConstraintViolations(state);
+    const MatrixXd& J = EvalEqualityConstraintJacobian(state);
+    const MatrixXd Hinv = EvalHessian(state).MakeDense().inverse();
+    const VectorXd lambda =
+        (J * Hinv * J.transpose()).inverse() * (h - J * Hinv * g);
+    const double cost_alt = cost + h.transpose() * lambda;
 
     // Compute the trust region ratio
     rho = CalcTrustRatio(state, dq, &scratch_state);
@@ -2645,7 +2654,7 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
     iter_start_time = std::chrono::high_resolution_clock::now();
 
     // Printout statistics from this iteration
-    const VectorXd& h = EvalEqualityConstraintViolations(state);
+    //const VectorXd& h = EvalEqualityConstraintViolations(state);
     if (params_.verbose) {
       if ((k % 50) == 0) {
         // Refresh the labels for easy reading
@@ -2664,7 +2673,7 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
     // Record statistics from this iteration
     stats->push_data(iter_time.count(),  // iteration time
                      cost,               // cost
-                     0,                  // linesearch iterations
+                     cost_alt,                  // linesearch iterations
                      NAN,                // linesearch parameter
                      Delta,              // trust region size
                      q_norm,             // q norm

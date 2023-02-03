@@ -84,8 +84,9 @@ ax[2,1].plot(iters, data["h_norm"])
 ax[2,1].set_ylabel("Constraint Viol.")
 ax[2,1].set_yscale("log")
 
-ax[3,1].plot(iters, data["ls_iters"])
-ax[3,1].set_ylabel("Linesearch Iters")
+ax[3,1].plot(iters, data["ls_iters"] - np.min(data["ls_iters"]))
+ax[3,1].set_ylabel("L(q) + h(q)'λ")
+ax[3,1].set_yscale('log')
 
 ax[4,1].plot(iters, data["alpha"])
 ax[4,1].set_ylabel(r"Linesearch Param $\alpha$")
