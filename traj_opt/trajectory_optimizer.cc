@@ -2216,6 +2216,7 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
 
   // TODO: make more efficient
   VectorXd g = EvalScaledGradient(state);
+  PRINT_VARn(g);
   if (params_.equality_constraints) {
     // Instead of the gradient, use the "constrained gradient" g + J'λ.
     // This means the full step pH satisfies the KKT conditions
@@ -2228,6 +2229,8 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
     const MatrixXd Hinv = H.MakeDense().inverse();
     const VectorXd lambda =
         (J * Hinv * J.transpose()).inverse() * (h - J * Hinv * g);
+    PRINT_VARn(lambda);
+    PRINT_VARn(J.transpose());
     g = g + J.transpose() * lambda;
   }
 
