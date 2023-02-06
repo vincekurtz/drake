@@ -2092,15 +2092,8 @@ T TrajectoryOptimizer<T>::CalcTrustRatio(
   const T L_kp = EvalCost(*scratch_state);
   T merit_function_kp = L_kp;
 
+  const VectorX<T>& h_kp = EvalEqualityConstraintViolations(*scratch_state);
   if (params_.equality_constraints && al_merit) {
-    const VectorX<T>& g_kp = EvalGradient(*scratch_state);
-    const PentaDiagonalMatrix<T>& H_kp = EvalHessian(*scratch_state);
-    const VectorX<T>& h_kp = EvalEqualityConstraintViolations(*scratch_state);
-    const MatrixX<T>& J_kp = EvalEqualityConstraintJacobian(*scratch_state);
-    const MatrixX<T> Hinv_kp = H_kp.MakeDense().inverse();
-    const VectorX<T> lambda_kp = (J_kp * Hinv_kp * J_kp.transpose()).inverse() *
-                               (h_kp - J_kp * Hinv_kp * g_kp);
-    (void)lambda_kp;
     merit_function_kp += h_kp.dot(lambda_k);
   } 
 
@@ -2127,6 +2120,12 @@ T TrajectoryOptimizer<T>::CalcTrustRatio(
     // the trust ratio to a value such that the step will be accepted, but the
     // size of the trust region will not change.
     return 0.5;
+  }
+
+  // Check that we're actually reducing either the cost or the constraint violation
+  if ((L_kp > L_k) && (h_kp.norm() > h_k.norm())) {
+    std::cout << "COST AND CONSTRAINT VIOLATION INCREASED" << std::endl;
+    std::cout << "Trust ratio: " << actual_reduction / predicted_reduction << std::endl;
   }
 
   return actual_reduction / predicted_reduction;
