@@ -1509,13 +1509,15 @@ void TrajectoryOptimizer<T>::CalcEqualityConstraintJacobian(
 
   for (int t = 0; t < n_steps; ++t) {
     for (int i = 0; i < n_unactuated; ++i) {
-
+      // ∂hₜⁱ/∂qₜ
       J->block(t * n_unactuated + i, t * nq, 1, nq) =
           id_partials.dtau_dqt[t].row(unactuated_dofs()[i]);
 
+      // ∂hₜⁱ/∂qₜ₊₁
       J->block(t * n_unactuated + i, (t + 1) * nq, 1, nq) =
           id_partials.dtau_dqp[t].row(unactuated_dofs()[i]);
 
+      // ∂hₜⁱ/∂qₜ₋₁
       if (t > 0) {
         J->block(t * n_unactuated + i, (t - 1) * nq, 1, nq) =
             id_partials.dtau_dqm[t].row(unactuated_dofs()[i]);

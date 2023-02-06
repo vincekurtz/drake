@@ -1502,9 +1502,10 @@ GTEST_TEST(TrajectoryOptimizerTest, ContactJacobians) {
 }
 
 // Test our computation of equality constraints (torques on unactuated DoFs)
-GTEST_TEST(TrajectoryOptimizerTest, EqualityConstraints) {
+// using the spinner example
+GTEST_TEST(TrajectoryOptimizerTest, SpinnerEqualityConstraints) {
   // Define an optimization problem.
-  const int num_steps = 3;
+  const int num_steps = 5;
   const double dt = 0.05;
 
   ProblemDefinition opt_prob;
@@ -1526,7 +1527,7 @@ GTEST_TEST(TrajectoryOptimizerTest, EqualityConstraints) {
     opt_prob.v_nom.push_back(v_nom);
   }
 
-  // Create an acrobot model
+  // Create a system model
   DiagramBuilder<double> builder;
   MultibodyPlantConfig config;
   config.time_step = dt;
@@ -1551,11 +1552,7 @@ GTEST_TEST(TrajectoryOptimizerTest, EqualityConstraints) {
 
   // Compute equality constraint violations
   VectorXd h = optimizer.EvalEqualityConstraintViolations(state);
-
-  EXPECT_TRUE(h[0] != 0.0);
   EXPECT_TRUE(h.size() == num_steps);
-
-  PRINT_VARn(h);
 
   // Set up an autodiff copy of the optimizer and plant
   auto diagram_ad = systems::System<double>::ToAutoDiffXd(*diagram);
@@ -1583,16 +1580,105 @@ GTEST_TEST(TrajectoryOptimizerTest, EqualityConstraints) {
   MatrixXd J_ad = math::ExtractGradient(h_ad);
   MatrixXd J = optimizer.EvalEqualityConstraintJacobian(state);
 
-  PRINT_VARn(J);
-  PRINT_VARn(J_ad);
+  // We get a factor of sqrt(epsilon) since we're doing finite differences to
+  // get inverse dynamics partials. The first column from autodiff is not
+  // accurate since q0 is not a decision variable.
+  const double kTolerance = std::sqrt(std::numeric_limits<double>::epsilon());
+  EXPECT_TRUE(CompareMatrices(J_ad.rightCols(num_steps * nq),
+                              J.rightCols(num_steps * nq), kTolerance,
+                              MatrixCompareType::relative));
+}
+
+// Test our computation of equality constraints (torques on unactuated DoFs)
+// using the hopper example
+GTEST_TEST(TrajectoryOptimizerTest, HopperEqualityConstraints) {
+  // Define an optimization problem.
+  const int num_steps = 5;
+  const double dt = 1e-2;
+
+  ProblemDefinition opt_prob;
+  opt_prob.num_steps = num_steps;
+  opt_prob.q_init.resize(5);
+  opt_prob.q_init << 0.0, 0.6, 0.3, -0.5, 0.2;
+  opt_prob.v_init.resize(5);
+  opt_prob.v_init << 1.0, -0.2, 0.1, -0.3, 0.4;
+  opt_prob.Qq = 0.1 * MatrixXd::Identity(5, 5);
+  opt_prob.Qv = 0.2 * MatrixXd::Identity(5, 5);
+  opt_prob.Qf_q = 0.3 * MatrixXd::Identity(5, 5);
+  opt_prob.Qf_v = 0.4 * MatrixXd::Identity(5, 5);
+  opt_prob.R = 0.01 * MatrixXd::Identity(5, 5);
+
+  for (int t = 0; t <= num_steps; ++t) {
+    VectorXd q_nom(5);
+    VectorXd v_nom(5);
+    q_nom << 0.5, 0.5, 0.3, -0.4, 0.1;
+    v_nom << 0.01, 0.0, 0.2, 0.1, -0.1;
+    opt_prob.q_nom.push_back(q_nom);
+    opt_prob.v_nom.push_back(v_nom);
+  }
+
+  // Create a system
+  DiagramBuilder<double> builder;
+  MultibodyPlantConfig config;
+  config.time_step = dt;
+  auto [plant, scene_graph] = multibody::AddMultibodyPlant(config, &builder);
+  const std::string urdf_file =
+      FindResourceOrThrow("drake/traj_opt/examples/hopper.urdf");
+  Parser(&plant).AddAllModelsFromFile(urdf_file);
+  plant.Finalize();
+  auto diagram = builder.Build();
+
+  // Create an optimizer
+  TrajectoryOptimizer<double> optimizer(diagram.get(), &plant, opt_prob);
+  TrajectoryOptimizerState<double> state = optimizer.CreateState();
+
+  // Make some fake data
+  std::vector<VectorXd> q(num_steps + 1);
+  q[0] = opt_prob.q_init;
+  for (int t = 1; t <= num_steps; ++t) {
+    q[t] = q[t - 1] + dt * opt_prob.v_init;
+  }
+  state.set_q(q);
+
+  // Compute equality constraint violations
+  VectorXd h = optimizer.EvalEqualityConstraintViolations(state);
+
+  EXPECT_TRUE(h[0] != 0.0);
+  EXPECT_TRUE(h.size() == num_steps * 3);
+
+  // Set up an autodiff copy of the optimizer and plant
+  auto diagram_ad = systems::System<double>::ToAutoDiffXd(*diagram);
+  const auto& plant_ad = dynamic_cast<const MultibodyPlant<AutoDiffXd>&>(
+      diagram_ad->GetSubsystemByName(plant.get_name()));
+  TrajectoryOptimizer<AutoDiffXd> optimizer_ad(diagram_ad.get(), &plant_ad,
+                                               opt_prob);
+  TrajectoryOptimizerState<AutoDiffXd> state_ad = optimizer_ad.CreateState();
+
+  std::vector<VectorX<AutoDiffXd>> q_ad(num_steps + 1, VectorX<AutoDiffXd>(5));
+  int ad_idx = 0;  // index for autodiff variables
+  const int nq = plant.num_positions();
+  const int num_vars = (num_steps + 1) * nq;
+  for (int t = 0; t <= num_steps; ++t) {
+    for (int i = 0; i < nq; ++i) {
+      q_ad[t].segment<1>(i) =
+          math::InitializeAutoDiff(q[t].segment<1>(i), num_vars, ad_idx);
+      ++ad_idx;
+    }
+  }
+  state_ad.set_q(q_ad);
+
+  VectorX<AutoDiffXd> h_ad =
+      optimizer_ad.EvalEqualityConstraintViolations(state_ad);
+  MatrixXd J_ad = math::ExtractGradient(h_ad);
+  MatrixXd J = optimizer.EvalEqualityConstraintJacobian(state);
 
   // We get a factor of sqrt(epsilon) since we're doing finite differences to
   // get inverse dynamics partials. The first column from autodiff is not
   // accurate since q0 is not a decision variable.
-  //const double kTolerance = std::sqrt(std::numeric_limits<double>::epsilon());
-  //EXPECT_TRUE(CompareMatrices(J_ad.rightCols(num_steps * nq),
-  //                            J.rightCols(num_steps * nq), kTolerance,
-  //                            MatrixCompareType::relative));
+  const double kTolerance = std::sqrt(std::numeric_limits<double>::epsilon());
+  EXPECT_TRUE(CompareMatrices(J_ad.rightCols(num_steps * nq),
+                              J.rightCols(num_steps * nq), kTolerance,
+                              MatrixCompareType::relative));
 }
 
 }  // namespace internal
