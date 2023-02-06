@@ -2072,14 +2072,17 @@ T TrajectoryOptimizer<T>::CalcTrustRatio(
   const PentaDiagonalMatrix<T>& H_k = EvalHessian(state);
   T merit_function_k = L_k;
 
-  //const VectorX<T>& h_k = EvalEqualityConstraintViolations(state);
-  //const MatrixX<T>& J_k = EvalEqualityConstraintJacobian(state);
-  //const MatrixX<T> Hinv_k = H_k.MakeDense().inverse();
-  //const VectorX<T> lambda_k =
-  //      (J_k * Hinv_k * J_k.transpose()).inverse() * (h_k - J_k * Hinv_k * g_k);
-  //if (params_.equality_constraints) {
-  //  merit_function_k += h_k.dot(lambda_k);
-  //}
+  // DEBUG: flag for using augmented lagrangian merit function
+  bool al_merit = true;
+
+  const VectorX<T>& h_k = EvalEqualityConstraintViolations(state);
+  const MatrixX<T>& J_k = EvalEqualityConstraintJacobian(state);
+  const MatrixX<T> Hinv_k = H_k.MakeDense().inverse();
+  const VectorX<T> lambda_k =
+        (J_k * Hinv_k * J_k.transpose()).inverse() * (h_k - J_k * Hinv_k * g_k);
+  if (params_.equality_constraints && al_merit) {
+    merit_function_k += h_k.dot(lambda_k);
+  }
 
   // Quantities at the next iteration if we accept the step (kp = k+1)
   // TODO(vincekurtz): if we do end up accepting the step, it would be nice to
@@ -2089,25 +2092,25 @@ T TrajectoryOptimizer<T>::CalcTrustRatio(
   const T L_kp = EvalCost(*scratch_state);
   T merit_function_kp = L_kp;
 
-  //if (params_.equality_constraints) {
-  //  const VectorX<T>& g_kp = EvalGradient(*scratch_state);
-  //  const PentaDiagonalMatrix<T>& H_kp = EvalHessian(*scratch_state);
-  //  const VectorX<T>& h_kp = EvalEqualityConstraintViolations(*scratch_state);
-  //  const MatrixX<T>& J_kp = EvalEqualityConstraintJacobian(*scratch_state);
-  //  const MatrixX<T> Hinv_kp = H_kp.MakeDense().inverse();
-  //  const VectorX<T> lambda_kp = (J_kp * Hinv_kp * J_kp.transpose()).inverse() *
-  //                             (h_kp - J_kp * Hinv_kp * g_kp);
-  //  merit_function_kp += h_kp.dot(lambda_kp);
-  //} 
+  if (params_.equality_constraints && al_merit) {
+    const VectorX<T>& g_kp = EvalGradient(*scratch_state);
+    const PentaDiagonalMatrix<T>& H_kp = EvalHessian(*scratch_state);
+    const VectorX<T>& h_kp = EvalEqualityConstraintViolations(*scratch_state);
+    const MatrixX<T>& J_kp = EvalEqualityConstraintJacobian(*scratch_state);
+    const MatrixX<T> Hinv_kp = H_kp.MakeDense().inverse();
+    const VectorX<T> lambda_kp = (J_kp * Hinv_kp * J_kp.transpose()).inverse() *
+                               (h_kp - J_kp * Hinv_kp * g_kp);
+    merit_function_kp += h_kp.dot(lambda_kp);
+  } 
 
   // Compute predicted reduction in the merit function
   VectorX<T>& Hdq = state.workspace.q_times_num_steps_size_tmp;
   H_k.MultiplyBy(dq, &Hdq);  // Hdq = H_k * dq
   const T hessian_term = 0.5 * dq.transpose() * Hdq;
   T gradient_term = g_k.dot(dq);
-  //if (params_.equality_constraints) {
-  //  gradient_term += (J_k.transpose()*lambda_k).dot(dq);
-  //}
+  if (params_.equality_constraints && al_merit) {
+    gradient_term += (J_k.transpose()*lambda_k).dot(dq);
+  }
   const T predicted_reduction = -gradient_term - hessian_term;
 
   // Compute actual reduction in cost
@@ -2514,7 +2517,8 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithLinesearch(
                      trust_ratio,        // trust ratio
                      g.norm(),           // gradient size
                      dL_dq,              // gradient along dq
-                     h.norm());          // equality constraint violation
+                     h.norm(),           // equality constraint violation
+                     cost);              // merit function
 
     ++k;
   } while (k < params_.max_iterations && !linesearch_failed);
@@ -2585,8 +2589,8 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
 
   // Trust region parameters
   // TODO: choose larger, more reasonable initial values
-  const double Delta_max = 1e-1;  // Maximum trust region size
-  const double Delta0 = 1e-2;     // Initial trust region size
+  const double Delta_max = 1e5;  // Maximum trust region size
+  const double Delta0 = 1e-1;    // Initial trust region size
   const double eta = 0.0;        // Trust ratio threshold - we accept steps if
                                  // the trust ratio is above this threshold
 
@@ -2629,14 +2633,13 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
     const double dL_dq = g.dot(dq) / cost;
     const double q_norm = state.norm();
 
-    // DEBUG
-    // TODO: log this properly instead of replacing linesearch iters 
+    // TODO: compute merit function more efficiently
     const VectorXd& h = EvalEqualityConstraintViolations(state);
     const MatrixXd& J = EvalEqualityConstraintJacobian(state);
     const MatrixXd Hinv = EvalHessian(state).MakeDense().inverse();
     const VectorXd lambda =
         (J * Hinv * J.transpose()).inverse() * (h - J * Hinv * g);
-    const double cost_alt = cost + h.transpose() * lambda;
+    const double merit = cost + h.transpose() * lambda;
 
     // Compute the trust region ratio
     rho = CalcTrustRatio(state, dq, &scratch_state);
@@ -2710,7 +2713,7 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
     // Record statistics from this iteration
     stats->push_data(iter_time.count(),  // iteration time
                      cost,               // cost
-                     cost_alt,                  // linesearch iterations
+                     0,                  // linesearch iterations
                      NAN,                // linesearch parameter
                      Delta,              // trust region size
                      q_norm,             // q norm
@@ -2719,7 +2722,8 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
                      rho,                // trust region ratio
                      g.norm(),           // gradient size
                      dL_dq,              // gradient along dq
-                     h.norm());          // equality constraint violation
+                     h.norm(),           // equality constraint violation
+                     merit);             // merit function
 
     // Only check convergence criteria for valid steps.
     ConvergenceReason reason{
