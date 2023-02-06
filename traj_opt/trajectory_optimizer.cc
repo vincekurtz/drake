@@ -2100,7 +2100,8 @@ T TrajectoryOptimizer<T>::CalcTrustRatio(
     const MatrixX<T> Hinv_kp = H_kp.MakeDense().inverse();
     const VectorX<T> lambda_kp = (J_kp * Hinv_kp * J_kp.transpose()).inverse() *
                                (h_kp - J_kp * Hinv_kp * g_kp);
-    merit_function_kp += h_kp.dot(lambda_kp);
+    (void)lambda_kp;
+    merit_function_kp += h_kp.dot(lambda_k);
   } 
 
   // Compute predicted reduction in the merit function
