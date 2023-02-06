@@ -1583,8 +1583,8 @@ GTEST_TEST(TrajectoryOptimizerTest, EqualityConstraints) {
   MatrixXd J_ad = math::ExtractGradient(h_ad);
   MatrixXd J = optimizer.EvalEqualityConstraintJacobian(state);
 
-  PRINT_VARn(J.transpose());
-  PRINT_VARn(J_ad.transpose());
+  PRINT_VARn(J);
+  PRINT_VARn(J_ad);
 
   // We get a factor of sqrt(epsilon) since we're doing finite differences to
   // get inverse dynamics partials. The first column from autodiff is not

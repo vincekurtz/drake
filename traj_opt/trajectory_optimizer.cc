@@ -1509,13 +1509,16 @@ void TrajectoryOptimizer<T>::CalcEqualityConstraintJacobian(
 
   for (int t = 0; t < n_steps; ++t) {
     for (int i = 0; i < n_unactuated; ++i) {
+
       J->block(t * n_unactuated + i, t * nq, 1, nq) =
-          id_partials.dtau_dqt[t].row(i);
+          id_partials.dtau_dqt[t].row(unactuated_dofs()[i]);
+
       J->block(t * n_unactuated + i, (t + 1) * nq, 1, nq) =
-          id_partials.dtau_dqp[t].row(i);
+          id_partials.dtau_dqp[t].row(unactuated_dofs()[i]);
+
       if (t > 0) {
         J->block(t * n_unactuated + i, (t - 1) * nq, 1, nq) =
-            id_partials.dtau_dqm[t].row(i);
+            id_partials.dtau_dqm[t].row(unactuated_dofs()[i]);
       }
     }
   }
@@ -2216,7 +2219,6 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
 
   // TODO: make more efficient
   VectorXd g = EvalScaledGradient(state);
-  PRINT_VARn(g);
   if (params_.equality_constraints) {
     // Instead of the gradient, use the "constrained gradient" g + J'λ.
     // This means the full step pH satisfies the KKT conditions
@@ -2229,8 +2231,6 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
     const MatrixXd Hinv = H.MakeDense().inverse();
     const VectorXd lambda =
         (J * Hinv * J.transpose()).inverse() * (h - J * Hinv * g);
-    PRINT_VARn(lambda);
-    PRINT_VARn(J.transpose());
     g = g + J.transpose() * lambda;
   }
 
