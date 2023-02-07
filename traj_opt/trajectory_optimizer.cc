@@ -1307,6 +1307,7 @@ const VectorX<T>& TrajectoryOptimizer<T>::EvalGradient(
     const TrajectoryOptimizerState<T>& state) const {
   if (!state.cache().gradient_up_to_date) {
     CalcGradient(state, &state.mutable_cache().gradient);
+    state.mutable_cache().gradient_up_to_date = true;
   }
   return state.cache().gradient;
 }
@@ -1577,6 +1578,7 @@ void TrajectoryOptimizer<double>::CalcLagrangeMultipliers(
 template <typename T>
 const VectorX<T>& TrajectoryOptimizer<T>::EvalLagrangeMultipliers(
     const TrajectoryOptimizerState<T>& state) const {
+  // TODO: don't compute anything if equality constraints are off
   if (!state.cache().lagrange_multipliers_up_to_date) {
     CalcLagrangeMultipliers(state, &state.mutable_cache().lagrange_multipliers);
     state.mutable_cache().lagrange_multipliers_up_to_date = true;
@@ -2116,15 +2118,10 @@ T TrajectoryOptimizer<T>::CalcTrustRatio(
   const PentaDiagonalMatrix<T>& H_k = EvalHessian(state);
   T merit_function_k = L_k;
 
-  // DEBUG: flag for using augmented lagrangian merit function
-  bool al_merit = true;
-
   const VectorX<T>& h_k = EvalEqualityConstraintViolations(state);
   const MatrixX<T>& J_k = EvalEqualityConstraintJacobian(state);
-  const MatrixX<T> Hinv_k = H_k.MakeDense().inverse();
-  const VectorX<T> lambda_k =
-        (J_k * Hinv_k * J_k.transpose()).inverse() * (h_k - J_k * Hinv_k * g_k);
-  if (params_.equality_constraints && al_merit) {
+  const VectorX<T>& lambda_k = EvalLagrangeMultipliers(state);
+  if (params_.equality_constraints) {
     merit_function_k += h_k.dot(lambda_k);
   }
 
@@ -2137,7 +2134,7 @@ T TrajectoryOptimizer<T>::CalcTrustRatio(
   T merit_function_kp = L_kp;
 
   const VectorX<T>& h_kp = EvalEqualityConstraintViolations(*scratch_state);
-  if (params_.equality_constraints && al_merit) {
+  if (params_.equality_constraints) {
     merit_function_kp += h_kp.dot(lambda_k);
   } 
 
@@ -2146,7 +2143,7 @@ T TrajectoryOptimizer<T>::CalcTrustRatio(
   H_k.MultiplyBy(dq, &Hdq);  // Hdq = H_k * dq
   const T hessian_term = 0.5 * dq.transpose() * Hdq;
   T gradient_term = g_k.dot(dq);
-  if (params_.equality_constraints && al_merit) {
+  if (params_.equality_constraints) {
     gradient_term += (J_k.transpose()*lambda_k).dot(dq);
   }
   const T predicted_reduction = -gradient_term - hessian_term;
@@ -2260,7 +2257,7 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
   // regular Hessian, and EvalScaledGradient returns the regular gradient.
   const PentaDiagonalMatrix<double>& H = EvalScaledHessian(state);
 
-  // TODO: make more efficient
+  // TODO: remove state allocations here
   VectorXd g = EvalScaledGradient(state);
   if (params_.equality_constraints) {
     // Instead of the gradient, use the "constrained gradient" g + J'λ.
@@ -2665,7 +2662,7 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
     const double dL_dq = g.dot(dq) / cost;
     const double q_norm = state.norm();
 
-    // TODO: compute merit function more efficiently
+    // TODO: consider placing the merit function in the cache
     const VectorXd& h = EvalEqualityConstraintViolations(state);
     const VectorXd& lambda = EvalLagrangeMultipliers(state);
     const double merit = cost + h.transpose() * lambda;
