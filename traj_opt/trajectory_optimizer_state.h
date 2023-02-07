@@ -57,13 +57,15 @@ struct TrajectoryOptimizerCache {
         scaled_gradient(num_steps + 1, nq),
         scale_factors((num_steps + 1) * nq),
         constraint_violation(num_eq_constraints),
-        constraint_jacobian(num_eq_constraints, (num_steps + 1) * nq) {
+        constraint_jacobian(num_eq_constraints, (num_steps + 1) * nq),
+        lagrange_multipliers(num_eq_constraints) {
     trajectory_data.v.assign(num_steps + 1, VectorX<T>(nv));
     trajectory_data.a.assign(num_steps, VectorX<T>(nv));
     inverse_dynamics_cache.tau.assign(num_steps, VectorX<T>(nv));
     N_plus.assign(num_steps + 1, MatrixX<T>::Zero(nv, nq));
     scale_factors.setConstant(1.0);
     constraint_jacobian.setZero();
+    lagrange_multipliers.setZero();
     // TODO(amcastro-tri): We could allocate contact_jacobian_data here if we
     // knew the number of contacts. For now, we'll defer the allocation to a
     // later stage when the number of contacts is available.
@@ -199,6 +201,10 @@ struct TrajectoryOptimizerCache {
   // Jacobian of equality constraints J = ∂h(q)/∂q
   MatrixX<T> constraint_jacobian;
   bool constraint_jacobian_up_to_date{false};
+
+  // Lagrange multipliers λ for the equality constraints h(q) = 0
+  VectorX<T> lagrange_multipliers;
+  bool lagrange_multipliers_up_to_date{false};
 };
 
 template <typename T>
@@ -413,6 +419,7 @@ class TrajectoryOptimizerState {
     cache_.scale_factors_up_to_date = false;
     cache_.constraint_violation_up_to_date = false;
     cache_.constraint_jacobian_up_to_date = false;
+    cache_.lagrange_multipliers_up_to_date = false;
   }
 };
 

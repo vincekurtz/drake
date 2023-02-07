@@ -1541,6 +1541,27 @@ const MatrixX<T>& TrajectoryOptimizer<T>::EvalEqualityConstraintJacobian(
 }
 
 template <typename T>
+void TrajectoryOptimizer<T>::CalcLagrangeMultipliers(
+    const TrajectoryOptimizerState<T>& state, VectorX<T>* lambda) const {
+  const PentaDiagonalMatrix<T>& H = EvalHessian(state);
+  const VectorX<T>& g = EvalGradient(state);
+  const VectorX<T>& h = EvalEqualityConstraintViolations(state);
+  const MatrixX<T>& J = EvalEqualityConstraintJacobian(state);
+  const MatrixX<T> Hinv = H.MakeDense().inverse();
+  *lambda = (J * Hinv * J.transpose()).inverse() * (h - J * Hinv * g);
+}
+
+template <typename T>
+const VectorX<T>& TrajectoryOptimizer<T>::EvalLagrangeMultipliers(
+    const TrajectoryOptimizerState<T>& state) const {
+  if (!state.cache().lagrange_multipliers_up_to_date) {
+    CalcLagrangeMultipliers(state, &state.mutable_cache().lagrange_multipliers);
+    state.mutable_cache().lagrange_multipliers_up_to_date = true;
+  }
+  return state.cache().lagrange_multipliers;
+}
+
+template <typename T>
 void TrajectoryOptimizer<T>::CalcExactHessian(
     const TrajectoryOptimizerState<T>&, PentaDiagonalMatrix<T>*) const {
   throw std::runtime_error(
@@ -2107,7 +2128,7 @@ T TrajectoryOptimizer<T>::CalcTrustRatio(
   }
   const T predicted_reduction = -gradient_term - hessian_term;
 
-  // Compute actual reduction in cost
+  // Compute actual reduction in the merit function
   const T actual_reduction = merit_function_k - merit_function_kp;
 
   // Threshold for determining when the actual and predicted reduction in cost
@@ -2120,12 +2141,6 @@ T TrajectoryOptimizer<T>::CalcTrustRatio(
     // the trust ratio to a value such that the step will be accepted, but the
     // size of the trust region will not change.
     return 0.5;
-  }
-
-  // Check that we're actually reducing either the cost or the constraint violation
-  if ((L_kp > L_k) && (h_kp.norm() > h_k.norm())) {
-    std::cout << "COST AND CONSTRAINT VIOLATION INCREASED" << std::endl;
-    std::cout << "Trust ratio: " << actual_reduction / predicted_reduction << std::endl;
   }
 
   return actual_reduction / predicted_reduction;
@@ -2231,12 +2246,8 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
     //     [J  0 ] [ λ]   [-h]
     // while the shortened step pU minimizes the quadratic approximation in the
     // direction of -g - J'λ.
-    const VectorXd& h = EvalEqualityConstraintViolations(state);
     const MatrixXd& J = EvalEqualityConstraintJacobian(state);
-    const MatrixXd Hinv = H.MakeDense().inverse();
-    const VectorXd lambda =
-        (J * Hinv * J.transpose()).inverse() * (h - J * Hinv * g);
-
+    const VectorXd& lambda = EvalLagrangeMultipliers(state);
     g = g + J.transpose() * lambda;
   }
 
@@ -2420,21 +2431,18 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithLinesearch(
       // Solve KKT conditions for the search direction
       // [H  J']*[dq] = [-g]
       // [J  0 ] [ λ]   [-h]
-      // TODO: make more efficient
       const MatrixXd& J = EvalEqualityConstraintJacobian(state);
-      const MatrixXd Hinv = H.MakeDense().inverse();
-      const VectorXd lambda =
-          (J * Hinv * J.transpose()).inverse() * (h - J * Hinv * g);
-      dq = Hinv * (-g - J.transpose() * lambda);
+      const VectorXd& lambda = EvalLagrangeMultipliers(state);
+      dq = -g - J.transpose() * lambda;
     } else {
       // Solve for search direction H*dq = -g
       dq = -g;
-      PentaDiagonalFactorization Hchol(H);
-      if (Hchol.status() != PentaDiagonalFactorizationStatus::kSuccess) {
-        return SolverFlag::kFactorizationFailed;
-      }
-      Hchol.SolveInPlace(&dq);
     }
+    PentaDiagonalFactorization Hchol(H);
+    if (Hchol.status() != PentaDiagonalFactorizationStatus::kSuccess) {
+      return SolverFlag::kFactorizationFailed;
+    }
+    Hchol.SolveInPlace(&dq);
 
     // Solve the linsearch
     // N.B. we use a separate state variable since we will need to compute
@@ -2636,10 +2644,7 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
 
     // TODO: compute merit function more efficiently
     const VectorXd& h = EvalEqualityConstraintViolations(state);
-    const MatrixXd& J = EvalEqualityConstraintJacobian(state);
-    const MatrixXd Hinv = EvalHessian(state).MakeDense().inverse();
-    const VectorXd lambda =
-        (J * Hinv * J.transpose()).inverse() * (h - J * Hinv * g);
+    const VectorXd& lambda = EvalLagrangeMultipliers(state);
     const double merit = cost + h.transpose() * lambda;
 
     // Compute the trust region ratio

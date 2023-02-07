@@ -358,6 +358,15 @@ class TrajectoryOptimizer {
       const TrajectoryOptimizerState<T>& state) const;
 
   /**
+   * Evaluate the lagrange multipliers λ for the equality constraints h(q) = 0.
+   * 
+   * @param state the optimizer state
+   * @return const VectorX<T>& the lagrange multipliers
+   */
+  const VectorX<T>& EvalLagrangeMultipliers(
+      const TrajectoryOptimizerState<T>& state) const;
+
+  /**
    * Evaluate the gradient of the unconstrained cost L(q).
    *
    * @param state optimizer state, including q, v, tau, gradients, etc.
@@ -991,6 +1000,15 @@ class TrajectoryOptimizer {
    */
   void CalcEqualityConstraintJacobian(const TrajectoryOptimizerState<T>& state,
                                       MatrixX<T>* J) const;
+
+  /**
+   * Compute the lagrange multipliers λ for the equality constraints h(q) = 0.
+   *
+   * @param state the optimizer state
+   * @param lambda the lagrange multipliers
+   */
+  void CalcLagrangeMultipliers(const TrajectoryOptimizerState<T>& state,
+                               VectorX<T>* lambda) const;
 
   // Diagram of containing the plant_ model and scene graph. Needed to allocate
   // context resources.
