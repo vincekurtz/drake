@@ -2675,8 +2675,6 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
     // Obtain the candiate update dq
     tr_constraint_active = CalcDoglegPoint(state, Delta, &dq, &dqH);
 
-    // Verify that dq is a descent direction
-    const VectorXd& g = EvalGradient(state);
 
     if (params_.print_debug_data) {
       // Print some info about the Hessian
@@ -2690,12 +2688,14 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
 
     // Compute some quantities for logging.
     // N.B. These should be computed before q is updated.
+    const VectorXd& g = EvalMeritFunctionGradient(state);
+    const VectorXd& h = EvalEqualityConstraintViolations(state);
+
     const double cost = EvalCost(state);
     const double merit = EvalMeritFunction(state);
     const double dL_dq = g.dot(dq) / cost;
     const double q_norm = state.norm();
 
-    const VectorXd& h = EvalEqualityConstraintViolations(state);
 
     // Compute the trust region ratio
     rho = CalcTrustRatio(state, dq, &scratch_state);
@@ -2703,8 +2703,7 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
     // With a positive definite Hessian, steps should not oppose the descent
     // direction
     if (!params_.exact_hessian) {
-      // TODO: what's the right criterion if we use constraints?
-      //DRAKE_DEMAND(dq.transpose() * g < 0);
+      DRAKE_DEMAND(dq.transpose() * g < 0);
     } else {
       // Reduce the trust region and reject the step if this is not a descent
       // direction
@@ -2758,7 +2757,6 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
         std::cout << printout_labels << std::endl;
         std::cout << separator_bar << std::endl;
       }
-      // TODO: if equality constraints are active, use |g + J'λ| instead of |g|
       std::cout << fmt::format(
           "| {:>6} | {:>8.3g} | {:>7.2} | {:>7.1} | {:>10.5} | {:>10.5} | "
           "{:>10.4} | {:>10.4} |\n",
