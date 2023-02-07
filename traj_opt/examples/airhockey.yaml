@@ -21,7 +21,7 @@ q_guess : [0.0, 0.32, 0.0, 0.0, 0.5, 0.0]
 # Cost Weights
 Qq : [0.0, 0.0, 0.0, 0.1, 0.1, 0.1]
 Qv : [0.5, 0.5, 0.5, 0.1, 0.1, 0.1]
-R : [0.1, 0.1, 0.1, 1e4, 1e4, 1e6]
+R : [0.1, 0.1, 0.1, 1e3, 1e3, 1e3]
 
 Qfq : [0.0, 0.0, 0.0, 10.0, 10.0, 10.0]
 Qfv : [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
@@ -33,6 +33,10 @@ num_steps : 40      # number of timesteps
 # Solver parameters
 max_iters : 500             # maximum Gauss-Newton iterations
 method : "trust_region"     # solver method, {linesearch, trust_region}
+exact_hessian : false
+scaling : false
+equality_constraints : true
+
 tolerances:
   rel_cost_reduction: 0
   abs_cost_reduction: 0
@@ -41,9 +45,7 @@ tolerances:
   rel_state_change: 0
   abs_state_change: 0
 
-exact_hessian : false
 linear_solver : "pentadiagonal_lu"
-scaling : true
 
 # Method used to compute gradients of inverse dynamics, one of
 # {forward_differences, central_differences, central_differences4, autodiff}
@@ -71,7 +73,7 @@ dissipation_velocity : 0.1  # Hunt & Crossley-like model parameter, in m/s.
 # With force at a distance, contact normal forces increases linearly at a rate
 # of 2F/delta Newtons / meter, with a given smoothing factor (higher is smoother)
 smoothing_factor : 0.1
-force_at_a_distance : false
+force_at_a_distance : true
 
 # Friction
 friction_coefficient : 0.7  # Coefficient of friction.

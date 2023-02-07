@@ -2236,6 +2236,7 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
     const MatrixXd Hinv = H.MakeDense().inverse();
     const VectorXd lambda =
         (J * Hinv * J.transpose()).inverse() * (h - J * Hinv * g);
+
     g = g + J.transpose() * lambda;
   }
 
