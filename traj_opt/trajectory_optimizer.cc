@@ -1578,12 +1578,36 @@ void TrajectoryOptimizer<double>::CalcLagrangeMultipliers(
 template <typename T>
 const VectorX<T>& TrajectoryOptimizer<T>::EvalLagrangeMultipliers(
     const TrajectoryOptimizerState<T>& state) const {
-  // TODO: don't compute anything if equality constraints are off
+  // TODO: throw if equality constraints are off
   if (!state.cache().lagrange_multipliers_up_to_date) {
     CalcLagrangeMultipliers(state, &state.mutable_cache().lagrange_multipliers);
     state.mutable_cache().lagrange_multipliers_up_to_date = true;
   }
   return state.cache().lagrange_multipliers;
+}
+
+template <typename T>
+void TrajectoryOptimizer<T>::CalcMeritFunction(
+    const TrajectoryOptimizerState<T>& state, T* merit) const {
+  const T& L = EvalCost(state);
+  const VectorX<T>& h = EvalEqualityConstraintViolations(state);
+  const VectorX<T>& lambda = EvalLagrangeMultipliers(state);
+
+  *merit = L + h.dot(lambda);
+}
+
+template <typename T>
+const T TrajectoryOptimizer<T>::EvalMeritFunction(
+    const TrajectoryOptimizerState<T>& state) const {
+  // If we're not using equality constraints, the merit function is simply the
+  // unconstrained cost. 
+  if (!params_.equality_constraints) return EvalCost(state);
+
+  if (!state.cache().merit_up_to_date) {
+    CalcMeritFunction(state, &state.mutable_cache().merit);
+    state.mutable_cache().merit_up_to_date = true;
+  }
+  return state.cache().merit;
 }
 
 template <typename T>
@@ -2016,6 +2040,7 @@ std::tuple<double, int> TrajectoryOptimizer<T>::BacktrackingLinesearch(
   DRAKE_DEMAND(L_prime <= 0);
 
   // Exit early with alpha = 1 when we are close to convergence
+  PRINT_VAR(abs(L_prime)/ abs(L));
   const double convergence_threshold =
       10 * std::numeric_limits<double>::epsilon() / time_step() / time_step();
   if (abs(L_prime) / abs(L) <= convergence_threshold) {
@@ -2113,17 +2138,12 @@ T TrajectoryOptimizer<T>::CalcTrustRatio(
     const TrajectoryOptimizerState<T>& state, const VectorX<T>& dq,
     TrajectoryOptimizerState<T>* scratch_state) const {
   // Quantities at the current iteration (k)
-  const T L_k = EvalCost(state);
   const VectorX<T>& g_k = EvalGradient(state);
   const PentaDiagonalMatrix<T>& H_k = EvalHessian(state);
-  T merit_function_k = L_k;
+  const T merit_function_k = EvalMeritFunction(state);
 
-  const VectorX<T>& h_k = EvalEqualityConstraintViolations(state);
   const MatrixX<T>& J_k = EvalEqualityConstraintJacobian(state);
   const VectorX<T>& lambda_k = EvalLagrangeMultipliers(state);
-  if (params_.equality_constraints) {
-    merit_function_k += h_k.dot(lambda_k);
-  }
 
   // Quantities at the next iteration if we accept the step (kp = k+1)
   // TODO(vincekurtz): if we do end up accepting the step, it would be nice to
@@ -2133,8 +2153,10 @@ T TrajectoryOptimizer<T>::CalcTrustRatio(
   const T L_kp = EvalCost(*scratch_state);
   T merit_function_kp = L_kp;
 
-  const VectorX<T>& h_kp = EvalEqualityConstraintViolations(*scratch_state);
   if (params_.equality_constraints) {
+    const VectorX<T>& h_kp = EvalEqualityConstraintViolations(*scratch_state);
+    // N.B. We are using λₖ rather than λₖ₊₁ here because we assume that λ is
+    // constant.
     merit_function_kp += h_kp.dot(lambda_k);
   } 
 
@@ -2458,11 +2480,7 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithLinesearch(
       // Solve for search direction H*dq = -g
       dq = -g;
     }
-    PentaDiagonalFactorization Hchol(H);
-    if (Hchol.status() != PentaDiagonalFactorizationStatus::kSuccess) {
-      return SolverFlag::kFactorizationFailed;
-    }
-    Hchol.SolveInPlace(&dq);
+    SolveLinearSystemInPlace(H, &dq);
 
     // Solve the linsearch
     // N.B. we use a separate state variable since we will need to compute
@@ -2617,7 +2635,6 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
   std::chrono::duration<double> solve_time;
 
   // Trust region parameters
-  // TODO: choose larger, more reasonable initial values
   const double Delta_max = 1e5;  // Maximum trust region size
   const double Delta0 = 1e-1;    // Initial trust region size
   const double eta = 0.0;        // Trust ratio threshold - we accept steps if
@@ -2659,13 +2676,11 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
     // Compute some quantities for logging.
     // N.B. These should be computed before q is updated.
     const double cost = EvalCost(state);
+    const double merit = EvalMeritFunction(state);
     const double dL_dq = g.dot(dq) / cost;
     const double q_norm = state.norm();
 
-    // TODO: consider placing the merit function in the cache
     const VectorXd& h = EvalEqualityConstraintViolations(state);
-    const VectorXd& lambda = EvalLagrangeMultipliers(state);
-    const double merit = cost + h.transpose() * lambda;
 
     // Compute the trust region ratio
     rho = CalcTrustRatio(state, dq, &scratch_state);

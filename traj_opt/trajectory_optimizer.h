@@ -359,11 +359,45 @@ class TrajectoryOptimizer {
 
   /**
    * Evaluate the lagrange multipliers λ for the equality constraints h(q) = 0.
-   * 
+   *
+   * These are given by
+   *
+   *    λ = (J H⁻¹ Jᵀ)⁻¹ (h − J H⁻¹ g)
+   *
+   * where H is the unconstrained Hessian, J is the equality constraint
+   * jacobian, and g is the unconstrained gradient.
+   *
    * @param state the optimizer state
    * @return const VectorX<T>& the lagrange multipliers
    */
   const VectorX<T>& EvalLagrangeMultipliers(
+      const TrajectoryOptimizerState<T>& state) const;
+
+  /**
+   * Evaluate the (augmented-lagrangian-inspired) merit function
+   *
+   *    ϕ(q) = L(q) + h(q)ᵀλ
+   *
+   * for constrained optimization. If equality constraints are turned off, this
+   * simply returns the unconstrained cost L(q).
+   *
+   * @param state the optimizer state
+   * @return const T the merit function ϕ(q)
+   */
+  const T EvalMeritFunction(const TrajectoryOptimizerState<T>& state) const;
+
+  /**
+   * Evaluate the gradient of the merit function ϕ(q):
+   *
+   *    g̃ = g + Jᵀλ
+   *
+   * for constrained optimization. If equality constraints are turned off, this
+   * simply returns the regular gradient g.
+   *
+   * @param state the optimizer state
+   * @return const VectorX<T>& the gradient of the merit function g̃
+   */
+  const VectorX<T>& EvalMeritFunctionGradient(
       const TrajectoryOptimizerState<T>& state) const;
 
   /**
@@ -1014,6 +1048,25 @@ class TrajectoryOptimizer {
    */
   void CalcLagrangeMultipliers(const TrajectoryOptimizerState<T>& state,
                                VectorX<T>* lambda) const;
+
+  /**
+   * Compute the (augmented-lagrangian-inspired) merit function ϕ(q) = L(q) +
+   * h(q)ᵀλ.
+   *
+   * @param state the optimizer state
+   * @param merit the merit function
+   */
+  void CalcMeritFunction(const TrajectoryOptimizerState<T>& state,
+                         T* merit) const;
+
+  /**
+   * Compute the gradient of the merit function g̃ = g + Jᵀλ.
+   *
+   * @param state the optimizer state
+   * @param g_tilde the gradient of the merit function g̃
+   */
+  void CalcMeritFunctionGradient(const TrajectoryOptimizerState<T>& state,
+                                 VectorX<T>* g_tilde) const;
 
   // Diagram of containing the plant_ model and scene graph. Needed to allocate
   // context resources.

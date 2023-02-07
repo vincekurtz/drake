@@ -58,7 +58,8 @@ struct TrajectoryOptimizerCache {
         scale_factors((num_steps + 1) * nq),
         constraint_violation(num_eq_constraints),
         constraint_jacobian(num_eq_constraints, (num_steps + 1) * nq),
-        lagrange_multipliers(num_eq_constraints) {
+        lagrange_multipliers(num_eq_constraints),
+        merit_gradient((num_steps + 1) * nq) {
     trajectory_data.v.assign(num_steps + 1, VectorX<T>(nv));
     trajectory_data.a.assign(num_steps, VectorX<T>(nv));
     inverse_dynamics_cache.tau.assign(num_steps, VectorX<T>(nv));
@@ -205,6 +206,14 @@ struct TrajectoryOptimizerCache {
   // Lagrange multipliers λ for the equality constraints h(q) = 0
   VectorX<T> lagrange_multipliers;
   bool lagrange_multipliers_up_to_date{false};
+
+  // Merit function ϕ = L + hᵀλ
+  T merit;
+  bool merit_up_to_date{false};
+
+  // Gradient of the merit function g̃ = g + Jᵀλ
+  VectorX<T> merit_gradient;
+  bool merit_gradient_up_to_date{false};
 };
 
 template <typename T>
@@ -420,6 +429,8 @@ class TrajectoryOptimizerState {
     cache_.constraint_violation_up_to_date = false;
     cache_.constraint_jacobian_up_to_date = false;
     cache_.lagrange_multipliers_up_to_date = false;
+    cache_.merit_up_to_date = false;
+    cache_.merit_gradient_up_to_date = false;
   }
 };
 
