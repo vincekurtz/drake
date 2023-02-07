@@ -17,11 +17,10 @@ import os
 
 # Basic parameters: set these to define the location and name of the log files
 # that we'll compare, as well as corresponding legend labels
-example_name = "punyo_hug"
-csv_names = ["solver_stats_unscaled.csv", 
-             "solver_stats_adaptive.csv", 
-             "solver_stats_sqrt_sqrt.csv"]
-labels = ["no scaling", "adaptive scaling", "sqrt sqrt scaling"]
+example_name = "acrobot"
+csv_names = ["solver_stats_constrained.csv", 
+             "solver_stats_unconstrained.csv"]
+labels = ["with equality constraints", "unconstrained"]
 
 # Get file locations
 drake_root = os.getcwd()
@@ -46,18 +45,18 @@ for i in range(N):
     data = np.genfromtxt(data_file, delimiter=',', names=True)
     iters = data["iter"]
 
-    ax[0].plot(iters, data["cost"] - baseline, label=labels[i])
-    ax[0].set_ylabel("Cost (minus baseline)")
+    ax[0].plot(iters, data["cost"] - np.min(data["cost"]), label=labels[i])
+    ax[0].set_ylabel("Cost $L(q_k) - L(q^*)$")
     ax[0].set_yscale("log")
 
-    ax[1].plot(iters, data["grad_norm"]/data["cost"], label=labels[i])
-    ax[1].set_ylabel("$||g||/cost$")
+    ax[1].plot(iters, data["h_norm"], label=labels[i])
+    ax[1].set_ylabel("Constraint violation $||h(q_k)||$")
     ax[1].set_yscale("log")
 
 ax[0].legend()
 ax[0].grid()
 ax[1].grid()
-ax[1].set_xlabel("Iteration")
+ax[1].set_xlabel("Iteration k")
 ax[1].xaxis.set_major_locator(MaxNLocator(integer=True))
 
 plt.show()
