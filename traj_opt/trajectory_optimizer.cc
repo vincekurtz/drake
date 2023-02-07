@@ -1542,13 +1542,36 @@ const MatrixX<T>& TrajectoryOptimizer<T>::EvalEqualityConstraintJacobian(
 
 template <typename T>
 void TrajectoryOptimizer<T>::CalcLagrangeMultipliers(
-    const TrajectoryOptimizerState<T>& state, VectorX<T>* lambda) const {
-  const PentaDiagonalMatrix<T>& H = EvalHessian(state);
-  const VectorX<T>& g = EvalGradient(state);
-  const VectorX<T>& h = EvalEqualityConstraintViolations(state);
-  const MatrixX<T>& J = EvalEqualityConstraintJacobian(state);
-  const MatrixX<T> Hinv = H.MakeDense().inverse();
-  *lambda = (J * Hinv * J.transpose()).inverse() * (h - J * Hinv * g);
+    const TrajectoryOptimizerState<T>&, VectorX<T>*) const {
+  // We need to perform linear system solves to compute the lagrange
+  // multipliers, so we don't support autodiff here.
+  throw std::runtime_error("CalcLagrangeMultipliers() only supports T=double");
+}
+
+template <>
+void TrajectoryOptimizer<double>::CalcLagrangeMultipliers(
+    const TrajectoryOptimizerState<double>& state, VectorXd* lambda) const {
+  // λ = (J H⁻¹ Jᵀ)⁻¹ (h − J H⁻¹ g)
+  const PentaDiagonalMatrix<double>& H = EvalHessian(state);
+  const VectorXd& g = EvalGradient(state);
+  const VectorXd& h = EvalEqualityConstraintViolations(state);
+  const MatrixXd& J = EvalEqualityConstraintJacobian(state);
+
+  // compute H⁻¹ Jᵀ
+  // TODO(vincekurtz): add options for other linear systems solvers
+  MatrixXd& Hinv_JT = state.workspace.num_vars_by_num_eq_cons_tmp;
+  Hinv_JT = J.transpose();
+  PentaDiagonalFactorization Hlu(H);
+  DRAKE_DEMAND(Hlu.status() == PentaDiagonalFactorizationStatus::kSuccess);
+  for (int i=0; i<Hinv_JT.cols(); ++i) {
+    // We need this variable to avoid taking the address of a temporary object
+    auto ith_column = Hinv_JT.col(i);
+    Hlu.SolveInPlace(&ith_column);
+  }
+
+  // TODO(vincekurtz): it may be possible to exploit the structure of JH⁻¹Jᵀ to
+  // perform this step more efficiently.
+  *lambda = (J * Hinv_JT).ldlt().solve(h - Hinv_JT.transpose() * g);
 }
 
 template <typename T>
@@ -2179,7 +2202,7 @@ T TrajectoryOptimizer<T>::SolveDoglegQuadratic(const T& a, const T& b,
 
 template <typename T>
 void TrajectoryOptimizer<T>::SolveLinearSystemInPlace(
-    const PentaDiagonalMatrix<T>&, VectorX<T>*) const {
+    const PentaDiagonalMatrix<T>&, EigenPtr<VectorX<T>>) const {
   // Only T=double is supported here, since most of our solvers only support
   // double.
   throw std::runtime_error(
@@ -2188,7 +2211,7 @@ void TrajectoryOptimizer<T>::SolveLinearSystemInPlace(
 
 template <>
 void TrajectoryOptimizer<double>::SolveLinearSystemInPlace(
-    const PentaDiagonalMatrix<double>& H, VectorX<double>* b) const {
+    const PentaDiagonalMatrix<double>& H, EigenPtr<VectorX<double>> b) const {
   switch (params_.linear_solver) {
     case SolverParameters::LinearSolverType::kPentaDiagonalLu: {
       PentaDiagonalFactorization Hlu(H);

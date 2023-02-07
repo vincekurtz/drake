@@ -23,6 +23,20 @@ struct TrajectoryOptimizerWorkspace {
       : f_ext(plant) {
     const int nq = plant.num_positions();
     const int nv = plant.num_velocities();
+    const int num_vars = nq * (num_steps + 1);
+
+    // Get number of unactuated DoFs
+    int num_unactuated = 0;
+    const MatrixX<T> B = plant.MakeActuationMatrix();
+    if (B.size() > 0) {
+      // if B is of size zero, assume the system is fully actuated
+      for (int i = 0; i < nv; ++i) {
+        if (B.row(i).sum() == 0) {
+          ++num_unactuated;
+        }
+      }
+    }
+    const int num_eq_cons = num_unactuated * num_steps;
 
     // Set vector sizes
     q_size_tmp1.resize(nq);
@@ -65,7 +79,9 @@ struct TrajectoryOptimizerWorkspace {
     a_size_tmp11.resize(nv);
     a_size_tmp12.resize(nv);
 
-    q_times_num_steps_size_tmp.resize(nq * (num_steps + 1));
+    q_times_num_steps_size_tmp.resize(num_vars);
+  
+    num_vars_by_num_eq_cons_tmp.resize(num_vars, num_eq_cons);
 
     // Allocate sequences
     q_sequence_tmp1.assign(num_steps, VectorX<T>(nq));
@@ -125,6 +141,9 @@ struct TrajectoryOptimizerWorkspace {
 
   // Vector of all decision variables
   VectorX<T> q_times_num_steps_size_tmp;
+
+  // Matrix of size (number of variables) * (number of equality constraints)
+  MatrixX<T> num_vars_by_num_eq_cons_tmp;
 };
 
 }  // namespace traj_opt

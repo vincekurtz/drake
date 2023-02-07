@@ -874,10 +874,15 @@ class TrajectoryOptimizer {
    */
   T SolveDoglegQuadratic(const T& a, const T& b, const T& c) const;
 
-  /* Helper to solve ths system H⋅x = b with a solver as specified with
-  SolverParameters. On output b is overwritten with x. */
+  /**
+   * Helper to solve the system H⋅x = b with a solver specified in
+   * SolverParameters::LinearSolverType.
+   *
+   * @param H A block penta-diagonal matrix H
+   * @param b The vector b. Overwritten with x on output. 
+   */
   void SolveLinearSystemInPlace(const PentaDiagonalMatrix<T>& H,
-                                VectorX<T>* b) const;
+                                EigenPtr<VectorX<T>> b) const;
 
   ConvergenceReason VerifyConvergenceCriteria(
       const TrajectoryOptimizerState<T>& state, const T& previous_cost,
