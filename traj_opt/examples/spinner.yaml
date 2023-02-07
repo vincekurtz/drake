@@ -32,7 +32,7 @@ num_steps : 40      # number of timesteps
 
 # Solver parameters
 max_iters : 200             # maximum Gauss-Newton iterations
-method : "trust_region"     # solver method, {linesearch, trust_region}
+method : "linesearch"     # solver method, {linesearch, trust_region}
 linesearch : "backtracking" # linesearch strategy, {armino, backtracking}
 scaling : false
 equality_constraints : true

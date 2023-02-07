@@ -2044,7 +2044,7 @@ std::tuple<double, int> TrajectoryOptimizer<T>::BacktrackingLinesearch(
   if (params_.equality_constraints) {
     // Use an exact l1 penalty function as the merit function if equality
     // constraints are enforced exactly.
-    // TODO: add equality constraints to Armijo linesearch
+    // TODO(vincekurtz): add equality constraints to Armijo linesearch
     mu = 1e3;
   }
   const VectorX<T>& h = EvalEqualityConstraintViolations(state);
@@ -2056,16 +2056,15 @@ std::tuple<double, int> TrajectoryOptimizer<T>::BacktrackingLinesearch(
   const double rho = 0.8;
 
   double alpha = 1.0;
-  T L_prime =
-      g.transpose() * dq - mu * h.cwiseAbs().sum();  // gradient of L w.r.t. alpha
+  T L_prime = g.transpose() * dq -
+              mu * h.cwiseAbs().sum();  // gradient of L w.r.t. alpha
 
   // Make sure this is a descent direction
   DRAKE_DEMAND(L_prime <= 0);
 
   // Exit early with alpha = 1 when we are close to convergence
-  PRINT_VAR(abs(L_prime)/ abs(L));
   const double convergence_threshold =
-      10 * std::numeric_limits<double>::epsilon() / time_step() / time_step();
+      std::sqrt(std::numeric_limits<double>::epsilon());
   if (abs(L_prime) / abs(L) <= convergence_threshold) {
     return {1.0, 0};
   }
@@ -2073,8 +2072,9 @@ std::tuple<double, int> TrajectoryOptimizer<T>::BacktrackingLinesearch(
   // Try with alpha = 1
   scratch_state->set_q(state.q());
   scratch_state->AddToQ(alpha * dq);
-  T L_old = EvalCost(*scratch_state) +
-            mu * EvalEqualityConstraintViolations(*scratch_state).cwiseAbs().sum();
+  T L_old =
+      EvalCost(*scratch_state) +
+      mu * EvalEqualityConstraintViolations(*scratch_state).cwiseAbs().sum();
 
   // L_new stores cost at iteration i:   L(q + alpha_i * dq)
   // L_old stores cost at iteration i-1: L(q + alpha_{i-1} * dq)
@@ -2095,8 +2095,9 @@ std::tuple<double, int> TrajectoryOptimizer<T>::BacktrackingLinesearch(
     // Compute L_new = L(q + alpha_i * dq)
     scratch_state->set_q(state.q());
     scratch_state->AddToQ(alpha * dq);
-    L_new = EvalCost(*scratch_state) +
-            mu * EvalEqualityConstraintViolations(*scratch_state).cwiseAbs().sum();
+    L_new =
+        EvalCost(*scratch_state) +
+        mu * EvalEqualityConstraintViolations(*scratch_state).cwiseAbs().sum();
 
     // Check the Armijo conditions
     if (L_new <= L + c * alpha * L_prime) {
@@ -2478,23 +2479,20 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithLinesearch(
     // Compute the total cost
     cost = EvalCost(state);
 
+    // Evaluate constraint violations (for logging) 
+    const VectorXd& h = EvalEqualityConstraintViolations(state);
+
     // Compute gradient and Hessian
-    const VectorXd& g = EvalGradient(state);
+    const VectorXd& g = EvalMeritFunctionGradient(state);
     const PentaDiagonalMatrix<double>& H = EvalHessian(state);
 
-    // TODO: don't need to compute this if equality constraints aren't enforced
-    const VectorXd& h = EvalEqualityConstraintViolations(state);
-    if (params_.equality_constraints) {
-      // Solve KKT conditions for the search direction
-      // [H  J']*[dq] = [-g]
-      // [J  0 ] [ λ]   [-h]
-      const MatrixXd& J = EvalEqualityConstraintJacobian(state);
-      const VectorXd& lambda = EvalLagrangeMultipliers(state);
-      dq = -g - J.transpose() * lambda;
-    } else {
-      // Solve for search direction H*dq = -g
-      dq = -g;
-    }
+    // Compute the search direction. If equality constraints are active, this
+    // solves the KKT conditions 
+    //    [H  J']*[dq] = [-g] 
+    //    [J  0 ] [ λ]   [-h] 
+    // for the search direction (since we've defined g as g + J'λ). Otherwise, we solve
+    // H*dq = -g.
+    dq = -g;
     SolveLinearSystemInPlace(H, &dq);
 
     // Solve the linsearch
@@ -2852,7 +2850,7 @@ ConvergenceReason TrajectoryOptimizer<T>::VerifyConvergenceCriteria(
 
   // Gradient criterion:
   //   g⋅Δq < εₐ + εᵣ Lᵏ
-  const VectorX<T>& g = EvalGradient(state);
+  const VectorX<T>& g = EvalMeritFunctionGradient(state);
   if (abs(g.dot(dq)) < tolerances.abs_gradient_along_dq +
                            tolerances.rel_gradient_along_dq * cost) {
     reason |= ConvergenceReason::kGradientCriterionSatisfied;
