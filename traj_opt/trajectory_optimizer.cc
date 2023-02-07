@@ -1611,6 +1611,29 @@ const T TrajectoryOptimizer<T>::EvalMeritFunction(
 }
 
 template <typename T>
+void TrajectoryOptimizer<T>::CalcMeritFunctionGradient(
+    const TrajectoryOptimizerState<T>& state, VectorX<T>* g_tilde) const {
+  const VectorX<T>& g = EvalGradient(state);
+  const VectorX<T>& lambda = EvalLagrangeMultipliers(state);
+  const MatrixX<T>& J = EvalEqualityConstraintJacobian(state);
+
+  *g_tilde = g + J.transpose() * lambda;
+}
+
+template <typename T>
+const VectorX<T>& TrajectoryOptimizer<T>::EvalMeritFunctionGradient(
+    const TrajectoryOptimizerState<T>& state) const {
+  // If we're not using equality constraints, just return the regular gradient.
+  if (!params_.equality_constraints) return EvalGradient(state);
+
+  if (!state.cache().merit_gradient_up_to_date) {
+    CalcMeritFunctionGradient(state, &state.mutable_cache().merit_gradient);
+    state.mutable_cache().merit_gradient_up_to_date = true;
+  }
+  return state.cache().merit_gradient;
+}
+
+template <typename T>
 void TrajectoryOptimizer<T>::CalcExactHessian(
     const TrajectoryOptimizerState<T>&, PentaDiagonalMatrix<T>*) const {
   throw std::runtime_error(
@@ -2138,11 +2161,9 @@ T TrajectoryOptimizer<T>::CalcTrustRatio(
     const TrajectoryOptimizerState<T>& state, const VectorX<T>& dq,
     TrajectoryOptimizerState<T>* scratch_state) const {
   // Quantities at the current iteration (k)
-  const VectorX<T>& g_k = EvalGradient(state);
+  const T merit_k = EvalMeritFunction(state);
+  const VectorX<T>& g_tilde_k = EvalMeritFunctionGradient(state);
   const PentaDiagonalMatrix<T>& H_k = EvalHessian(state);
-  const T merit_function_k = EvalMeritFunction(state);
-
-  const MatrixX<T>& J_k = EvalEqualityConstraintJacobian(state);
   const VectorX<T>& lambda_k = EvalLagrangeMultipliers(state);
 
   // Quantities at the next iteration if we accept the step (kp = k+1)
@@ -2151,27 +2172,24 @@ T TrajectoryOptimizer<T>::CalcTrustRatio(
   scratch_state->set_q(state.q());
   scratch_state->AddToQ(dq);
   const T L_kp = EvalCost(*scratch_state);
-  T merit_function_kp = L_kp;
-
+  T merit_kp = L_kp;
   if (params_.equality_constraints) {
-    const VectorX<T>& h_kp = EvalEqualityConstraintViolations(*scratch_state);
-    // N.B. We are using λₖ rather than λₖ₊₁ here because we assume that λ is
+    // N.B. We use λₖ rather than λₖ₊₁ to compute the merit function 
+    // ϕₖ₊₁ = L(qₖ₊₁) + h(qₖ₊₁)ᵀλₖ here because we are assuming that λ is
     // constant.
-    merit_function_kp += h_kp.dot(lambda_k);
+    const VectorX<T>& h_kp = EvalEqualityConstraintViolations(*scratch_state);
+    merit_kp += h_kp.dot(lambda_k);
   } 
 
   // Compute predicted reduction in the merit function
   VectorX<T>& Hdq = state.workspace.q_times_num_steps_size_tmp;
   H_k.MultiplyBy(dq, &Hdq);  // Hdq = H_k * dq
   const T hessian_term = 0.5 * dq.transpose() * Hdq;
-  T gradient_term = g_k.dot(dq);
-  if (params_.equality_constraints) {
-    gradient_term += (J_k.transpose()*lambda_k).dot(dq);
-  }
+  T gradient_term = g_tilde_k.dot(dq);
   const T predicted_reduction = -gradient_term - hessian_term;
 
   // Compute actual reduction in the merit function
-  const T actual_reduction = merit_function_k - merit_function_kp;
+  const T actual_reduction = merit_k - merit_kp;
 
   // Threshold for determining when the actual and predicted reduction in cost
   // are essentially zero. This is determined by the approximate level of
@@ -2274,24 +2292,21 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
     VectorXd* dq, VectorXd* dqH) const {
   INSTRUMENT_FUNCTION("Find search direction with dogleg method.");
 
+  // TODO: figure out how to combine scaling with equality constraints
   // N.B. there is no extra cost to these evaluations if params_.scaling =
   // false. If params_.scaling = false, then EvalScaledHessian returns the
   // regular Hessian, and EvalScaledGradient returns the regular gradient.
-  const PentaDiagonalMatrix<double>& H = EvalScaledHessian(state);
+  //const PentaDiagonalMatrix<double>& H = EvalScaledHessian(state);
+  const PentaDiagonalMatrix<double>& H = EvalHessian(state);
 
-  // TODO: remove state allocations here
-  VectorXd g = EvalScaledGradient(state);
-  if (params_.equality_constraints) {
-    // Instead of the gradient, use the "constrained gradient" g + J'λ.
-    // This means the full step pH satisfies the KKT conditions
-    //     [H  J']*[pH] = [-g]
-    //     [J  0 ] [ λ]   [-h]
-    // while the shortened step pU minimizes the quadratic approximation in the
-    // direction of -g - J'λ.
-    const MatrixXd& J = EvalEqualityConstraintJacobian(state);
-    const VectorXd& lambda = EvalLagrangeMultipliers(state);
-    g = g + J.transpose() * lambda;
-  }
+  // If equality constraints are active, we'll use the gradient of the merit
+  // function, g̃ = g + J'λ. This means the full step pH satisfies the KKT
+  // conditions
+  //     [H  J']*[pH] = [-g]
+  //     [J  0 ] [ λ]   [-h]
+  // while the shortened step pU minimizes the quadratic approximation in the
+  // direction of -g - J'λ.
+  const VectorXd& g = EvalMeritFunctionGradient(state);
 
   VectorXd& Hg = state.workspace.q_times_num_steps_size_tmp;
   H.MultiplyBy(g, &Hg);

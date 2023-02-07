@@ -389,10 +389,11 @@ class TrajectoryOptimizer {
   /**
    * Evaluate the gradient of the merit function ϕ(q):
    *
-   *    g̃ = g + Jᵀλ
+   *    g̃ = g + Jᵀλ,
    *
-   * for constrained optimization. If equality constraints are turned off, this
-   * simply returns the regular gradient g.
+   * under the assumption that the lagrange multipliers λ are constant. If
+   * equality constraints are turned off, this simply returns the regular
+   * gradient g.
    *
    * @param state the optimizer state
    * @return const VectorX<T>& the gradient of the merit function g̃

@@ -35,7 +35,7 @@ max_iters : 90             # maximum Gauss-Newton iterations
 method : "trust_region"     # solver method, {linesearch, trust_region}
 linesearch : "backtracking" # linesearch strategy, {armino, backtracking}
 scaling : false
-equality_constraints : true
+equality_constraints : false
 
 tolerances:
   rel_cost_reduction: 0
