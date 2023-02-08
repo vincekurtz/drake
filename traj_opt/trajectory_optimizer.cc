@@ -1456,6 +1456,7 @@ template <typename T>
 void TrajectoryOptimizer<T>::CalcScaleFactors(
     const TrajectoryOptimizerState<T>& state, VectorX<T>* D) const {
   using std::max;
+  using std::min;
   using std::sqrt;
   const PentaDiagonalMatrix<T>& H = EvalHessian(state);
   H.ExtractDiagonal(D);

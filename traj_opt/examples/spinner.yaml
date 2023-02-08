@@ -34,8 +34,8 @@ num_steps : 40      # number of timesteps
 max_iters : 500             # maximum Gauss-Newton iterations
 method : "trust_region"     # solver method, {linesearch, trust_region}
 linesearch : "backtracking" # linesearch strategy, {armino, backtracking}
-scaling : false
-equality_constraints : true
+scaling : true
+equality_constraints : false
 
 tolerances:
   rel_cost_reduction: 0
@@ -45,7 +45,7 @@ tolerances:
   rel_state_change: 0
   abs_state_change: 0
 
-linear_solver : "pentadiagonal_lu"
+linear_solver : "dense_ldlt"
 
 # Method used to compute gradients of inverse dynamics, one of
 # {forward_differences, central_differences, central_differences4, autodiff}
