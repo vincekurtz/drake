@@ -362,7 +362,12 @@ class TrajectoryOptimizer {
    *
    * These are given by
    *
-   *    λ = (J H⁻¹ Jᵀ)⁻¹ (h − J H⁻¹ g)
+   *    λ = (J H⁻¹ Jᵀ)⁻¹ (h − J H⁻¹ g),
+   * 
+   * or equivalently, the solution of the KKT conditions
+   * 
+   *    [H Jᵀ][Δq] = [-g]
+   *    [J 0 ][ λ]   [-h]
    *
    * where H is the unconstrained Hessian, J is the equality constraint
    * jacobian, and g is the unconstrained gradient.

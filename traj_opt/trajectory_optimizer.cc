@@ -2298,7 +2298,13 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
   // false. If params_.scaling = false, then EvalScaledHessian returns the
   // regular Hessian, and EvalScaledGradient returns the regular gradient.
   //const PentaDiagonalMatrix<double>& H = EvalScaledHessian(state);
-  const PentaDiagonalMatrix<double>& H = EvalHessian(state);
+  //const PentaDiagonalMatrix<double>& H = EvalHessian(state);
+  
+  // DEBUG: working with dense algebra for now
+  PentaDiagonalMatrix<double> H = EvalHessian(state);
+  if (params_.scaling) {
+    H = EvalScaledHessian(state);
+  }
 
   // If equality constraints are active, we'll use the gradient of the merit
   // function, g̃ = g + J'λ. This means the full step pH satisfies the KKT
@@ -2307,7 +2313,33 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
   //     [J  0 ] [ λ]   [-h]
   // while the shortened step pU minimizes the quadratic approximation in the
   // direction of -g - J'λ.
-  const VectorXd& g = EvalMeritFunctionGradient(state);
+  //const VectorXd& g = EvalMeritFunctionGradient(state);
+
+  VectorXd g;
+  if (params_.scaling && params_.equality_constraints) {
+    g = EvalScaledGradient(state);
+    const MatrixXd Hinv = H.MakeDense().inverse();
+    const VectorXd& D = EvalScaleFactors(state);
+    const MatrixXd J = EvalEqualityConstraintJacobian(state) * D.asDiagonal();
+    const VectorXd& h = EvalEqualityConstraintViolations(state);
+    const VectorXd lambda =
+        (J * Hinv * J.transpose()).inverse() * (h - J * Hinv * g);
+    g = g + J.transpose() * lambda;
+
+  } else if (params_.scaling) {
+    g = EvalScaledGradient(state);
+  } else if (params_.equality_constraints) {
+    //g = EvalMeritFunctionGradient(state);
+    g = EvalGradient(state);
+    const MatrixXd Hinv = H.MakeDense().inverse();
+    const MatrixXd& J = EvalEqualityConstraintJacobian(state);
+    const VectorXd& h = EvalEqualityConstraintViolations(state);
+    const VectorXd lambda =
+        (J * Hinv * J.transpose()).inverse() * (h - J * Hinv * g);
+    g = g + J.transpose() * lambda;
+  } else {
+    g = EvalGradient(state);
+  }
 
   VectorXd& Hg = state.workspace.q_times_num_steps_size_tmp;
   H.MultiplyBy(g, &Hg);
