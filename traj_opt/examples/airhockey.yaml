@@ -23,7 +23,7 @@ Qq : [0.0, 0.0, 0.0, 0.1, 0.1, 0.1]
 Qv : [0.5, 0.5, 0.5, 0.1, 0.1, 0.1]
 R : [0.1, 0.1, 0.1, 1e3, 1e3, 1e3]
 
-Qfq : [0.0, 0.0, 0.0, 50.0, 50.0, 50.0]
+Qfq : [0.0, 0.0, 0.0, 10.0, 10.0, 10.0]
 Qfv : [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
 
 # Problem definition parameters
@@ -34,7 +34,7 @@ num_steps : 40      # number of timesteps
 max_iters : 1000            # maximum Gauss-Newton iterations
 method : "trust_region"     # solver method, {linesearch, trust_region}
 exact_hessian : false
-scaling : true
+scaling : false
 equality_constraints : true
 
 tolerances:
@@ -58,7 +58,7 @@ play_optimal_trajectory : true
 
 # Debugging parameters
 linesearch_plot_every_iteration : false
-print_debug_data : false
+print_debug_data : true
 save_solver_stats_csv : true
 
 # Contact model parameters. 

@@ -1459,8 +1459,12 @@ void TrajectoryOptimizer<T>::CalcScaleFactors(
   using std::min;
   using std::sqrt;
   const PentaDiagonalMatrix<T>& H = EvalHessian(state);
-  H.ExtractDiagonal(D);
-  *D = D->cwiseSqrt().cwiseSqrt().cwiseInverse();
+  VectorX<T>& hessian_diag = state.workspace.num_vars_size_tmp;
+  H.ExtractDiagonal(&hessian_diag);
+  for (int i=0; i<D->size(); ++i)  {
+    //(*D)[i] = min((*D)[i], 1/sqrt(hessian_diag[i]));
+    (*D)[i] = min(1.0, 1/sqrt(hessian_diag[i]));
+  }
 }
 
 template <typename T>
@@ -2184,7 +2188,7 @@ T TrajectoryOptimizer<T>::CalcTrustRatio(
   } 
 
   // Compute predicted reduction in the merit function
-  VectorX<T>& Hdq = state.workspace.q_times_num_steps_size_tmp;
+  VectorX<T>& Hdq = state.workspace.num_vars_size_tmp;
   H_k.MultiplyBy(dq, &Hdq);  // Hdq = H_k * dq
   const T hessian_term = 0.5 * dq.transpose() * Hdq;
   T gradient_term = g_tilde_k.dot(dq);
@@ -2342,7 +2346,7 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
     g = EvalGradient(state);
   }
 
-  VectorXd& Hg = state.workspace.q_times_num_steps_size_tmp;
+  VectorXd& Hg = state.workspace.num_vars_size_tmp;
   H.MultiplyBy(g, &Hg);
   const double gHg = g.transpose() * Hg;
 
