@@ -27,7 +27,7 @@ num_steps : 40    # number of timesteps
 max_iters : 500            # maximum Gauss-Newton iterations
 method : "trust_region"       # solver method, {linesearch, trust_region}
 linesearch: "backtracking"
-scaling : false
+scaling : true
 equality_constraints : true
 linear_solver : "pentadiagonal_lu"
 
