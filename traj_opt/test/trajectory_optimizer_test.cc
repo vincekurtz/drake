@@ -930,18 +930,21 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcGradientPendulumNoGravity) {
 
     // dtau[t]/dq[t]
     if (t == 0) {
-      // v[0] is constant
-      id_partials_gt.dtau_dqt[t](0, 0) = -1 / dt / dt * m * l * l - 1 / dt * b;
+      // q[0] is constant
+      id_partials_gt.dtau_dqt[t](0, 0) = 0.0;
     } else {
       id_partials_gt.dtau_dqt[t](0, 0) = -2 / dt / dt * m * l * l - 1 / dt * b;
     }
 
     // dtau[t]/dq[t-1]
-    id_partials_gt.dtau_dqm[t](0, 0) = 1 / dt / dt * m * l * l;
-
-    // Derivatives w.r.t. q[t-1] do not exist
     if (t == 0) {
+      // Derivatives w.r.t. q[t-1] do not exist
       id_partials_gt.dtau_dqm[t](0, 0) = NAN;
+    } if (t == 1) {
+      // q[0] is constant
+      id_partials_gt.dtau_dqm[t](0, 0) = 0.0;
+    } else {
+      id_partials_gt.dtau_dqm[t](0, 0) = 1 / dt / dt * m * l * l;
     }
   }
 
@@ -1105,16 +1108,18 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumDtauDq) {
     grad_data_gt.dtau_dqt[t](0, 0) = -2 / dt / dt * m * l * l - 1 / dt * b;
 
     if (t == 0) {
-      // v[0] is constant
-      grad_data_gt.dtau_dqt[t](0, 0) = -1 / dt / dt * m * l * l - 1 / dt * b;
+      // q[0] is constant
+      grad_data_gt.dtau_dqt[t](0, 0) = 0.0;
     }
 
     // dtau[t]/dq[t-1]
-    grad_data_gt.dtau_dqm[t](0, 0) = 1 / dt / dt * m * l * l;
-
-    // Derivatives w.r.t. q[t-1] do not exist
     if (t == 0) {
+      // Derivatives w.r.t. q[t-1] do not exist
       grad_data_gt.dtau_dqm[t](0, 0) = NAN;
+    } else if (t == 1) {
+      grad_data_gt.dtau_dqm[t](0, 0) = 0.0;
+    } else {
+      grad_data_gt.dtau_dqm[t](0, 0) = 1 / dt / dt * m * l * l;
     }
   }
 
@@ -1505,7 +1510,7 @@ GTEST_TEST(TrajectoryOptimizerTest, ContactJacobians) {
 // using the spinner example
 GTEST_TEST(TrajectoryOptimizerTest, SpinnerEqualityConstraints) {
   // Define an optimization problem.
-  const int num_steps = 5;
+  const int num_steps = 3;
   const double dt = 0.05;
 
   ProblemDefinition opt_prob;
@@ -1539,7 +1544,10 @@ GTEST_TEST(TrajectoryOptimizerTest, SpinnerEqualityConstraints) {
   auto diagram = builder.Build();
 
   // Create an optimizer
-  TrajectoryOptimizer<double> optimizer(diagram.get(), &plant, opt_prob);
+  SolverParameters params;
+  params.gradients_method = GradientsMethod::kCentralDifferences;
+  TrajectoryOptimizer<double> optimizer(diagram.get(), &plant, opt_prob,
+                                        params);
   TrajectoryOptimizerState<double> state = optimizer.CreateState();
 
   // Make some fake data

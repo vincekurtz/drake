@@ -665,7 +665,7 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsFiniteDiff(
   T dq_i;
   T dv_i;
   T da_i;
-  for (int t = 0; t <= num_steps(); ++t) {
+  for (int t = 1; t <= num_steps(); ++t) {
     // N.B. A perturbation of qt propagates to tau[t-1], tau[t] and tau[t+1].
     // Therefore we compute one column of grad_tau at a time. That is, once the
     // loop on position indices i is over, we effectively computed the t-th
@@ -684,10 +684,7 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsFiniteDiff(
       // a[num_steps + 1] is not defined
       a_eps_tp = a[t + 1];
     }
-    if (t > 0) {
-      // a[-1] is undefined
-      a_eps_tm = a[t - 1];
-    }
+    a_eps_tm = a[t - 1];
 
     for (int i = 0; i < plant().num_positions(); ++i) {
       // Determine perturbation sizes to avoid losing precision to floating
@@ -704,10 +701,8 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsFiniteDiff(
       // Perturb q_t[i], v_t[i], and a_t[i]
       q_eps_t(i) += dq_i;
 
-      if (t > 0) {
-        v_eps_t += dv_i * Nplus[t].col(i);
-        a_eps_tm += da_i * Nplus[t].col(i);
-      }
+      v_eps_t += dv_i * Nplus[t].col(i);
+      a_eps_tm += da_i * Nplus[t].col(i);
       if (t < num_steps()) {
         v_eps_tp -= dv_i * Nplus[t + 1].col(i);
         a_eps_t -= da_i * (Nplus[t + 1].col(i) + Nplus[t].col(i));
@@ -718,24 +713,25 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsFiniteDiff(
 
       // Compute perturbed tau(q) and calculate the nonzero entries of dtau/dq
       // via finite differencing
-      if (t > 0) {
-        // tau[t-1] = ID(q[t], v[t], a[t-1])
-        plant().SetPositions(context_, q_eps_t);
-        plant().SetVelocities(context_, v_eps_t);
-        CalcInverseDynamicsSingleTimeStep(*context_, a_eps_tm, &workspace,
-                                          &tau_eps_tm);
-        dtau_dqp[t - 1].col(i) = (tau_eps_tm - tau[t - 1]) / dq_i;
-      }
+
+      // tau[t-1] = ID(q[t], v[t], a[t-1])
+      plant().SetPositions(context_, q_eps_t);
+      plant().SetVelocities(context_, v_eps_t);
+      CalcInverseDynamicsSingleTimeStep(*context_, a_eps_tm, &workspace,
+                                        &tau_eps_tm);
+      dtau_dqp[t - 1].col(i) = (tau_eps_tm - tau[t - 1]) / dq_i;
+      
+      // tau[t] = ID(q[t+1], v[t+1], a[t])
       if (t < num_steps()) {
-        // tau[t] = ID(q[t+1], v[t+1], a[t])
         plant().SetPositions(context_, q[t + 1]);
         plant().SetVelocities(context_, v_eps_tp);
         CalcInverseDynamicsSingleTimeStep(*context_, a_eps_t, &workspace,
                                           &tau_eps_t);
         dtau_dqt[t].col(i) = (tau_eps_t - tau[t]) / dq_i;
       }
+      
+      // tau[t+1] = ID(q[t+2], v[t+2], a[t+1])
       if (t < num_steps() - 1) {
-        // tau[t+1] = ID(q[t+2], v[t+2], a[t+1])
         plant().SetPositions(context_, q[t + 2]);
         plant().SetVelocities(context_, v[t + 2]);
         CalcInverseDynamicsSingleTimeStep(*context_, a_eps_tp, &workspace,
@@ -745,10 +741,8 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsFiniteDiff(
 
       // Unperturb q_t[i], v_t[i], and a_t[i]
       q_eps_t = q[t];
-      if (t > 0) {
-        v_eps_t = v[t];
-        a_eps_tm = a[t - 1];
-      }
+      v_eps_t = v[t];
+      a_eps_tm = a[t - 1];
       if (t < num_steps()) {
         v_eps_tp = v[t + 1];
         a_eps_t = a[t];
@@ -772,7 +766,7 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsCentralDiff(
   std::vector<MatrixX<T>>& dtau_dqt = id_partials->dtau_dqt;
   std::vector<MatrixX<T>>& dtau_dqp = id_partials->dtau_dqp;
 
-  for (int t = 0; t <= num_steps(); ++t) {
+  for (int t = 1; t <= num_steps(); ++t) {
     // N.B. A perturbation of qt propagates to tau[t-1], tau[t] and tau[t+1].
     // Therefore we compute one column of grad_tau at a time. That is, once the
     // loop on position indices i is over, we effectively computed the t-th
@@ -1113,7 +1107,7 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsAutoDiff(
 
   // At each t we will compute derivatives of tau[t-1], tau[t] and tau[t+1 with
   // respect to q[t].
-  for (int t = 0; t <= num_steps(); ++t) {
+  for (int t = 1; t <= num_steps(); ++t) {
     // Set derivatives with respect to q[t].
     // q[t] will propagate directly to v[t], v[t+1], a[t-1], a[t] and a[t+1].
     q_ad[t] = math::InitializeAutoDiff(q[t]);
@@ -1532,25 +1526,23 @@ void TrajectoryOptimizer<T>::CalcEqualityConstraintJacobian(
 
   for (int t = 0; t < n_steps; ++t) {
     for (int i = 0; i < n_unactuated; ++i) {
-      // ∂hₜⁱ/∂qₜ
-      J->block(t * n_unactuated + i, t * nq, 1, nq) =
-          id_partials.dtau_dqt[t].row(unactuated_dofs()[i]);
-
       // ∂hₜⁱ/∂qₜ₊₁
       J->block(t * n_unactuated + i, (t + 1) * nq, 1, nq) =
           id_partials.dtau_dqp[t].row(unactuated_dofs()[i]);
 
-      // ∂hₜⁱ/∂qₜ₋₁
+      // ∂hₜⁱ/∂qₜ
       if (t > 0) {
+        J->block(t * n_unactuated + i, t * nq, 1, nq) =
+            id_partials.dtau_dqt[t].row(unactuated_dofs()[i]);
+      }
+
+      // ∂hₜⁱ/∂qₜ₋₁
+      if (t > 1) {
         J->block(t * n_unactuated + i, (t - 1) * nq, 1, nq) =
             id_partials.dtau_dqm[t].row(unactuated_dofs()[i]);
       }
     }
   }
-
-  // Hack to eliminate dependence on q0
-  // TODO: fix id_partials accordingly
-  J->leftCols(nq).setZero();
 }
 
 template <typename T>

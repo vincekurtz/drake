@@ -32,6 +32,12 @@ struct InverseDynamicsPartials {
 
     // Set all derivatives w.r.t q(-1) to NaN
     dtau_dqm[0].setConstant(nv, nq, NAN);
+
+    // Set all derivatives w.r.t. q(0) to 0.0
+    dtau_dqt[0].setConstant(nv, nq, 0.0);
+    if (num_steps > 1) {
+      dtau_dqm[1].setConstant(nv, nq, 0.0);
+    }
   }
 
   // Return the number of steps allocated in this object.
