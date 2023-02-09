@@ -145,6 +145,13 @@ struct SolverParameters {
 
   // Parameter for activating hard equality constraints on unactuated DoFs
   bool equality_constraints = false;
+
+  // Initial and maximum trust region radius
+  // N.B. these have very different units depending on whether scaling is used.
+  // These defaults are reasonable when scaling=true: without scaling a smaller
+  // trust region radius is more appropriate.
+  double Delta0 = 1e-1;
+  double Delta_max = 1e5;
 };
 
 }  // namespace traj_opt

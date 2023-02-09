@@ -322,6 +322,10 @@ void TrajOptExample::SetSolverParameters(
 
   // Equality constriant (unactuated DoF torques) enforcement
   solver_params->equality_constraints = options.equality_constraints;
+
+  // Maximum and initial trust region radius
+  solver_params->Delta0 = options.Delta0;
+  solver_params->Delta_max = options.Delta_max;
 }
 
 }  // namespace examples

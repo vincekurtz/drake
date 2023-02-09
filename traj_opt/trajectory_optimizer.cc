@@ -2685,17 +2685,16 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
   std::chrono::duration<double> solve_time;
 
   // Trust region parameters
-  const double Delta_max = 1e6;  // Maximum trust region size
-  const double Delta0 = 1e5;    // Initial trust region size
+  const double Delta_max = params_.Delta_max;  // Maximum trust region size
   const double eta = 0.0;        // Trust ratio threshold - we accept steps if
                                  // the trust ratio is above this threshold
 
   // Variables that we'll update throughout the main loop
-  int k = 0;                  // iteration counter
-  double Delta = Delta0;      // trust region size
-  double rho;                 // trust region ratio
-  bool tr_constraint_active;  // flag for whether the trust region constraint is
-                              // active
+  int k = 0;                      // iteration counter
+  double Delta = params_.Delta0;  // trust region size
+  double rho;                     // trust region ratio
+  bool tr_constraint_active;      // flag for whether the trust region
+                                  // constraint is active
 
   // Define printout data
   const std::string separator_bar =
