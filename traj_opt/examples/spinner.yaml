@@ -58,7 +58,7 @@ play_optimal_trajectory : true
 
 # Debugging parameters
 linesearch_plot_every_iteration : false
-print_debug_data : true
+print_debug_data : false
 save_solver_stats_csv : true
 
 # Contact model parameters. 

@@ -2685,8 +2685,8 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
   std::chrono::duration<double> solve_time;
 
   // Trust region parameters
-  const double Delta_max = 1e5;  // Maximum trust region size
-  const double Delta0 = 1e-1;    // Initial trust region size
+  const double Delta_max = 1e6;  // Maximum trust region size
+  const double Delta0 = 1e5;    // Initial trust region size
   const double eta = 0.0;        // Trust ratio threshold - we accept steps if
                                  // the trust ratio is above this threshold
 
@@ -2738,7 +2738,7 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
     // With a positive definite Hessian, steps should not oppose the descent
     // direction
     if (!params_.exact_hessian) {
-      DRAKE_DEMAND(dq.transpose() * g < 0);
+      DRAKE_DEMAND(dL_dq < std::numeric_limits<double>::epsilon());
     } else {
       // Reduce the trust region and reject the step if this is not a descent
       // direction
