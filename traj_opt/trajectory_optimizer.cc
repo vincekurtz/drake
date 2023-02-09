@@ -1455,15 +1455,32 @@ const VectorX<T>& TrajectoryOptimizer<T>::EvalScaledGradient(
 template <typename T>
 void TrajectoryOptimizer<T>::CalcScaleFactors(
     const TrajectoryOptimizerState<T>& state, VectorX<T>* D) const {
-  using std::max;
   using std::min;
   using std::sqrt;
+
   const PentaDiagonalMatrix<T>& H = EvalHessian(state);
   VectorX<T>& hessian_diag = state.workspace.num_vars_size_tmp;
   H.ExtractDiagonal(&hessian_diag);
-  for (int i=0; i<D->size(); ++i)  {
-    //(*D)[i] = min((*D)[i], 1/sqrt(hessian_diag[i]));
-    (*D)[i] = min(1.0, 1/sqrt(hessian_diag[i]));
+
+  for (int i = 0; i < D->size(); ++i) {
+    switch (params_.scaling_method) {
+      case ScalingMethod::kSqrt: {
+        (*D)[i] = min(1.0, 1 / sqrt(hessian_diag[i]));
+        break;
+      }
+      case ScalingMethod::kAdaptiveSqrt: {
+        (*D)[i] = min((*D)[i], 1 / sqrt(hessian_diag[i]));
+        break;
+      }
+      case ScalingMethod::kDoubleSqrt: {
+        (*D)[i] = min(1.0, 1 / sqrt(sqrt(hessian_diag[i])));
+        break;
+      }
+      case ScalingMethod::kAdaptiveDoubleSqrt: {
+        (*D)[i] = min((*D)[i], 1 / sqrt(sqrt(hessian_diag[i])));
+        break;
+      }
+    }
   }
 }
 
@@ -2394,6 +2411,7 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
   if (1.0 >= pH.norm()) {
     *dq = pH * Delta;
     if (params_.scaling) {
+      // TODO: write a MultiplyByScaleFactors method
       *dq = EvalScaleFactors(state).asDiagonal() * (*dq);
     }
     return false;  // the trust region constraint is not active

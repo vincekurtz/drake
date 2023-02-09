@@ -70,6 +70,7 @@ struct TrajOptExampleParams {
     a->Visit(DRAKE_NVP(petsc_preconditioner));
     a->Visit(DRAKE_NVP(exact_hessian));
     a->Visit(DRAKE_NVP(scaling));
+    a->Visit(DRAKE_NVP(scaling_method));
     a->Visit(DRAKE_NVP(equality_constraints));
     a->Visit(DRAKE_NVP(Delta_max));
     a->Visit(DRAKE_NVP(Delta0));
@@ -181,6 +182,9 @@ struct TrajOptExampleParams {
 
   // Whether to rescale the Hessian
   bool scaling = true;
+
+  // Method to use when rescaling the Hessian
+  std::string scaling_method = "double_sqrt";
 
   // Whether to enforce strict equality constraints
   bool equality_constraints = false;

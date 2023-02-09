@@ -320,6 +320,19 @@ void TrajOptExample::SetSolverParameters(
   // Hessian rescaling
   solver_params->scaling = options.scaling;
 
+  if (options.scaling_method == "sqrt") {
+    solver_params->scaling_method = ScalingMethod::kSqrt;
+  } else if (options.scaling_method == "adaptive_sqrt") {
+    solver_params->scaling_method = ScalingMethod::kAdaptiveSqrt;
+  } else if (options.scaling_method == "double_sqrt") {
+    solver_params->scaling_method = ScalingMethod::kDoubleSqrt;
+  } else if (options.scaling_method == "adaptive_double_sqrt") {
+    solver_params->scaling_method = ScalingMethod::kAdaptiveDoubleSqrt;
+  } else {
+    throw std::runtime_error(
+        fmt::format("Unknown scaling method '{}'", options.scaling_method));
+  }
+
   // Equality constriant (unactuated DoF torques) enforcement
   solver_params->equality_constraints = options.equality_constraints;
 
