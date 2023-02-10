@@ -21,7 +21,7 @@ q_guess : [0.8, 1.2, 0.0]
 # [finger 1, finger 2, spinner]
 Qq : [0.0, 0.0, 0.1]  # Running cost
 Qv : [0.0, 0.0, 1.0]
-R : [1e0, 1e0, 1e3]
+R : [1e0, 1e0, 1e0]
 
 Qfq : [0.0, 0.0, 10.0]  # Terminal cost
 Qfv : [0.0, 0.0, 1.0]
@@ -45,7 +45,7 @@ tolerances:
   rel_state_change: 0
   abs_state_change: 0
 
-linear_solver : "dense_ldlt"
+linear_solver : "pentadiagonal_lu"
 
 Delta0 : 1e-2      # initial trust region radius
 Delta_max : 1e5    # maximum trust region radius

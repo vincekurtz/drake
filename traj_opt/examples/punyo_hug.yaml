@@ -87,7 +87,7 @@ time_step : 0.05    # Discretization timestep (seconds)
 num_steps : 40      # number of timesteps
 
 # Solver parameters
-max_iters : 500             # maximum Gauss-Newton iterations
+max_iters : 50              # maximum Gauss-Newton iterations
 method : "trust_region"     # solver method, {linesearch, trust_region}
 scaling : true
 equality_constraints : false
@@ -111,7 +111,7 @@ play_optimal_trajectory : true
 
 # Debugging parameters
 linesearch_plot_every_iteration : false
-print_debug_data : true
+print_debug_data : false
 save_solver_stats_csv : true
 
 # Contact model parameters. 

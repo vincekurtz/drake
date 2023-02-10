@@ -940,7 +940,7 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcGradientPendulumNoGravity) {
     if (t == 0) {
       // Derivatives w.r.t. q[t-1] do not exist
       id_partials_gt.dtau_dqm[t](0, 0) = NAN;
-    } if (t == 1) {
+    } else if (t == 1) {
       // q[0] is constant
       id_partials_gt.dtau_dqm[t](0, 0) = 0.0;
     } else {
@@ -1527,7 +1527,7 @@ GTEST_TEST(TrajectoryOptimizerTest, SpinnerEqualityConstraints) {
     VectorXd q_nom(3);
     VectorXd v_nom(3);
     q_nom << -0.1, 1.5, t;
-    v_nom << 0.0, 0.0, dt*num_steps;
+    v_nom << 0.0, 0.0, dt * num_steps;
     opt_prob.q_nom.push_back(q_nom);
     opt_prob.v_nom.push_back(v_nom);
   }
@@ -1763,8 +1763,7 @@ GTEST_TEST(TrajectoryOptimizerTest, EqualityConstraintsAndScaling) {
       optimizer_scaled.EvalEqualityConstraintJacobian(state_scaled);
 
   const double kEpsilon = std::numeric_limits<double>::epsilon();
-  EXPECT_TRUE(CompareMatrices(J * D.asDiagonal(),
-                              J_scaled, kEpsilon,
+  EXPECT_TRUE(CompareMatrices(J * D.asDiagonal(), J_scaled, kEpsilon,
                               MatrixCompareType::relative));
 
   // Lagrange multipliers should be the same with and without scaling
@@ -1777,7 +1776,8 @@ GTEST_TEST(TrajectoryOptimizerTest, EqualityConstraintsAndScaling) {
   const VectorXd& lambda_scaled =
       optimizer_scaled.EvalLagrangeMultipliers(state_scaled);
 
-  const double kTolerance = 100 * kEpsilon; // N.B. we loose precision in H^{-1}
+  const double kTolerance =
+      100 * kEpsilon;  // N.B. we loose precision in H^{-1}
   EXPECT_TRUE(CompareMatrices(lambda_dense, lambda, kTolerance,
                               MatrixCompareType::relative));
   EXPECT_TRUE(CompareMatrices(lambda_dense, lambda_scaled, kTolerance,
@@ -1799,16 +1799,15 @@ GTEST_TEST(TrajectoryOptimizerTest, EqualityConstraintsAndScaling) {
                               MatrixCompareType::relative));
 
   // Trust ratio should be the same with and without scaling
-  const VectorXd dq = -Hinv*gm;
+  const VectorXd dq = -Hinv * gm;
   TrajectoryOptimizerState<double> scratch_state = optimizer.CreateState();
   double trust_ratio = TrajectoryOptimizerTester::CalcTrustRatio(
       optimizer, state, dq, &scratch_state);
   double trust_ratio_scaled = TrajectoryOptimizerTester::CalcTrustRatio(
       optimizer_scaled, state_scaled, dq, &scratch_state);
 
-  EXPECT_TRUE(trust_ratio > 0.6);   // avoid the trivial rho = 0.5 case
+  EXPECT_TRUE(trust_ratio > 0.6);  // avoid the trivial rho = 0.5 case
   EXPECT_NEAR(trust_ratio, trust_ratio_scaled, kTolerance);
-
 }
 
 }  // namespace internal

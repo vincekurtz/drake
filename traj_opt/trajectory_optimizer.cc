@@ -720,7 +720,7 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsFiniteDiff(
       CalcInverseDynamicsSingleTimeStep(*context_, a_eps_tm, &workspace,
                                         &tau_eps_tm);
       dtau_dqp[t - 1].col(i) = (tau_eps_tm - tau[t - 1]) / dq_i;
-      
+
       // tau[t] = ID(q[t+1], v[t+1], a[t])
       if (t < num_steps()) {
         plant().SetPositions(context_, q[t + 1]);
@@ -729,7 +729,7 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsFiniteDiff(
                                           &tau_eps_t);
         dtau_dqt[t].col(i) = (tau_eps_t - tau[t]) / dq_i;
       }
-      
+
       // tau[t+1] = ID(q[t+2], v[t+2], a[t+1])
       if (t < num_steps() - 1) {
         plant().SetPositions(context_, q[t + 2]);
@@ -1453,7 +1453,7 @@ void TrajectoryOptimizer<T>::CalcScaleFactors(
   using std::sqrt;
 
   const PentaDiagonalMatrix<T>& H = EvalHessian(state);
-  VectorX<T>& hessian_diag = state.workspace.num_vars_size_tmp;
+  VectorX<T>& hessian_diag = state.workspace.num_vars_size_tmp1;
   H.ExtractDiagonal(&hessian_diag);
 
   for (int i = 0; i < D->size(); ++i) {
@@ -1544,7 +1544,10 @@ void TrajectoryOptimizer<T>::CalcEqualityConstraintJacobian(
     }
   }
 
-  // TODO: document
+  // With scaling enabled, the KKT conditions become
+  //   [ DHD  DJ'][Δq] = [-g]
+  //   [ JD    0 ][ λ]   [-h]
+  // so we'll return the scaled version of the constraint Jacobian J̃ = JD
   if (params_.scaling) {
     const VectorX<T>& D = EvalScaleFactors(state);
     *J = (*J) * D.asDiagonal();
@@ -1584,7 +1587,7 @@ void TrajectoryOptimizer<double>::CalcLagrangeMultipliers(
   Hinv_JT = J.transpose();
   PentaDiagonalFactorization Hlu(H);
   DRAKE_DEMAND(Hlu.status() == PentaDiagonalFactorizationStatus::kSuccess);
-  for (int i=0; i<Hinv_JT.cols(); ++i) {
+  for (int i = 0; i < Hinv_JT.cols(); ++i) {
     // We need this variable to avoid taking the address of a temporary object
     auto ith_column = Hinv_JT.col(i);
     Hlu.SolveInPlace(&ith_column);
@@ -1598,7 +1601,9 @@ void TrajectoryOptimizer<double>::CalcLagrangeMultipliers(
 template <typename T>
 const VectorX<T>& TrajectoryOptimizer<T>::EvalLagrangeMultipliers(
     const TrajectoryOptimizerState<T>& state) const {
-  // TODO: throw if equality constraints are off
+  // We shouldn't be calling this unless equality constraints are enabled
+  DRAKE_ASSERT(params_.equality_constraints);
+
   if (!state.cache().lagrange_multipliers_up_to_date) {
     CalcLagrangeMultipliers(state, &state.mutable_cache().lagrange_multipliers);
     state.mutable_cache().lagrange_multipliers_up_to_date = true;
@@ -1620,7 +1625,7 @@ template <typename T>
 const T TrajectoryOptimizer<T>::EvalMeritFunction(
     const TrajectoryOptimizerState<T>& state) const {
   // If we're not using equality constraints, the merit function is simply the
-  // unconstrained cost. 
+  // unconstrained cost.
   if (!params_.equality_constraints) return EvalCost(state);
 
   if (!state.cache().merit_up_to_date) {
@@ -2194,21 +2199,23 @@ T TrajectoryOptimizer<T>::CalcTrustRatio(
   scratch_state->AddToQ(dq);
   T merit_kp = EvalCost(*scratch_state);
   if (params_.equality_constraints) {
-    // N.B. We use λₖ rather than λₖ₊₁ to compute the merit function 
+    // N.B. We use λₖ rather than λₖ₊₁ to compute the merit function
     // ϕₖ₊₁ = L(qₖ₊₁) + h(qₖ₊₁)ᵀλₖ here because we are assuming that λ is
     // constant.
     const VectorX<T>& h_kp = EvalEqualityConstraintViolations(*scratch_state);
     merit_kp += h_kp.dot(lambda_k);
-  } 
+  }
 
-  // Compute predicted reduction in the merit function
-  // TODO: make more efficient
-  VectorX<T> dq_scaled = dq;
+  // Compute predicted reduction in the merit function, −gᵀΔq − 1/2 ΔqᵀHΔq
+  VectorX<T>& dq_scaled = state.workspace.num_vars_size_tmp1;
   if (params_.scaling) {
     const VectorX<T>& D = EvalScaleFactors(state);
+    // TODO(vincekurtz): consider caching D^{-1}
     dq_scaled = D.cwiseInverse().asDiagonal() * dq;
+  } else {
+    dq_scaled = dq;
   }
-  VectorX<T>& Hdq = state.workspace.num_vars_size_tmp;
+  VectorX<T>& Hdq = state.workspace.num_vars_size_tmp2;
   H_k.MultiplyBy(dq_scaled, &Hdq);  // Hdq = H_k * dq
   const T hessian_term = 0.5 * dq_scaled.transpose() * Hdq;
   T gradient_term = g_tilde_k.dot(dq_scaled);
@@ -2318,15 +2325,8 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
     VectorXd* dq, VectorXd* dqH) const {
   INSTRUMENT_FUNCTION("Find search direction with dogleg method.");
 
-  // TODO: figure out how to combine scaling with equality constraints
-  // N.B. there is no extra cost to these evaluations if params_.scaling =
-  // false. If params_.scaling = false, then EvalScaledHessian returns the
-  // regular Hessian, and EvalScaledGradient returns the regular gradient.
-  //const PentaDiagonalMatrix<double>& H = EvalScaledHessian(state);
-  //const PentaDiagonalMatrix<double>& H = EvalHessian(state);
-  
+  // If params_.scaling = false, this returns the regular Hessian.
   const PentaDiagonalMatrix<double>& H = EvalScaledHessian(state);
-  const VectorXd& g = EvalMeritFunctionGradient(state);
 
   // If equality constraints are active, we'll use the gradient of the merit
   // function, g̃ = g + J'λ. This means the full step pH satisfies the KKT
@@ -2335,28 +2335,9 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
   //     [J  0 ] [ λ]   [-h]
   // while the shortened step pU minimizes the quadratic approximation in the
   // direction of -g - J'λ.
-  //const VectorXd& g = EvalMeritFunctionGradient(state);
+  const VectorXd& g = EvalMeritFunctionGradient(state);
 
-  //VectorXd g;
-  //if (params_.scaling && params_.equality_constraints) {
-  //  g = EvalMeritFunctionGradient(state);
-  //  //const MatrixXd Hinv = H.MakeDense().inverse();
-  //  //const VectorXd& D = EvalScaleFactors(state);
-  //  //const MatrixXd J = EvalEqualityConstraintJacobian(state) * D.asDiagonal();
-  //  //const VectorXd& h = EvalEqualityConstraintViolations(state);
-  //  //const VectorXd lambda =
-  //  //    (J * Hinv * J.transpose()).inverse() * (h - J * Hinv * g);
-  //  //g = g + J.transpose() * lambda;
-
-  //} else if (params_.scaling) {
-  //  g = EvalScaledGradient(state);
-  //} else if (params_.equality_constraints) {
-  //  g = EvalMeritFunctionGradient(state);
-  //} else {
-  //  g = EvalGradient(state);
-  //}
-
-  VectorXd& Hg = state.workspace.num_vars_size_tmp;
+  VectorXd& Hg = state.workspace.num_vars_size_tmp1;
   H.MultiplyBy(g, &Hg);
   const double gHg = g.transpose() * Hg;
 
@@ -2404,7 +2385,7 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
   if (1.0 >= pH.norm()) {
     *dq = pH * Delta;
     if (params_.scaling) {
-      // TODO: write a MultiplyByScaleFactors method
+      // TODO(vincekurtz): consider adding a MultiplyByScaleFactors method
       *dq = EvalScaleFactors(state).asDiagonal() * (*dq);
     }
     return false;  // the trust region constraint is not active
@@ -2527,7 +2508,7 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithLinesearch(
     // Compute the total cost
     cost = EvalCost(state);
 
-    // Evaluate constraint violations (for logging) 
+    // Evaluate constraint violations (for logging)
     const VectorXd& h = EvalEqualityConstraintViolations(state);
 
     // Compute gradient and Hessian
@@ -2535,11 +2516,11 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithLinesearch(
     const PentaDiagonalMatrix<double>& H = EvalHessian(state);
 
     // Compute the search direction. If equality constraints are active, this
-    // solves the KKT conditions 
-    //    [H  J']*[dq] = [-g] 
-    //    [J  0 ] [ λ]   [-h] 
-    // for the search direction (since we've defined g as g + J'λ). Otherwise, we solve
-    // H*dq = -g.
+    // solves the KKT conditions
+    //    [H  J']*[dq] = [-g]
+    //    [J  0 ] [ λ]   [-h]
+    // for the search direction (since we've defined g as g + J'λ). Otherwise,
+    // we solve H*dq = -g.
     dq = -g;
     SolveLinearSystemInPlace(H, &dq);
 
@@ -2697,8 +2678,8 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
 
   // Trust region parameters
   const double Delta_max = params_.Delta_max;  // Maximum trust region size
-  const double eta = 0.0;        // Trust ratio threshold - we accept steps if
-                                 // the trust ratio is above this threshold
+  const double eta = 0.0;  // Trust ratio threshold - we accept steps if
+                           // the trust ratio is above this threshold
 
   // Variables that we'll update throughout the main loop
   int k = 0;                      // iteration counter
@@ -2720,7 +2701,6 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
     // Obtain the candiate update dq
     tr_constraint_active = CalcDoglegPoint(state, Delta, &dq, &dqH);
 
-
     if (params_.print_debug_data) {
       // Print some info about the Hessian
       const MatrixXd H = EvalHessian(state).MakeDense();
@@ -2738,9 +2718,14 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
 
     const double cost = EvalCost(state);
     const double merit = EvalMeritFunction(state);
-    const double dL_dq = g.dot(dq) / cost;
     const double q_norm = state.norm();
-
+    double dL_dq;
+    if (params_.scaling) {
+      const VectorXd& D = EvalScaleFactors(state);
+      dL_dq = g.dot(D.cwiseInverse().asDiagonal() * dq) / cost;
+    } else {
+      dL_dq = g.dot(dq) / cost;
+    }
 
     // Compute the trust region ratio
     rho = CalcTrustRatio(state, dq, &scratch_state);
@@ -2748,7 +2733,7 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
     // With a positive definite Hessian, steps should not oppose the descent
     // direction
     if (!params_.exact_hessian) {
-      //DRAKE_DEMAND(dL_dq < std::numeric_limits<double>::epsilon());
+      DRAKE_DEMAND(dL_dq < std::numeric_limits<double>::epsilon());
     } else {
       // Reduce the trust region and reject the step if this is not a descent
       // direction
@@ -2794,7 +2779,6 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
     iter_start_time = std::chrono::high_resolution_clock::now();
 
     // Printout statistics from this iteration
-    //const VectorXd& h = EvalEqualityConstraintViolations(state);
     if (params_.verbose) {
       if ((k % 50) == 0) {
         // Refresh the labels for easy reading

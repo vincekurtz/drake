@@ -79,8 +79,9 @@ struct TrajectoryOptimizerWorkspace {
     a_size_tmp11.resize(nv);
     a_size_tmp12.resize(nv);
 
-    num_vars_size_tmp.resize(num_vars);
-  
+    num_vars_size_tmp1.resize(num_vars);
+    num_vars_size_tmp2.resize(num_vars);
+
     num_vars_by_num_eq_cons_tmp.resize(num_vars, num_eq_cons);
 
     // Allocate sequences
@@ -140,7 +141,8 @@ struct TrajectoryOptimizerWorkspace {
   std::vector<VectorX<T>> q_sequence_tmp2;
 
   // Vector of all decision variables
-  VectorX<T> num_vars_size_tmp;
+  VectorX<T> num_vars_size_tmp1;
+  VectorX<T> num_vars_size_tmp2;
 
   // Matrix of size (number of variables) * (number of equality constraints)
   MatrixX<T> num_vars_by_num_eq_cons_tmp;

@@ -211,8 +211,8 @@ drake_cc_googletest(
         "//manipulation/models/iiwa_description:models",
         "//multibody/benchmarks/acrobot:models",
         "//traj_opt/examples:hopper.urdf",
-        "//traj_opt/examples:spinner_sphere.urdf",
         "//traj_opt/examples:spinner_friction.urdf",
+        "//traj_opt/examples:spinner_sphere.urdf",
     ],
     deps = [
         ":inverse_dynamics_partials",

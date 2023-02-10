@@ -168,8 +168,8 @@ struct SolverParameters {
 
   // Flag for rescaling the Hessian, for better numerical conditioning
   bool scaling = true;
-  
-  // Method to use for rescaling the Hessian (and thus reshaping the Hessian) 
+
+  // Method to use for rescaling the Hessian (and thus reshaping the Hessian)
   ScalingMethod scaling_method{ScalingMethod::kDoubleSqrt};
 
   // Parameter for activating hard equality constraints on unactuated DoFs

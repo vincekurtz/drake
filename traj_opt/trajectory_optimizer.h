@@ -314,8 +314,7 @@ class TrajectoryOptimizer {
    *
    *     g̃ = Dg,
    *
-   * where g is the original gradient and D = 1/sqrt(sqrt(diag(H))) is a
-   * diagonal scaling matrix.
+   * where g is the original gradient and D is a diagonal scaling matrix.
    *
    * @note if params_.scaling = false, this returns the ordinary gradient g.
    *
@@ -326,9 +325,7 @@ class TrajectoryOptimizer {
       const TrajectoryOptimizerState<T>& state) const;
 
   /**
-   * Evaluate a vector of scaling factors based on the diagonal of the Hessian,
-   *
-   *    D = 1/sqrt(sqrt(diag(H))).
+   * Evaluate a vector of scaling factors based on the diagonal of the Hessian.
    *
    * @param state the optimizer state
    * @return const VectorX<T>& the scaling vector D
@@ -351,6 +348,9 @@ class TrajectoryOptimizer {
   /**
    * Evaluate the Jacobian J = ∂h(q)/∂q of the equality constraints h(q) = 0.
    *
+   * @note if scaling is enabled this returns a scaled version J*D, where D is a
+   * diagonal scaling matrix.
+   *
    * @param state the optimizer state
    * @return const MatrixX<T>& the Jacobian of equality constraints
    */
@@ -363,9 +363,9 @@ class TrajectoryOptimizer {
    * These are given by
    *
    *    λ = (J H⁻¹ Jᵀ)⁻¹ (h − J H⁻¹ g),
-   * 
+   *
    * or equivalently, the solution of the KKT conditions
-   * 
+   *
    *    [H Jᵀ][Δq] = [-g]
    *    [J 0 ][ λ]   [-h]
    *
@@ -399,6 +399,8 @@ class TrajectoryOptimizer {
    * under the assumption that the lagrange multipliers λ are constant. If
    * equality constraints are turned off, this simply returns the regular
    * gradient g.
+   *
+   * @note if scaling is enabled this uses scaled versions of g and J.
    *
    * @param state the optimizer state
    * @return const VectorX<T>& the gradient of the merit function g̃
@@ -919,7 +921,7 @@ class TrajectoryOptimizer {
    * SolverParameters::LinearSolverType.
    *
    * @param H A block penta-diagonal matrix H
-   * @param b The vector b. Overwritten with x on output. 
+   * @param b The vector b. Overwritten with x on output.
    */
   void SolveLinearSystemInPlace(const PentaDiagonalMatrix<T>& H,
                                 EigenPtr<VectorX<T>> b) const;
