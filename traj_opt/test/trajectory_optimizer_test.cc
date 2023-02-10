@@ -1689,6 +1689,124 @@ GTEST_TEST(TrajectoryOptimizerTest, HopperEqualityConstraints) {
                               MatrixCompareType::relative));
 }
 
+// Test the combination of equality constraints and scaling using the hopper
+GTEST_TEST(TrajectoryOptimizerTest, EqualityConstraintsAndScaling) {
+  // Define an optimization problem.
+  const int num_steps = 5;
+  const double dt = 1e-2;
+
+  ProblemDefinition opt_prob;
+  opt_prob.num_steps = num_steps;
+  opt_prob.q_init.resize(5);
+  opt_prob.q_init << 0.0, 0.6, 0.3, -0.5, 0.2;
+  opt_prob.v_init.resize(5);
+  opt_prob.v_init << 1.0, -0.2, 0.1, -0.3, 0.4;
+  opt_prob.Qq = 0.1 * MatrixXd::Identity(5, 5);
+  opt_prob.Qv = 0.2 * MatrixXd::Identity(5, 5);
+  opt_prob.Qf_q = 0.3 * MatrixXd::Identity(5, 5);
+  opt_prob.Qf_v = 0.4 * MatrixXd::Identity(5, 5);
+  opt_prob.R = 0.01 * MatrixXd::Identity(5, 5);
+
+  for (int t = 0; t <= num_steps; ++t) {
+    VectorXd q_nom(5);
+    VectorXd v_nom(5);
+    q_nom << 0.5, 0.5, 0.3, -0.4, 0.1;
+    v_nom << 0.01, 0.0, 0.2, 0.1, -0.1;
+    opt_prob.q_nom.push_back(q_nom);
+    opt_prob.v_nom.push_back(v_nom);
+  }
+
+  // Create a system
+  DiagramBuilder<double> builder;
+  MultibodyPlantConfig config;
+  config.time_step = dt;
+  auto [plant, scene_graph] = multibody::AddMultibodyPlant(config, &builder);
+  const std::string urdf_file =
+      FindResourceOrThrow("drake/traj_opt/examples/hopper.urdf");
+  Parser(&plant).AddAllModelsFromFile(urdf_file);
+  plant.Finalize();
+  auto diagram = builder.Build();
+
+  // Create two optimizers: one with scaling and one without
+  SolverParameters params;
+  params.scaling = false;
+  params.equality_constraints = true;
+  TrajectoryOptimizer<double> optimizer(diagram.get(), &plant, opt_prob,
+                                        params);
+  TrajectoryOptimizerState<double> state = optimizer.CreateState();
+
+  SolverParameters params_scaled;
+  params.scaling = true;
+  params.equality_constraints = true;
+  TrajectoryOptimizer<double> optimizer_scaled(diagram.get(), &plant, opt_prob,
+                                               params);
+  TrajectoryOptimizerState<double> state_scaled =
+      optimizer_scaled.CreateState();
+
+  // Make some fake data
+  std::vector<VectorXd> q(num_steps + 1);
+  q[0] = opt_prob.q_init;
+  for (int t = 1; t <= num_steps; ++t) {
+    q[t] = q[t - 1] + dt * opt_prob.v_init;
+  }
+  state.set_q(q);
+  state_scaled.set_q(q);
+
+  // The scaled constraint jacobian is given by J_scaled = J * D
+  const VectorXd& D = optimizer_scaled.EvalScaleFactors(state_scaled);
+  const MatrixXd& J = optimizer.EvalEqualityConstraintJacobian(state);
+  const MatrixXd& J_scaled =
+      optimizer_scaled.EvalEqualityConstraintJacobian(state_scaled);
+
+  const double kEpsilon = std::numeric_limits<double>::epsilon();
+  EXPECT_TRUE(CompareMatrices(J * D.asDiagonal(),
+                              J_scaled, kEpsilon,
+                              MatrixCompareType::relative));
+
+  // Lagrange multipliers should be the same with and without scaling
+  const MatrixXd Hinv = optimizer.EvalHessian(state).MakeDense().inverse();
+  const VectorXd& h = optimizer.EvalEqualityConstraintViolations(state);
+  const VectorXd& g = optimizer.EvalGradient(state);
+  const VectorXd lambda_dense =
+      (J * Hinv * J.transpose()).inverse() * (h - J * Hinv * g);
+  const VectorXd& lambda = optimizer.EvalLagrangeMultipliers(state);
+  const VectorXd& lambda_scaled =
+      optimizer_scaled.EvalLagrangeMultipliers(state_scaled);
+
+  const double kTolerance = 100 * kEpsilon; // N.B. we loose precision in H^{-1}
+  EXPECT_TRUE(CompareMatrices(lambda_dense, lambda, kTolerance,
+                              MatrixCompareType::relative));
+  EXPECT_TRUE(CompareMatrices(lambda_dense, lambda_scaled, kTolerance,
+                              MatrixCompareType::relative));
+
+  // Merit function should be the same with and without scaling
+  const double merit = optimizer.EvalMeritFunction(state);
+  const double merit_scaled = optimizer_scaled.EvalMeritFunction(state_scaled);
+
+  EXPECT_NEAR(merit, merit_scaled, kTolerance);
+
+  // The scaled merit function gradient is given by gm_scaled = D * gm
+  const VectorXd& gm = optimizer.EvalMeritFunctionGradient(state);
+  const VectorXd& gm_scaled =
+      optimizer_scaled.EvalMeritFunctionGradient(state_scaled);
+
+  const double kGradTolerance = std::sqrt(kEpsilon);  // N.B. finite difference
+  EXPECT_TRUE(CompareMatrices(D.asDiagonal() * gm, gm_scaled, kGradTolerance,
+                              MatrixCompareType::relative));
+
+  // Trust ratio should be the same with and without scaling
+  const VectorXd dq = -Hinv*gm;
+  TrajectoryOptimizerState<double> scratch_state = optimizer.CreateState();
+  double trust_ratio = TrajectoryOptimizerTester::CalcTrustRatio(
+      optimizer, state, dq, &scratch_state);
+  double trust_ratio_scaled = TrajectoryOptimizerTester::CalcTrustRatio(
+      optimizer_scaled, state_scaled, dq, &scratch_state);
+
+  EXPECT_TRUE(trust_ratio > 0.6);   // avoid the trivial rho = 0.5 case
+  EXPECT_NEAR(trust_ratio, trust_ratio_scaled, kTolerance);
+
+}
+
 }  // namespace internal
 }  // namespace traj_opt
 }  // namespace drake
