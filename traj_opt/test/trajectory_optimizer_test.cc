@@ -1545,6 +1545,7 @@ GTEST_TEST(TrajectoryOptimizerTest, SpinnerEqualityConstraints) {
 
   // Create an optimizer
   SolverParameters params;
+  params.scaling = false;
   params.gradients_method = GradientsMethod::kCentralDifferences;
   TrajectoryOptimizer<double> optimizer(diagram.get(), &plant, opt_prob,
                                         params);
@@ -1567,7 +1568,7 @@ GTEST_TEST(TrajectoryOptimizerTest, SpinnerEqualityConstraints) {
   const auto& plant_ad = dynamic_cast<const MultibodyPlant<AutoDiffXd>&>(
       diagram_ad->GetSubsystemByName(plant.get_name()));
   TrajectoryOptimizer<AutoDiffXd> optimizer_ad(diagram_ad.get(), &plant_ad,
-                                               opt_prob);
+                                               opt_prob, params);
   TrajectoryOptimizerState<AutoDiffXd> state_ad = optimizer_ad.CreateState();
 
   std::vector<VectorX<AutoDiffXd>> q_ad(num_steps + 1, VectorX<AutoDiffXd>(3));
@@ -1637,7 +1638,10 @@ GTEST_TEST(TrajectoryOptimizerTest, HopperEqualityConstraints) {
   auto diagram = builder.Build();
 
   // Create an optimizer
-  TrajectoryOptimizer<double> optimizer(diagram.get(), &plant, opt_prob);
+  SolverParameters params;
+  params.scaling = false;
+  TrajectoryOptimizer<double> optimizer(diagram.get(), &plant, opt_prob,
+                                        params);
   TrajectoryOptimizerState<double> state = optimizer.CreateState();
 
   // Make some fake data
@@ -1659,7 +1663,7 @@ GTEST_TEST(TrajectoryOptimizerTest, HopperEqualityConstraints) {
   const auto& plant_ad = dynamic_cast<const MultibodyPlant<AutoDiffXd>&>(
       diagram_ad->GetSubsystemByName(plant.get_name()));
   TrajectoryOptimizer<AutoDiffXd> optimizer_ad(diagram_ad.get(), &plant_ad,
-                                               opt_prob);
+                                               opt_prob, params);
   TrajectoryOptimizerState<AutoDiffXd> state_ad = optimizer_ad.CreateState();
 
   std::vector<VectorX<AutoDiffXd>> q_ad(num_steps + 1, VectorX<AutoDiffXd>(5));

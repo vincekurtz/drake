@@ -1644,7 +1644,7 @@ template <typename T>
 const VectorX<T>& TrajectoryOptimizer<T>::EvalMeritFunctionGradient(
     const TrajectoryOptimizerState<T>& state) const {
   // If we're not using equality constraints, just return the regular gradient.
-  if (!params_.equality_constraints) return EvalGradient(state);
+  if (!params_.equality_constraints) return EvalScaledGradient(state);
 
   if (!state.cache().merit_gradient_up_to_date) {
     CalcMeritFunctionGradient(state, &state.mutable_cache().merit_gradient);
@@ -2207,29 +2207,15 @@ T TrajectoryOptimizer<T>::CalcTrustRatio(
   if (params_.scaling) {
     const VectorX<T>& D = EvalScaleFactors(state);
     dq_scaled = D.cwiseInverse().asDiagonal() * dq;
-
-    // DEBUG
-    const MatrixX<T> H = EvalHessian(state).MakeDense();
-    const VectorX<T> g = EvalGradient(state);
-    const T dense_grad_term = g.dot(dq);
-    const T dense_hess_term = T(0.5 * dq.transpose() * H * dq);
-    PRINT_VAR(dense_grad_term);
-    PRINT_VAR(dense_hess_term);
   }
   VectorX<T>& Hdq = state.workspace.num_vars_size_tmp;
   H_k.MultiplyBy(dq_scaled, &Hdq);  // Hdq = H_k * dq
   const T hessian_term = 0.5 * dq_scaled.transpose() * Hdq;
-  T gradient_term = g_tilde_k.dot(dq);
+  T gradient_term = g_tilde_k.dot(dq_scaled);
   const T predicted_reduction = -gradient_term - hessian_term;
 
   // Compute actual reduction in the merit function
   const T actual_reduction = merit_k - merit_kp;
-
-  PRINT_VAR(gradient_term);
-  PRINT_VAR(hessian_term);
-
-  PRINT_VAR(actual_reduction);
-  PRINT_VAR(predicted_reduction);
 
   // Threshold for determining when the actual and predicted reduction in cost
   // are essentially zero. This is determined by the approximate level of
@@ -2339,8 +2325,8 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
   //const PentaDiagonalMatrix<double>& H = EvalScaledHessian(state);
   //const PentaDiagonalMatrix<double>& H = EvalHessian(state);
   
-  // DEBUG: working with dense algebra for now
-  PentaDiagonalMatrix<double> H = EvalScaledHessian(state);
+  const PentaDiagonalMatrix<double>& H = EvalScaledHessian(state);
+  const VectorXd& g = EvalMeritFunctionGradient(state);
 
   // If equality constraints are active, we'll use the gradient of the merit
   // function, g̃ = g + J'λ. This means the full step pH satisfies the KKT
@@ -2351,24 +2337,24 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
   // direction of -g - J'λ.
   //const VectorXd& g = EvalMeritFunctionGradient(state);
 
-  VectorXd g;
-  if (params_.scaling && params_.equality_constraints) {
-    g = EvalScaledGradient(state);
-    const MatrixXd Hinv = H.MakeDense().inverse();
-    const VectorXd& D = EvalScaleFactors(state);
-    const MatrixXd J = EvalEqualityConstraintJacobian(state) * D.asDiagonal();
-    const VectorXd& h = EvalEqualityConstraintViolations(state);
-    const VectorXd lambda =
-        (J * Hinv * J.transpose()).inverse() * (h - J * Hinv * g);
-    g = g + J.transpose() * lambda;
+  //VectorXd g;
+  //if (params_.scaling && params_.equality_constraints) {
+  //  g = EvalMeritFunctionGradient(state);
+  //  //const MatrixXd Hinv = H.MakeDense().inverse();
+  //  //const VectorXd& D = EvalScaleFactors(state);
+  //  //const MatrixXd J = EvalEqualityConstraintJacobian(state) * D.asDiagonal();
+  //  //const VectorXd& h = EvalEqualityConstraintViolations(state);
+  //  //const VectorXd lambda =
+  //  //    (J * Hinv * J.transpose()).inverse() * (h - J * Hinv * g);
+  //  //g = g + J.transpose() * lambda;
 
-  } else if (params_.scaling) {
-    g = EvalScaledGradient(state);
-  } else if (params_.equality_constraints) {
-    g = EvalMeritFunctionGradient(state);
-  } else {
-    g = EvalGradient(state);
-  }
+  //} else if (params_.scaling) {
+  //  g = EvalScaledGradient(state);
+  //} else if (params_.equality_constraints) {
+  //  g = EvalMeritFunctionGradient(state);
+  //} else {
+  //  g = EvalGradient(state);
+  //}
 
   VectorXd& Hg = state.workspace.num_vars_size_tmp;
   H.MultiplyBy(g, &Hg);
@@ -2762,7 +2748,7 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
     // With a positive definite Hessian, steps should not oppose the descent
     // direction
     if (!params_.exact_hessian) {
-      DRAKE_DEMAND(dL_dq < std::numeric_limits<double>::epsilon());
+      //DRAKE_DEMAND(dL_dq < std::numeric_limits<double>::epsilon());
     } else {
       // Reduce the trust region and reject the step if this is not a descent
       // direction

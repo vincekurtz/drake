@@ -36,7 +36,7 @@ method : "trust_region"     # solver method, {linesearch, trust_region}
 exact_hessian : false
 scaling : true
 scaling_method : "double_sqrt"
-equality_constraints : false
+equality_constraints : true
 
 Delta0 : 1e-3
 
