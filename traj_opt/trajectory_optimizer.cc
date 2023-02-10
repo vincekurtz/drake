@@ -2207,15 +2207,29 @@ T TrajectoryOptimizer<T>::CalcTrustRatio(
   if (params_.scaling) {
     const VectorX<T>& D = EvalScaleFactors(state);
     dq_scaled = D.cwiseInverse().asDiagonal() * dq;
+
+    // DEBUG
+    const MatrixX<T> H = EvalHessian(state).MakeDense();
+    const VectorX<T> g = EvalGradient(state);
+    const T dense_grad_term = g.dot(dq);
+    const T dense_hess_term = T(0.5 * dq.transpose() * H * dq);
+    PRINT_VAR(dense_grad_term);
+    PRINT_VAR(dense_hess_term);
   }
   VectorX<T>& Hdq = state.workspace.num_vars_size_tmp;
   H_k.MultiplyBy(dq_scaled, &Hdq);  // Hdq = H_k * dq
   const T hessian_term = 0.5 * dq_scaled.transpose() * Hdq;
-  T gradient_term = g_tilde_k.dot(dq_scaled);
+  T gradient_term = g_tilde_k.dot(dq);
   const T predicted_reduction = -gradient_term - hessian_term;
 
   // Compute actual reduction in the merit function
   const T actual_reduction = merit_k - merit_kp;
+
+  PRINT_VAR(gradient_term);
+  PRINT_VAR(hessian_term);
+
+  PRINT_VAR(actual_reduction);
+  PRINT_VAR(predicted_reduction);
 
   // Threshold for determining when the actual and predicted reduction in cost
   // are essentially zero. This is determined by the approximate level of
@@ -2318,9 +2332,15 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
     VectorXd* dq, VectorXd* dqH) const {
   INSTRUMENT_FUNCTION("Find search direction with dogleg method.");
 
-  // N.B. there is no extra cost to this evaluation if scaling is off. If
-  // params_.scaling = false, EvalScaledHessian returns the regular Hessian.
-  const PentaDiagonalMatrix<double>& H = EvalScaledHessian(state);
+  // TODO: figure out how to combine scaling with equality constraints
+  // N.B. there is no extra cost to these evaluations if params_.scaling =
+  // false. If params_.scaling = false, then EvalScaledHessian returns the
+  // regular Hessian, and EvalScaledGradient returns the regular gradient.
+  //const PentaDiagonalMatrix<double>& H = EvalScaledHessian(state);
+  //const PentaDiagonalMatrix<double>& H = EvalHessian(state);
+  
+  // DEBUG: working with dense algebra for now
+  PentaDiagonalMatrix<double> H = EvalScaledHessian(state);
 
   // If equality constraints are active, we'll use the gradient of the merit
   // function, g̃ = g + J'λ. This means the full step pH satisfies the KKT
@@ -2328,9 +2348,27 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
   //     [H  J']*[pH] = [-g]
   //     [J  0 ] [ λ]   [-h]
   // while the shortened step pU minimizes the quadratic approximation in the
-  // direction of -g - J'λ. If equality constraints are not active, this returns
-  // the regular gradient g.
-  const VectorXd& g = EvalMeritFunctionGradient(state);
+  // direction of -g - J'λ.
+  //const VectorXd& g = EvalMeritFunctionGradient(state);
+
+  VectorXd g;
+  if (params_.scaling && params_.equality_constraints) {
+    g = EvalScaledGradient(state);
+    const MatrixXd Hinv = H.MakeDense().inverse();
+    const VectorXd& D = EvalScaleFactors(state);
+    const MatrixXd J = EvalEqualityConstraintJacobian(state) * D.asDiagonal();
+    const VectorXd& h = EvalEqualityConstraintViolations(state);
+    const VectorXd lambda =
+        (J * Hinv * J.transpose()).inverse() * (h - J * Hinv * g);
+    g = g + J.transpose() * lambda;
+
+  } else if (params_.scaling) {
+    g = EvalScaledGradient(state);
+  } else if (params_.equality_constraints) {
+    g = EvalMeritFunctionGradient(state);
+  } else {
+    g = EvalGradient(state);
+  }
 
   VectorXd& Hg = state.workspace.num_vars_size_tmp;
   H.MultiplyBy(g, &Hg);
