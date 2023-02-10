@@ -2177,17 +2177,26 @@ T TrajectoryOptimizer<T>::CalcTrustRatio(
     TrajectoryOptimizerState<T>* scratch_state) const {
   // Quantities at the current iteration (k)
   const T merit_k = EvalMeritFunction(state);
-  const VectorX<T>& g_tilde_k = EvalMeritFunctionGradient(state);
-  const PentaDiagonalMatrix<T>& H_k = EvalHessian(state);
+  //const VectorX<T>& g_tilde_k = EvalMeritFunctionGradient(state);
+  //const PentaDiagonalMatrix<T>& H_k = EvalHessian(state);
   const VectorX<T>& lambda_k = EvalLagrangeMultipliers(state);
+
+  // DEBUG: dense version 
+  const VectorX<T>& D = EvalScaleFactors(state);
+  MatrixX<T> J = EvalEqualityConstraintJacobian(state);
+  if (params_.scaling) {
+    J = J * D.asDiagonal();
+  }
+  const VectorX<T>& g_k = EvalScaledGradient(state);
+  const PentaDiagonalMatrix<T>& H_k = EvalScaledHessian(state);
+  const VectorX<T>& g_tilde_k = g_k + J.transpose() * lambda_k;
 
   // Quantities at the next iteration if we accept the step (kp = k+1)
   // TODO(vincekurtz): if we do end up accepting the step, it would be nice to
   // somehow reuse these cached quantities, which we're currently trashing
   scratch_state->set_q(state.q());
   scratch_state->AddToQ(dq);
-  const T L_kp = EvalCost(*scratch_state);
-  T merit_kp = L_kp;
+  T merit_kp = EvalCost(*scratch_state);
   if (params_.equality_constraints) {
     // N.B. We use λₖ rather than λₖ₊₁ to compute the merit function 
     // ϕₖ₊₁ = L(qₖ₊₁) + h(qₖ₊₁)ᵀλₖ here because we are assuming that λ is
@@ -2197,10 +2206,15 @@ T TrajectoryOptimizer<T>::CalcTrustRatio(
   } 
 
   // Compute predicted reduction in the merit function
+  // TODO: make more efficient
+  VectorX<T> dq_scaled = dq;
+  if (params_.scaling) {
+    dq_scaled = D.cwiseInverse().asDiagonal() * dq;
+  }
   VectorX<T>& Hdq = state.workspace.num_vars_size_tmp;
-  H_k.MultiplyBy(dq, &Hdq);  // Hdq = H_k * dq
-  const T hessian_term = 0.5 * dq.transpose() * Hdq;
-  T gradient_term = g_tilde_k.dot(dq);
+  H_k.MultiplyBy(dq_scaled, &Hdq);  // Hdq = H_k * dq
+  const T hessian_term = 0.5 * dq_scaled.transpose() * Hdq;
+  T gradient_term = g_tilde_k.dot(dq_scaled);
   const T predicted_reduction = -gradient_term - hessian_term;
 
   // Compute actual reduction in the merit function

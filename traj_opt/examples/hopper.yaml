@@ -28,6 +28,7 @@ max_iters : 500            # maximum Gauss-Newton iterations
 method : "trust_region"       # solver method, {linesearch, trust_region}
 linesearch: "backtracking"
 scaling : false
+scaling_method : "double_sqrt"
 equality_constraints : true
 linear_solver : "pentadiagonal_lu"
 
@@ -51,7 +52,7 @@ play_optimal_trajectory : true
 
 # Debugging parameters
 linesearch_plot_every_iteration : false
-print_debug_data : true
+print_debug_data : false
 save_solver_stats_csv : true
 
 # Contact model parameters. 
@@ -69,5 +70,5 @@ smoothing_factor : 0.1
 force_at_a_distance : true
 
 # Friction
-friction_coefficient : 0.5  # Coefficient of friction.
-stiction_velocity: 0.1     # Regularization velocity, in m/s.
+friction_coefficient : 1.0  # Coefficient of friction.
+stiction_velocity: 0.01     # Regularization velocity, in m/s.
