@@ -298,8 +298,7 @@ class TrajectoryOptimizer {
    *
    *     H̃ = DHD,
    *
-   * where H is the original Hessian and D = 1/sqrt(sqrt(diag(H))) is a diagonal
-   * scaling matrix.
+   * where H is the original Hessian and D is a diagonal scaling matrix.
    *
    * @note if params_.scaling = false, this returns the ordinary Hessian H.
    *
@@ -1019,7 +1018,8 @@ class TrajectoryOptimizer {
                           VectorX<T>* gtilde) const;
 
   /**
-   * Compute the vector of scaling factors D = 1/sqrt(sqrt(diag(H))).
+   * Compute the vector of scaling factors D based on the diagonal of the
+   * Hessian.
    *
    * @param state the optimizer state
    * @param D the vector of scale factors D
