@@ -1,6 +1,7 @@
 #include "drake/traj_opt/examples/example_base.h"
 
 #include <chrono>
+#include <iostream>
 #include <thread>
 #include <utility>
 
@@ -500,6 +501,26 @@ void TrajOptExample::SetSolverParameters(
 
   // Hessian rescaling
   solver_params->scaling = options.scaling;
+
+  if (options.scaling_method == "sqrt") {
+    solver_params->scaling_method = ScalingMethod::kSqrt;
+  } else if (options.scaling_method == "adaptive_sqrt") {
+    solver_params->scaling_method = ScalingMethod::kAdaptiveSqrt;
+  } else if (options.scaling_method == "double_sqrt") {
+    solver_params->scaling_method = ScalingMethod::kDoubleSqrt;
+  } else if (options.scaling_method == "adaptive_double_sqrt") {
+    solver_params->scaling_method = ScalingMethod::kAdaptiveDoubleSqrt;
+  } else {
+    throw std::runtime_error(
+        fmt::format("Unknown scaling method '{}'", options.scaling_method));
+  }
+
+  // Equality constriant (unactuated DoF torques) enforcement
+  solver_params->equality_constraints = options.equality_constraints;
+
+  // Maximum and initial trust region radius
+  solver_params->Delta0 = options.Delta0;
+  solver_params->Delta_max = options.Delta_max;
 }
 
 }  // namespace examples

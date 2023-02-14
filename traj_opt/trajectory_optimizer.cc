@@ -46,12 +46,22 @@ TrajectoryOptimizer<T>::TrajectoryOptimizer(const MultibodyPlant<T>* plant,
     : plant_(plant), context_(context), prob_(prob), params_(params) {
   // Define joint damping coefficients.
   joint_damping_ = VectorX<T>::Zero(plant_->num_velocities());
-
   for (JointIndex j(0); j < plant_->num_joints(); ++j) {
     const Joint<T>& joint = plant_->get_joint(j);
     const int velocity_start = joint.velocity_start();
     const int nv = joint.num_velocities();
     joint_damping_.segment(velocity_start, nv) = joint.damping_vector();
+  }
+
+  // Define unactuated degrees of freedom
+  const MatrixX<T> B = plant_->MakeActuationMatrix();
+  if (B.size() > 0) {
+    // if B is of size zero, assume the system is fully actuated
+    for (int i = 0; i < plant_->num_velocities(); ++i) {
+      if (B.row(i).sum() == 0) {
+        unactuated_dofs_.push_back(i);
+      }
+    }
   }
 
   // Must have a target position and velocity specified for each time step
@@ -79,12 +89,22 @@ TrajectoryOptimizer<T>::TrajectoryOptimizer(const Diagram<T>* diagram,
 
   // Define joint damping coefficients.
   joint_damping_ = VectorX<T>::Zero(plant_->num_velocities());
-
   for (JointIndex j(0); j < plant_->num_joints(); ++j) {
     const Joint<T>& joint = plant_->get_joint(j);
     const int velocity_start = joint.velocity_start();
     const int nv = joint.num_velocities();
     joint_damping_.segment(velocity_start, nv) = joint.damping_vector();
+  }
+
+  // Define unactuated degrees of freedom
+  const MatrixX<T> B = plant_->MakeActuationMatrix();
+  if (B.size() > 0) {
+    // if B is of size zero, assume the system is fully actuated
+    for (int i = 0; i < plant_->num_velocities(); ++i) {
+      if (B.row(i).sum() == 0) {
+        unactuated_dofs_.push_back(i);
+      }
+    }
   }
 
   // Must have a target position and velocity specified for each time step
@@ -113,7 +133,8 @@ TrajectoryOptimizer<T>::TrajectoryOptimizer(const Diagram<T>* diagram,
       // implementation to the source?
       state_ad_ = std::unique_ptr<TrajectoryOptimizerState<AutoDiffXd>>(
           new TrajectoryOptimizerState<AutoDiffXd>(num_steps(), *diagram_ad_,
-                                                   *plant_ad_));
+                                                   *plant_ad_,
+                                                   num_equality_constraints()));
     }
   } else {
     if (params_.gradients_method == GradientsMethod::kAutoDiff) {
@@ -644,7 +665,7 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsFiniteDiff(
   T dq_i;
   T dv_i;
   T da_i;
-  for (int t = 0; t <= num_steps(); ++t) {
+  for (int t = 1; t <= num_steps(); ++t) {
     // N.B. A perturbation of qt propagates to tau[t-1], tau[t] and tau[t+1].
     // Therefore we compute one column of grad_tau at a time. That is, once the
     // loop on position indices i is over, we effectively computed the t-th
@@ -663,10 +684,7 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsFiniteDiff(
       // a[num_steps + 1] is not defined
       a_eps_tp = a[t + 1];
     }
-    if (t > 0) {
-      // a[-1] is undefined
-      a_eps_tm = a[t - 1];
-    }
+    a_eps_tm = a[t - 1];
 
     for (int i = 0; i < plant().num_positions(); ++i) {
       // Determine perturbation sizes to avoid losing precision to floating
@@ -683,10 +701,8 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsFiniteDiff(
       // Perturb q_t[i], v_t[i], and a_t[i]
       q_eps_t(i) += dq_i;
 
-      if (t > 0) {
-        v_eps_t += dv_i * Nplus[t].col(i);
-        a_eps_tm += da_i * Nplus[t].col(i);
-      }
+      v_eps_t += dv_i * Nplus[t].col(i);
+      a_eps_tm += da_i * Nplus[t].col(i);
       if (t < num_steps()) {
         v_eps_tp -= dv_i * Nplus[t + 1].col(i);
         a_eps_t -= da_i * (Nplus[t + 1].col(i) + Nplus[t].col(i));
@@ -697,24 +713,25 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsFiniteDiff(
 
       // Compute perturbed tau(q) and calculate the nonzero entries of dtau/dq
       // via finite differencing
-      if (t > 0) {
-        // tau[t-1] = ID(q[t], v[t], a[t-1])
-        plant().SetPositions(context_, q_eps_t);
-        plant().SetVelocities(context_, v_eps_t);
-        CalcInverseDynamicsSingleTimeStep(*context_, a_eps_tm, &workspace,
-                                          &tau_eps_tm);
-        dtau_dqp[t - 1].col(i) = (tau_eps_tm - tau[t - 1]) / dq_i;
-      }
+
+      // tau[t-1] = ID(q[t], v[t], a[t-1])
+      plant().SetPositions(context_, q_eps_t);
+      plant().SetVelocities(context_, v_eps_t);
+      CalcInverseDynamicsSingleTimeStep(*context_, a_eps_tm, &workspace,
+                                        &tau_eps_tm);
+      dtau_dqp[t - 1].col(i) = (tau_eps_tm - tau[t - 1]) / dq_i;
+
+      // tau[t] = ID(q[t+1], v[t+1], a[t])
       if (t < num_steps()) {
-        // tau[t] = ID(q[t+1], v[t+1], a[t])
         plant().SetPositions(context_, q[t + 1]);
         plant().SetVelocities(context_, v_eps_tp);
         CalcInverseDynamicsSingleTimeStep(*context_, a_eps_t, &workspace,
                                           &tau_eps_t);
         dtau_dqt[t].col(i) = (tau_eps_t - tau[t]) / dq_i;
       }
+
+      // tau[t+1] = ID(q[t+2], v[t+2], a[t+1])
       if (t < num_steps() - 1) {
-        // tau[t+1] = ID(q[t+2], v[t+2], a[t+1])
         plant().SetPositions(context_, q[t + 2]);
         plant().SetVelocities(context_, v[t + 2]);
         CalcInverseDynamicsSingleTimeStep(*context_, a_eps_tp, &workspace,
@@ -724,10 +741,8 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsFiniteDiff(
 
       // Unperturb q_t[i], v_t[i], and a_t[i]
       q_eps_t = q[t];
-      if (t > 0) {
-        v_eps_t = v[t];
-        a_eps_tm = a[t - 1];
-      }
+      v_eps_t = v[t];
+      a_eps_tm = a[t - 1];
       if (t < num_steps()) {
         v_eps_tp = v[t + 1];
         a_eps_t = a[t];
@@ -751,7 +766,7 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsCentralDiff(
   std::vector<MatrixX<T>>& dtau_dqt = id_partials->dtau_dqt;
   std::vector<MatrixX<T>>& dtau_dqp = id_partials->dtau_dqp;
 
-  for (int t = 0; t <= num_steps(); ++t) {
+  for (int t = 1; t <= num_steps(); ++t) {
     // N.B. A perturbation of qt propagates to tau[t-1], tau[t] and tau[t+1].
     // Therefore we compute one column of grad_tau at a time. That is, once the
     // loop on position indices i is over, we effectively computed the t-th
@@ -1092,7 +1107,7 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsAutoDiff(
 
   // At each t we will compute derivatives of tau[t-1], tau[t] and tau[t+1 with
   // respect to q[t].
-  for (int t = 0; t <= num_steps(); ++t) {
+  for (int t = 1; t <= num_steps(); ++t) {
     // Set derivatives with respect to q[t].
     // q[t] will propagate directly to v[t], v[t+1], a[t-1], a[t] and a[t+1].
     q_ad[t] = math::InitializeAutoDiff(q[t]);
@@ -1286,6 +1301,7 @@ const VectorX<T>& TrajectoryOptimizer<T>::EvalGradient(
     const TrajectoryOptimizerState<T>& state) const {
   if (!state.cache().gradient_up_to_date) {
     CalcGradient(state, &state.mutable_cache().gradient);
+    state.mutable_cache().gradient_up_to_date = true;
   }
   return state.cache().gradient;
 }
@@ -1433,11 +1449,33 @@ const VectorX<T>& TrajectoryOptimizer<T>::EvalScaledGradient(
 template <typename T>
 void TrajectoryOptimizer<T>::CalcScaleFactors(
     const TrajectoryOptimizerState<T>& state, VectorX<T>* D) const {
-  using std::max;
+  using std::min;
   using std::sqrt;
+
   const PentaDiagonalMatrix<T>& H = EvalHessian(state);
-  H.ExtractDiagonal(D);
-  *D = D->cwiseSqrt().cwiseSqrt().cwiseInverse();
+  VectorX<T>& hessian_diag = state.workspace.num_vars_size_tmp1;
+  H.ExtractDiagonal(&hessian_diag);
+
+  for (int i = 0; i < D->size(); ++i) {
+    switch (params_.scaling_method) {
+      case ScalingMethod::kSqrt: {
+        (*D)[i] = min(1.0, 1 / sqrt(hessian_diag[i]));
+        break;
+      }
+      case ScalingMethod::kAdaptiveSqrt: {
+        (*D)[i] = min((*D)[i], 1 / sqrt(hessian_diag[i]));
+        break;
+      }
+      case ScalingMethod::kDoubleSqrt: {
+        (*D)[i] = min(1.0, 1 / sqrt(sqrt(hessian_diag[i])));
+        break;
+      }
+      case ScalingMethod::kAdaptiveDoubleSqrt: {
+        (*D)[i] = min((*D)[i], 1 / sqrt(sqrt(hessian_diag[i])));
+        break;
+      }
+    }
+  }
 }
 
 template <typename T>
@@ -1448,6 +1486,178 @@ const VectorX<T>& TrajectoryOptimizer<T>::EvalScaleFactors(
     state.mutable_cache().scale_factors_up_to_date = true;
   }
   return state.cache().scale_factors;
+}
+
+template <typename T>
+void TrajectoryOptimizer<T>::CalcEqualityConstraintViolations(
+    const TrajectoryOptimizerState<T>& state, VectorX<T>* violations) const {
+  const std::vector<VectorX<T>>& tau = EvalTau(state);
+  const int num_unactuated_dofs = unactuated_dofs().size();
+
+  for (int t = 0; t < num_steps(); ++t) {
+    for (int j = 0; j < num_unactuated_dofs; ++j) {
+      (*violations)(t * num_unactuated_dofs + j) = tau[t][unactuated_dofs()[j]];
+    }
+  }
+}
+
+template <typename T>
+const VectorX<T>& TrajectoryOptimizer<T>::EvalEqualityConstraintViolations(
+    const TrajectoryOptimizerState<T>& state) const {
+  if (!state.cache().constraint_violation_up_to_date) {
+    CalcEqualityConstraintViolations(
+        state, &state.mutable_cache().constraint_violation);
+    state.mutable_cache().constraint_violation_up_to_date = true;
+  }
+  return state.cache().constraint_violation;
+}
+
+template <typename T>
+void TrajectoryOptimizer<T>::CalcEqualityConstraintJacobian(
+    const TrajectoryOptimizerState<T>& state, MatrixX<T>* J) const {
+  DRAKE_DEMAND(J->cols() == (num_steps() + 1) * plant().num_positions());
+  DRAKE_DEMAND(J->rows() == num_equality_constraints());
+
+  const InverseDynamicsPartials<T>& id_partials =
+      EvalInverseDynamicsPartials(state);
+
+  const int nq = plant().num_positions();
+  const int n_steps = num_steps();
+  const int n_unactuated = unactuated_dofs().size();
+
+  for (int t = 0; t < n_steps; ++t) {
+    for (int i = 0; i < n_unactuated; ++i) {
+      // ∂hₜⁱ/∂qₜ₊₁
+      J->block(t * n_unactuated + i, (t + 1) * nq, 1, nq) =
+          id_partials.dtau_dqp[t].row(unactuated_dofs()[i]);
+
+      // ∂hₜⁱ/∂qₜ
+      if (t > 0) {
+        J->block(t * n_unactuated + i, t * nq, 1, nq) =
+            id_partials.dtau_dqt[t].row(unactuated_dofs()[i]);
+      }
+
+      // ∂hₜⁱ/∂qₜ₋₁
+      if (t > 1) {
+        J->block(t * n_unactuated + i, (t - 1) * nq, 1, nq) =
+            id_partials.dtau_dqm[t].row(unactuated_dofs()[i]);
+      }
+    }
+  }
+
+  // With scaling enabled, the KKT conditions become
+  //   [ DHD  DJ'][Δq] = [-g]
+  //   [ JD    0 ][ λ]   [-h]
+  // so we'll return the scaled version of the constraint Jacobian J̃ = JD
+  if (params_.scaling) {
+    const VectorX<T>& D = EvalScaleFactors(state);
+    *J = (*J) * D.asDiagonal();
+  }
+}
+
+template <typename T>
+const MatrixX<T>& TrajectoryOptimizer<T>::EvalEqualityConstraintJacobian(
+    const TrajectoryOptimizerState<T>& state) const {
+  if (!state.cache().constraint_jacobian_up_to_date) {
+    CalcEqualityConstraintJacobian(state,
+                                   &state.mutable_cache().constraint_jacobian);
+    state.mutable_cache().constraint_jacobian_up_to_date = true;
+  }
+  return state.cache().constraint_jacobian;
+}
+
+template <typename T>
+void TrajectoryOptimizer<T>::CalcLagrangeMultipliers(
+    const TrajectoryOptimizerState<T>&, VectorX<T>*) const {
+  // We need to perform linear system solves to compute the lagrange
+  // multipliers, so we don't support autodiff here.
+  throw std::runtime_error("CalcLagrangeMultipliers() only supports T=double");
+}
+
+template <>
+void TrajectoryOptimizer<double>::CalcLagrangeMultipliers(
+    const TrajectoryOptimizerState<double>& state, VectorXd* lambda) const {
+  // λ = (J H⁻¹ Jᵀ)⁻¹ (h − J H⁻¹ g)
+  const PentaDiagonalMatrix<double>& H = EvalScaledHessian(state);
+  const VectorXd& g = EvalScaledGradient(state);
+  const VectorXd& h = EvalEqualityConstraintViolations(state);
+  const MatrixXd& J = EvalEqualityConstraintJacobian(state);
+
+  // compute H⁻¹ Jᵀ
+  // TODO(vincekurtz): add options for other linear systems solvers
+  MatrixXd& Hinv_JT = state.workspace.num_vars_by_num_eq_cons_tmp;
+  Hinv_JT = J.transpose();
+  PentaDiagonalFactorization Hlu(H);
+  DRAKE_DEMAND(Hlu.status() == PentaDiagonalFactorizationStatus::kSuccess);
+  for (int i = 0; i < Hinv_JT.cols(); ++i) {
+    // We need this variable to avoid taking the address of a temporary object
+    auto ith_column = Hinv_JT.col(i);
+    Hlu.SolveInPlace(&ith_column);
+  }
+
+  // TODO(vincekurtz): it may be possible to exploit the structure of JH⁻¹Jᵀ to
+  // perform this step more efficiently.
+  *lambda = (J * Hinv_JT).ldlt().solve(h - Hinv_JT.transpose() * g);
+}
+
+template <typename T>
+const VectorX<T>& TrajectoryOptimizer<T>::EvalLagrangeMultipliers(
+    const TrajectoryOptimizerState<T>& state) const {
+  // We shouldn't be calling this unless equality constraints are enabled
+  DRAKE_ASSERT(params_.equality_constraints);
+
+  if (!state.cache().lagrange_multipliers_up_to_date) {
+    CalcLagrangeMultipliers(state, &state.mutable_cache().lagrange_multipliers);
+    state.mutable_cache().lagrange_multipliers_up_to_date = true;
+  }
+  return state.cache().lagrange_multipliers;
+}
+
+template <typename T>
+void TrajectoryOptimizer<T>::CalcMeritFunction(
+    const TrajectoryOptimizerState<T>& state, T* merit) const {
+  const T& L = EvalCost(state);
+  const VectorX<T>& h = EvalEqualityConstraintViolations(state);
+  const VectorX<T>& lambda = EvalLagrangeMultipliers(state);
+
+  *merit = L + h.dot(lambda);
+}
+
+template <typename T>
+const T TrajectoryOptimizer<T>::EvalMeritFunction(
+    const TrajectoryOptimizerState<T>& state) const {
+  // If we're not using equality constraints, the merit function is simply the
+  // unconstrained cost.
+  if (!params_.equality_constraints) return EvalCost(state);
+
+  if (!state.cache().merit_up_to_date) {
+    CalcMeritFunction(state, &state.mutable_cache().merit);
+    state.mutable_cache().merit_up_to_date = true;
+  }
+  return state.cache().merit;
+}
+
+template <typename T>
+void TrajectoryOptimizer<T>::CalcMeritFunctionGradient(
+    const TrajectoryOptimizerState<T>& state, VectorX<T>* g_tilde) const {
+  const VectorX<T>& g = EvalScaledGradient(state);
+  const VectorX<T>& lambda = EvalLagrangeMultipliers(state);
+  const MatrixX<T>& J = EvalEqualityConstraintJacobian(state);
+
+  *g_tilde = g + J.transpose() * lambda;
+}
+
+template <typename T>
+const VectorX<T>& TrajectoryOptimizer<T>::EvalMeritFunctionGradient(
+    const TrajectoryOptimizerState<T>& state) const {
+  // If we're not using equality constraints, just return the regular gradient.
+  if (!params_.equality_constraints) return EvalScaledGradient(state);
+
+  if (!state.cache().merit_gradient_up_to_date) {
+    CalcMeritFunctionGradient(state, &state.mutable_cache().merit_gradient);
+    state.mutable_cache().merit_gradient_up_to_date = true;
+  }
+  return state.cache().merit_gradient;
 }
 
 template <typename T>
@@ -1857,7 +2067,15 @@ std::tuple<double, int> TrajectoryOptimizer<T>::BacktrackingLinesearch(
   using std::abs;
 
   // Compute the cost and gradient
-  const T L = EvalCost(state);
+  double mu = 0.0;
+  if (params_.equality_constraints) {
+    // Use an exact l1 penalty function as the merit function if equality
+    // constraints are enforced exactly.
+    // TODO(vincekurtz): add equality constraints to Armijo linesearch
+    mu = 1e3;
+  }
+  const VectorX<T>& h = EvalEqualityConstraintViolations(state);
+  const T L = EvalCost(state) + mu * h.cwiseAbs().sum();
   const VectorX<T>& g = EvalGradient(state);
 
   // Linesearch parameters
@@ -1865,14 +2083,15 @@ std::tuple<double, int> TrajectoryOptimizer<T>::BacktrackingLinesearch(
   const double rho = 0.8;
 
   double alpha = 1.0;
-  T L_prime = g.transpose() * dq;  // gradient of L w.r.t. alpha
+  T L_prime = g.transpose() * dq -
+              mu * h.cwiseAbs().sum();  // gradient of L w.r.t. alpha
 
   // Make sure this is a descent direction
   DRAKE_DEMAND(L_prime <= 0);
 
   // Exit early with alpha = 1 when we are close to convergence
   const double convergence_threshold =
-      10 * std::numeric_limits<double>::epsilon() / time_step() / time_step();
+      std::sqrt(std::numeric_limits<double>::epsilon());
   if (abs(L_prime) / abs(L) <= convergence_threshold) {
     return {1.0, 0};
   }
@@ -1880,7 +2099,9 @@ std::tuple<double, int> TrajectoryOptimizer<T>::BacktrackingLinesearch(
   // Try with alpha = 1
   scratch_state->set_q(state.q());
   scratch_state->AddToQ(alpha * dq);
-  T L_old = EvalCost(*scratch_state);
+  T L_old =
+      EvalCost(*scratch_state) +
+      mu * EvalEqualityConstraintViolations(*scratch_state).cwiseAbs().sum();
 
   // L_new stores cost at iteration i:   L(q + alpha_i * dq)
   // L_old stores cost at iteration i-1: L(q + alpha_{i-1} * dq)
@@ -1901,7 +2122,9 @@ std::tuple<double, int> TrajectoryOptimizer<T>::BacktrackingLinesearch(
     // Compute L_new = L(q + alpha_i * dq)
     scratch_state->set_q(state.q());
     scratch_state->AddToQ(alpha * dq);
-    L_new = EvalCost(*scratch_state);
+    L_new =
+        EvalCost(*scratch_state) +
+        mu * EvalEqualityConstraintViolations(*scratch_state).cwiseAbs().sum();
 
     // Check the Armijo conditions
     if (L_new <= L + c * alpha * L_prime) {
@@ -1965,21 +2188,43 @@ template <typename T>
 T TrajectoryOptimizer<T>::CalcTrustRatio(
     const TrajectoryOptimizerState<T>& state, const VectorX<T>& dq,
     TrajectoryOptimizerState<T>* scratch_state) const {
-  // Compute predicted reduction in cost
-  const VectorX<T>& g = EvalGradient(state);
-  const PentaDiagonalMatrix<T>& H = EvalHessian(state);
-  const T gradient_term = g.dot(dq);
-  VectorX<T>& Hdq = state.workspace.q_times_num_steps_size_tmp;
-  H.MultiplyBy(dq, &Hdq);
-  const T hessian_term = 0.5 * dq.transpose() * Hdq;
-  const T predicted_reduction = -gradient_term - hessian_term;
+  // Quantities at the current iteration (k)
+  const T merit_k = EvalMeritFunction(state);
+  const VectorX<T>& g_tilde_k = EvalMeritFunctionGradient(state);
+  const PentaDiagonalMatrix<T>& H_k = EvalScaledHessian(state);
+  const VectorX<T>& lambda_k = EvalLagrangeMultipliers(state);
 
-  // Compute actual reduction in cost
+  // Quantities at the next iteration if we accept the step (kp = k+1)
+  // TODO(vincekurtz): if we do end up accepting the step, it would be nice to
+  // somehow reuse these cached quantities, which we're currently trashing
   scratch_state->set_q(state.q());
   scratch_state->AddToQ(dq);
-  const T L_old = EvalCost(state);           // L(q)
-  const T L_new = EvalCost(*scratch_state);  // L(q + dq)
-  const T actual_reduction = L_old - L_new;
+  T merit_kp = EvalCost(*scratch_state);
+  if (params_.equality_constraints) {
+    // N.B. We use λₖ rather than λₖ₊₁ to compute the merit function
+    // ϕₖ₊₁ = L(qₖ₊₁) + h(qₖ₊₁)ᵀλₖ here because we are assuming that λ is
+    // constant.
+    const VectorX<T>& h_kp = EvalEqualityConstraintViolations(*scratch_state);
+    merit_kp += h_kp.dot(lambda_k);
+  }
+
+  // Compute predicted reduction in the merit function, −gᵀΔq − 1/2 ΔqᵀHΔq
+  VectorX<T>& dq_scaled = state.workspace.num_vars_size_tmp1;
+  if (params_.scaling) {
+    const VectorX<T>& D = EvalScaleFactors(state);
+    // TODO(vincekurtz): consider caching D^{-1}
+    dq_scaled = D.cwiseInverse().asDiagonal() * dq;
+  } else {
+    dq_scaled = dq;
+  }
+  VectorX<T>& Hdq = state.workspace.num_vars_size_tmp2;
+  H_k.MultiplyBy(dq_scaled, &Hdq);  // Hdq = H_k * dq
+  const T hessian_term = 0.5 * dq_scaled.transpose() * Hdq;
+  T gradient_term = g_tilde_k.dot(dq_scaled);
+  const T predicted_reduction = -gradient_term - hessian_term;
+
+  // Compute actual reduction in the merit function
+  const T actual_reduction = merit_k - merit_kp;
 
   // Threshold for determining when the actual and predicted reduction in cost
   // are essentially zero. This is determined by the approximate level of
@@ -2029,7 +2274,7 @@ T TrajectoryOptimizer<T>::SolveDoglegQuadratic(const T& a, const T& b,
 
 template <typename T>
 void TrajectoryOptimizer<T>::SolveLinearSystemInPlace(
-    const PentaDiagonalMatrix<T>&, VectorX<T>*) const {
+    const PentaDiagonalMatrix<T>&, EigenPtr<VectorX<T>>) const {
   // Only T=double is supported here, since most of our solvers only support
   // double.
   throw std::runtime_error(
@@ -2038,7 +2283,7 @@ void TrajectoryOptimizer<T>::SolveLinearSystemInPlace(
 
 template <>
 void TrajectoryOptimizer<double>::SolveLinearSystemInPlace(
-    const PentaDiagonalMatrix<double>& H, VectorX<double>* b) const {
+    const PentaDiagonalMatrix<double>& H, EigenPtr<VectorX<double>> b) const {
   switch (params_.linear_solver) {
     case SolverParameters::LinearSolverType::kPentaDiagonalLu: {
       PentaDiagonalFactorization Hlu(H);
@@ -2082,13 +2327,19 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
     VectorXd* dq, VectorXd* dqH) const {
   INSTRUMENT_FUNCTION("Find search direction with dogleg method.");
 
-  // N.B. there is no extra cost to these evaluations if params_.scaling =
-  // false. If params_.scaling = false, then EvalScaledHessian returns the
-  // regular Hessian, and EvalScaledGradient returns the regular gradient.
+  // If params_.scaling = false, this returns the regular Hessian.
   const PentaDiagonalMatrix<double>& H = EvalScaledHessian(state);
-  const VectorXd& g = EvalScaledGradient(state);
 
-  VectorXd& Hg = state.workspace.q_times_num_steps_size_tmp;
+  // If equality constraints are active, we'll use the gradient of the merit
+  // function, g̃ = g + J'λ. This means the full step pH satisfies the KKT
+  // conditions
+  //     [H  J']*[pH] = [-g]
+  //     [J  0 ] [ λ]   [-h]
+  // while the shortened step pU minimizes the quadratic approximation in the
+  // direction of -g - J'λ.
+  const VectorXd& g = EvalMeritFunctionGradient(state);
+
+  VectorXd& Hg = state.workspace.num_vars_size_tmp1;
   H.MultiplyBy(g, &Hg);
   const double gHg = g.transpose() * Hg;
 
@@ -2136,6 +2387,7 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
   if (1.0 >= pH.norm()) {
     *dq = pH * Delta;
     if (params_.scaling) {
+      // TODO(vincekurtz): consider adding a MultiplyByScaleFactors method
       *dq = EvalScaleFactors(state).asDiagonal() * (*dq);
     }
     return false;  // the trust region constraint is not active
@@ -2233,13 +2485,13 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithLinesearch(
   if (params_.verbose) {
     // Define printout data
     std::cout << "-------------------------------------------------------------"
-                 "---------"
+                 "----------------------"
               << std::endl;
     std::cout << "|  iter  |   cost   |  alpha  |  LS_iters  |  time (s)  |  "
-                 "|g|/cost  |"
+                 "|g|/cost  |    |h|     |"
               << std::endl;
     std::cout << "-------------------------------------------------------------"
-                 "---------"
+                 "----------------------"
               << std::endl;
   }
 
@@ -2258,17 +2510,21 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithLinesearch(
     // Compute the total cost
     cost = EvalCost(state);
 
+    // Evaluate constraint violations (for logging)
+    const VectorXd& h = EvalEqualityConstraintViolations(state);
+
     // Compute gradient and Hessian
-    const VectorXd& g = EvalGradient(state);
+    const VectorXd& g = EvalMeritFunctionGradient(state);
     const PentaDiagonalMatrix<double>& H = EvalHessian(state);
 
-    // Solve for search direction H*dq = -g
+    // Compute the search direction. If equality constraints are active, this
+    // solves the KKT conditions
+    //    [H  J']*[dq] = [-g]
+    //    [J  0 ] [ λ]   [-h]
+    // for the search direction (since we've defined g as g + J'λ). Otherwise,
+    // we solve H*dq = -g.
     dq = -g;
-    PentaDiagonalFactorization Hchol(H);
-    if (Hchol.status() != PentaDiagonalFactorizationStatus::kSuccess) {
-      return SolverFlag::kFactorizationFailed;
-    }
-    Hchol.SolveInPlace(&dq);
+    SolveLinearSystemInPlace(H, &dq);
 
     // Solve the linsearch
     // N.B. we use a separate state variable since we will need to compute
@@ -2316,7 +2572,8 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithLinesearch(
       printf("| %7.4f ", alpha);
       printf("| %6d     ", ls_iters);
       printf("| %8.8f ", iter_time.count());
-      printf("| %10.3e |\n", g.norm() / cost);
+      printf("| %10.3e ", g.norm() / cost);
+      printf("| %10.3e |\n", h.norm());
     }
 
     // Print additional debuging information
@@ -2350,8 +2607,9 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithLinesearch(
                      dq.norm(),          // step size
                      trust_ratio,        // trust ratio
                      g.norm(),           // gradient size
-                     dL_dq,              // gradient along dqH (dqH = dq)
-                     dL_dq);             // Gradient along dq
+                     dL_dq,              // gradient along dq
+                     h.norm(),           // equality constraint violation
+                     cost);              // merit function
 
     ++k;
   } while (k < params_.max_iterations && !linesearch_failed);
@@ -2359,7 +2617,7 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithLinesearch(
   // End the problem data printout
   if (params_.verbose) {
     std::cout << "-------------------------------------------------------------"
-                 "---------"
+                 "----------------------"
               << std::endl;
   }
 
@@ -2421,33 +2679,29 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
   std::chrono::duration<double> solve_time;
 
   // Trust region parameters
-  const double Delta_max = 1e5;  // Maximum trust region size
-  const double Delta0 = 1e0;     // Initial trust region size
-  const double eta = 0.0;        // Trust ratio threshold - we accept steps if
-                                 // the trust ratio is above this threshold
+  const double Delta_max = params_.Delta_max;  // Maximum trust region size
+  const double eta = 0.0;  // Trust ratio threshold - we accept steps if
+                           // the trust ratio is above this threshold
 
   // Variables that we'll update throughout the main loop
-  int k = 0;                  // iteration counter
-  double Delta = Delta0;      // trust region size
-  double rho;                 // trust region ratio
-  bool tr_constraint_active;  // flag for whether the trust region constraint is
-                              // active
+  int k = 0;                      // iteration counter
+  double Delta = params_.Delta0;  // trust region size
+  double rho;                     // trust region ratio
+  bool tr_constraint_active;      // flag for whether the trust region
+                                  // constraint is active
 
   // Define printout data
   const std::string separator_bar =
       "------------------------------------------------------------------------"
-      "--------";
+      "---------------------";
   const std::string printout_labels =
       "|  iter  |   cost   |    Δ    |    ρ    |  time (s)  |  |g|/cost  | "
-      "dL_dq/cost |";
+      "dL_dq/cost |    |h|     |";
 
   double previous_cost = EvalCost(state);
   while (k < params_.max_iterations) {
     // Obtain the candiate update dq
     tr_constraint_active = CalcDoglegPoint(state, Delta, &dq, &dqH);
-
-    // Verify that dq is a descent direction
-    const VectorXd& g = EvalGradient(state);
 
     if (params_.print_debug_data) {
       // Print some info about the Hessian
@@ -2461,10 +2715,19 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
 
     // Compute some quantities for logging.
     // N.B. These should be computed before q is updated.
+    const VectorXd& g = EvalMeritFunctionGradient(state);
+    const VectorXd& h = EvalEqualityConstraintViolations(state);
+
     const double cost = EvalCost(state);
-    const double dL_dqH = g.dot(dqH) / cost;
-    const double dL_dq = g.dot(dq) / cost;
+    const double merit = EvalMeritFunction(state);
     const double q_norm = state.norm();
+    double dL_dq;
+    if (params_.scaling) {
+      const VectorXd& D = EvalScaleFactors(state);
+      dL_dq = g.dot(D.cwiseInverse().asDiagonal() * dq) / cost;
+    } else {
+      dL_dq = g.dot(dq) / cost;
+    }
 
     // Compute the trust region ratio
     rho = CalcTrustRatio(state, dq, &scratch_state);
@@ -2472,7 +2735,7 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
     // With a positive definite Hessian, steps should not oppose the descent
     // direction
     if (!params_.exact_hessian) {
-      DRAKE_DEMAND(dq.transpose() * g < 0);
+      DRAKE_DEMAND(dL_dq < std::numeric_limits<double>::epsilon());
     } else {
       // Reduce the trust region and reject the step if this is not a descent
       // direction
@@ -2527,8 +2790,9 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
       }
       std::cout << fmt::format(
           "| {:>6} | {:>8.3g} | {:>7.2} | {:>7.1} | {:>10.5} | {:>10.5} | "
-          "{:>10.4} |\n",
-          k, cost, Delta, rho, iter_time.count(), g.norm() / cost, dL_dq);
+          "{:>10.4} | {:>10.4} |\n",
+          k, cost, Delta, rho, iter_time.count(), g.norm() / cost, dL_dq,
+          h.norm());
     }
 
     // Record statistics from this iteration
@@ -2542,8 +2806,9 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
                      dqH.norm(),         // Unconstrained step size
                      rho,                // trust region ratio
                      g.norm(),           // gradient size
-                     dL_dqH,             // Gradient along dqH
-                     dL_dq);             // Gradient along dq
+                     dL_dq,              // gradient along dq
+                     h.norm(),           // equality constraint violation
+                     merit);             // merit function
 
     // Only check convergence criteria for valid steps.
     ConvergenceReason reason{
@@ -2618,7 +2883,7 @@ ConvergenceReason TrajectoryOptimizer<T>::VerifyConvergenceCriteria(
 
   // Gradient criterion:
   //   g⋅Δq < εₐ + εᵣ Lᵏ
-  const VectorX<T>& g = EvalGradient(state);
+  const VectorX<T>& g = EvalMeritFunctionGradient(state);
   if (abs(g.dot(dq)) < tolerances.abs_gradient_along_dq +
                            tolerances.rel_gradient_along_dq * cost) {
     reason |= ConvergenceReason::kGradientCriterionSatisfied;

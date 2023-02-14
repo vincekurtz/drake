@@ -32,17 +32,22 @@ num_steps : 40      # number of timesteps
 # Solver parameters
 max_iters : 500             # maximum Gauss-Newton iterations
 method : "trust_region"     # solver method, {linesearch, trust_region}
-linesearch : "armijo"       # linesearch strategy, {armino, backtracking}
-proximal_operator : false   # whether to add a proximal operator cost term
-rho_proximal : 1e-5         # the proximal cost multiplier
+linesearch : "backtracking" # linesearch strategy, {armino, backtracking}
+scaling : true
+equality_constraints : true
+
 tolerances:
-  rel_cost_reduction: 1e-5
-  abs_cost_reduction: 1e-12
-  rel_gradient_along_dq: 1e-6
-  abs_gradient_along_dq: 1e-12
-  rel_state_change: 1e-6
-  abs_state_change: 1e-12
-scaling : false
+  rel_cost_reduction: 0
+  abs_cost_reduction: 0
+  rel_gradient_along_dq: 0
+  abs_gradient_along_dq: 0
+  rel_state_change: 0
+  abs_state_change: 0
+
+linear_solver : "pentadiagonal_lu"
+
+Delta0 : 1e2      # initial trust region radius
+Delta_max : 1e5    # maximum trust region radius
 
 # Method used to compute gradients of inverse dynamics, one of
 # {forward_differences, central_differences, central_differences4, autodiff}
@@ -69,7 +74,7 @@ dissipation_velocity : 0.1  # Hunt & Crossley-like model parameter, in m/s.
 
 # With force at a distance, contact normal forces increases linearly at a rate
 # of 2F/delta Newtons / meter, with a given smoothing factor (higher is smoother)
-smoothing_factor : 2.0
+smoothing_factor : 1.0
 force_at_a_distance : true
 
 # Friction
@@ -82,7 +87,7 @@ mpc_iters : 5
 controller_frequency : 20
 sim_time : 10
 sim_time_step : 1e-3
-sim_realtime_rate : 1.0
+sim_realtime_rate : 0.5
 
 Kp : [1,1,0]
 Kd : [0.1,0.1,0]

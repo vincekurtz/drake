@@ -79,6 +79,10 @@ struct TrajOptExampleParams {
     a->Visit(DRAKE_NVP(Kp));
     a->Visit(DRAKE_NVP(Kd));
     a->Visit(DRAKE_NVP(Vmax));
+    a->Visit(DRAKE_NVP(scaling_method));
+    a->Visit(DRAKE_NVP(equality_constraints));
+    a->Visit(DRAKE_NVP(Delta_max));
+    a->Visit(DRAKE_NVP(Delta0));
   }
   // Initial state
   VectorXd q_init;
@@ -208,6 +212,18 @@ struct TrajOptExampleParams {
   // Desired bound on system energy for the low-level controller used in
   // conjunction with MPC.
   double Vmax = 1e16;
+
+  // Method to use when rescaling the Hessian
+  std::string scaling_method = "double_sqrt";
+
+  // Whether to enforce strict equality constraints
+  bool equality_constraints = false;
+
+  // Maximum trust region radius
+  double Delta_max = 1e5;
+
+  // Initial trust region radius
+  double Delta0 = 1e-1;
 };
 
 }  // namespace examples

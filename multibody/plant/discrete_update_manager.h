@@ -216,9 +216,6 @@ class DiscreteUpdateManager : public ScalarConvertibleComponent<T> {
   // N.B. Keep the spelling and order of declarations here identical to the
   // MultibodyPlantDiscreteUpdateManagerAttorney spelling and order of same.
 
-  const internal::ContactJacobians<T>& EvalContactJacobians(
-      const systems::Context<T>& context) const;
-
   const std::vector<geometry::ContactSurface<T>>& EvalContactSurfaces(
       const systems::Context<T>& context) const;
 
@@ -247,6 +244,9 @@ class DiscreteUpdateManager : public ScalarConvertibleComponent<T> {
 
   const std::vector<internal::DistanceConstraintSpecs>&
   distance_constraints_specs() const;
+
+  const std::vector<internal::BallConstraintSpecs>& ball_constraints_specs()
+      const;
 
   BodyIndex FindBodyByGeometryId(geometry::GeometryId geometry_id) const;
   /* @} */

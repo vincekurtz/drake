@@ -39,9 +39,18 @@ fig, ax = plt.subplots(5,2,sharex=True,figsize=(16,11))
 
 fig.suptitle(f"{example_name} convergence data")
 
-ax[0,0].plot(iters, data["cost"])
-ax[0,0].set_ylabel("Cost")
-ax[0,0].set_yscale("log")
+#iters_tr_accepted = []
+#tr_accepted = []
+#eta = 0.0
+#for i in range(len(iters)):
+#    if data["trust_ratio"][i] > eta:
+#        tr_accepted.append(data["trust_ratio"][i])
+#        iters_tr_accepted.append(iters[i])
+#ax[1,1].plot(iters_tr_accepted, tr_accepted)
+
+ax[0,0].plot(iters, data["trust_ratio"])
+ax[0,0].set_ylabel("trust ratio")
+ax[0,0].set_ylim((-1,3))
 
 ax[1,0].plot(iters, data["delta"], label="$\Delta$")
 ax[1,0].plot(iters, data["dq_norm"], label="$\|\Delta q\|$")
@@ -57,31 +66,21 @@ ax[3,0].plot(iters, data["grad_norm"])
 ax[3,0].set_ylabel("$||g||$")
 ax[3,0].set_yscale("log")
 
-# subplot 4,0 is blank for now
 ax[4,0].plot(iters, -data["dL_dq"])
 ax[4,0].set_ylabel(r"$\frac{|g' \Delta q|}{cost}$")
 ax[4,0].set_yscale("log")
 
-ax[0,1].plot(iters, data["cost"] - data["cost"][-1])
-ax[0,1].set_ylabel("Cost (minus baseline)")
+ax[0,1].plot(iters, data["merit"] - np.min(data["merit"]))
+ax[0,1].set_ylabel("Merit (- baseline)")
 ax[0,1].set_yscale("log")
 
-iters_tr_accepted = []
-tr_accepted = []
-eta = 0.0
-for i in range(len(iters)):
-    if data["trust_ratio"][i] > eta:
-        tr_accepted.append(data["trust_ratio"][i])
-        iters_tr_accepted.append(iters[i])
+ax[1,1].plot(iters, data["cost"] - np.min(data["cost"]))
+ax[1,1].set_ylabel("Cost (- baseline)")
+ax[1,1].set_yscale("log")
 
-#ax[1,1].plot(iters, data["trust_ratio"])
-ax[1,1].plot(iters_tr_accepted, tr_accepted)
-ax[1,1].set_ylabel("trust ratio")
-ax[1,1].set_ylim((-1,3))
-
-ax[2,1].plot(iters, data["time"])
-ax[2,1].set_ylabel("Compute Time (s)")
-ax[2,1].set_ylim((0,0.02))
+ax[2,1].plot(iters, data["h_norm"])
+ax[2,1].set_ylabel("Constraint Viol.")
+ax[2,1].set_yscale("log")
 
 ax[3,1].plot(iters, data["ls_iters"])
 ax[3,1].set_ylabel("Linesearch Iters")
