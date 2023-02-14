@@ -1507,6 +1507,7 @@ const VectorX<T>& TrajectoryOptimizer<T>::EvalEqualityConstraintViolations(
   if (!state.cache().constraint_violation_up_to_date) {
     CalcEqualityConstraintViolations(
         state, &state.mutable_cache().constraint_violation);
+    state.mutable_cache().constraint_violation_up_to_date = true;
   }
   return state.cache().constraint_violation;
 }
@@ -1560,6 +1561,7 @@ const MatrixX<T>& TrajectoryOptimizer<T>::EvalEqualityConstraintJacobian(
   if (!state.cache().constraint_jacobian_up_to_date) {
     CalcEqualityConstraintJacobian(state,
                                    &state.mutable_cache().constraint_jacobian);
+    state.mutable_cache().constraint_jacobian_up_to_date = true;
   }
   return state.cache().constraint_jacobian;
 }

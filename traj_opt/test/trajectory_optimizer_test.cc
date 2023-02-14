@@ -1640,6 +1640,7 @@ GTEST_TEST(TrajectoryOptimizerTest, HopperEqualityConstraints) {
   // Create an optimizer
   SolverParameters params;
   params.scaling = false;
+  params.gradients_method = GradientsMethod::kCentralDifferences;
   TrajectoryOptimizer<double> optimizer(diagram.get(), &plant, opt_prob,
                                         params);
   TrajectoryOptimizerState<double> state = optimizer.CreateState();

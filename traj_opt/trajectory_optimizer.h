@@ -1028,7 +1028,7 @@ class TrajectoryOptimizer {
                         VectorX<T>* D) const;
 
   /**
-   * Compute a vector violations of equality constrants h(q) = 0.
+   * Compute a vector of equality constrant h(q) = 0 violations.
    *
    * Currently, these equality constraints consist of torques on unactuated
    * degrees of freedom.

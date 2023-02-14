@@ -97,7 +97,7 @@ struct SolverParameters {
   // Maximum number of linesearch iterations
   int max_linesearch_iterations = 50;
 
-  GradientsMethod gradients_method{kCentralDifferences};
+  GradientsMethod gradients_method{kForwardDifferences};
 
   // Select the linear solver to be used in the Gauss-Newton step computation.
   LinearSolverType linear_solver{LinearSolverType::kPentaDiagonalLu};
