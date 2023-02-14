@@ -1,5 +1,7 @@
 #include "drake/traj_opt/examples/example_base.h"
 
+#include <iostream>
+
 namespace drake {
 namespace traj_opt {
 namespace examples {

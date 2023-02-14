@@ -1,5 +1,3 @@
-#include <iostream>
-
 #include "drake/common/find_resource.h"
 #include "drake/common/profiler.h"
 #include "drake/multibody/parsing/parser.h"
