@@ -89,6 +89,23 @@ class TrajectoryOptimizer {
   int num_steps() const { return prob_.num_steps; }
 
   /**
+   * Return indices of the unactuated degrees of freedom in the model.
+   *
+   * @return const std::vector<int>& indices for the unactuated DoFs
+   */
+  const std::vector<int>& unactuated_dofs() const { return unactuated_dofs_; }
+
+  /**
+   * Convienience function to get the number of equality constraints (i.e.,
+   * torques on unactuated DoFs at each time step)
+   *
+   * @return int the number of equality constraints
+   */
+  int num_equality_constraints() const {
+    return unactuated_dofs().size() * num_steps();
+  }
+
+  /**
    * Convienience function to get a const reference to the multibody plant that
    * we are optimizing over.
    *
@@ -107,9 +124,11 @@ class TrajectoryOptimizer {
   TrajectoryOptimizerState<T> CreateState() const {
     INSTRUMENT_FUNCTION("Creates state object with caching.");
     if (diagram_ != nullptr) {
-      return TrajectoryOptimizerState<T>(num_steps(), *diagram_, plant());
+      return TrajectoryOptimizerState<T>(num_steps(), *diagram_, plant(),
+                                         num_equality_constraints());
     }
-    return TrajectoryOptimizerState<T>(num_steps(), plant());
+    return TrajectoryOptimizerState<T>(num_steps(), plant(),
+                                       num_equality_constraints());
   }
 
   /**
@@ -279,8 +298,7 @@ class TrajectoryOptimizer {
    *
    *     H̃ = DHD,
    *
-   * where H is the original Hessian and D = 1/sqrt(sqrt(diag(H))) is a diagonal
-   * scaling matrix.
+   * where H is the original Hessian and D is a diagonal scaling matrix.
    *
    * @note if params_.scaling = false, this returns the ordinary Hessian H.
    *
@@ -295,8 +313,7 @@ class TrajectoryOptimizer {
    *
    *     g̃ = Dg,
    *
-   * where g is the original gradient and D = 1/sqrt(sqrt(diag(H))) is a
-   * diagonal scaling matrix.
+   * where g is the original gradient and D is a diagonal scaling matrix.
    *
    * @note if params_.scaling = false, this returns the ordinary gradient g.
    *
@@ -307,14 +324,87 @@ class TrajectoryOptimizer {
       const TrajectoryOptimizerState<T>& state) const;
 
   /**
-   * Evaluate a vector of scaling factors based on the diagonal of the Hessian,
-   *
-   *    D = 1/sqrt(sqrt(diag(H))).
+   * Evaluate a vector of scaling factors based on the diagonal of the Hessian.
    *
    * @param state the optimizer state
    * @return const VectorX<T>& the scaling vector D
    */
   const VectorX<T>& EvalScaleFactors(
+      const TrajectoryOptimizerState<T>& state) const;
+
+  /**
+   * Evaluate the vector of violations of equality constrants h(q) = 0.
+   *
+   * Currently, these equality constraints consist of torques on unactuated
+   * degrees of freedom.
+   *
+   * @param state the optimizer state
+   * @return const VectorX<T>& violations h(q)
+   */
+  const VectorX<T>& EvalEqualityConstraintViolations(
+      const TrajectoryOptimizerState<T>& state) const;
+
+  /**
+   * Evaluate the Jacobian J = ∂h(q)/∂q of the equality constraints h(q) = 0.
+   *
+   * @note if scaling is enabled this returns a scaled version J*D, where D is a
+   * diagonal scaling matrix.
+   *
+   * @param state the optimizer state
+   * @return const MatrixX<T>& the Jacobian of equality constraints
+   */
+  const MatrixX<T>& EvalEqualityConstraintJacobian(
+      const TrajectoryOptimizerState<T>& state) const;
+
+  /**
+   * Evaluate the lagrange multipliers λ for the equality constraints h(q) = 0.
+   *
+   * These are given by
+   *
+   *    λ = (J H⁻¹ Jᵀ)⁻¹ (h − J H⁻¹ g),
+   *
+   * or equivalently, the solution of the KKT conditions
+   *
+   *    [H Jᵀ][Δq] = [-g]
+   *    [J 0 ][ λ]   [-h]
+   *
+   * where H is the unconstrained Hessian, J is the equality constraint
+   * jacobian, and g is the unconstrained gradient.
+   *
+   * @param state the optimizer state
+   * @return const VectorX<T>& the lagrange multipliers
+   */
+  const VectorX<T>& EvalLagrangeMultipliers(
+      const TrajectoryOptimizerState<T>& state) const;
+
+  /**
+   * Evaluate the (augmented-lagrangian-inspired) merit function
+   *
+   *    ϕ(q) = L(q) + h(q)ᵀλ
+   *
+   * for constrained optimization. If equality constraints are turned off, this
+   * simply returns the unconstrained cost L(q).
+   *
+   * @param state the optimizer state
+   * @return const T the merit function ϕ(q)
+   */
+  const T EvalMeritFunction(const TrajectoryOptimizerState<T>& state) const;
+
+  /**
+   * Evaluate the gradient of the merit function ϕ(q):
+   *
+   *    g̃ = g + Jᵀλ,
+   *
+   * under the assumption that the lagrange multipliers λ are constant. If
+   * equality constraints are turned off, this simply returns the regular
+   * gradient g.
+   *
+   * @note if scaling is enabled this uses scaled versions of g and J.
+   *
+   * @param state the optimizer state
+   * @return const VectorX<T>& the gradient of the merit function g̃
+   */
+  const VectorX<T>& EvalMeritFunctionGradient(
       const TrajectoryOptimizerState<T>& state) const;
 
   /**
@@ -825,10 +915,15 @@ class TrajectoryOptimizer {
    */
   T SolveDoglegQuadratic(const T& a, const T& b, const T& c) const;
 
-  /* Helper to solve ths system H⋅x = b with a solver as specified with
-  SolverParameters. On output b is overwritten with x. */
+  /**
+   * Helper to solve the system H⋅x = b with a solver specified in
+   * SolverParameters::LinearSolverType.
+   *
+   * @param H A block penta-diagonal matrix H
+   * @param b The vector b. Overwritten with x on output.
+   */
   void SolveLinearSystemInPlace(const PentaDiagonalMatrix<T>& H,
-                                VectorX<T>* b) const;
+                                EigenPtr<VectorX<T>> b) const;
 
   ConvergenceReason VerifyConvergenceCriteria(
       const TrajectoryOptimizerState<T>& state, const T& previous_cost,
@@ -923,13 +1018,63 @@ class TrajectoryOptimizer {
                           VectorX<T>* gtilde) const;
 
   /**
-   * Compute the vector of scaling factors D = 1/sqrt(sqrt(diag(H))).
+   * Compute the vector of scaling factors D based on the diagonal of the
+   * Hessian.
    *
    * @param state the optimizer state
    * @param D the vector of scale factors D
    */
   void CalcScaleFactors(const TrajectoryOptimizerState<T>& state,
                         VectorX<T>* D) const;
+
+  /**
+   * Compute a vector of equality constrant h(q) = 0 violations.
+   *
+   * Currently, these equality constraints consist of torques on unactuated
+   * degrees of freedom.
+   *
+   * @param state the optimizer state
+   * @param violations vector of constraint violiations h
+   */
+  void CalcEqualityConstraintViolations(
+      const TrajectoryOptimizerState<T>& state, VectorX<T>* violations) const;
+
+  /**
+   * Compute the Jacobian J = ∂h(q)/∂q of the equality constraints h(q) = 0.
+   *
+   * @param state the optimizer state
+   * @param J the constraint jacobian ∂h(q)/∂q
+   */
+  void CalcEqualityConstraintJacobian(const TrajectoryOptimizerState<T>& state,
+                                      MatrixX<T>* J) const;
+
+  /**
+   * Compute the lagrange multipliers λ for the equality constraints h(q) = 0.
+   *
+   * @param state the optimizer state
+   * @param lambda the lagrange multipliers
+   */
+  void CalcLagrangeMultipliers(const TrajectoryOptimizerState<T>& state,
+                               VectorX<T>* lambda) const;
+
+  /**
+   * Compute the (augmented-lagrangian-inspired) merit function ϕ(q) = L(q) +
+   * h(q)ᵀλ.
+   *
+   * @param state the optimizer state
+   * @param merit the merit function
+   */
+  void CalcMeritFunction(const TrajectoryOptimizerState<T>& state,
+                         T* merit) const;
+
+  /**
+   * Compute the gradient of the merit function g̃ = g + Jᵀλ.
+   *
+   * @param state the optimizer state
+   * @param g_tilde the gradient of the merit function g̃
+   */
+  void CalcMeritFunctionGradient(const TrajectoryOptimizerState<T>& state,
+                                 VectorX<T>* g_tilde) const;
 
   // Diagram of containing the plant_ model and scene graph. Needed to allocate
   // context resources.
@@ -955,6 +1100,9 @@ class TrajectoryOptimizer {
 
   // Joint damping coefficients for the plant under consideration
   VectorX<T> joint_damping_;
+
+  // Indices of unactuated degrees of freedom
+  std::vector<int> unactuated_dofs_;
 
   // Various parameters
   const SolverParameters params_;

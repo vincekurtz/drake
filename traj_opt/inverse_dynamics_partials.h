@@ -26,12 +26,19 @@ struct InverseDynamicsPartials {
    * @param nq number of generalized positions (size of q)
    */
   InverseDynamicsPartials(const int num_steps, const int nv, const int nq) {
+    DRAKE_DEMAND(num_steps > 0);
     dtau_dqm.assign(num_steps, MatrixX<T>(nv, nq));
     dtau_dqt.assign(num_steps, MatrixX<T>(nv, nq));
     dtau_dqp.assign(num_steps, MatrixX<T>(nv, nq));
 
     // Set all derivatives w.r.t q(-1) to NaN
     dtau_dqm[0].setConstant(nv, nq, NAN);
+
+    // Set all derivatives w.r.t. q(0) to 0.0
+    dtau_dqt[0].setConstant(nv, nq, 0.0);
+    if (num_steps > 1) {
+      dtau_dqm[1].setConstant(nv, nq, 0.0);
+    }
   }
 
   // Return the number of steps allocated in this object.
