@@ -15,10 +15,13 @@
 #include "drake/multibody/plant/multibody_plant.h"
 #include "drake/multibody/tree/revolute_joint.h"
 #include "drake/planning/robot_diagram_builder.h"
+#include "drake/planning/test/planning_test_helpers.h"
 #include "drake/planning/unimplemented_collision_checker.h"
 
 namespace drake {
 namespace planning {
+
+using test::AddChain;
 
 // Support for easily comparing EdgeMeasurements.
 bool operator==(const EdgeMeasure& r1, const EdgeMeasure& r2) {
@@ -74,32 +77,6 @@ using std::optional;
 using std::pair;
 using std::vector;
 using testing::ElementsAre;
-
-// TODO(SeanCurtis-TRI): This was pulled out of
-// anzu/planning/planning_test_helpers. As more of planning gets pulled into
-// drake, rehome this in the drake equivalent file.
-ModelInstanceIndex AddChain(MultibodyPlant<double>* plant, int n,
-                            int num_geo = 1) {
-  ModelInstanceIndex instance = plant->AddModelInstance(fmt::format("m{}", n));
-  std::vector<const RigidBody<double>*> bodies;
-  for (int k = 0; k < n; ++k) {
-    bodies.push_back(
-        &plant->AddRigidBody(fmt::format("b{}", k), instance,
-                             SpatialInertia<double>::MakeUnitary()));
-    if (plant->geometry_source_is_registered()) {
-      for (int i = 0; i < num_geo; ++i) {
-        plant->RegisterCollisionGeometry(
-            *bodies.back(), RigidTransformd::Identity(), Sphere(0.01),
-            fmt::format("g{}", i), CoulombFriction<double>());
-      }
-    }
-  }
-  for (int k = 1; k < n; ++k) {
-    plant->AddJoint<RevoluteJoint>(fmt::format("j{}", k), *bodies[k - 1], {},
-                                   *bodies[k], {}, Eigen::Vector3d::UnitY());
-  }
-  return instance;
-}
 
 // Adds a new model instance consisting of a non-zero number of floating bodies.
 ModelInstanceIndex AddEnvironmentModelInstance(MultibodyPlant<double>* plant,
@@ -280,13 +257,13 @@ struct ModelConfig {
 pair<std::unique_ptr<RobotDiagram<double>>, ModelInstanceIndex> MakeModel(
     const ModelConfig& config = {}) {
   RobotDiagramBuilder<double> builder;
-  auto& builder_plant = builder.mutable_plant();
+  auto& builder_plant = builder.plant();
   // Add the robot -- a chain of three links -- and weld it to the world.
   // Don't change the ordering or the length of the chain; the tests for this
   // fixture rely on knowing body indices.
   auto robot_index = AddChain(&builder_plant, 3, config.per_body_geometries);
   if (config.weld_robot) {
-    builder.mutable_plant().WeldFrames(
+    builder_plant.WeldFrames(
         builder_plant.get_body(BodyIndex(0)).body_frame(),
         builder_plant.get_body(BodyIndex(1)).body_frame());
   } else if (config.on_env_base) {
@@ -304,7 +281,7 @@ pair<std::unique_ptr<RobotDiagram<double>>, ModelInstanceIndex> MakeModel(
   // because we don't care.
   AddEnvironmentModelInstance(&builder_plant, config.per_body_geometries);
   AddEnvironmentModelInstance(&builder_plant, config.per_body_geometries);
-  return {builder.BuildDiagram(), robot_index};
+  return {builder.Build(), robot_index};
 }
 
 // Reports the indices of the dofs of the robot's environmental floating base.
@@ -345,7 +322,7 @@ class CollisionCheckerThrowTest : public testing::Test {
  protected:
   // The default values are all legal. Tests will invalidate specific values.
   RobotDiagramBuilder<double> builder_;
-  std::unique_ptr<RobotDiagram<double>> diagram_{builder_.BuildDiagram()};
+  std::unique_ptr<RobotDiagram<double>> diagram_{builder_.Build()};
   std::vector<ModelInstanceIndex> robot_model_instances_{
     default_model_instance()};
   ConfigurationDistanceFunction distance_fn_{
@@ -379,13 +356,13 @@ TEST_F(CollisionCheckerThrowTest, WorldRobot) {
 // sorts them.
 GTEST_TEST(CollisionCheckerTest, SortedRobots) {
   RobotDiagramBuilder<double> builder;
-  auto& plant = builder.mutable_plant();
+  auto& plant = builder.plant();
   const ModelInstanceIndex robot1 = AddChain(&plant, 1);
   const ModelInstanceIndex robot2 = AddChain(&plant, 2);
   auto distance_function = [](auto...) { return 0; };
   auto dut =
       std::make_unique<CollisionCheckerTester>(CollisionCheckerParams{
-          builder.BuildDiagram(),
+          builder.Build(),
           std::vector<ModelInstanceIndex>{robot2, robot2, robot1},
           distance_function, 0.1, 0, 0});
   EXPECT_THAT(dut->robot_model_instances(), ElementsAre(robot1, robot2));
@@ -409,7 +386,7 @@ TEST_F(CollisionCheckerThrowTest, InfSelfPad) {
 // diagram. (See e.g. the EdgeCheckConfiguration test).
 GTEST_TEST(CollisionCheckerTest, CollisionCheckerEmpty) {
   RobotDiagramBuilder<double> builder;
-  auto diagram = builder.BuildDiagram();
+  auto diagram = builder.Build();
   const ConfigurationDistanceFunction fn0 = [](const VectorXd&,
                                                const VectorXd&) { return 0.0; };
   const ModelInstanceIndex robot = default_model_instance();
@@ -1302,14 +1279,14 @@ CheckerType MakeEdgeChecker(ConfigurationDistanceFunction calc_dist,
                             bool welded = true, int N = 2) {
   RobotDiagramBuilder<double> builder;
   // We need just enough state so we can save values in q.
-  auto& plant = builder.mutable_plant();
+  auto& plant = builder.plant();
   const ModelInstanceIndex robot = AddChain(&plant, N);
   // Weld the chain to the world so we don't have to worry about quaternions.
   const auto& body = plant.GetBodyByName("b0");
   if (welded) {
     plant.WeldFrames(plant.world_frame(), body.body_frame(), {});
   }
-  auto diagram = builder.BuildDiagram();
+  auto diagram = builder.Build();
 
   CheckerType checker({move(diagram), {robot}, calc_dist, step_size, 0, 0});
   checker.SetConfigurationInterpolationFunction(interp);
