@@ -43,7 +43,7 @@ class LowLevelController : public LeafSystem<double> {
    *           to unactuated DoFs will be ignored.
    */
   LowLevelController(const MultibodyPlant<double>* plant, const VectorXd Kp,
-                     const VectorXd Kd, const double Vmax_);
+                     const VectorXd Kd);
 
   /**
    * Returns a constant reference to the input port that takes state
@@ -79,9 +79,6 @@ class LowLevelController : public LeafSystem<double> {
   // Matrices of PD gains, of size (nu x nq) and (nu x nv)
   const MatrixXd Kp_;
   const MatrixXd Kd_;
-
-  // User-specified bound on system energy
-  const double Vmax_;
 
   // Internal system model
   const MultibodyPlant<double>* plant_{nullptr};

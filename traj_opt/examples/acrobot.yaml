@@ -84,4 +84,3 @@ sim_time_step : 1e-3
 sim_realtime_rate : 0.5
 #Kp : [0.0, 2.0]
 #Kd : [0.0, 1.0]
-#Vmax : 100

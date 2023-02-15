@@ -88,7 +88,5 @@ controller_frequency : 20
 sim_time : 10
 sim_time_step : 1e-3
 sim_realtime_rate : 0.5
-
 Kp : [1,1,0]
 Kd : [0.1,0.1,0]
-#Vmax : 5.0        # bound on system energy, in Joules

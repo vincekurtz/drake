@@ -81,7 +81,5 @@ controller_frequency : 10
 sim_time : 5
 sim_time_step : 1e-3
 sim_realtime_rate : 0.1
-#Vmax : 10
-#
 #Kp : [0, 0, 0, 1.0, 1.0]
 #Kd : [0, 0, 0, 0.1, 0.1]
