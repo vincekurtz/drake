@@ -38,6 +38,7 @@ rho_proximal : 1e-8         # the proximal cost multiplier
 exact_hessian : false
 scaling : false
 equality_constraints : true
+Delta0 : 10
 
 # Convergence thresholds
 tolerances:
@@ -77,10 +78,10 @@ save_solver_stats_csv : true
 
 # MPC parameters
 mpc : true
-mpc_iters : 10
-controller_frequency : 30
+mpc_iters : 5
+controller_frequency : 20
 sim_time : 10
 sim_time_step : 1e-3
-sim_realtime_rate : 0.5
-#Kp : [0.0, 2.0]
-#Kd : [0.0, 1.0]
+sim_realtime_rate : 1.0
+Kp : [0.0, 20.0]
+Kd : [0.0, 1.0]

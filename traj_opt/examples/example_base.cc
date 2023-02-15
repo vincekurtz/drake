@@ -42,7 +42,13 @@ void TrajOptExample::RunExample(const std::string options_file) const {
 }
 
 void TrajOptExample::RunModelPredictiveControl(
-    const TrajOptExampleParams options) const {
+    const TrajOptExampleParams& options) const {
+  // Perform a full solve to convergence (as defined by YAML parameters) to
+  // warm-start the first MPC iteration. Subsequent MPC iterations will be
+  // warm-started based on the prior MPC iteration.
+  TrajectoryOptimizerSolution<double> initial_solution =
+      SolveTrajectoryOptimization(options);
+
   // Start an LCM instance
   lcm::DrakeLcm lcm_instance();
 
@@ -54,7 +60,7 @@ void TrajOptExample::RunModelPredictiveControl(
   // Start the controller, which reads the system state and publishes
   // control torques over LCM
   std::thread ctrl_thread(&TrajOptExample::ControlWithStateFromLcm, this,
-                          options);
+                          options, initial_solution.q);
 
   // Wait for all threads to stop
   sim_thread.join();
@@ -65,7 +71,8 @@ void TrajOptExample::RunModelPredictiveControl(
 }
 
 void TrajOptExample::ControlWithStateFromLcm(
-    const TrajOptExampleParams options) const {
+    const TrajOptExampleParams& options,
+    const std::vector<VectorXd>& q_guess) const {
   // Create a system model for the controller
   DiagramBuilder<double> builder_ctrl;
   MultibodyPlantConfig config;
@@ -83,12 +90,6 @@ void TrajOptExample::ControlWithStateFromLcm(
   SolverParameters solver_params;
   SetSolverParameters(options, &solver_params);
   solver_params.max_iterations = options.mpc_iters;
-
-  // Set the initial guess based on YAML parameters. This initial guess is just
-  // used for the first MPC iteration: later iterations are warm-started with
-  // the solution from the previous iteration.
-  std::vector<VectorXd> q_guess = MakeLinearInterpolation(
-      opt_prob.q_init, options.q_guess, opt_prob.num_steps + 1);
 
   // Here we'll set up a whole separate system diagram with LCM reciever,
   // controller, and LCM publisher:
@@ -123,7 +124,7 @@ void TrajOptExample::ControlWithStateFromLcm(
 }
 
 void TrajOptExample::SimulateWithControlFromLcm(
-    const TrajOptExampleParams options) const {
+    const TrajOptExampleParams& options) const {
   // Set up the system diagram for the simulator
   DiagramBuilder<double> builder;
   auto lcm = builder.AddSystem<LcmInterfaceSystem>();
@@ -192,8 +193,8 @@ void TrajOptExample::SimulateWithControlFromLcm(
   simulator.AdvanceTo(options.sim_time);
 }
 
-void TrajOptExample::SolveTrajectoryOptimization(
-    const TrajOptExampleParams options) const {
+TrajectoryOptimizerSolution<double> TrajOptExample::SolveTrajectoryOptimization(
+    const TrajOptExampleParams& options) const {
   // Create a system model
   // N.B. we need a whole diagram, including scene_graph, to handle contact
   DiagramBuilder<double> builder;
@@ -306,6 +307,8 @@ void TrajOptExample::SolveTrajectoryOptimization(
   if (options.play_optimal_trajectory) {
     PlayBackTrajectory(solution.q, options.time_step);
   }
+
+  return solution;
 }
 
 void TrajOptExample::PlayBackTrajectory(const std::vector<VectorXd>& q,
