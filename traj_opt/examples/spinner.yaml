@@ -30,7 +30,7 @@ time_step : 0.05    # Discretization timestep (seconds)
 num_steps : 40      # number of timesteps
 
 # Solver parameters
-max_iters : 500             # maximum Gauss-Newton iterations
+max_iters : 200             # maximum Gauss-Newton iterations
 method : "trust_region"     # solver method, {linesearch, trust_region}
 linesearch : "backtracking" # linesearch strategy, {armino, backtracking}
 scaling : true
@@ -46,7 +46,7 @@ tolerances:
 
 linear_solver : "pentadiagonal_lu"
 
-Delta0 : 1e2      # initial trust region radius
+Delta0 : 1e1      # initial trust region radius
 Delta_max : 1e5    # maximum trust region radius
 
 # Method used to compute gradients of inverse dynamics, one of
@@ -82,7 +82,7 @@ friction_coefficient : 0.5  # Coefficient of friction.
 stiction_velocity: 0.01     # Regularization velocity, in m/s.
 
 # MPC parameters
-mpc : true
+mpc : false
 mpc_iters : 5
 controller_frequency : 20
 sim_time : 10
