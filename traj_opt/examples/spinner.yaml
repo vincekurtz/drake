@@ -23,7 +23,7 @@ Qv : [1.0, 1.0, 1.0]
 R : [1e0, 1e0, 1e3]
 
 Qfq : [1.0, 1.0, 10.0]  # Terminal cost
-Qfv : [1.0, 1.0, 0.0]
+Qfv : [10.0, 10.0, 0.0]
 
 # Problem definition parameters
 time_step : 0.05    # Discretization timestep (seconds)
@@ -37,7 +37,7 @@ scaling : true
 equality_constraints : true
 
 tolerances:
-  rel_cost_reduction: 0
+  rel_cost_reduction: 1e-5
   abs_cost_reduction: 0
   rel_gradient_along_dq: 0
   abs_gradient_along_dq: 0
@@ -82,11 +82,11 @@ friction_coefficient : 0.5  # Coefficient of friction.
 stiction_velocity: 0.01     # Regularization velocity, in m/s.
 
 # MPC parameters
-mpc : false
+mpc : true
 mpc_iters : 5
 controller_frequency : 20
 sim_time : 10
 sim_time_step : 1e-3
-sim_realtime_rate : 0.5
+sim_realtime_rate : 1.0
 Kp : [1,1,0]
 Kd : [0.1,0.1,0]
