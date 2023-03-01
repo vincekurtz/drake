@@ -1,7 +1,6 @@
 #pragma once
 
 #include <chrono>
-#include <iostream>
 #include <memory>
 #include <string>
 #include <thread>
@@ -53,8 +52,10 @@ class TrajOptExample {
    *
    * @param options YAML options, incluidng cost function definition, solver
    * parameters, etc.
+   * @return TrajectoryOptimizerSolution<double> the optimal trajectory
    */
-  void SolveTrajectoryOptimization(const TrajOptExampleParams options) const;
+  TrajectoryOptimizerSolution<double> SolveTrajectoryOptimization(
+      const TrajOptExampleParams& options) const;
 
   /**
    * Use the optimizer as an MPC controller in simulation. The simulator reads
@@ -65,7 +66,7 @@ class TrajOptExample {
    * @param options YAML options, incluidng cost function definition, solver
    * parameters, etc.
    */
-  void RunModelPredictiveControl(const TrajOptExampleParams options) const;
+  void RunModelPredictiveControl(const TrajOptExampleParams& options) const;
 
  private:
   /**
@@ -116,8 +117,8 @@ class TrajOptExample {
    * @return std::vector<VectorXd> vector that interpolates between start and
    * end.
    */
-  std::vector<VectorXd> MakeLinearInterpolation(const VectorXd start,
-                                                const VectorXd end,
+  std::vector<VectorXd> MakeLinearInterpolation(const VectorXd& start,
+                                                const VectorXd& end,
                                                 int N) const {
     std::vector<VectorXd> result;
     double lambda = 0;
@@ -135,7 +136,7 @@ class TrajOptExample {
    * @param options parameters, read from a YAML file, defining the initial
    * condition, simulation time, realtime rate, etc.
    */
-  void SimulateWithControlFromLcm(const TrajOptExampleParams options) const;
+  void SimulateWithControlFromLcm(const TrajOptExampleParams& options) const;
 
   /**
    * Use MPC to control the system, reading state measurements from LCM and
@@ -143,8 +144,10 @@ class TrajOptExample {
    *
    * @param options parameters, read from a YAML file, defining the cost
    * function, MPC parameters, etc.
+   * @param q_guess initial guess to warm-start the first MPC iteration
    */
-  void ControlWithStateFromLcm(const TrajOptExampleParams options) const;
+  void ControlWithStateFromLcm(const TrajOptExampleParams& options,
+                               const std::vector<VectorXd>& q_guess) const;
 };
 
 }  // namespace examples

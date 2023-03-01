@@ -66,8 +66,8 @@ R : [1e-4,
      1e-2, 1e-2, 1e-2, 
      1e-2, 1e-2, 1e-2, 1e-2, 1e-2, 
      1e-2, 1e-2, 1e-2, 1e-2, 1e-2,
-     1e4, 1e4, 1e4,
-     1e3, 1e3, 1e3]
+     1e1, 1e1, 1e1,
+     1e1, 1e1, 1e1]
 
 Qfq : [10, 
        0, 0, 0, 
@@ -87,8 +87,11 @@ time_step : 0.05    # Discretization timestep (seconds)
 num_steps : 40      # number of timesteps
 
 # Solver parameters
-max_iters : 50              # maximum Gauss-Newton iterations
+max_iters : 2000            # maximum Gauss-Newton iterations
 method : "trust_region"     # solver method, {linesearch, trust_region}
+scaling : true
+equality_constraints : true
+
 tolerances:
   rel_cost_reduction: 0
   abs_cost_reduction: 0
@@ -96,11 +99,10 @@ tolerances:
   abs_gradient_along_dq: 0
   rel_state_change: 0
   abs_state_change: 0
-scaling : true
 
 # Method used to compute gradients of inverse dynamics, one of
 # {forward_differences, central_differences, central_differences4, autodiff}
-gradients_method: "central_differences"
+gradients_method: "forward_differences"
 
 # Playback/visualization parameters
 play_target_trajectory : true
@@ -124,7 +126,7 @@ dissipation_velocity : 0.1  # Hunt & Crossley-like model parameter, in m/s.
 # With force at a distance, contact normal forces increases linearly at a rate
 # of 2F/delta Newtons / meter, with a given smoothing factor (higher is smoother)
 smoothing_factor : 1.0
-force_at_a_distance : false
+force_at_a_distance : true
 
 # Friction
 friction_coefficient : 0.5  # Coefficient of friction.

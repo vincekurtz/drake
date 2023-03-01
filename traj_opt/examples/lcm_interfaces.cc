@@ -28,15 +28,13 @@ void StateSender::OutputState(const Context<double>& context,
 }
 
 LowLevelController::LowLevelController(const MultibodyPlant<double>* plant,
-                                       const VectorXd Kp, const VectorXd Kd,
-                                       const double Vmax)
+                                       const VectorXd Kp, const VectorXd Kd)
     : nu_(plant->num_actuators()),
       nq_(plant->num_positions()),
       nv_(plant->num_velocities()),
       B_(plant->MakeActuationMatrix()),
       Kp_(B_.transpose() * Kp.asDiagonal()),
       Kd_(B_.transpose() * Kd.asDiagonal()),
-      Vmax_(Vmax),
       plant_(plant) {
   // Some size sanity checks
   DRAKE_DEMAND(Kp_.rows() == nu_);
@@ -81,19 +79,6 @@ void LowLevelController::OutputCommandAsVector(
     // Set PD+ input to track the trajectory from the optimizer. This will be
     // applied if system energy is sufficiently low.
     VectorXd u = u_nom - Kp_ * (q - q_nom) - Kd_ * (v - v_nom);
-
-    // Compute current system energy
-    plant_->SetPositionsAndVelocities(context_.get(), x);
-    const double V = plant_->EvalKineticEnergy(*context_) +
-                     plant_->EvalPotentialEnergy(*context_);
-
-    // Apply a barrier function to bound the system energy
-    const double gamma = std::exp(10 * V / Vmax_ - 10);
-    if ((0 <= gamma) && (gamma <= 1)) {
-      u = (1 - gamma) * u - gamma * B_.transpose() * v;
-    } else if (gamma > 1) {
-      u = -gamma * B_.transpose() * v;
-    }
 
     output->SetFromVector(u);
 

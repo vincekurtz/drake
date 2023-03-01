@@ -31,6 +31,32 @@ enum GradientsMethod {
   kNoGradients
 };
 
+enum ScalingMethod {
+  // Method for setting the diagonal scaling matrix D at the k^th iteration
+  // based on terms in the Hessian
+
+  // The simplest scaling scheme, which attempts to set diagonal terms of the
+  // scaled Hessian H̃ = DHD to approximately 1.
+  // Dᵢᵢᵏ = min(1, 1/√Hᵏᵢᵢ).
+  kSqrt,
+
+  // Adaptive variant of the sqrt scaling recommended by Moré, "Recent
+  // developments in algorithms and software for trust region methods."
+  // Springer, 1983.
+  // Dᵢᵢᵏ = min(Dᵢᵢᵏ⁻¹, 1/√Hᵢᵢᵏ)
+  kAdaptiveSqrt,
+
+  // A less extreme version of the sqrt scaling, which produces
+  // closer-to-spherical trust regions. We found that this performs better than
+  // sqrt scaling on some of our examples.
+  // Dᵢᵢᵏ = min(1, 1/√√Hᵏᵢᵢ)
+  kDoubleSqrt,
+
+  // Adaptive version of the double sqrt scaling.
+  // Dᵢᵢᵏ = min(Dᵢᵢᵏ⁻¹, 1/√√Hᵢᵢᵏ)
+  kAdaptiveDoubleSqrt
+};
+
 struct SolverParameters {
   DRAKE_DEFAULT_COPY_AND_MOVE_AND_ASSIGN(SolverParameters);
 
@@ -142,6 +168,19 @@ struct SolverParameters {
 
   // Flag for rescaling the Hessian, for better numerical conditioning
   bool scaling = true;
+
+  // Method to use for rescaling the Hessian (and thus reshaping the Hessian)
+  ScalingMethod scaling_method{ScalingMethod::kDoubleSqrt};
+
+  // Parameter for activating hard equality constraints on unactuated DoFs
+  bool equality_constraints = false;
+
+  // Initial and maximum trust region radius
+  // N.B. these have very different units depending on whether scaling is used.
+  // These defaults are reasonable when scaling=true: without scaling a smaller
+  // trust region radius is more appropriate.
+  double Delta0 = 1e-1;
+  double Delta_max = 1e5;
 };
 
 }  // namespace traj_opt
