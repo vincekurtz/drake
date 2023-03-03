@@ -2194,6 +2194,7 @@ T TrajectoryOptimizer<T>::CalcTrustRatio(
   const PentaDiagonalMatrix<T>& H_k = EvalScaledHessian(state);
   const VectorX<T>& lambda_k = EvalLagrangeMultipliers(state);
 
+
   // Quantities at the next iteration if we accept the step (kp = k+1)
   // TODO(vincekurtz): if we do end up accepting the step, it would be nice to
   // somehow reuse these cached quantities, which we're currently trashing
@@ -2237,6 +2238,11 @@ T TrajectoryOptimizer<T>::CalcTrustRatio(
     // size of the trust region will not change.
     return 0.5;
   }
+
+  PRINT_VAR(merit_k);
+  PRINT_VAR(merit_kp);
+  PRINT_VAR(actual_reduction);
+  PRINT_VAR(predicted_reduction);
 
   return actual_reduction / predicted_reduction;
 }
@@ -2731,6 +2737,8 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
 
     // Compute the trust region ratio
     rho = CalcTrustRatio(state, dq, &scratch_state);
+    PRINT_VAR(cost);
+    PRINT_VAR(EvalCost(state));
 
     // With a positive definite Hessian, steps should not oppose the descent
     // direction
@@ -2762,7 +2770,11 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
       }
 
       state.AddToQ(dq);  // q += dq
+      double new_cost = EvalCost(state);
+      PRINT_VAR(new_cost);
       if (params_.normalize_quaternions) NormalizeQuaternions(&state);
+      double new_cost_post_normalize = EvalCost(state);
+      PRINT_VAR(new_cost_post_normalize);
     }
     // Else (rho <= eta), the trust region ratio is too small to accept dq, so
     // we'll need to so keep reducing the trust region. Note that the trust
@@ -2789,7 +2801,7 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
         std::cout << separator_bar << std::endl;
       }
       std::cout << fmt::format(
-          "| {:>6} | {:>8.3g} | {:>7.2} | {:>7.1} | {:>10.5} | {:>10.5} | "
+          "| {:>6} | {:>8.3g} | {:>7.2} | {:>7.3} | {:>10.5} | {:>10.5} | "
           "{:>10.4} | {:>10.4} |\n",
           k, cost, Delta, rho, iter_time.count(), g.norm() / cost, dL_dq,
           h.norm());
