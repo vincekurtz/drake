@@ -74,14 +74,14 @@ Qfv : [1.0, 1.0, 1.0,
 
 # Problem definition parameters
 time_step : 0.05   # Discretization timestep (seconds)
-num_steps : 30     # number of timesteps
+num_steps : 40     # number of timesteps
 
 # Solver parameters
-max_iters : 108            # maximum Gauss-Newton iterations
+max_iters : 200            # maximum Gauss-Newton iterations
 method : "trust_region"    # solver method, {linesearch, trust_region}
-scaling : false
-equality_constraints : false
-
+scaling : true
+equality_constraints : true
+normalize_quaternions : false
 linear_solver : pentadiagonal_lu
 
 # Convergence thresholds
@@ -123,7 +123,7 @@ force_at_a_distance : true
 
 # Friction
 friction_coefficient : 1.0  # Coefficient of friction.
-stiction_velocity: 0.1     # Regularization velocity, in m/s.
+stiction_velocity: 0.5     # Regularization velocity, in m/s.
 
 # MPC parameters
 mpc : false

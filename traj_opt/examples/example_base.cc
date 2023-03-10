@@ -499,6 +499,9 @@ void TrajOptExample::SetSolverParameters(
   // Flag for printing iteration data
   solver_params->verbose = options.verbose;
 
+  // Whether to normalize quaterions between iterations
+  solver_params->normalize_quaternions = options.normalize_quaternions;
+
   // Type of Hessian approximation
   solver_params->exact_hessian = options.exact_hessian;
 

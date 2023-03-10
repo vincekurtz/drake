@@ -2028,6 +2028,7 @@ void TrajectoryOptimizer<T>::SaveLinesearchResidual(
     // phi(alpha) = L(q + alpha * dq) - L
     scratch_state->set_q(state.q());
     scratch_state->AddToQ(alpha * dq);
+    if (params_.normalize_quaternions) NormalizeQuaternions(scratch_state);
     data_file << EvalCost(*scratch_state) - EvalCost(state) << ", ";
 
     // Record the norm of the gradient
@@ -2099,6 +2100,7 @@ std::tuple<double, int> TrajectoryOptimizer<T>::BacktrackingLinesearch(
   // Try with alpha = 1
   scratch_state->set_q(state.q());
   scratch_state->AddToQ(alpha * dq);
+  if (params_.normalize_quaternions) NormalizeQuaternions(scratch_state);
   T L_old =
       EvalCost(*scratch_state) +
       mu * EvalEqualityConstraintViolations(*scratch_state).cwiseAbs().sum();
@@ -2122,6 +2124,7 @@ std::tuple<double, int> TrajectoryOptimizer<T>::BacktrackingLinesearch(
     // Compute L_new = L(q + alpha_i * dq)
     scratch_state->set_q(state.q());
     scratch_state->AddToQ(alpha * dq);
+    if (params_.normalize_quaternions) NormalizeQuaternions(scratch_state);
     L_new =
         EvalCost(*scratch_state) +
         mu * EvalEqualityConstraintViolations(*scratch_state).cwiseAbs().sum();
@@ -2175,6 +2178,7 @@ std::tuple<double, int> TrajectoryOptimizer<T>::ArmijoLinesearch(
     // Compute L_ls = L(q + alpha * dq)
     scratch_state->set_q(state.q());
     scratch_state->AddToQ(alpha * dq);
+    if (params_.normalize_quaternions) NormalizeQuaternions(scratch_state);
     L_new = EvalCost(*scratch_state);
 
     ++i;
@@ -2200,6 +2204,7 @@ T TrajectoryOptimizer<T>::CalcTrustRatio(
   // somehow reuse these cached quantities, which we're currently trashing
   scratch_state->set_q(state.q());
   scratch_state->AddToQ(dq);
+  if (params_.normalize_quaternions) NormalizeQuaternions(scratch_state);
   T merit_kp = EvalCost(*scratch_state);
   if (params_.equality_constraints) {
     // N.B. We use λₖ rather than λₖ₊₁ to compute the merit function
@@ -2238,11 +2243,6 @@ T TrajectoryOptimizer<T>::CalcTrustRatio(
     // size of the trust region will not change.
     return 0.5;
   }
-
-  PRINT_VAR(merit_k);
-  PRINT_VAR(merit_kp);
-  PRINT_VAR(actual_reduction);
-  PRINT_VAR(predicted_reduction);
 
   return actual_reduction / predicted_reduction;
 }
@@ -2737,8 +2737,6 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
 
     // Compute the trust region ratio
     rho = CalcTrustRatio(state, dq, &scratch_state);
-    PRINT_VAR(cost);
-    PRINT_VAR(EvalCost(state));
 
     // With a positive definite Hessian, steps should not oppose the descent
     // direction
@@ -2770,11 +2768,7 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
       }
 
       state.AddToQ(dq);  // q += dq
-      double new_cost = EvalCost(state);
-      PRINT_VAR(new_cost);
       if (params_.normalize_quaternions) NormalizeQuaternions(&state);
-      double new_cost_post_normalize = EvalCost(state);
-      PRINT_VAR(new_cost_post_normalize);
     }
     // Else (rho <= eta), the trust region ratio is too small to accept dq, so
     // we'll need to so keep reducing the trust region. Note that the trust
