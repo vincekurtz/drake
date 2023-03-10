@@ -19,11 +19,12 @@
 #include "drake/geometry/shape_specification.h"
 #include "drake/math/rigid_transform.h"
 #include "drake/math/rotation_matrix.h"
+#include "drake/multibody/parsing/detail_make_model_name.h"
 #include "drake/multibody/parsing/detail_tinyxml.h"
-#include "drake/multibody/parsing/scoped_names.h"
 #include "drake/multibody/tree/ball_rpy_joint.h"
 #include "drake/multibody/tree/prismatic_joint.h"
 #include "drake/multibody/tree/revolute_joint.h"
+#include "drake/multibody/tree/scoped_name.h"
 #include "drake/multibody/tree/weld_joint.h"
 
 namespace drake {
@@ -87,7 +88,12 @@ void ApplyDefaultAttributes(const XMLElement& default_node, XMLElement* node) {
 
 class MujocoParser {
  public:
-  explicit MujocoParser(MultibodyPlant<double>* plant) : plant_{plant} {}
+  explicit MujocoParser(const ParsingWorkspace& workspace)
+      : workspace_(workspace), plant_(workspace.plant) {
+    // Clang complains that the workspace_ field is unused. Nerf the warning
+    // for now; it will be used soon.
+    unused(workspace_);
+  }
 
   RigidTransformd ParseTransform(
       XMLElement* node, const RigidTransformd& X_default = RigidTransformd{}) {
@@ -966,9 +972,9 @@ class MujocoParser {
         } else if (std::filesystem::exists(original_filename)) {
           log()->warn(
               "Drake's MuJoCo parser currently only supports mesh files in "
-              ".obj format. The meshfile {} was requested; Drake attempted to "
-              "load {}, but that file does not exist.",
-              original_filename, filename);
+              ".obj format. The meshfile \"{}\" was requested; Drake attempted "
+              "to load \"{}\", but that file does not exist.",
+              original_filename.string(), filename.string());
           std::string original_extension = original_filename.extension();
           std::transform(original_extension.begin(), original_extension.end(),
                          original_extension.begin(),
@@ -976,15 +982,15 @@ class MujocoParser {
           if (original_extension == ".stl") {
             log()->warn(
                 "If you have built Drake from source, running\n\n bazel run "
-                "//manipulation/utils/stl2obj -- {} {}\n\nonce will "
+                "//manipulation/utils/stl2obj -- \"{}\" \"{}\"\n\nonce will "
                 "resolve this.",
-                original_filename, filename);
+                original_filename.string(), filename.string());
           }
         } else {
           log()->warn(
-              "The mesh asset {} could not be found, nor could its .obj "
-              "replacement {}.",
-              original_filename, filename);
+              "The mesh asset \"{}\" could not be found, nor could its .obj "
+              "replacement \"{}\".",
+              original_filename.string(), filename.string());
         }
       } else {
         std::string name{};
@@ -1242,9 +1248,7 @@ class MujocoParser {
           "ERROR: Your robot must have a name attribute or a model name "
           "must be specified.");
     }
-    model_name =
-        parsing::PrefixName(parent_model_name.value_or(""), model_name);
-
+    model_name = MakeModelName(model_name, parent_model_name, workspace_);
     model_instance_ = plant_->AddModelInstance(model_name);
 
     // Parse the compiler parameters.
@@ -1314,6 +1318,7 @@ class MujocoParser {
   }
 
  private:
+  const ParsingWorkspace& workspace_;
   MultibodyPlant<double>* plant_;
   ModelInstanceIndex model_instance_{};
   std::filesystem::path main_mjcf_path_{};
@@ -1332,9 +1337,8 @@ class MujocoParser {
 ModelInstanceIndex AddModelFromMujocoXml(
     const DataSource& data_source, const std::string& model_name_in,
     const std::optional<std::string>& parent_model_name,
-    MultibodyPlant<double>* plant) {
-  DRAKE_THROW_UNLESS(plant != nullptr);
-  DRAKE_THROW_UNLESS(!plant->is_finalized());
+    const ParsingWorkspace& workspace) {
+  DRAKE_THROW_UNLESS(!workspace.plant->is_finalized());
 
   XMLDocument xml_doc;
   std::filesystem::path path{};
@@ -1356,7 +1360,7 @@ ModelInstanceIndex AddModelFromMujocoXml(
     path = std::filesystem::current_path();
   }
 
-  MujocoParser parser(plant);
+  MujocoParser parser(workspace);
   return parser.Parse(model_name_in, parent_model_name, &xml_doc, path);
 }
 
@@ -1369,7 +1373,7 @@ std::optional<ModelInstanceIndex> MujocoParserWrapper::AddModel(
     const std::optional<std::string>& parent_model_name,
     const ParsingWorkspace& workspace) {
   return AddModelFromMujocoXml(data_source, model_name, parent_model_name,
-                               workspace.plant);
+                               workspace);
 }
 
 std::vector<ModelInstanceIndex> MujocoParserWrapper::AddAllModels(

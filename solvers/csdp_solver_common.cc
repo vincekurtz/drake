@@ -12,7 +12,7 @@ namespace drake {
 namespace solvers {
 
 CsdpSolver::CsdpSolver()
-    : SolverBase(&id, &is_available, &is_enabled,
+    : SolverBase(id(), &is_available, &is_enabled,
                  &ProgramAttributesSatisfied) {}
 
 CsdpSolver::~CsdpSolver() = default;
@@ -22,7 +22,9 @@ SolverId CsdpSolver::id() {
   return singleton.access();
 }
 
-bool CsdpSolver::is_enabled() { return true; }
+bool CsdpSolver::is_enabled() {
+  return true;
+}
 
 bool CsdpSolver::ProgramAttributesSatisfied(const MathematicalProgram& prog) {
   static const never_destroyed<ProgramAttributes> solver_capabilities(

@@ -13,6 +13,7 @@
 #include "drake/common/drake_copyable.h"
 #include "drake/common/drake_deprecated.h"
 #include "drake/common/eigen_types.h"
+#include "drake/common/fmt_ostream.h"
 #include "drake/math/rigid_transform.h"
 #include "drake/multibody/math/spatial_algebra.h"
 #include "drake/multibody/plant/multibody_plant.h"
@@ -336,7 +337,7 @@ class DifferentialInverseKinematicsParameters {
  * @return If the solver successfully finds a solution, joint_velocities will
  * be set to v, otherwise it will be nullopt.
  *
- * @ingroup planning
+ * @ingroup planning_kinematics
  */
 DifferentialInverseKinematicsResult DoDifferentialInverseKinematics(
     const Eigen::Ref<const VectorX<double>>& q_current,
@@ -362,7 +363,7 @@ DifferentialInverseKinematicsResult DoDifferentialInverseKinematics(
  * @return If the solver successfully finds a solution, joint_velocities will
  * be set to v, otherwise it will be nullopt.
  *
- * @ingroup planning
+ * @ingroup planning_kinematics
  */
 DifferentialInverseKinematicsResult DoDifferentialInverseKinematics(
     const MultibodyPlant<double>& robot,
@@ -387,7 +388,7 @@ DifferentialInverseKinematicsResult DoDifferentialInverseKinematics(
  * @return If the solver successfully finds a solution, joint_velocities will
  * be set to v, otherwise it will be nullopt.
  *
- * @ingroup planning
+ * @ingroup planning_kinematics
  */
 DifferentialInverseKinematicsResult DoDifferentialInverseKinematics(
     const MultibodyPlant<double>& robot,
@@ -410,3 +411,9 @@ DifferentialInverseKinematicsResult DoDifferentialInverseKinematics(
 
 }  // namespace multibody
 }  // namespace drake
+
+namespace fmt {
+template <>
+struct formatter<drake::multibody::DifferentialInverseKinematicsStatus>
+    : drake::ostream_formatter {};
+}  // namespace fmt

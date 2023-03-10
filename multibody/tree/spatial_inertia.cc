@@ -2,7 +2,7 @@
 
 #include <string>
 
-#include <fmt/format.h>
+#include "drake/common/fmt_eigen.h"
 
 namespace drake {
 namespace multibody {
@@ -13,6 +13,27 @@ SpatialInertia<T> SpatialInertia<T>::MakeUnitary() {
   const Vector3<T> p_BoBcm_B = Vector3<T>::Zero();  // Position from Bo to Bcm.
   const UnitInertia<T> G_BBo_B(/* Ixx = */ 1, /* Iyy = */ 1, /* Izz = */ 1);
   return SpatialInertia<T>(mass, p_BoBcm_B, G_BBo_B);
+}
+
+template <typename T>
+SpatialInertia<T> SpatialInertia<T>::PointMass(
+    const T& mass, const Vector3<T>& position) {
+  // Ensure mass is non-negative.
+  if (mass < 0) {
+    std::string error_message = fmt::format(
+        "{}(): The mass of a particle is negative: {}.", __func__, mass);
+    throw std::logic_error(error_message);
+  }
+
+  // Upgrade to monogram notation: position is the position vector from
+  // point P to particle Q expressed in a frame B.
+  const Vector3<T> p_PQ_B = position;
+
+  // Form particle Q's unit inertia about point P, expressed in frame B.
+  const UnitInertia<T> G_QP_B = UnitInertia<T>::PointMass(p_PQ_B);
+
+  // Return particle Q's spatial inertia about point P, expressed in frame B.
+  return SpatialInertia<T>(mass, p_PQ_B, G_QP_B);
 }
 
 template <typename T>
@@ -30,6 +51,24 @@ SpatialInertia<T> SpatialInertia<T>::SolidBoxWithDensity(
   const T mass = density * volume;
   const Vector3<T> p_BoBcm_B = Vector3<T>::Zero();
   const UnitInertia<T> G_BBo_B = UnitInertia<T>::SolidBox(lx, ly, lz);
+  return SpatialInertia<T>(mass, p_BoBcm_B, G_BBo_B);
+}
+
+template <typename T>
+SpatialInertia<T> SpatialInertia<T>::SolidCubeWithDensity(
+    const T& density, const T& l) {
+  // Ensure l is positive.
+  if (l <= 0) {
+    std::string error_message = fmt::format(
+        "{}(): The length of a solid cube is negative or zero: {}.",
+        __func__, l);
+    throw std::logic_error(error_message);
+  }
+
+  const T volume = l * l * l;
+  const T mass = density * volume;
+  const Vector3<T> p_BoBcm_B = Vector3<T>::Zero();
+  const UnitInertia<T> G_BBo_B = UnitInertia<T>::SolidCube(l);
   return SpatialInertia<T>(mass, p_BoBcm_B, G_BBo_B);
 }
 
@@ -68,9 +107,9 @@ SpatialInertia<T> SpatialInertia<T>::SolidCylinderWithDensity(
   using std::abs;
   constexpr double kTolerance = 1E-14;
   if (abs(unit_vector.norm() - 1) > kTolerance) {
-    std::string error_message = fmt::format("{}(): The unit_vector argument "
-      "{} is not a unit vector.", __func__, unit_vector.transpose());
-    throw std::logic_error(error_message);
+    throw std::logic_error(
+        fmt::format("{}(): The unit_vector argument {} is not a unit vector.",
+                    __func__, fmt_eigen(unit_vector.transpose())));
   }
 
   const T volume = M_PI * r * r * l;  // π r² l
@@ -84,6 +123,69 @@ SpatialInertia<T> SpatialInertia<T>::SolidCylinderWithDensity(
   const UnitInertia<T> G_BBo_B =
       UnitInertia<T>::SolidCylinder(r, l, unit_vector);
   return SpatialInertia<T>(mass, p_BoBcm_B, G_BBo_B);
+}
+
+template <typename T>
+SpatialInertia<T> SpatialInertia<T>::SolidCylinderWithDensityAboutEnd(
+    const T& density, const T& radius, const T& length,
+    const Vector3<T>& unit_vector) {
+  SpatialInertia<T> M_BBcm_B =
+      SpatialInertia<T>::SolidCylinderWithDensity(
+          density, radius, length, unit_vector);
+  const Vector3<T> p_BcmBp_B = -0.5 * length * unit_vector;
+  M_BBcm_B.ShiftInPlace(p_BcmBp_B);
+  return M_BBcm_B;  // Due to shift, this actually returns M_BBp_B.
+}
+
+template <typename T>
+SpatialInertia<T> SpatialInertia<T>::ThinRodWithMass(
+    const T& mass, const T& length, const Vector3<T>& unit_vector) {
+  // Ensure mass and length are positive.
+  if (mass <= 0 || length <= 0) {
+    std::string error_message = fmt::format(
+        "{}(): A thin rod's mass = {} or length = {} is negative or zero.",
+        __func__, mass, length);
+    throw std::logic_error(error_message);
+  }
+
+  // Ensure ‖unit_vector‖ is within ≈ 5.5 bits of 1.0.
+  // Note: 1E-14 ≈ 2^5.5 * std::numeric_limits<double>::epsilon();
+  using std::abs;
+  constexpr double kTolerance = 1E-14;
+  const T unit_vector_norm = unit_vector.norm();
+  if (abs(unit_vector_norm - 1) > kTolerance) {
+    throw std::logic_error(
+        fmt::format("{}(): The unit_vector argument {} is not a unit vector.",
+                    __func__, fmt_eigen(unit_vector.transpose())));
+  }
+
+  // Although a check is made that ‖unit_vector‖ ≈ 1, we normalize regardless.
+  // Note: UnitInertia::ThinRod() calls UnitInertia::AxiallySymmetric() which
+  // also normalizes unit_vector before use.
+  // TODO(Mitiguy) remove normalization in UnitInertia::AxiallySymmetric().
+  const Vector3<T> unit_vector_normalized = unit_vector / unit_vector_norm;
+  const UnitInertia<T> G_BBcm_B =
+      UnitInertia<T>::ThinRod(length, unit_vector_normalized);
+  const Vector3<T> p_BoBcm_B = Vector3<T>::Zero();
+  return SpatialInertia<T>(mass, p_BoBcm_B, G_BBcm_B);
+}
+
+template <typename T>
+SpatialInertia<T> SpatialInertia<T>::ThinRodWithMassAboutEnd(
+    const T& mass, const T& length, const Vector3<T>& unit_vector) {
+  // Ensure mass and length are positive.
+  if (mass <= 0 || length <= 0) {
+    std::string error_message = fmt::format(
+        "{}(): A thin rod's mass = {} or length = {} is negative or zero.",
+        __func__, mass, length);
+    throw std::logic_error(error_message);
+  }
+
+  SpatialInertia<T> M_BBcm_B =
+      SpatialInertia<T>::ThinRodWithMass(mass, length, unit_vector);
+  const Vector3<T> p_BcmBp_B = -0.5 * length * unit_vector;
+  M_BBcm_B.ShiftInPlace(p_BcmBp_B);
+  return M_BBcm_B;  // Due to shift, this actually returns M_BBp_B.
 }
 
 template <typename T>
@@ -116,6 +218,22 @@ SpatialInertia<T> SpatialInertia<T>::SolidSphereWithDensity(
   const T mass = density * volume;
   const Vector3<T> p_BoBcm_B = Vector3<T>::Zero();
   const UnitInertia<T> G_BBo_B = UnitInertia<T>::SolidSphere(r);
+  return SpatialInertia<T>(mass, p_BoBcm_B, G_BBo_B);
+}
+
+template <typename T>
+SpatialInertia<T> SpatialInertia<T>::HollowSphereWithDensity(
+    const T& area_density, const T& r) {
+  // Ensure r is positive.
+  if (r <= 0) {
+    std::string error_message = fmt::format("{}(): A hollow sphere's "
+      "radius = {} is negative or zero.", __func__, r);
+    throw std::logic_error(error_message);
+  }
+  const T area = 4.0 * M_PI * r * r;  // 4 π r²
+  const T mass = area_density * area;
+  const Vector3<T> p_BoBcm_B = Vector3<T>::Zero();
+  const UnitInertia<T> G_BBo_B = UnitInertia<T>::HollowSphere(r);
   return SpatialInertia<T>(mass, p_BoBcm_B, G_BBo_B);
 }
 
@@ -216,6 +334,7 @@ std::ostream& operator<<(std::ostream& out, const SpatialInertia<T>& M) {
   const T& y = p_PBcm.y();
   const T& z = p_PBcm.z();
 
+  // TODO(jwnimmer-tri) Rewrite this to use fmt to our advantage.
   if constexpr (scalar_predicate<T>::is_bool) {
     out << "\n"
         << fmt::format(" mass = {}\n", mass)
@@ -223,7 +342,7 @@ std::ostream& operator<<(std::ostream& out, const SpatialInertia<T>& M) {
   } else {
     // Print symbolic results.
     out << " mass = " << mass << "\n"
-        << " Center of mass = [" << p_PBcm.transpose() << "]\n";
+        << fmt::format(" Center of mass = {}\n", fmt_eigen(p_PBcm.transpose()));
   }
 
   // Get G_BP (unit inertia about point P) and use it to calculate I_BP

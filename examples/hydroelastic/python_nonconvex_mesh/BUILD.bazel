@@ -2,7 +2,6 @@
 
 load("//tools/skylark:drake_py.bzl", "drake_py_binary")
 load("//tools/lint:lint.bzl", "add_lint_tests")
-load("//tools/install:install_data.bzl", "install_data")
 load("@drake//tools/workspace:forward_files.bzl", "forward_files")
 load("//tools/workspace/models_internal:files.bzl", "veggies_mesh_files")
 load("//tools/workspace/models_internal:files.bzl", "dishes_files")
@@ -50,6 +49,7 @@ filegroup(
         "pepper.sdf",
         "table.sdf",
     ] + _VEGGIES_MESHES + _DISHES_FILES,
+    visibility = ["//:__pkg__"],
 )
 
 add_lint_tests()

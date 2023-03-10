@@ -75,6 +75,7 @@ drake_cc_library(
         "minimum_distance_constraint.cc",
         "orientation_constraint.cc",
         "orientation_cost.cc",
+        "point_to_line_distance_constraint.cc",
         "point_to_point_distance_constraint.cc",
         "polyhedron_constraint.cc",
         "position_constraint.cc",
@@ -93,6 +94,7 @@ drake_cc_library(
         "minimum_distance_constraint.h",
         "orientation_constraint.h",
         "orientation_cost.h",
+        "point_to_line_distance_constraint.h",
         "point_to_point_distance_constraint.h",
         "polyhedron_constraint.h",
         "position_constraint.h",
@@ -303,6 +305,15 @@ drake_cc_googletest(
 )
 
 drake_cc_googletest(
+    name = "point_to_line_distance_constraint_test",
+    deps = [
+        ":inverse_kinematics_test_utilities",
+        ":kinematic_evaluators",
+        "//solvers/test_utilities",
+    ],
+)
+
+drake_cc_googletest(
     name = "point_to_point_distance_constraint_test",
     deps = [
         ":inverse_kinematics_test_utilities",
@@ -366,6 +377,7 @@ drake_cc_library(
 drake_cc_googletest(
     name = "global_inverse_kinematics_test",
     timeout = "moderate",
+    num_threads = 4,
     tags = gurobi_test_tags() + [
         # Takes too long to run with Valgrind.
         "no_memcheck",
@@ -382,6 +394,7 @@ drake_cc_googletest(
 drake_cc_googletest(
     name = "global_inverse_kinematics_reachable_test",
     timeout = "moderate",
+    num_threads = 4,
     tags = gurobi_test_tags() + [
         # Takes too long to run with Valgrind.
         "no_memcheck",
@@ -400,6 +413,7 @@ drake_cc_googletest(
     timeout = "long",
     # This test is prohibitively slow with --compilation_mode=dbg.
     disable_in_compilation_mode_dbg = True,
+    num_threads = 4,
     tags = gurobi_test_tags() + [
         "no_asan",
         # Takes too long to run with Valgrind.
@@ -416,6 +430,7 @@ drake_cc_googletest(
 drake_cc_googletest(
     name = "global_inverse_kinematics_collision_avoidance_test",
     timeout = "moderate",
+    num_threads = 4,
     tags = gurobi_test_tags() + [
         # Takes too long to run with Valgrind.
         "no_memcheck",

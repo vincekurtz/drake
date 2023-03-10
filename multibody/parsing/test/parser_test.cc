@@ -33,6 +33,8 @@ GTEST_TEST(FileParserTest, BasicTest) {
   const std::string dmd_name = FindResourceOrThrow(
       "drake/multibody/parsing/test/process_model_directives_test/"
       "acrobot.dmd.yaml");
+  const std::string obj_name = FindResourceOrThrow(
+      "drake/multibody/parsing/test/box_package/meshes/box.obj");
 
   // Load from SDF using plural method.
   // Add a second one with an overridden model_name.
@@ -107,6 +109,26 @@ GTEST_TEST(FileParserTest, BasicTest) {
     const auto prefix_ids = Parser(&plant, "prefix").AddModels(dmd_name);
     EXPECT_EQ(prefix_ids.size(), 1);
     EXPECT_EQ(plant.GetModelInstanceName(prefix_ids[0]), "prefix::acrobot");
+  }
+
+  // Load from OBJ using plural method.
+  // Add a second one with an overridden model_name.
+  // Add one with a name prefix.
+  {
+    // TODO(SeanCurtis-TRI): Break this "basic test" up into each extension
+    // type. The shared infrastructure is negligible, but the cost of adding
+    // a new extension is reduced by having each extension isolated in its own
+    // test.
+    MultibodyPlant<double> plant(0.0);
+    Parser dut(&plant);
+    const std::vector<ModelInstanceIndex> ids = dut.AddModels(obj_name);
+    EXPECT_EQ(ids.size(), 1);
+    EXPECT_EQ(plant.GetModelInstanceName(ids[0]), "box");
+    const ModelInstanceIndex id = dut.AddModelFromFile(obj_name, "foo");
+    EXPECT_EQ(plant.GetModelInstanceName(id), "foo");
+    const auto prefix_ids = Parser(&plant, "prefix").AddModels(obj_name);
+    EXPECT_EQ(prefix_ids.size(), 1);
+    EXPECT_EQ(plant.GetModelInstanceName(prefix_ids[0]), "prefix::box");
   }
 }
 
@@ -392,7 +414,7 @@ GTEST_TEST(FileParserTest, PackageMapTest) {
   // Attempt to read in the SDF file without setting the package map first.
   const std::string new_sdf_filename = sdf_path + "/box.sdf";
   DRAKE_EXPECT_THROWS_MESSAGE(parser.AddModelFromFile(new_sdf_filename),
-      "error.*unknown package.*box_model.*");
+      ".*error.*unknown package.*box_model.*");
 
   // Try again.
   parser.package_map().PopulateFromFolder(temp_dir);
@@ -428,6 +450,35 @@ GTEST_TEST(FileParserTest, StrictParsing) {
         parser.AddModelsFromString(model_provokes_warning, "urdf"),
         warning_pattern);
   }
+}
+
+GTEST_TEST(FileParserTest, AutoRenaming) {
+  std::string model = "<robot name='robot'><link name='a'/></robot>";
+  MultibodyPlant<double> plant(0.0);
+
+  Parser parser(&plant);
+  EXPECT_FALSE(parser.GetAutoRenaming());
+
+  // Load a model.
+  parser.AddModelsFromString(model, "urdf");
+  EXPECT_TRUE(plant.HasModelInstanceNamed("robot"));
+  // Auto renaming is off; fail to load it again.
+  DRAKE_EXPECT_THROWS_MESSAGE(
+      parser.AddModelsFromString(model, "urdf"),
+      ".*names must be unique.*");
+
+  // Load it again with auto renaming.
+  parser.SetAutoRenaming(true);
+  EXPECT_TRUE(parser.GetAutoRenaming());
+  parser.AddModelsFromString(model, "urdf");
+  EXPECT_TRUE(plant.HasModelInstanceNamed("robot_1"));
+
+  // Disable auto renaming and show repeat loading subsequently fails.
+  parser.SetAutoRenaming(false);
+  EXPECT_FALSE(parser.GetAutoRenaming());
+  DRAKE_EXPECT_THROWS_MESSAGE(
+      parser.AddModelsFromString(model, "urdf"),
+      ".*names must be unique.*");
 }
 
 }  // namespace

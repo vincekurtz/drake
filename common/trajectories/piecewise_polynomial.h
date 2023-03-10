@@ -397,7 +397,7 @@ class PiecewisePolynomial final : public PiecewiseTrajectory<T> {
    * an additional sample to connect the first and last segments. Only first
    * and second derivative continuity is enforced.
    * See https://en.wikipedia.org/wiki/Spline_interpolation and
-   * https://www.math.uh.edu/~jingqiu/math4364/spline.pdf
+   * https://web.archive.org/web/20140125011904/https://www.math.uh.edu/~jingqiu/math4364/spline.pdf
    * for more about cubic splines and their end conditions.
    * The MATLAB docs for methods "spline" and "csape" are also good
    * references.
@@ -425,16 +425,6 @@ class PiecewisePolynomial final : public PiecewiseTrajectory<T> {
       const Eigen::Ref<const VectorX<T>>& breaks,
       const Eigen::Ref<const MatrixX<T>>& samples,
       bool periodic_end_condition = false);
-
-  DRAKE_DEPRECATED("2023-03-01",
-                   "Please use CubicWithContinuousSecondDerivatives instead.")
-  static PiecewisePolynomial<T> Cubic(
-      const Eigen::Ref<const VectorX<T>>& breaks,
-      const Eigen::Ref<const MatrixX<T>>& samples,
-      bool periodic_end_condition = false) {
-    return CubicWithContinuousSecondDerivatives(breaks, samples,
-        periodic_end_condition);
-  }
 
   /**
    * Constructs a polynomial with a *single segment* of the lowest possible

@@ -3,6 +3,11 @@ Drake's built-in visualizers (MeshCat and/or Meldis). When viewing in MeshCat,
 joint sliders to posture the model are available by clicking on "Open Controls"
 in the top right corner.
 
+If the loaded model file is changed, it can be reloaded by pressing
+the "Reload Model Files" button, which will attempt to maintain slider values
+once reloading is finished. To exit, press the "Stop Running" button or press
+the Escape key.
+
 This command-line module is provided for convenience, but the feature is also
 available via the library class ``pydrake.visualization.ModelVisualizer``.
 
@@ -13,6 +18,10 @@ From a Drake source build, run this module as::
 From a Drake binary release (including pip releases), run this module as::
 
   python3 -m pydrake.visualization.model_visualizer --help
+
+For binary releases (except for pip) there is also a shortcut available as::
+
+  /opt/drake/bin/model_visualizer
 
 Refer to the instructions printed by ``--help`` for additional details.
 
@@ -56,10 +65,6 @@ def _main():
         "--pyplot", action="store_true",
         help="Open a pyplot figure for rendering using "
              "PlanarSceneGraphVisualizer.")
-    # N.B.: There's no default for enable_reload; it's not an init argument.
-    args_parser.add_argument(
-        "-r", "--enable_reload", action="store_true",
-        help="Enable reloading of the model.")
     # TODO(russt): Consider supporting the PlanarSceneGraphVisualizer
     #  options as additional arguments.
     assert defaults["visualize_frames"] is False
@@ -111,7 +116,7 @@ def _main():
                                   browser_new=args.browser_new,
                                   pyplot=args.pyplot)
 
-    package_map = visualizer.parser().package_map()
+    package_map = visualizer.package_map()
     package_map.PopulateFromRosPackagePath()
 
     # Resolve the filename if necessary.
@@ -126,11 +131,7 @@ def _main():
         args_parser.error(f"File does not exist: {filename}")
 
     visualizer.AddModels(filename)
-    if not args.loop_once and args.enable_reload:
-        # TODO(trowell-tri) Consider enabling reload by default in the future.
-        visualizer.RunWithReload(position=args.position)
-    else:
-        visualizer.Run(position=args.position, loop_once=args.loop_once)
+    visualizer.Run(position=args.position, loop_once=args.loop_once)
 
 
 if __name__ == '__main__':

@@ -9,7 +9,7 @@
 namespace drake {
 namespace solvers {
 ClpSolver::ClpSolver()
-    : SolverBase(&id, &is_available, &is_enabled, &ProgramAttributesSatisfied,
+    : SolverBase(id(), &is_available, &is_enabled, &ProgramAttributesSatisfied,
                  &UnsatisfiedProgramAttributes) {}
 
 ClpSolver::~ClpSolver() = default;
@@ -19,7 +19,9 @@ SolverId ClpSolver::id() {
   return singleton.access();
 }
 
-bool ClpSolver::is_enabled() { return true; }
+bool ClpSolver::is_enabled() {
+  return true;
+}
 
 namespace {
 // If the program is compatible with this solver, returns true and clears the

@@ -131,18 +131,16 @@ class LadderTest : public ::testing::Test {
   // Adds the model for the ladder pinned to the ground at the origin.
   void AddPinnedLadder(bool hydro_geometry) {
     // We split the ladder into two halves and join them with a weld joint so
-    // that we can evaluate the reaction force right at the middle.
+    // we can evaluate the reaction force right at the middle.
     // We define body frame Bl and Bu for the lower and upper portions of the
-    // ladder respectively.
-    // Both of these frame origins are located at the lower end of each half.
-    // In particular, the lower frame Bl attaches to the ground with the pin
-    // joint.
-    const Vector3<double> p_BoBcm_B(0.0, 0.0, kLadderLength / 4.0);
-    const UnitInertia<double> G_BBcm =
-        UnitInertia<double>::ThinRod(kLadderLength / 2.0, Vector3d::UnitZ());
+    // ladder respectively. Both of these frame origins are located at the lower
+    // end of each half. In particular, the lower frame Bl attaches to the
+    // ground with the pin joint.
+    const double half_ladder_length = kLadderLength / 2.0;
+    const double half_ladder_mass = kLadderMass / 2.0;
     const SpatialInertia<double> M_BBo_B =
-        SpatialInertia<double>::MakeFromCentralInertia(
-            kLadderMass / 2.0, p_BoBcm_B, kLadderMass / 2.0 * G_BBcm);
+        SpatialInertia<double>::ThinRodWithMassAboutEnd(
+            half_ladder_mass, half_ladder_length, Vector3d::UnitZ());
 
     // Create a rigid body for the ladder.
     ladder_lower_ = &plant_->AddRigidBody("ladder_lower", M_BBo_B);
@@ -512,10 +510,10 @@ class SpinningRodTest : public ::testing::Test {
   void BuildModel(double discrete_update_period) {
     plant_ = std::make_unique<MultibodyPlant<double>>(discrete_update_period);
 
-    // We define the rod's frame origin to be located at the CoM.
-    const SpatialInertia<double> M_BBo_B(
-        kMass, Vector3d::Zero(),
-        UnitInertia<double>::ThinRod(kLength, Vector3d::UnitZ()));
+    // We define rod B's origin Bo to be located at the rod's center of mass.
+    const SpatialInertia<double> M_BBo_B =
+        SpatialInertia<double>::ThinRodWithMass(
+            kMass, kLength, Vector3d::UnitZ());
     rod_ = &plant_->AddRigidBody("rod", M_BBo_B);
 
     // Notice that axis Bz is aligned with the rod. We want to define frame Jb

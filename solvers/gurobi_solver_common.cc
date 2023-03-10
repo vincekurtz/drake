@@ -16,7 +16,7 @@ namespace drake {
 namespace solvers {
 
 GurobiSolver::GurobiSolver()
-    : SolverBase(&id, &is_available, &is_enabled, &ProgramAttributesSatisfied,
+    : SolverBase(id(), &is_available, &is_enabled, &ProgramAttributesSatisfied,
                  &UnsatisfiedProgramAttributes) {}
 
 GurobiSolver::~GurobiSolver() = default;
@@ -28,8 +28,7 @@ SolverId GurobiSolver::id() {
 
 bool GurobiSolver::is_enabled() {
   const char* grb_license_file = std::getenv("GRB_LICENSE_FILE");
-  return ((grb_license_file != nullptr) &&
-          (std::strlen(grb_license_file) > 0));
+  return ((grb_license_file != nullptr) && (std::strlen(grb_license_file) > 0));
 }
 
 namespace {
