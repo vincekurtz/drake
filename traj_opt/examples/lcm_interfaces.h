@@ -4,7 +4,6 @@
 /// information for trajectory optimization over LCM. Based heavily on the
 /// example in drake/acrobot/acrobot_lcm.h.
 
-#include <iostream>
 #include <memory>
 #include <vector>
 

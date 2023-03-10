@@ -191,7 +191,7 @@ struct TrajOptExampleParams {
 
   // Whether to use an exact (autodiff on the finite diff gradient) Hessian
   bool exact_hessian = false;
-  
+
   // Whether to rescale the Hessian
   bool scaling = true;
 
