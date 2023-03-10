@@ -16,7 +16,7 @@ drake_cc_binary(
     add_test_rule = 1,
     data = [
         ":acrobot.yaml",
-        "//examples/acrobot:prod_models",
+        "//examples/acrobot:models",
     ],
     deps = [
         ":example_base",
@@ -81,7 +81,7 @@ drake_cc_binary(
     add_test_rule = 1,
     data = [
         ":pendulum.yaml",
-        "//examples/pendulum:prod_models",
+        "//examples/pendulum:models",
     ],
     deps = [
         ":example_base",
