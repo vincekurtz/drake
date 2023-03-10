@@ -63,6 +63,7 @@ struct TrajOptExampleParams {
     a->Visit(DRAKE_NVP(lineplot_q_min));
     a->Visit(DRAKE_NVP(lineplot_q_max));
     a->Visit(DRAKE_NVP(tolerances));
+    a->Visit(DRAKE_NVP(normalize_quaternions));
     a->Visit(DRAKE_NVP(verbose));
     a->Visit(DRAKE_NVP(linear_solver));
     a->Visit(DRAKE_NVP(petsc_rel_tolerance));
@@ -70,6 +71,14 @@ struct TrajOptExampleParams {
     a->Visit(DRAKE_NVP(petsc_preconditioner));
     a->Visit(DRAKE_NVP(exact_hessian));
     a->Visit(DRAKE_NVP(scaling));
+    a->Visit(DRAKE_NVP(mpc));
+    a->Visit(DRAKE_NVP(mpc_iters));
+    a->Visit(DRAKE_NVP(controller_frequency));
+    a->Visit(DRAKE_NVP(sim_time));
+    a->Visit(DRAKE_NVP(sim_time_step));
+    a->Visit(DRAKE_NVP(sim_realtime_rate));
+    a->Visit(DRAKE_NVP(Kp));
+    a->Visit(DRAKE_NVP(Kd));
     a->Visit(DRAKE_NVP(scaling_method));
     a->Visit(DRAKE_NVP(equality_constraints));
     a->Visit(DRAKE_NVP(Delta_max));
@@ -177,11 +186,31 @@ struct TrajOptExampleParams {
   // Whether to print iteration data to stdout
   bool verbose = true;
 
+  // Whether to normalize quaternion DoFs between iterations
+  bool normalize_quaternions = false;
+
   // Whether to use an exact (autodiff on the finite diff gradient) Hessian
   bool exact_hessian = false;
 
   // Whether to rescale the Hessian
   bool scaling = true;
+
+  // MPC-related parameters
+  bool mpc = false;    // whether to do MPC
+  int mpc_iters = 10;  // fixed number of optimizer iterations
+  double controller_frequency =
+      30;  // target control frequency, should be slow enough to allow for the
+           // optimizer to finish the prescribed number of iterations
+  double sim_time = 10.0;       // Time to simulate for, in seconds
+  double sim_time_step = 1e-3;  // Simulator time step
+  double sim_realtime_rate =
+      1.0;  // Simulator realtime rate. Allows us to imitate a faster controller
+            // by slowing down the simulation.
+
+  // Gains for the low-level PD+ controller that operates between MPC
+  // iterations. Terms related to unactuated DoFs are ignored.
+  VectorXd Kp;
+  VectorXd Kd;
 
   // Method to use when rescaling the Hessian
   std::string scaling_method = "double_sqrt";

@@ -2028,6 +2028,7 @@ void TrajectoryOptimizer<T>::SaveLinesearchResidual(
     // phi(alpha) = L(q + alpha * dq) - L
     scratch_state->set_q(state.q());
     scratch_state->AddToQ(alpha * dq);
+    if (params_.normalize_quaternions) NormalizeQuaternions(scratch_state);
     data_file << EvalCost(*scratch_state) - EvalCost(state) << ", ";
 
     // Record the norm of the gradient
@@ -2099,6 +2100,7 @@ std::tuple<double, int> TrajectoryOptimizer<T>::BacktrackingLinesearch(
   // Try with alpha = 1
   scratch_state->set_q(state.q());
   scratch_state->AddToQ(alpha * dq);
+  if (params_.normalize_quaternions) NormalizeQuaternions(scratch_state);
   T L_old =
       EvalCost(*scratch_state) +
       mu * EvalEqualityConstraintViolations(*scratch_state).cwiseAbs().sum();
@@ -2122,6 +2124,7 @@ std::tuple<double, int> TrajectoryOptimizer<T>::BacktrackingLinesearch(
     // Compute L_new = L(q + alpha_i * dq)
     scratch_state->set_q(state.q());
     scratch_state->AddToQ(alpha * dq);
+    if (params_.normalize_quaternions) NormalizeQuaternions(scratch_state);
     L_new =
         EvalCost(*scratch_state) +
         mu * EvalEqualityConstraintViolations(*scratch_state).cwiseAbs().sum();
@@ -2175,6 +2178,7 @@ std::tuple<double, int> TrajectoryOptimizer<T>::ArmijoLinesearch(
     // Compute L_ls = L(q + alpha * dq)
     scratch_state->set_q(state.q());
     scratch_state->AddToQ(alpha * dq);
+    if (params_.normalize_quaternions) NormalizeQuaternions(scratch_state);
     L_new = EvalCost(*scratch_state);
 
     ++i;
@@ -2194,11 +2198,13 @@ T TrajectoryOptimizer<T>::CalcTrustRatio(
   const PentaDiagonalMatrix<T>& H_k = EvalScaledHessian(state);
   const VectorX<T>& lambda_k = EvalLagrangeMultipliers(state);
 
+
   // Quantities at the next iteration if we accept the step (kp = k+1)
   // TODO(vincekurtz): if we do end up accepting the step, it would be nice to
   // somehow reuse these cached quantities, which we're currently trashing
   scratch_state->set_q(state.q());
   scratch_state->AddToQ(dq);
+  if (params_.normalize_quaternions) NormalizeQuaternions(scratch_state);
   T merit_kp = EvalCost(*scratch_state);
   if (params_.equality_constraints) {
     // N.B. We use λₖ rather than λₖ₊₁ to compute the merit function
@@ -2789,7 +2795,7 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
         std::cout << separator_bar << std::endl;
       }
       std::cout << fmt::format(
-          "| {:>6} | {:>8.3g} | {:>7.2} | {:>7.1} | {:>10.5} | {:>10.5} | "
+          "| {:>6} | {:>8.3g} | {:>7.2} | {:>7.3} | {:>10.5} | {:>10.5} | "
           "{:>10.4} | {:>10.4} |\n",
           k, cost, Delta, rho, iter_time.count(), g.norm() / cost, dL_dq,
           h.norm());

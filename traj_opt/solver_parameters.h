@@ -106,7 +106,7 @@ struct SolverParameters {
   PetscSolverPatameters petsc_parameters{};
 
   // Enable/disable quaternions' normalization at each iteration.
-  bool normalize_quaternions{true};
+  bool normalize_quaternions{false};
 
   // Flag for whether to print out iteration data
   bool verbose = true;

@@ -30,7 +30,7 @@ class PunyoHugExample : public TrajOptExample {
 
     // Add a humanoid model
     std::string urdf_file =
-        FindResourceOrThrow("drake/traj_opt/examples/punyoid.sdf");
+        FindResourceOrThrow("drake/traj_opt/examples/models/punyoid.sdf");
     Parser(plant).AddAllModelsFromFile(urdf_file);
     plant->WeldFrames(plant->world_frame(), plant->GetFrameByName("base"));
 
@@ -73,6 +73,6 @@ class PunyoHugExample : public TrajOptExample {
 
 int main() {
   drake::traj_opt::examples::punyo_hug::PunyoHugExample example;
-  example.SolveTrajectoryOptimization("drake/traj_opt/examples/punyo_hug.yaml");
+  example.RunExample("drake/traj_opt/examples/punyo_hug.yaml");
   return 0;
 }

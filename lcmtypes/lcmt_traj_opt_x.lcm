@@ -1,0 +1,10 @@
+package drake;
+
+struct lcmt_traj_opt_x
+{
+  int64_t utime;
+  int16_t nq;
+  int16_t nv;
+  double q[nq];
+  double v[nv];
+}

@@ -29,12 +29,12 @@ method : "trust_region"     # solver method, {linesearch, trust_region}
 
 # Convergence thresholds
 tolerances:                
-  rel_cost_reduction: 1.0e-6
-  abs_cost_reduction: 0.0
-  rel_gradient_along_dq: 0.0
-  abs_gradient_along_dq: 0.0
-  rel_state_change: 0.0
-  abs_state_change: 0.0
+  rel_cost_reduction: 1.0e-5
+  abs_cost_reduction: 1.0e-12
+  rel_gradient_along_dq: 1.0e-6
+  abs_gradient_along_dq: 1.0e-12
+  rel_state_change: 1.0e-6
+  abs_state_change: 1.0e-12
 
 # Method used to compute gradients of inverse dynamics, one of
 # {forward_differences, central_differences, central_differences4, autodiff}

@@ -9,9 +9,11 @@
 #include "drake/common/find_resource.h"
 #include "drake/geometry/drake_visualizer.h"
 #include "drake/geometry/scene_graph.h"
+#include "drake/lcm/drake_lcm.h"
 #include "drake/multibody/parsing/parser.h"
 #include "drake/multibody/plant/multibody_plant.h"
 #include "drake/multibody/plant/multibody_plant_config_functions.h"
+#include "drake/systems/analysis/simulator.h"
 #include "drake/systems/framework/diagram_builder.h"
 #include "drake/traj_opt/examples/yaml_config.h"
 #include "drake/traj_opt/problem_definition.h"
@@ -36,13 +38,35 @@ class TrajOptExample {
   virtual ~TrajOptExample() = default;
 
   /**
-   * Solve the optimizaiton problem, as defined by the parameters in the given
-   * YAML file.
+   * Run the example, either solving a single trajectory optimization problem or
+   * running MPC, as specified by the options in the YAML file.
    *
-   * @param options_file YAML file containing cost funciton definition, solver
+   * @param options_file YAML file containing cost function definition, solver
    * parameters, etc., with fields as defined in yaml_config.h.
    */
-  void SolveTrajectoryOptimization(const std::string options_file) const;
+  void RunExample(const std::string options_file) const;
+
+  /**
+   * Solve the optimization problem, as defined by the parameters in the given
+   * YAML file.
+   *
+   * @param options YAML options, incluidng cost function definition, solver
+   * parameters, etc.
+   * @return TrajectoryOptimizerSolution<double> the optimal trajectory
+   */
+  TrajectoryOptimizerSolution<double> SolveTrajectoryOptimization(
+      const TrajOptExampleParams& options) const;
+
+  /**
+   * Use the optimizer as an MPC controller in simulation. The simulator reads
+   * control inputs sent over LCM, while in another thread, the controller reads
+   * system state from the controller and computes optimal control inputs,
+   * terminating the optimization early after a fixed number of iterations.
+   *
+   * @param options YAML options, incluidng cost function definition, solver
+   * parameters, etc.
+   */
+  void RunModelPredictiveControl(const TrajOptExampleParams& options) const;
 
  private:
   /**
@@ -93,8 +117,8 @@ class TrajOptExample {
    * @return std::vector<VectorXd> vector that interpolates between start and
    * end.
    */
-  std::vector<VectorXd> MakeLinearInterpolation(const VectorXd start,
-                                                const VectorXd end,
+  std::vector<VectorXd> MakeLinearInterpolation(const VectorXd& start,
+                                                const VectorXd& end,
                                                 int N) const {
     std::vector<VectorXd> result;
     double lambda = 0;
@@ -104,6 +128,26 @@ class TrajOptExample {
     }
     return result;
   }
+
+  /**
+   * Simulate the system from the given initial condition, reading control
+   * inputs and publishing (ground truth) state information over LCM.
+   *
+   * @param options parameters, read from a YAML file, defining the initial
+   * condition, simulation time, realtime rate, etc.
+   */
+  void SimulateWithControlFromLcm(const TrajOptExampleParams& options) const;
+
+  /**
+   * Use MPC to control the system, reading state measurements from LCM and
+   * sending control inputs back over LCM.
+   *
+   * @param options parameters, read from a YAML file, defining the cost
+   * function, MPC parameters, etc.
+   * @param q_guess initial guess to warm-start the first MPC iteration
+   */
+  void ControlWithStateFromLcm(const TrajOptExampleParams& options,
+                               const std::vector<VectorXd>& q_guess) const;
 };
 
 }  // namespace examples

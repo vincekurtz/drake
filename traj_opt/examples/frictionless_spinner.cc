@@ -24,17 +24,17 @@ class FrictionlessSpinnerExample : public TrajOptExample {
     // cluttering it with spinner-specific options.
     std::string urdf_file;
     if (FLAGS_geometry == "rectangle") {
-      urdf_file =
-          FindResourceOrThrow("drake/traj_opt/examples/spinner_rectangle.urdf");
+      urdf_file = FindResourceOrThrow(
+          "drake/traj_opt/examples/models/spinner_rectangle.urdf");
     } else if (FLAGS_geometry == "capsule") {
-      urdf_file =
-          FindResourceOrThrow("drake/traj_opt/examples/spinner_capsule.urdf");
+      urdf_file = FindResourceOrThrow(
+          "drake/traj_opt/examples/models/spinner_capsule.urdf");
     } else if (FLAGS_geometry == "square") {
-      urdf_file =
-          FindResourceOrThrow("drake/traj_opt/examples/spinner_square.urdf");
+      urdf_file = FindResourceOrThrow(
+          "drake/traj_opt/examples/models/spinner_square.urdf");
     } else if (FLAGS_geometry == "sphere") {
-      urdf_file =
-          FindResourceOrThrow("drake/traj_opt/examples/spinner_sphere.urdf");
+      urdf_file = FindResourceOrThrow(
+          "drake/traj_opt/examples/models/spinner_sphere.urdf");
     } else {
       throw std::runtime_error(
           fmt::format("Unknown spinner geometry '{}'.", FLAGS_geometry));
@@ -53,7 +53,6 @@ int main(int argc, char* argv[]) {
 
   drake::traj_opt::examples::frictionless_spinner::FrictionlessSpinnerExample
       example;
-  example.SolveTrajectoryOptimization(
-      "drake/traj_opt/examples/frictionless_spinner.yaml");
+  example.RunExample("drake/traj_opt/examples/frictionless_spinner.yaml");
   return 0;
 }

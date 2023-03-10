@@ -17,13 +17,11 @@ import os
 
 # Basic parameters: set these to define the location and name of the log files
 # that we'll compare, as well as corresponding legend labels
-example_name = "airhockey"
-csv_names = ["solver_stats_constrained_scaled.csv", 
-             "solver_stats_constrained_unscaled.csv",
-             "solver_stats_unconstrained_scaled.csv",
-             "solver_stats_unconstrained_unscaled.csv"]
-labels = ["with scaling, with constraints", "no scaling, with constraints", 
-          "with scaling, no constraints", "no scaling, no constraints"]
+example_name = "punyo_hug"
+csv_names = ["solver_stats_normalize.csv",
+             "solver_stats_no_normalize.csv"]
+labels = ["normalize quaternions",
+          "no normalize"]
 
 # Get file locations
 drake_root = os.getcwd()
@@ -52,12 +50,12 @@ for i in range(N):
     ax[0].set_ylabel("Cost $L(q_k) - L(q^*)$")
     ax[0].set_yscale("log")
     
-    ax[1].plot(iters, data["grad_norm"]/data["cost"], label=labels[i])
-    ax[1].set_ylabel("Gradient norm $||g||/L(q)$")
+    ax[1].plot(iters, data["h_norm"], label=labels[i])
+    ax[1].set_ylabel("Constraint violation $||h(q_k)||$")
     ax[1].set_yscale("log")
-
-    ax[2].plot(iters, data["h_norm"], label=labels[i])
-    ax[2].set_ylabel("Constraint violation $||h(q_k)||$")
+    
+    ax[2].plot(iters, data["grad_norm"]/data["cost"], label=labels[i])
+    ax[2].set_ylabel("Gradient norm $||g||/L(q)$")
     ax[2].set_yscale("log")
 
 ax[0].legend()

@@ -7,7 +7,7 @@
 namespace drake {
 namespace traj_opt {
 namespace examples {
-namespace hopper {
+namespace mini_cheetah {
 
 using Eigen::Vector3d;
 using geometry::Box;
@@ -17,34 +17,30 @@ using multibody::MultibodyPlant;
 using multibody::Parser;
 
 /**
- * A simple planar hopper, inspired by https://youtu.be/uWADBSmHebA?t=893.
+ * A model of the MIT mini cheetah quadruped.
  */
-class HopperExample : public TrajOptExample {
+class MiniCheetahExample : public TrajOptExample {
   void CreatePlantModel(MultibodyPlant<double>* plant) const {
-    const Vector4<double> green(0.3, 0.6, 0.4, 0.5);
-
-    // Add a hopper
-    std::string urdf_file =
-        FindResourceOrThrow("drake/traj_opt/examples/models/hopper.urdf");
+    // Add the robot
+    std::string urdf_file = FindResourceOrThrow(
+        "drake/traj_opt/examples/models/mini_cheetah_mesh.urdf");
     Parser(plant).AddAllModelsFromFile(urdf_file);
 
     // Add collision with the ground
     RigidTransformd X_ground(Vector3d(0.0, 0.0, -5.0));
-    plant->RegisterVisualGeometry(plant->world_body(), X_ground,
-                                  Box(25, 25, 10), "ground", green);
     plant->RegisterCollisionGeometry(plant->world_body(), X_ground,
                                      Box(25, 25, 10), "ground",
                                      CoulombFriction<double>(0.5, 0.5));
   }
 };
 
-}  // namespace hopper
+}  // namespace mini_cheetah
 }  // namespace examples
 }  // namespace traj_opt
 }  // namespace drake
 
 int main() {
-  drake::traj_opt::examples::hopper::HopperExample example;
-  example.RunExample("drake/traj_opt/examples/hopper.yaml");
+  drake::traj_opt::examples::mini_cheetah::MiniCheetahExample example;
+  example.RunExample("drake/traj_opt/examples/mini_cheetah.yaml");
   return 0;
 }

@@ -60,7 +60,7 @@ R : [1e-2, 1e-2, 1e-2, 1e-2,
      1e-2, 1e-2, 1e-2, 1e-2,
      1e-2, 1e-2, 1e-2, 1e-2,
      1e-2, 1e-2, 1e-2, 1e-2,
-     1e6, 1e6, 1e6,
+     1e3, 1e3, 1e3,
      1e3, 1e3, 1e3]
 
 Qfq : [0e0, 0e0, 0e0, 0e0,
@@ -91,7 +91,7 @@ tolerances:
   abs_gradient_along_dq: 0
   rel_state_change: 0
   abs_state_change: 0
-scaling : false
+scaling : true
 equality_constraints : true
 
 # Method used to compute gradients of inverse dynamics, one of
@@ -118,8 +118,9 @@ delta : 0.02  # penetration distance with F newtons of normal force
 dissipation_velocity : 0.01  # Hunt & Crossley-like model parameter, in m/s.
 
 # With force at a distance, contact normal forces increases linearly at a rate
-# of 2F/delta Newtons / meter, with a smoothing factor of 1 / delta.
-force_at_a_distance : false
+# of 2F/delta Newtons / meter, with a given smoothing factor (higher is smoother)
+smoothing_factor : 0.1
+force_at_a_distance : true
 
 # Friction
 friction_coefficient : 1.0  # Coefficient of friction.

@@ -48,6 +48,8 @@ ALL_LCM_SRCS = [
     "lcmt_schunk_wsg_command.lcm",
     "lcmt_schunk_wsg_status.lcm",
     "lcmt_scope.lcm",
+    "lcmt_traj_opt_x.lcm",
+    "lcmt_traj_opt_u.lcm",
     "lcmt_viewer_command.lcm",
     "lcmt_viewer_draw.lcm",
     "lcmt_viewer_geometry_data.lcm",
