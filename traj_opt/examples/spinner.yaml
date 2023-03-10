@@ -20,7 +20,7 @@ q_guess : [0.3, 1.5, 0.0]
 # [finger 1, finger 2, spinner]
 Qq : [0.1, 0.1, 0.1]  # Running cost
 Qv : [1.0, 1.0, 1.0]
-R : [1e0, 1e0, 0e0]
+R : [1e0, 1e0, 1e3]
 
 Qfq : [1.0, 1.0, 10.0]  # Terminal cost
 Qfv : [10.0, 10.0, 0.0]
@@ -37,7 +37,7 @@ scaling : true
 equality_constraints : true
 
 tolerances:
-  rel_cost_reduction: 0
+  rel_cost_reduction: 1e-5
   abs_cost_reduction: 0
   rel_gradient_along_dq: 0
   abs_gradient_along_dq: 0
@@ -82,7 +82,7 @@ friction_coefficient : 0.5  # Coefficient of friction.
 stiction_velocity: 0.01     # Regularization velocity, in m/s.
 
 # MPC parameters
-mpc : false
+mpc : true
 mpc_iters : 5
 controller_frequency : 20
 sim_time : 10
