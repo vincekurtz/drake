@@ -63,6 +63,14 @@ class PunyoHugExample : public TrajOptExample {
     plant->RegisterVisualGeometry(ball, X_m3,
                                   Cylinder(0.1 * radius, 2 * radius),
                                   "ball_marker_three", black);
+
+    // Add the ground
+    RigidTransformd X_ground(Vector3d(0.0, 0.0, -5.0));
+    plant->RegisterVisualGeometry(plant->world_body(), X_ground,
+                                  Box(25, 25, 10), "ground", green);
+    plant->RegisterCollisionGeometry(plant->world_body(), X_ground,
+                                     Box(25, 25, 10), "ground",
+                                     CoulombFriction<double>(0.5, 0.5));
   }
 };
 
