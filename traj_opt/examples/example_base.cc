@@ -77,6 +77,7 @@ void TrajOptExample::ControlWithStateFromLcm(
   DiagramBuilder<double> builder_ctrl;
   MultibodyPlantConfig config;
   config.time_step = options.time_step;
+  config.default_floating_joint_type = "space_xyz_floating";
   auto [plant, scene_graph] = AddMultibodyPlant(config, &builder_ctrl);
   CreatePlantModel(&plant);
   plant.Finalize();
@@ -132,6 +133,7 @@ void TrajOptExample::SimulateWithControlFromLcm(
   // Construct the multibody plant system model
   MultibodyPlantConfig config;
   config.time_step = options.sim_time_step;
+  config.default_floating_joint_type = "space_xyz_floating";
   auto [plant, scene_graph] = AddMultibodyPlant(config, &builder);
   CreatePlantModel(&plant);
   plant.Finalize();
@@ -200,6 +202,7 @@ TrajectoryOptimizerSolution<double> TrajOptExample::SolveTrajectoryOptimization(
   DiagramBuilder<double> builder;
   MultibodyPlantConfig config;
   config.time_step = options.time_step;
+  config.default_floating_joint_type = "space_xyz_floating";
   auto [plant, scene_graph] = AddMultibodyPlant(config, &builder);
   CreatePlantModel(&plant);
   plant.Finalize();
@@ -318,6 +321,7 @@ void TrajOptExample::PlayBackTrajectory(const std::vector<VectorXd>& q,
   DiagramBuilder<double> builder;
   MultibodyPlantConfig config;
   config.time_step = time_step;
+  config.default_floating_joint_type = "space_xyz_floating";
 
   auto [plant, scene_graph] = AddMultibodyPlant(config, &builder);
   CreatePlantModel(&plant);
