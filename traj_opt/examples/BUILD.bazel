@@ -108,6 +108,22 @@ drake_cc_binary(
 )
 
 drake_cc_binary(
+    name = "kuka",
+    srcs = ["kuka.cc"],
+    add_test_rule = 1,
+    data = [
+        ":kuka.yaml",
+        "//manipulation/models/iiwa_description:models",
+    ],
+    deps = [
+        ":example_base",
+        "//common:find_resource",
+        "//multibody/parsing",
+        "//multibody/plant",
+    ],
+)
+
+drake_cc_binary(
     name = "allegro_hand",
     srcs = ["allegro_hand.cc"],
     add_test_rule = 1,
