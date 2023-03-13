@@ -49,7 +49,7 @@
         <pose> -0.138 -0.099 -0.088 0 0 0</pose>
         <geometry>
           <sphere>
-            <radius>1e-7</radius>
+            <radius>1e-2</radius>
           </sphere>
         </geometry>
         <surface>
@@ -66,7 +66,7 @@
         <pose> 0.138 -0.099 -0.088 0 0 0</pose>
         <geometry>
           <sphere>
-            <radius>1e-7</radius>
+            <radius>1e-2</radius>
           </sphere>
         </geometry>
         <surface>
@@ -83,7 +83,7 @@
         <pose> -0.138 0.099 -0.088 0 0 0</pose>
         <geometry>
           <sphere>
-            <radius>1e-7</radius>
+            <radius>1e-2</radius>
           </sphere>
         </geometry>
         <surface>
@@ -100,7 +100,7 @@
         <pose> 0.138 0.099 -0.088 0 0 0</pose>
         <geometry>
           <sphere>
-            <radius>1e-7</radius>
+            <radius>1e-2</radius>
           </sphere>
         </geometry>
         <surface>
