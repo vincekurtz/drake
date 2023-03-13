@@ -29,13 +29,16 @@ class KukaExample : public TrajOptExample {
     const Vector4<double> black(0.0, 0.0, 0.0, 1.0);
 
     // Add a kuka arm
-    std::string urdf_file = FindResourceOrThrow(
+    std::string robot_file = FindResourceOrThrow(
         "drake/manipulation/models/iiwa_description/urdf/"
         "iiwa14_spheres_collision.urdf");
-    Parser(plant).AddAllModelsFromFile(urdf_file);
+    Parser(plant).AddAllModelsFromFile(robot_file);
     plant->WeldFrames(plant->world_frame(), plant->GetFrameByName("base"));
 
     // Add a manipuland
+    std::string manipuland_file =
+        FindResourceOrThrow("drake/traj_opt/examples/models/box_intel_nuc.sdf");
+    Parser(plant).AddAllModelsFromFile(manipuland_file);
 
     //// Add a free-floating ball to pick up
     // ModelInstanceIndex ball_idx = plant->AddModelInstance("ball");

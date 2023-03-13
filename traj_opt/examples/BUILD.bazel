@@ -113,6 +113,7 @@ drake_cc_binary(
     add_test_rule = 1,
     data = [
         ":kuka.yaml",
+        ":models",
         "//manipulation/models/iiwa_description:models",
     ],
     deps = [
