@@ -19,6 +19,13 @@ UniformGravityFieldElement<T>::UniformGravityFieldElement(Vector3<double> g_W)
       g_W_(g_W) {}
 
 template <typename T>
+UniformGravityFieldElement<T>::UniformGravityFieldElement(
+    Vector3<double> g_W, std::set<ModelInstanceIndex> disabled_model_instances)
+    : ForceElement<T>(world_model_instance()),
+      g_W_(g_W),
+      disabled_model_instances_(std::move(disabled_model_instances)) {}
+
+template <typename T>
 VectorX<T> UniformGravityFieldElement<T>::CalcGravityGeneralizedForces(
     const systems::Context<T>& context) const {
   const internal::MultibodyTree<T>& model = this->get_parent_tree();
@@ -81,6 +88,10 @@ void UniformGravityFieldElement<T>::DoCalcAndAddForceContribution(
   // Skip the "world" body.
   for (BodyIndex body_index(1); body_index < num_bodies; ++body_index) {
     const Body<T>& body = model.get_body(body_index);
+
+    // Skip this body if gravity is disabled.
+    if (!is_enabled(body.model_instance())) continue;
+
     internal::BodyNodeIndex node_index = body.node_index();
 
     // TODO(amcastro-tri): Replace this CalcFoo() calls by GetFoo() calls once
@@ -109,6 +120,9 @@ T UniformGravityFieldElement<T>::CalcPotentialEnergy(
   // Skip the "world" body.
   for (BodyIndex body_index(1); body_index < num_bodies; ++body_index) {
     const Body<T>& body = model.get_body(body_index);
+
+    // Skip this body if gravity is disabled.
+    if (!is_enabled(body.model_instance())) continue;
 
     // TODO(amcastro-tri): Replace this CalcFoo() calls by GetFoo() calls once
     // caching is in place.
@@ -139,6 +153,9 @@ T UniformGravityFieldElement<T>::CalcConservativePower(
   // Skip the "world" body.
   for (BodyIndex body_index(1); body_index < num_bodies; ++body_index) {
     const Body<T>& body = model.get_body(body_index);
+
+    // Skip this body if gravity is disabled.
+    if (!is_enabled(body.model_instance())) continue;
 
     // TODO(amcastro-tri): Replace this CalcFoo() calls by GetFoo() calls once
     // caching is in place.
@@ -173,7 +190,8 @@ template <typename T>
 std::unique_ptr<ForceElement<double>>
 UniformGravityFieldElement<T>::DoCloneToScalar(
     const internal::MultibodyTree<double>&) const {
-  return std::make_unique<UniformGravityFieldElement<double>>(gravity_vector());
+  return std::make_unique<UniformGravityFieldElement<double>>(
+      gravity_vector(), disabled_model_instances_);
 }
 
 template <typename T>
@@ -181,7 +199,7 @@ std::unique_ptr<ForceElement<AutoDiffXd>>
 UniformGravityFieldElement<T>::DoCloneToScalar(
     const internal::MultibodyTree<AutoDiffXd>&) const {
   return std::make_unique<UniformGravityFieldElement<AutoDiffXd>>(
-      gravity_vector());
+      gravity_vector(), disabled_model_instances_);
 }
 
 template <typename T>
@@ -189,7 +207,7 @@ std::unique_ptr<ForceElement<symbolic::Expression>>
 UniformGravityFieldElement<T>::DoCloneToScalar(
     const internal::MultibodyTree<symbolic::Expression>&) const {
   return std::make_unique<UniformGravityFieldElement<symbolic::Expression>>(
-      gravity_vector());
+      gravity_vector(), disabled_model_instances_);
 }
 
 }  // namespace multibody
