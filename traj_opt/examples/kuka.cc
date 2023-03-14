@@ -10,17 +10,11 @@ namespace kuka {
 
 using Eigen::Vector3d;
 using geometry::Box;
-using geometry::Cylinder;
-using geometry::Sphere;
 using math::RigidTransformd;
-using math::RollPitchYawd;
 using multibody::CoulombFriction;
 using multibody::ModelInstanceIndex;
 using multibody::MultibodyPlant;
 using multibody::Parser;
-using multibody::RigidBody;
-using multibody::SpatialInertia;
-using multibody::UnitInertia;
 
 class KukaExample : public TrajOptExample {
   void CreatePlantModel(MultibodyPlant<double>* plant) const final {

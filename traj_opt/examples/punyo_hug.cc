@@ -29,10 +29,11 @@ class PunyoHugExample : public TrajOptExample {
     const Vector4<double> black(0.0, 0.0, 0.0, 1.0);
 
     // Add a humanoid model
-    std::string urdf_file =
+    std::string sdf_file =
         FindResourceOrThrow("drake/traj_opt/examples/models/punyoid.sdf");
-    Parser(plant).AddAllModelsFromFile(urdf_file);
+    ModelInstanceIndex humanoid = Parser(plant).AddModelFromFile(sdf_file);
     plant->WeldFrames(plant->world_frame(), plant->GetFrameByName("base"));
+    plant->disable_gravity(humanoid);
 
     // Add a free-floating ball to pick up
     ModelInstanceIndex ball_idx = plant->AddModelInstance("ball");
