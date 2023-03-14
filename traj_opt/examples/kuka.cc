@@ -32,43 +32,14 @@ class KukaExample : public TrajOptExample {
     std::string robot_file = FindResourceOrThrow(
         "drake/manipulation/models/iiwa_description/urdf/"
         "iiwa14_spheres_collision.urdf");
-    Parser(plant).AddAllModelsFromFile(robot_file);
+    ModelInstanceIndex kuka = Parser(plant).AddModelFromFile(robot_file);
     plant->WeldFrames(plant->world_frame(), plant->GetFrameByName("base"));
+    plant->disable_gravity(kuka);
 
     // Add a manipuland
     std::string manipuland_file =
         FindResourceOrThrow("drake/traj_opt/examples/models/box_intel_nuc.sdf");
     Parser(plant).AddAllModelsFromFile(manipuland_file);
-
-    //// Add a free-floating ball to pick up
-    // ModelInstanceIndex ball_idx = plant->AddModelInstance("ball");
-
-    // const double mass = 1.0;
-    // const double radius = 0.2;
-
-    // const SpatialInertia<double> I(mass, Vector3d::Zero(),
-    //                                UnitInertia<double>::SolidSphere(radius));
-    // const RigidBody<double>& ball = plant->AddRigidBody("ball", ball_idx, I);
-
-    // plant->RegisterVisualGeometry(ball, RigidTransformd::Identity(),
-    //                               Sphere(radius), "ball_visual", blue);
-    // plant->RegisterCollisionGeometry(ball, RigidTransformd::Identity(),
-    //                                  Sphere(radius), "ball_collision",
-    //                                  CoulombFriction<double>());
-
-    //// Add some markers to the ball so we can see its rotation
-    // RigidTransformd X_m1(RollPitchYawd(0, 0, 0), Vector3d(0, 0, 0));
-    // RigidTransformd X_m2(RollPitchYawd(M_PI_2, 0, 0), Vector3d(0, 0, 0));
-    // RigidTransformd X_m3(RollPitchYawd(0, M_PI_2, 0), Vector3d(0, 0, 0));
-    // plant->RegisterVisualGeometry(ball, X_m1,
-    //                               Cylinder(0.1 * radius, 2 * radius),
-    //                               "ball_marker_one", black);
-    // plant->RegisterVisualGeometry(ball, X_m2,
-    //                               Cylinder(0.1 * radius, 2 * radius),
-    //                               "ball_marker_two", black);
-    // plant->RegisterVisualGeometry(ball, X_m3,
-    //                               Cylinder(0.1 * radius, 2 * radius),
-    //                               "ball_marker_three", black);
 
     // Add the ground
     RigidTransformd X_ground(Vector3d(0.0, 0.0, -5.0));
