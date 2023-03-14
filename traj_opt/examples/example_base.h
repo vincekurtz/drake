@@ -7,7 +7,6 @@
 #include <vector>
 
 #include "drake/common/find_resource.h"
-#include "drake/geometry/drake_visualizer.h"
 #include "drake/geometry/scene_graph.h"
 #include "drake/lcm/drake_lcm.h"
 #include "drake/multibody/parsing/parser.h"
@@ -23,7 +22,6 @@ namespace drake {
 namespace traj_opt {
 namespace examples {
 
-using geometry::DrakeVisualizerd;
 using geometry::SceneGraph;
 using multibody::AddMultibodyPlant;
 using multibody::MultibodyPlantConfig;
