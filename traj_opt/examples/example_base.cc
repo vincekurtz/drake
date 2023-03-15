@@ -215,7 +215,7 @@ TrajectoryOptimizerSolution<double> TrajOptExample::SolveTrajectoryOptimization(
   SetProblemDefinition(options, &opt_prob);
 
   // Normalize quaternions in the reference
-  // TODO(vincekurtz): consider moving this in SetProblemDefinition
+  // TODO(vincekurtz): consider moving this to SetProblemDefinition
   NormalizeQuaternions(plant, &opt_prob.q_nom);
 
   // Set our solver parameters
