@@ -91,6 +91,8 @@ max_iters : 500             # maximum Gauss-Newton iterations
 method : "trust_region"     # solver method, {linesearch, trust_region}
 scaling : true
 equality_constraints : true
+
+floating_joint_type : "space_xyz_floating"
 normalize_quaternions : false
 
 tolerances:

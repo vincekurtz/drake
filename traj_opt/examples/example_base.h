@@ -82,10 +82,10 @@ class TrajOptExample {
    * Play back the given trajectory on the Drake visualizer
    *
    * @param q sequence of generalized positions defining the trajectory
-   * @param time_step time step (seconds) for the discretization
+   * @param options parameters loaded from yaml
    */
   void PlayBackTrajectory(const std::vector<VectorXd>& q,
-                          const double time_step) const;
+                          const TrajOptExampleParams& options) const;
 
   /**
    * Set an optimization problem from example options which were loaded from

@@ -63,6 +63,7 @@ struct TrajOptExampleParams {
     a->Visit(DRAKE_NVP(lineplot_q_min));
     a->Visit(DRAKE_NVP(lineplot_q_max));
     a->Visit(DRAKE_NVP(tolerances));
+    a->Visit(DRAKE_NVP(floating_joint_type));
     a->Visit(DRAKE_NVP(normalize_quaternions));
     a->Visit(DRAKE_NVP(verbose));
     a->Visit(DRAKE_NVP(linear_solver));
@@ -185,6 +186,10 @@ struct TrajOptExampleParams {
 
   // Whether to print iteration data to stdout
   bool verbose = true;
+
+  // Floating base type: can be "quaternion_floating" for quaternions or
+  // "space_xyz_floating" for roll-pitch-yaw
+  std::string floating_joint_type = "quaternion_floating";
 
   // Whether to normalize quaternion DoFs between iterations
   bool normalize_quaternions = false;

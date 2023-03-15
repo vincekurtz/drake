@@ -77,7 +77,7 @@ void TrajOptExample::ControlWithStateFromLcm(
   DiagramBuilder<double> builder_ctrl;
   MultibodyPlantConfig config;
   config.time_step = options.time_step;
-  config.default_floating_joint_type = "space_xyz_floating";
+  config.default_floating_joint_type = options.floating_joint_type;
   auto [plant, scene_graph] = AddMultibodyPlant(config, &builder_ctrl);
   CreatePlantModel(&plant);
   plant.Finalize();
@@ -133,7 +133,7 @@ void TrajOptExample::SimulateWithControlFromLcm(
   // Construct the multibody plant system model
   MultibodyPlantConfig config;
   config.time_step = options.sim_time_step;
-  config.default_floating_joint_type = "space_xyz_floating";
+  config.default_floating_joint_type = options.floating_joint_type;
   auto [plant, scene_graph] = AddMultibodyPlant(config, &builder);
   CreatePlantModel(&plant);
   plant.Finalize();
@@ -202,7 +202,7 @@ TrajectoryOptimizerSolution<double> TrajOptExample::SolveTrajectoryOptimization(
   DiagramBuilder<double> builder;
   MultibodyPlantConfig config;
   config.time_step = options.time_step;
-  config.default_floating_joint_type = "space_xyz_floating";
+  config.default_floating_joint_type = options.floating_joint_type;
   auto [plant, scene_graph] = AddMultibodyPlant(config, &builder);
   CreatePlantModel(&plant);
   plant.Finalize();
@@ -224,10 +224,10 @@ TrajectoryOptimizerSolution<double> TrajOptExample::SolveTrajectoryOptimization(
 
   // Visualize the target trajectory and initial guess, if requested
   if (options.play_target_trajectory) {
-    PlayBackTrajectory(opt_prob.q_nom, options.time_step);
+    PlayBackTrajectory(opt_prob.q_nom, options);
   }
   if (options.play_initial_guess) {
-    PlayBackTrajectory(q_guess, options.time_step);
+    PlayBackTrajectory(q_guess, options);
   }
 
   // Solve the optimzation problem
@@ -308,20 +308,20 @@ TrajectoryOptimizerSolution<double> TrajOptExample::SolveTrajectoryOptimization(
 
   // Play back the result on the visualizer
   if (options.play_optimal_trajectory) {
-    PlayBackTrajectory(solution.q, options.time_step);
+    PlayBackTrajectory(solution.q, options);
   }
 
   return solution;
 }
 
 void TrajOptExample::PlayBackTrajectory(const std::vector<VectorXd>& q,
-                                        const double time_step) const {
+                                        const TrajOptExampleParams& options) const {
   // Create a system diagram that includes the plant and is connected to
   // the Drake visualizer
   DiagramBuilder<double> builder;
   MultibodyPlantConfig config;
-  config.time_step = time_step;
-  config.default_floating_joint_type = "space_xyz_floating";
+  config.time_step = options.time_step;
+  config.default_floating_joint_type = options.floating_joint_type;
 
   auto [plant, scene_graph] = AddMultibodyPlant(config, &builder);
   CreatePlantModel(&plant);
@@ -343,13 +343,14 @@ void TrajOptExample::PlayBackTrajectory(const std::vector<VectorXd>& q,
   // Step through q, setting the plant positions at each step accordingly
   const int N = q.size();
   for (int t = 0; t < N; ++t) {
-    diagram_context->SetTime(t * time_step);
+    diagram_context->SetTime(t * options.time_step);
     plant.SetPositions(&plant_context, q[t]);
     diagram->ForcedPublish(*diagram_context);
 
     // Hack to make the playback roughly realtime
     // TODO(vincekurtz): add realtime rate option?
-    std::this_thread::sleep_for(std::chrono::duration<double>(time_step));
+    std::this_thread::sleep_for(
+        std::chrono::duration<double>(options.time_step));
   }
 }
 
