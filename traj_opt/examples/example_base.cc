@@ -86,6 +86,9 @@ void TrajOptExample::ControlWithStateFromLcm(
   ProblemDefinition opt_prob;
   SetProblemDefinition(options, &opt_prob);
 
+  // Normalize quaternions in the reference
+  NormalizeQuaternions(plant, &opt_prob.q_nom);
+
   // Set our solver parameters
   SolverParameters solver_params;
   SetSolverParameters(options, &solver_params);
@@ -211,6 +214,10 @@ TrajectoryOptimizerSolution<double> TrajOptExample::SolveTrajectoryOptimization(
   ProblemDefinition opt_prob;
   SetProblemDefinition(options, &opt_prob);
 
+  // Normalize quaternions in the reference
+  // TODO(vincekurtz): consider moving this to SetProblemDefinition
+  NormalizeQuaternions(plant, &opt_prob.q_nom);
+
   // Set our solver parameters
   SolverParameters solver_params;
   SetSolverParameters(options, &solver_params);
@@ -218,6 +225,7 @@ TrajectoryOptimizerSolution<double> TrajOptExample::SolveTrajectoryOptimization(
   // Establish an initial guess
   std::vector<VectorXd> q_guess = MakeLinearInterpolation(
       opt_prob.q_init, options.q_guess, opt_prob.num_steps + 1);
+  NormalizeQuaternions(plant, &q_guess);
 
   // Visualize the target trajectory and initial guess, if requested
   if (options.play_target_trajectory) {
@@ -527,6 +535,20 @@ void TrajOptExample::SetSolverParameters(
   // Maximum and initial trust region radius
   solver_params->Delta0 = options.Delta0;
   solver_params->Delta_max = options.Delta_max;
+}
+
+void TrajOptExample::NormalizeQuaternions(const MultibodyPlant<double>& plant,
+                                  std::vector<VectorXd>* q) const {
+  const int num_steps = q->size() - 1;
+  for (const multibody::BodyIndex& index : plant.GetFloatingBaseBodies()) {
+    const multibody::Body<double>& body = plant.get_body(index);
+    const int q_start = body.floating_positions_start();
+    DRAKE_DEMAND(body.has_quaternion_dofs());
+    for (int t = 0; t <= num_steps; ++t) {
+      auto body_qs = q->at(t).segment<4>(q_start);
+      body_qs.normalize();
+    }
+  }
 }
 
 }  // namespace examples
