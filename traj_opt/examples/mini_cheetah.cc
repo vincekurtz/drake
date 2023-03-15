@@ -21,6 +21,8 @@ using multibody::Parser;
  */
 class MiniCheetahExample : public TrajOptExample {
   void CreatePlantModel(MultibodyPlant<double>* plant) const {
+    const Vector4<double> green(0.3, 0.6, 0.4, 0.5);
+
     // Add the robot
     std::string urdf_file = FindResourceOrThrow(
         "drake/traj_opt/examples/models/mini_cheetah_mesh.urdf");
@@ -28,6 +30,8 @@ class MiniCheetahExample : public TrajOptExample {
 
     // Add collision with the ground
     RigidTransformd X_ground(Vector3d(0.0, 0.0, -5.0));
+    plant->RegisterVisualGeometry(plant->world_body(), X_ground,
+                                  Box(25, 25, 10), "ground", green);
     plant->RegisterCollisionGeometry(plant->world_body(), X_ground,
                                      Box(25, 25, 10), "ground",
                                      CoulombFriction<double>(0.5, 0.5));

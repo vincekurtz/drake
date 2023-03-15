@@ -4282,6 +4282,13 @@ class MultibodyPlant : public internal::MultibodyTreeSystem<T> {
         force_element_index);
   }
 
+  /// Enable gravity for `model_instance`. No-op if already enabled.
+  void enable_gravity(ModelInstanceIndex model_instance);
+
+  /// Disable gravity for `model_instance`, effectively making gravity zero for
+  /// this model instance. No-op if already disabled.
+  void disable_gravity(ModelInstanceIndex model_instance);
+
   /// An accessor to the current gravity field.
   const UniformGravityFieldElement<T>& gravity_field() const {
     return internal_tree().gravity_field();

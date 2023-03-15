@@ -30,6 +30,7 @@ class AirHockeyExample : public TrajOptExample {
   void CreatePlantModel(MultibodyPlant<double>* plant) const final {
     // Colors that we'll use
     const Vector4<double> red(0.9, 0.1, 0.0, 1.0);
+    const Vector4<double> red2(0.8, 0.1, 0.0, 1.0);
     const Vector4<double> blue(0.1, 0.3, 0.5, 1.0);
     const Vector4<double> black(0.0, 0.0, 0.0, 1.0);
 
@@ -48,7 +49,7 @@ class AirHockeyExample : public TrajOptExample {
                                   Cylinder(radius, height), "pusher", red);
     plant->RegisterVisualGeometry(
         pusher, RigidTransformd(Vector3d(0.0, 0.0, height)),
-        Box(radius / 2, radius / 2, height), "handle", red);
+        Box(radius / 2, radius / 2, height), "handle", red2);
     plant->RegisterCollisionGeometry(pusher, RigidTransformd::Identity(),
                                      Sphere(radius), "pusher_collision",
                                      CoulombFriction<double>());
@@ -76,7 +77,7 @@ class AirHockeyExample : public TrajOptExample {
     plant->RegisterVisualGeometry(puck, RigidTransformd(),
                                   Cylinder(radius, height), "puck", blue);
     plant->RegisterVisualGeometry(puck, RigidTransformd(),
-                                  Box(radius / 2, radius / 2, 1.01 * height),
+                                  Box(radius / 2, 1.5 * radius, 1.01 * height),
                                   "marker", black);
     plant->RegisterCollisionGeometry(puck, RigidTransformd::Identity(),
                                      Sphere(radius), "puck_collision",

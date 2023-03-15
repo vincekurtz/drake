@@ -15,6 +15,7 @@
 #include "drake/systems/lcm/lcm_subscriber_system.h"
 #include "drake/systems/primitives/constant_vector_source.h"
 #include "drake/traj_opt/examples/lcm_interfaces.h"
+#include "drake/visualization/visualization_config_functions.h"
 
 namespace drake {
 namespace traj_opt {
@@ -140,11 +141,7 @@ void TrajOptExample::SimulateWithControlFromLcm(
   plant.Finalize();
 
   // Connect to the visualizer
-  geometry::DrakeVisualizerParams vis_params;
-  vis_params.role = geometry::Role::kIllustration;
-  DrakeVisualizerd::AddToBuilder(&builder, scene_graph, {}, vis_params);
-  multibody::ConnectContactResultsToDrakeVisualizer(&builder, plant,
-                                                    scene_graph);
+  visualization::AddDefaultVisualization(&builder);
 
   // Recieve control inputs from LCM
   auto command_subscriber = builder.AddSystem(
@@ -331,9 +328,7 @@ void TrajOptExample::PlayBackTrajectory(const std::vector<VectorXd>& q,
   CreatePlantModel(&plant);
   plant.Finalize();
 
-  geometry::DrakeVisualizerParams vis_params;
-  vis_params.role = geometry::Role::kIllustration;
-  DrakeVisualizerd::AddToBuilder(&builder, scene_graph, {}, vis_params);
+  visualization::AddDefaultVisualization(&builder);
 
   auto diagram = builder.Build();
   std::unique_ptr<systems::Context<double>> diagram_context =
