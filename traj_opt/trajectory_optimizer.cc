@@ -1491,6 +1491,7 @@ const VectorX<T>& TrajectoryOptimizer<T>::EvalScaleFactors(
 template <typename T>
 void TrajectoryOptimizer<T>::CalcEqualityConstraintViolations(
     const TrajectoryOptimizerState<T>& state, VectorX<T>* violations) const {
+  INSTRUMENT_FUNCTION("Assemble torques on unactuated dofs.");
   const std::vector<VectorX<T>>& tau = EvalTau(state);
   const int num_unactuated_dofs = unactuated_dofs().size();
 
@@ -1515,6 +1516,7 @@ const VectorX<T>& TrajectoryOptimizer<T>::EvalEqualityConstraintViolations(
 template <typename T>
 void TrajectoryOptimizer<T>::CalcEqualityConstraintJacobian(
     const TrajectoryOptimizerState<T>& state, MatrixX<T>* J) const {
+  INSTRUMENT_FUNCTION("Assemble equality constraint Jacobian.");
   DRAKE_DEMAND(J->cols() == (num_steps() + 1) * plant().num_positions());
   DRAKE_DEMAND(J->rows() == num_equality_constraints());
 
@@ -1577,6 +1579,7 @@ void TrajectoryOptimizer<T>::CalcLagrangeMultipliers(
 template <>
 void TrajectoryOptimizer<double>::CalcLagrangeMultipliers(
     const TrajectoryOptimizerState<double>& state, VectorXd* lambda) const {
+  INSTRUMENT_FUNCTION("Compute lagrange multipliers.");
   // λ = (J H⁻¹ Jᵀ)⁻¹ (h − J H⁻¹ g)
   const PentaDiagonalMatrix<double>& H = EvalScaledHessian(state);
   const VectorXd& g = EvalScaledGradient(state);
