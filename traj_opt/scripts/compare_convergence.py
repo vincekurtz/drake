@@ -18,10 +18,12 @@ import os
 # Basic parameters: set these to define the location and name of the log files
 # that we'll compare, as well as corresponding legend labels
 example_name = "punyo_hug"
-csv_names = ["solver_stats_normalize.csv",
-             "solver_stats_no_normalize.csv"]
-labels = ["normalize quaternions",
-          "no normalize"]
+csv_names = ["solver_stats_quaternion_normalized.csv",
+             "solver_stats_quaternion_no_normalize.csv",
+             "solver_stats_rpy.csv"]
+labels = ["quaternions (normalized)",
+          "quaternions",
+          "rpy"]
 
 # Get file locations
 drake_root = os.getcwd()
