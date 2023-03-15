@@ -303,10 +303,10 @@ void TrajectoryOptimizer<T>::CalcContactForceContribution(
       plant()
           .get_geometry_query_input_port()
           .template Eval<geometry::QueryObject<T>>(context);
-  const std::vector<SignedDistancePair<T>>& signed_distance_pairs =
-      query_object.ComputeSignedDistancePairwiseClosestPoints();
   const drake::geometry::SceneGraphInspector<T>& inspector =
       query_object.inspector();
+  const std::vector<SignedDistancePair<T>>& signed_distance_pairs =
+      CalcSignedDistancePairs(query_object);
 
   for (const SignedDistancePair<T>& pair : signed_distance_pairs) {
     // Don't do any contact force computations if we're not in contact, unless
