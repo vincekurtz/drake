@@ -146,6 +146,18 @@ class TrajOptExample {
    */
   void ControlWithStateFromLcm(const TrajOptExampleParams& options,
                                const std::vector<VectorXd>& q_guess) const;
+
+  /**
+   * Normalize quaternions in the given sequence of generalized positions. This
+   * is useful for, for example, ensuring that the reference and initial guess
+   * contain valid quaternions.
+   *
+   * @param plant model of the system that we're optimizing over
+   * @param q sequence of generalized positions, including quaternion DoFs, that
+   * we'll normalize
+   */
+  void NormalizeQuaternions(const MultibodyPlant<double>& plant,
+                            std::vector<VectorXd>* q) const;
 };
 
 }  // namespace examples
