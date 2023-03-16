@@ -119,7 +119,7 @@ dissipation_velocity : 0.01  # Hunt & Crossley-like model parameter, in m/s.
 
 # With force at a distance, contact normal forces increases linearly at a rate
 # of 2F/delta Newtons / meter, with a given smoothing factor (higher is smoother)
-smoothing_factor : 0.1
+smoothing_factor : 0.2
 force_at_a_distance : true
 
 # Friction

@@ -384,14 +384,14 @@ void TrajectoryOptimizer<T>::CalcContactForceContribution(
       T compliant_fn;
       const T x = -pair.distance / delta;
       if (params_.force_at_a_distance) {
-        if (x / sigma >= 37) {
+        if (2 * F * x / sigma >= 37) {
           // If the exponent is going to be very large, replace with the
           // functional limit.
           // N.B. x = 37 is the first integer such that exp(x)+1 = exp(x) in
           // double precision.
           compliant_fn = 2 * F * x;
         } else {
-          compliant_fn = 2 * F * sigma * log(1 + exp(x / sigma));
+          compliant_fn = sigma * log(1 + exp(2 * F * x / sigma));
         }
       } else {
         if (x < 0) {
