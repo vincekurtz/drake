@@ -1100,9 +1100,10 @@ class TrajectoryOptimizer {
    * of reference to avoid a "return reference to temporary" error
    */
   const std::vector<SignedDistancePair<T>> CalcSignedDistancePairs(
-      const geometry::QueryObject<T>& query_object) const {
+      const geometry::QueryObject<T>& query_object,
+      const double threshold) const {
     INSTRUMENT_FUNCTION("geometry queries");
-    return query_object.ComputeSignedDistancePairwiseClosestPoints();
+    return query_object.ComputeSignedDistancePairwiseClosestPoints(threshold);
   }
 
   // Diagram of containing the plant_ model and scene graph. Needed to allocate

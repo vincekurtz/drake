@@ -298,6 +298,15 @@ void TrajectoryOptimizer<T>::CalcContactForceContribution(
   const double vs = params_.stiction_velocity;     // Regularization.
   const double mu = params_.friction_coefficient;  // Coefficient of friction.
 
+  // Compute the distance at which contact forces are zero: we don't need to do
+  // any geometry queries beyond this distance
+  double threshold = 0.0;
+  if (params_.force_at_a_distance) {
+    const double k = F / delta;
+    const double eps = sqrt(std::numeric_limits<double>::epsilon());
+    threshold = -sigma / k * log(exp(eps/sigma) - 1.0);
+  }
+
   // Get signed distance pairs
   const geometry::QueryObject<T>& query_object =
       plant()
@@ -306,7 +315,7 @@ void TrajectoryOptimizer<T>::CalcContactForceContribution(
   const drake::geometry::SceneGraphInspector<T>& inspector =
       query_object.inspector();
   const std::vector<SignedDistancePair<T>>& signed_distance_pairs =
-      CalcSignedDistancePairs(query_object);
+      CalcSignedDistancePairs(query_object, threshold);
 
   for (const SignedDistancePair<T>& pair : signed_distance_pairs) {
     // Don't do any contact force computations if we're not in contact, unless
