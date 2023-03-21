@@ -656,37 +656,42 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsFiniteDiff(
   // Get kinematic mapping matrices for each time step
   const std::vector<MatrixX<T>>& Nplus = EvalNplus(state);
 
-  // Get references to perturbed versions of q, v, tau, and a, at (t-1, t, t).
-  // These are all of the quantities that change when we perturb q_t.
-  TrajectoryOptimizerWorkspace<T>& workspace = state.workspace;
-  VectorX<T>& q_eps_t = workspace.q_size_tmp1;
-  VectorX<T>& v_eps_t = workspace.v_size_tmp1;
-  VectorX<T>& v_eps_tp = workspace.v_size_tmp2;
-  VectorX<T>& a_eps_tm = workspace.a_size_tmp1;
-  VectorX<T>& a_eps_t = workspace.a_size_tmp2;
-  VectorX<T>& a_eps_tp = workspace.a_size_tmp3;
-  VectorX<T>& tau_eps_tm = workspace.tau_size_tmp1;
-  VectorX<T>& tau_eps_t = workspace.tau_size_tmp2;
-  VectorX<T>& tau_eps_tp = workspace.tau_size_tmp3;
-
-  //DEBUG: test parallel for loop
-  for (int t=1; t <= num_steps(); ++t) {
-    PRINT_VAR(q[t].norm());
-  }
-
-  // Store small perturbations
-  const double eps = sqrt(std::numeric_limits<double>::epsilon());
-  T dq_i;
-  T dv_i;
-  T da_i;
-//#if defined(_OPENMP)
-//#pragma omp parallel for
-//#endif
+  //DEBUG: test for loop  
+#if defined(_OPENMP)
+#pragma omp parallel for
+#endif
   for (int t = 1; t <= num_steps(); ++t) {
     // N.B. A perturbation of qt propagates to tau[t-1], tau[t] and tau[t+1].
     // Therefore we compute one column of grad_tau at a time. That is, once the
     // loop on position indices i is over, we effectively computed the t-th
     // column of grad_tau.
+
+    // TODO: allocate these outside this loop
+    // Get references to perturbed versions of q, v, tau, and a, at (t-1, t, t).
+    // These are all of the quantities that change when we perturb q_t.
+    // N.B. we need a separate workspace for each timestep, otherwise threads
+    // will fight over the same workspace
+    TrajectoryOptimizerWorkspace<T> workspace(num_steps(), plant());
+    VectorX<T>& q_eps_t = workspace.q_size_tmp1;
+    VectorX<T>& v_eps_t = workspace.v_size_tmp1;
+    VectorX<T>& v_eps_tp = workspace.v_size_tmp2;
+    VectorX<T>& a_eps_tm = workspace.a_size_tmp1;
+    VectorX<T>& a_eps_t = workspace.a_size_tmp2;
+    VectorX<T>& a_eps_tp = workspace.a_size_tmp3;
+    VectorX<T>& tau_eps_tm = workspace.tau_size_tmp1;
+    VectorX<T>& tau_eps_t = workspace.tau_size_tmp2;
+    VectorX<T>& tau_eps_tp = workspace.tau_size_tmp3;
+
+    (void)tau_eps_tm;
+    (void)tau_eps_t;
+    (void)tau_eps_tp;
+
+    // Store small perturbations
+    // TODO: allocate outside the loop
+    const double eps = sqrt(std::numeric_limits<double>::epsilon());
+    T dq_i;
+    T dv_i;
+    T da_i;
 
     // Set perturbed versions of variables
     q_eps_t = q[t];
@@ -772,6 +777,118 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsFiniteDiff(
       }
     }
   }
+
+  //for (int t = 1; t <= num_steps(); ++t) {
+  //  // N.B. A perturbation of qt propagates to tau[t-1], tau[t] and tau[t+1].
+  //  // Therefore we compute one column of grad_tau at a time. That is, once the
+  //  // loop on position indices i is over, we effectively computed the t-th
+  //  // column of grad_tau.
+
+  //  // TODO: allocate these outside this loop
+  //  // Get references to perturbed versions of q, v, tau, and a, at (t-1, t, t).
+  //  // These are all of the quantities that change when we perturb q_t.
+  //  TrajectoryOptimizerWorkspace<T>& workspace = state.workspace;
+  //  VectorX<T>& q_eps_t = workspace.q_size_tmp1;
+  //  VectorX<T>& v_eps_t = workspace.v_size_tmp1;
+  //  VectorX<T>& v_eps_tp = workspace.v_size_tmp2;
+  //  VectorX<T>& a_eps_tm = workspace.a_size_tmp1;
+  //  VectorX<T>& a_eps_t = workspace.a_size_tmp2;
+  //  VectorX<T>& a_eps_tp = workspace.a_size_tmp3;
+  //  VectorX<T>& tau_eps_tm = workspace.tau_size_tmp1;
+  //  VectorX<T>& tau_eps_t = workspace.tau_size_tmp2;
+  //  VectorX<T>& tau_eps_tp = workspace.tau_size_tmp3;
+
+  //  // Store small perturbations
+  //  // TODO: allocate outside the loop
+  //  const double eps = sqrt(std::numeric_limits<double>::epsilon());
+  //  T dq_i;
+  //  T dv_i;
+  //  T da_i;
+
+  //  // Set perturbed versions of variables
+  //  q_eps_t = q[t];
+  //  v_eps_t = v[t];
+  //  if (t < num_steps()) {
+  //    // v[num_steps + 1] is not defined
+  //    v_eps_tp = v[t + 1];
+  //    // a[num_steps] is not defined
+  //    a_eps_t = a[t];
+  //  }
+  //  if (t < num_steps() - 1) {
+  //    // a[num_steps + 1] is not defined
+  //    a_eps_tp = a[t + 1];
+  //  }
+  //  a_eps_tm = a[t - 1];
+
+  //  for (int i = 0; i < plant().num_positions(); ++i) {
+  //    // Determine perturbation sizes to avoid losing precision to floating
+  //    // point error
+  //    dq_i = eps * max(1.0, abs(q_eps_t(i)));
+
+  //    // Make dqt_i exactly representable to minimize floating point error
+  //    const T temp = q_eps_t(i) + dq_i;
+  //    dq_i = temp - q_eps_t(i);
+
+  //    dv_i = dq_i / time_step();
+  //    da_i = dv_i / time_step();
+
+  //    // Perturb q_t[i], v_t[i], and a_t[i]
+  //    q_eps_t(i) += dq_i;
+
+  //    v_eps_t += dv_i * Nplus[t].col(i);
+  //    a_eps_tm += da_i * Nplus[t].col(i);
+  //    if (t < num_steps()) {
+  //      v_eps_tp -= dv_i * Nplus[t + 1].col(i);
+  //      a_eps_t -= da_i * (Nplus[t + 1].col(i) + Nplus[t].col(i));
+  //    }
+  //    if (t < num_steps() - 1) {
+  //      a_eps_tp += da_i * Nplus[t + 1].col(i);
+  //    }
+
+  //    // Compute perturbed tau(q) and calculate the nonzero entries of dtau/dq
+  //    // via finite differencing
+
+  //    // Get a context for this time step
+  //    Context<T>& context_t = GetMutablePlantContext(state, t);
+
+  //    // tau[t-1] = ID(q[t], v[t], a[t-1])
+  //    plant().SetPositions(&context_t, q_eps_t);
+  //    plant().SetVelocities(&context_t, v_eps_t);
+  //    CalcInverseDynamicsSingleTimeStep(context_t, a_eps_tm, &workspace,
+  //                                      &tau_eps_tm);
+  //    dtau_dqp[t - 1].col(i) = (tau_eps_tm - tau[t - 1]) / dq_i;
+
+  //    // tau[t] = ID(q[t+1], v[t+1], a[t])
+  //    if (t < num_steps()) {
+  //      plant().SetPositions(&context_t, q[t + 1]);
+  //      plant().SetVelocities(&context_t, v_eps_tp);
+  //      CalcInverseDynamicsSingleTimeStep(context_t, a_eps_t, &workspace,
+  //                                        &tau_eps_t);
+  //      dtau_dqt[t].col(i) = (tau_eps_t - tau[t]) / dq_i;
+  //    }
+
+  //    // tau[t+1] = ID(q[t+2], v[t+2], a[t+1])
+  //    if (t < num_steps() - 1) {
+  //      plant().SetPositions(&context_t, q[t + 2]);
+  //      plant().SetVelocities(&context_t, v[t + 2]);
+  //      CalcInverseDynamicsSingleTimeStep(context_t, a_eps_tp, &workspace,
+  //                                        &tau_eps_tp);
+  //      dtau_dqm[t + 1].col(i) = (tau_eps_tp - tau[t + 1]) / dq_i;
+  //    }
+
+  //    // Unperturb q_t[i], v_t[i], and a_t[i]
+  //    q_eps_t = q[t];
+  //    v_eps_t = v[t];
+  //    a_eps_tm = a[t - 1];
+  //    if (t < num_steps()) {
+  //      v_eps_tp = v[t + 1];
+  //      a_eps_t = a[t];
+  //    }
+  //    if (t < num_steps() - 1) {
+  //      a_eps_tp = a[t + 1];
+  //    }
+  //  }
+  //}
 }
 
 template <typename T>
