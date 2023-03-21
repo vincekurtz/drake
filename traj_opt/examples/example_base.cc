@@ -530,6 +530,9 @@ void TrajOptExample::SetSolverParameters(
   // Maximum and initial trust region radius
   solver_params->Delta0 = options.Delta0;
   solver_params->Delta_max = options.Delta_max;
+
+  // Number of threads
+  solver_params->num_threads = options.num_threads;
 }
 
 void TrajOptExample::NormalizeQuaternions(const MultibodyPlant<double>& plant,
