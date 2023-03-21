@@ -669,11 +669,19 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsFiniteDiff(
   VectorX<T>& tau_eps_t = workspace.tau_size_tmp2;
   VectorX<T>& tau_eps_tp = workspace.tau_size_tmp3;
 
+  //DEBUG: test parallel for loop
+  for (int t=1; t <= num_steps(); ++t) {
+    PRINT_VAR(q[t].norm());
+  }
+
   // Store small perturbations
   const double eps = sqrt(std::numeric_limits<double>::epsilon());
   T dq_i;
   T dv_i;
   T da_i;
+//#if defined(_OPENMP)
+//#pragma omp parallel for
+//#endif
   for (int t = 1; t <= num_steps(); ++t) {
     // N.B. A perturbation of qt propagates to tau[t-1], tau[t] and tau[t+1].
     // Therefore we compute one column of grad_tau at a time. That is, once the
@@ -723,27 +731,30 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsFiniteDiff(
       // Compute perturbed tau(q) and calculate the nonzero entries of dtau/dq
       // via finite differencing
 
+      // Get a context for this time step
+      Context<T>& context_t = GetMutablePlantContext(state, t);
+
       // tau[t-1] = ID(q[t], v[t], a[t-1])
-      plant().SetPositions(context_, q_eps_t);
-      plant().SetVelocities(context_, v_eps_t);
-      CalcInverseDynamicsSingleTimeStep(*context_, a_eps_tm, &workspace,
+      plant().SetPositions(&context_t, q_eps_t);
+      plant().SetVelocities(&context_t, v_eps_t);
+      CalcInverseDynamicsSingleTimeStep(context_t, a_eps_tm, &workspace,
                                         &tau_eps_tm);
       dtau_dqp[t - 1].col(i) = (tau_eps_tm - tau[t - 1]) / dq_i;
 
       // tau[t] = ID(q[t+1], v[t+1], a[t])
       if (t < num_steps()) {
-        plant().SetPositions(context_, q[t + 1]);
-        plant().SetVelocities(context_, v_eps_tp);
-        CalcInverseDynamicsSingleTimeStep(*context_, a_eps_t, &workspace,
+        plant().SetPositions(&context_t, q[t + 1]);
+        plant().SetVelocities(&context_t, v_eps_tp);
+        CalcInverseDynamicsSingleTimeStep(context_t, a_eps_t, &workspace,
                                           &tau_eps_t);
         dtau_dqt[t].col(i) = (tau_eps_t - tau[t]) / dq_i;
       }
 
       // tau[t+1] = ID(q[t+2], v[t+2], a[t+1])
       if (t < num_steps() - 1) {
-        plant().SetPositions(context_, q[t + 2]);
-        plant().SetVelocities(context_, v[t + 2]);
-        CalcInverseDynamicsSingleTimeStep(*context_, a_eps_tp, &workspace,
+        plant().SetPositions(&context_t, q[t + 2]);
+        plant().SetVelocities(&context_t, v[t + 2]);
+        CalcInverseDynamicsSingleTimeStep(context_t, a_eps_tp, &workspace,
                                           &tau_eps_tp);
         dtau_dqm[t + 1].col(i) = (tau_eps_tp - tau[t + 1]) / dq_i;
       }
@@ -1783,6 +1794,19 @@ const Context<T>& TrajectoryOptimizer<T>::EvalPlantContext(
     CalcContextCache(state, state.mutable_cache().context_cache.get());
   }
   return *state.cache().context_cache->plant_contexts[t];
+}
+
+template <typename T>
+Context<T>& TrajectoryOptimizer<T>::GetMutablePlantContext(
+    const TrajectoryOptimizerState<T>& state, int t) const {
+  if (diagram_ == nullptr) {
+    throw std::runtime_error(
+        "No Diagram was provided at construction of the TrajectoryOptimizer. "
+        "Use the constructor that takes a Diagram to enable the caching of "
+        "contexts.");
+  }
+  state.mutable_cache().context_cache->up_to_date = false;
+  return *state.mutable_cache().context_cache->plant_contexts[t];
 }
 
 template <typename T>

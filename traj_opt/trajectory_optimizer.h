@@ -507,8 +507,24 @@ class TrajectoryOptimizer {
                                   TrajectoryOptimizerSolution<T>* solution,
                                   TrajectoryOptimizerStats<T>* stats,
                                   ConvergenceReason* reason) const;
+  
+  /**
+   * Return a mutable system context for the plant at the given time step.
+   *
+   * @param state optimizer state
+   * @param t time step
+   * @return Context<T>& context for the plant at time t
+   */
+  Context<T>& GetMutablePlantContext(const TrajectoryOptimizerState<T>& state,
+                                     int t) const;
 
-  // Updates `cache` to store q and v from `state`.
+  /**
+   * Update the system context for the plant at each time step to store q and v
+   * from the state.
+   *
+   * @param state optimizer state containing q and v
+   * @param cache context cache containing a plant context for each timestep
+   */
   void CalcContextCache(
       const TrajectoryOptimizerState<T>& state,
       typename TrajectoryOptimizerCache<T>::ContextCache* cache) const;
