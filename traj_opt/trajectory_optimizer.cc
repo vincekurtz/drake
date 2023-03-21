@@ -7,6 +7,10 @@
 #include <limits>
 #include <string>
 
+#if defined(_OPENMP)
+#include <omp.h>
+#endif
+
 #include "drake/common/profiler.h"
 #include "drake/geometry/scene_graph_inspector.h"
 #include "drake/multibody/math/spatial_algebra.h"

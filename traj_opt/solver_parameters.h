@@ -183,7 +183,7 @@ struct SolverParameters {
   double Delta_max = 1e5;
 
   // Number of cpu threads for parallel computation of derivatives
-  int num_threads = 0;
+  int num_threads = 1;
 };
 
 }  // namespace traj_opt

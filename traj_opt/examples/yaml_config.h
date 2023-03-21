@@ -226,7 +226,7 @@ struct TrajOptExampleParams {
   double Delta0 = 1e-1;
 
   // Number of cpu threads to use for parallel computation of derivatives
-  int num_threads = 0;
+  int num_threads = 1;
 };
 
 }  // namespace examples
