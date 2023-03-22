@@ -2239,8 +2239,6 @@ T TrajectoryOptimizer<T>::CalcTrustRatio(
   const T merit_k = EvalMeritFunction(state);
   const VectorX<T>& g_tilde_k = EvalMeritFunctionGradient(state);
   const PentaDiagonalMatrix<T>& H_k = EvalScaledHessian(state);
-  const VectorX<T>& lambda_k = EvalLagrangeMultipliers(state);
-
 
   // Quantities at the next iteration if we accept the step (kp = k+1)
   // TODO(vincekurtz): if we do end up accepting the step, it would be nice to
@@ -2253,6 +2251,7 @@ T TrajectoryOptimizer<T>::CalcTrustRatio(
     // N.B. We use λₖ rather than λₖ₊₁ to compute the merit function
     // ϕₖ₊₁ = L(qₖ₊₁) + h(qₖ₊₁)ᵀλₖ here because we are assuming that λ is
     // constant.
+    const VectorX<T>& lambda_k = EvalLagrangeMultipliers(state);
     const VectorX<T>& h_kp = EvalEqualityConstraintViolations(*scratch_state);
     merit_kp += h_kp.dot(lambda_k);
   }
