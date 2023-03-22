@@ -602,6 +602,10 @@ void TrajectoryOptimizer<T>::CalcContactImpulses(
   const double delta = params_.delta;
   const double sigma = params_.smoothing_factor;
   const double dissipation_velocity = params_.dissipation_velocity;
+  
+  // Friction parameters.
+  const double vs = params_.stiction_velocity;
+  const double mu = params_.friction_coefficient;
 
   for (int t = 0; t <= num_steps(); ++t) {
     // Get context and signed distance pairs
@@ -622,12 +626,10 @@ void TrajectoryOptimizer<T>::CalcContactImpulses(
     gamma_t.resize(3 * nc);
 
     for (int i = 0; i < nc; ++i) {
-      const T phi = sdf_pairs[i].distance;
-
       // TODO(vincekurtz) get rid of redundancy with
       // CalcContactForceContribution and CalcContactJacobian
       const geometry::SignedDistancePair<T>& pair = sdf_pairs[i];
-        const Vector3<T> nhat = -pair.nhat_BA_W;
+      const Vector3<T> nhat = -pair.nhat_BA_W;
       const GeometryId geometryA_id = pair.id_A;
       const GeometryId geometryB_id = pair.id_B;
 
@@ -671,7 +673,6 @@ void TrajectoryOptimizer<T>::CalcContactImpulses(
 
       // Split into normal and tangential components.
       const T vn = nhat.dot(v_AcBc_W);
-      const Vector3<T> vt = v_AcBc_W - vn * nhat;
 
       // Normal dissipation follows a smoothed Hunt and Crossley model
       T dissipation_factor = 0.0;
@@ -686,7 +687,7 @@ void TrajectoryOptimizer<T>::CalcContactImpulses(
       // of 2F/delta Newtons per meter, with some smoothing that may or may not
       // allow for force at a distance.
       T compliant_fn;
-      const T x = -phi / delta;
+      const T x = -pair.distance / delta;
       if (params_.force_at_a_distance) {
         if (x / sigma >= 37) {
           // If the exponent is going to be very large, replace with the
@@ -708,11 +709,20 @@ void TrajectoryOptimizer<T>::CalcContactImpulses(
       }
       const T fn = compliant_fn * dissipation_factor;
 
-      // TODO(vincekurtz) add friction
-      (void)vt;
+      // Tangential frictional component.
+      (void)mu;
+      (void)vs;
+      //const Vector3<T> vt_W = v_AcBc_W - vn * nhat;
+      //// TODO: get from contact jacobian data
+      //math::RotationMatrix<T> R_WC =
+      //    math::RotationMatrix<T>::MakeFromOneVector(nhat, 2);
+      //const Vector3<T> that_regularized =
+      //    -vt / sqrt(vs * vs + vt.squaredNorm());
+      //const Vector3<T> ft_BC_W = that_regularized * mu * fn;
 
-      gamma_t[3 * i] = 0;
-      gamma_t[3 * i + 1] = 0;
+
+      gamma_t[3 * i] = 0.0;
+      gamma_t[3 * i + 1] = 0.0;
       gamma_t[3 * i + 2] = fn;
 
     }
