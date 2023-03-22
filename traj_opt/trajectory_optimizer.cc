@@ -263,8 +263,6 @@ template <typename T>
 void TrajectoryOptimizer<T>::CalcInverseDynamicsSingleTimeStep(
     const Context<T>& context, const VectorX<T>& a,
     TrajectoryOptimizerWorkspace<T>* workspace, VectorX<T>* tau) const {
-  INSTRUMENT_FUNCTION("Computes inverse dynamics.");
-
   plant().CalcForceElementsContribution(context, &workspace->f_ext);
 
   // Add in contact force contribution to f_ext
@@ -283,8 +281,6 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsSingleTimeStep(
 template <typename T>
 void TrajectoryOptimizer<T>::CalcContactForceContribution(
     const Context<T>& context, MultibodyForces<T>* forces) const {
-  INSTRUMENT_FUNCTION("Computes contact forces.");
-
   using std::abs;
   using std::exp;
   using std::log;
@@ -319,7 +315,7 @@ void TrajectoryOptimizer<T>::CalcContactForceContribution(
   const drake::geometry::SceneGraphInspector<T>& inspector =
       query_object.inspector();
   const std::vector<SignedDistancePair<T>>& signed_distance_pairs =
-      CalcSignedDistancePairs(query_object, threshold);
+      query_object.ComputeSignedDistancePairwiseClosestPoints(threshold);
 
   for (const SignedDistancePair<T>& pair : signed_distance_pairs) {
     // Don't do any contact force computations if we're not in contact, unless

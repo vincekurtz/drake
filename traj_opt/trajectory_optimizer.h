@@ -32,7 +32,6 @@ using internal::PentaDiagonalMatrix;
 using multibody::MultibodyPlant;
 using systems::Context;
 using systems::Diagram;
-using geometry::SignedDistancePair;
 
 template <typename T>
 class TrajectoryOptimizer {
@@ -1107,20 +1106,6 @@ class TrajectoryOptimizer {
    */
   void CalcMeritFunctionGradient(const TrajectoryOptimizerState<T>& state,
                                  VectorX<T>* g_tilde) const;
-
-  /**
-   * Helper function to perform geometry queries. Allows us to profile the cost
-   * of geometry queries.
-   *
-   * TODO(vincekurtz): remove this method. Right now it returns by value instead
-   * of reference to avoid a "return reference to temporary" error
-   */
-  const std::vector<SignedDistancePair<T>> CalcSignedDistancePairs(
-      const geometry::QueryObject<T>& query_object,
-      const double threshold) const {
-    INSTRUMENT_FUNCTION("geometry queries");
-    return query_object.ComputeSignedDistancePairwiseClosestPoints(threshold);
-  }
 
   // Diagram of containing the plant_ model and scene graph. Needed to allocate
   // context resources.
