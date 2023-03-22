@@ -5,7 +5,7 @@
 ##
 
 # Initial state, ordered by [finger 1, finger 2, spinner]
-q_init : [0.4, 1.5, 0.0]
+q_init : [0.2, 1.5, 0.0]
 v_init : [0.0, 0.0, 0.0]
 
 # Target state
@@ -32,13 +32,20 @@ num_steps : 40      # number of timesteps
 # Solver parameters
 max_iters : 500             # maximum Gauss-Newton iterations
 method : "trust_region"     # solver method, {linesearch, trust_region}
-linesearch : "armijo"       # linesearch strategy, {armino, backtracking}
-proximal_operator : false   # whether to add a proximal operator cost term
-rho_proximal : 1e-5         # the proximal cost multiplier
+scaling : false
+equality_constraints : true
+
+tolerances:
+  rel_cost_reduction: 0
+  abs_cost_reduction: 0
+  rel_gradient_along_dq: 0
+  abs_gradient_along_dq: 0
+  rel_state_change: 0
+  abs_state_change: 0
 
 # Method used to compute gradients of inverse dynamics, one of
 # {forward_differences, central_differences, central_differences4, autodiff}
-gradients_method: "central_differences"
+gradients_method: "forward_differences"
 
 # Playback/visualization parameters
 play_target_trajectory : true

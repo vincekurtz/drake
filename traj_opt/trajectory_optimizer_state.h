@@ -50,7 +50,8 @@ struct TrajectoryOptimizerCache {
    */
   TrajectoryOptimizerCache(const int num_steps, const int nv, const int nq,
                            const int num_eq_constraints)
-      : derivatives_data(num_steps, nv, nq),
+      : gamma(num_steps + 1),   // TODO: consider number of contact pairs
+        derivatives_data(num_steps, nv, nq),
         gradient((num_steps + 1) * nq),
         hessian(num_steps + 1, nq),
         scaled_hessian(num_steps + 1, nq),
@@ -152,6 +153,10 @@ struct TrajectoryOptimizerCache {
     std::vector<MatrixX<T>> J;
     bool up_to_date{false};
   } contact_jacobian_data;
+
+  // Contact impulses at each time step
+  std::vector<VectorX<T>> gamma;
+  bool gamma_up_to_date{false};
 
   // The mapping from qdot to v, v = N+(q)*qdot, at each time step
   std::vector<MatrixX<T>> N_plus;
@@ -422,6 +427,7 @@ class TrajectoryOptimizerState {
     cache_.contact_jacobian_data.up_to_date = false;
     if (cache_.context_cache) cache_.context_cache->up_to_date = false;
     cache_.sdf_data.up_to_date = false;
+    cache_.gamma_up_to_date = false;
     cache_.n_plus_up_to_date = false;
     cache_.scaled_hessian_up_to_date = false;
     cache_.scaled_gradient_up_to_date = false;

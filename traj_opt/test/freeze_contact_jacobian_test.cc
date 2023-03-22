@@ -28,7 +28,7 @@ GTEST_TEST(FreezeContactJacobianTest, Spinner) {
   // Set up a simple system with contact
   DiagramBuilder<double> builder;
   MultibodyPlantConfig config;
-  config.time_step = 1.0;
+  config.time_step = 0.1;
   auto [plant, scene_graph] = multibody::AddMultibodyPlant(config, &builder);
   Parser(&plant).AddAllModelsFromFile(FindResourceOrThrow(
       "drake/traj_opt/examples/models/spinner_sphere.urdf"));
@@ -42,7 +42,7 @@ GTEST_TEST(FreezeContactJacobianTest, Spinner) {
   const int num_steps = 1;
   ProblemDefinition opt_prob;
   opt_prob.num_steps = num_steps;
-  opt_prob.q_init = Vector3d(0.2, 1.5, 0.0);
+  opt_prob.q_init = Vector3d(0.3, 1.5, 0.0);
   opt_prob.v_init = Vector3d(0.0, 0.0, 0.0);
   for (int t = 0; t <= num_steps; ++t) {
     opt_prob.q_nom.push_back(Vector3d(0.4, 1.5, 0.0));
@@ -103,8 +103,7 @@ GTEST_TEST(FreezeContactJacobianTest, Spinner) {
       optimizer.EvalContactJacobianData(state);
   const MatrixXd& J = jacobian_data.J[1];
 
-  std::vector<VectorXd> gamma(num_steps + 1);
-  optimizer.CalcContactImpulses(state, &gamma);
+  const std::vector<VectorXd>& gamma = optimizer.EvalContactImpulses(state);
   const VectorXd tau_c = J.transpose() * gamma[1];
   const VectorXd tau_separate = tau_id - tau_c;
 
@@ -131,8 +130,8 @@ GTEST_TEST(FreezeContactJacobianTest, Spinner) {
   const TrajectoryOptimizerCache<AutoDiffXd>::ContactJacobianData
       jacobian_data_ad = optimizer_ad.EvalContactJacobianData(state_ad);
   const MatrixX<AutoDiffXd>& J_ad = jacobian_data_ad.J[1];
-  std::vector<VectorX<AutoDiffXd>> gamma_ad(num_steps + 1);
-  optimizer_ad.CalcContactImpulses(state_ad, &gamma_ad);
+  const std::vector<VectorX<AutoDiffXd>>& gamma_ad =
+      optimizer_ad.EvalContactImpulses(state_ad);
   const VectorX<AutoDiffXd> tau_c_ad = J_ad.transpose() * gamma_ad[1];
   const VectorX<AutoDiffXd> tau_separate_ad = tau_id_ad - tau_c_ad;
 

@@ -251,7 +251,11 @@ void TrajectoryOptimizer<T>::CalcInverseDynamics(
     const Context<T>& context_tp = EvalPlantContext(state, t + 1);
     // All dynamics terms are treated implicitly, i.e.,
     // tau[t] = M(q[t+1]) * a[t] - k(q[t+1],v[t+1]) - f_ext[t+1]
-    CalcInverseDynamicsSingleTimeStep(context_tp, a[t], workspace, &tau->at(t));
+    //CalcInverseDynamicsSingleTimeStep(context_tp, a[t], workspace, &tau->at(t));
+
+    plant().CalcForceElementsContribution(context_tp, &workspace->f_ext);
+    CalcContactForceContribution(context_tp, &workspace->f_ext);
+    tau->at(t) = plant().CalcInverseDynamics(context_tp, a[t], workspace->f_ext);
   }
 }
 
@@ -727,6 +731,16 @@ void TrajectoryOptimizer<T>::CalcContactImpulses(
 
     }
   }
+}
+
+template <typename T>
+const std::vector<VectorX<T>>& TrajectoryOptimizer<T>::EvalContactImpulses(
+    const TrajectoryOptimizerState<T>& state) const {
+  if (!state.cache().gamma_up_to_date) {
+    CalcContactImpulses(state, &state.mutable_cache().gamma);
+    state.mutable_cache().gamma_up_to_date = true;
+  }
+  return state.cache().gamma;
 }
 
 template <typename T>
