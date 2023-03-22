@@ -435,8 +435,8 @@ template <typename T>
 void TrajectoryOptimizer<T>::CalcSdfData(
     const TrajectoryOptimizerState<T>& state,
     typename TrajectoryOptimizerCache<T>::SdfData* sdf_data) const {
-  sdf_data->sdf_pairs.resize(num_steps());
-  for (int t = 0; t < num_steps(); ++t) {
+  sdf_data->sdf_pairs.resize(num_steps() + 1);
+  for (int t = 0; t <= num_steps(); ++t) {
     const Context<T>& context = EvalPlantContext(state, t);
     const geometry::QueryObject<T>& query_object =
         plant()
@@ -452,7 +452,7 @@ template <typename T>
 const std::vector<geometry::SignedDistancePair<T>>&
 TrajectoryOptimizer<T>::EvalSignedDistancePairs(
     const TrajectoryOptimizerState<T>& state, int t) const {
-  DRAKE_DEMAND(0 <= t && t < num_steps());
+  DRAKE_DEMAND(0 <= t && t <= num_steps());
   if (!state.cache().sdf_data.up_to_date) {
     CalcSdfData(state, &state.mutable_cache().sdf_data);
   }
@@ -561,11 +561,11 @@ void TrajectoryOptimizer<T>::CalcContactJacobianData(
   // Resize contact data accordingly.
   // We resize to include all pairs, even for positive distances for which the
   // contact forces will be zero.
-  contact_jacobian_data->J.resize(num_steps());
-  contact_jacobian_data->R_WC.resize(num_steps());
-  contact_jacobian_data->body_pairs.resize(num_steps());
+  contact_jacobian_data->J.resize(num_steps() + 1);
+  contact_jacobian_data->R_WC.resize(num_steps() + 1);
+  contact_jacobian_data->body_pairs.resize(num_steps() + 1);
 
-  for (int t = 0; t < num_steps(); ++t) {
+  for (int t = 0; t <= num_steps(); ++t) {
     const Context<T>& context = EvalPlantContext(state, t);
     const std::vector<geometry::SignedDistancePair<T>>& sdf_pairs =
         EvalSignedDistancePairs(state, t);
@@ -584,6 +584,139 @@ TrajectoryOptimizer<T>::EvalContactJacobianData(
                             &state.mutable_cache().contact_jacobian_data);
   }
   return state.cache().contact_jacobian_data;
+}
+
+template <typename T>
+void TrajectoryOptimizer<T>::CalcContactImpulses(
+    const TrajectoryOptimizerState<T>& state,
+    std::vector<VectorX<T>>* gamma) const {
+  using std::abs;
+  using std::exp;
+  using std::log;
+  using std::max;
+  using std::pow;
+  using std::sqrt;
+
+  // Contact parameters
+  const double F = params_.F;
+  const double delta = params_.delta;
+  const double sigma = params_.smoothing_factor;
+  const double dissipation_velocity = params_.dissipation_velocity;
+
+  for (int t = 0; t <= num_steps(); ++t) {
+    // Get context and signed distance pairs
+    const Context<T>& context = EvalPlantContext(state, t);
+    const geometry::QueryObject<T>& query_object =
+        plant()
+            .get_geometry_query_input_port()
+            .template Eval<geometry::QueryObject<T>>(context);
+    const drake::geometry::SceneGraphInspector<T>& inspector =
+        query_object.inspector();
+    const std::vector<geometry::SignedDistancePair<T>>& sdf_pairs =
+        EvalSignedDistancePairs(state, t);
+    const int nc = sdf_pairs.size();
+
+    // TODO(vincekurtz): this resizing could be avoided if we knew the number of
+    // contact pairs ahead of time.
+    VectorX<T>& gamma_t = gamma->at(t);
+    gamma_t.resize(3 * nc);
+
+    for (int i = 0; i < nc; ++i) {
+      const T phi = sdf_pairs[i].distance;
+
+      // TODO(vincekurtz) get rid of redundancy with
+      // CalcContactForceContribution and CalcContactJacobian
+      const geometry::SignedDistancePair<T>& pair = sdf_pairs[i];
+        const Vector3<T> nhat = -pair.nhat_BA_W;
+      const GeometryId geometryA_id = pair.id_A;
+      const GeometryId geometryB_id = pair.id_B;
+
+      const BodyIndex bodyA_index =
+          plant().geometry_id_to_body_index().at(geometryA_id);
+      const Body<T>& bodyA = plant().get_body(bodyA_index);
+      const BodyIndex bodyB_index =
+          plant().geometry_id_to_body_index().at(geometryB_id);
+      const Body<T>& bodyB = plant().get_body(bodyB_index);
+
+      const math::RigidTransform<T>& X_WA =
+          plant().EvalBodyPoseInWorld(context, bodyA);
+      const math::RigidTransform<T>& X_WB =
+          plant().EvalBodyPoseInWorld(context, bodyB);
+
+      const math::RigidTransform<T> X_AGa =
+          inspector.GetPoseInFrame(geometryA_id).template cast<T>();
+      const math::RigidTransform<T> X_BGb =
+          inspector.GetPoseInFrame(geometryB_id).template cast<T>();
+
+      const auto& p_GaCa_Ga = pair.p_ACa;
+      const RigidTransform<T> X_WGa = X_WA * X_AGa;
+      const Vector3<T> p_WCa_W = X_WGa * p_GaCa_Ga;
+      const auto& p_GbCb_Gb = pair.p_BCb;
+      const RigidTransform<T> X_WGb = X_WB * X_BGb;
+
+      const Vector3<T> p_WCb_W = X_WGb * p_GbCb_Gb;
+      const Vector3<T> p_WC = 0.5 * (p_WCa_W + p_WCb_W);
+      const Vector3<T> p_AC_W = p_WC - X_WA.translation();
+      const Vector3<T> p_BC_W = p_WC - X_WB.translation();
+
+      const SpatialVelocity<T>& V_WA =
+          plant().EvalBodySpatialVelocityInWorld(context, bodyA);
+      const SpatialVelocity<T>& V_WB =
+          plant().EvalBodySpatialVelocityInWorld(context, bodyB);
+      const SpatialVelocity<T> V_WAc = V_WA.Shift(p_AC_W);
+      const SpatialVelocity<T> V_WBc = V_WB.Shift(p_BC_W);
+
+      // Relative contact velocity.
+      const Vector3<T> v_AcBc_W = V_WBc.translational() - V_WAc.translational();
+
+      // Split into normal and tangential components.
+      const T vn = nhat.dot(v_AcBc_W);
+      const Vector3<T> vt = v_AcBc_W - vn * nhat;
+
+      // Normal dissipation follows a smoothed Hunt and Crossley model
+      T dissipation_factor = 0.0;
+      const T s = vn / dissipation_velocity;
+      if (s < 0) {
+        dissipation_factor = 1 - s;
+      } else if (s < 2) {
+        dissipation_factor = (s - 2) * (s - 2) / 4;
+      }
+
+      // (Compliant) force in the normal direction increases linearly at a rate
+      // of 2F/delta Newtons per meter, with some smoothing that may or may not
+      // allow for force at a distance.
+      T compliant_fn;
+      const T x = -phi / delta;
+      if (params_.force_at_a_distance) {
+        if (x / sigma >= 37) {
+          // If the exponent is going to be very large, replace with the
+          // functional limit.
+          // N.B. x = 37 is the first integer such that exp(x)+1 = exp(x) in
+          // double precision.
+          compliant_fn = 2 * F * x;
+        } else {
+          compliant_fn = 2 * F * sigma * log(1 + exp(x / sigma));
+        }
+      } else {
+        if (x < 0) {
+          compliant_fn = 0;
+        } else if (x < 1) {
+          compliant_fn = F * x * x;
+        } else {
+          compliant_fn = F * (2 * x - 1);
+        }
+      }
+      const T fn = compliant_fn * dissipation_factor;
+
+      // TODO(vincekurtz) add friction
+      (void)vt;
+
+      gamma_t[3 * i] = 0;
+      gamma_t[3 * i + 1] = 0;
+      gamma_t[3 * i + 2] = fn;
+
+    }
+  }
 }
 
 template <typename T>

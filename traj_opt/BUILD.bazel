@@ -226,4 +226,23 @@ drake_cc_googletest(
     ],
 )
 
+drake_cc_googletest(
+    name = "freeze_contact_jacobian_test",
+    data = [
+        "//traj_opt/examples:models",
+    ],
+    deps = [
+        ":inverse_dynamics_partials",
+        ":penta_diagonal_matrix",
+        ":trajectory_optimizer",
+        ":trajectory_optimizer_workspace",
+        ":velocity_partials",
+        "//common:find_resource",
+        "//common/test_utilities:eigen_matrix_compare",
+        "//common/test_utilities:limit_malloc",
+        "//multibody/parsing",
+        "//multibody/plant",
+    ],
+)
+
 add_lint_tests()

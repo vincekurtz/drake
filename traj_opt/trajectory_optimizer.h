@@ -450,6 +450,25 @@ class TrajectoryOptimizer {
   EvalContactJacobianData(const TrajectoryOptimizerState<T>& state) const;
 
   /**
+   * Compute the contact impulses γ = [γ₁, γ₂, ..., γᵢ, ...]
+   * each timestep, where γᵢ ∈ ℝ³ is the impulse from the i^th contact pair.
+   *
+   * Contact impulses are given by
+   *
+   * γᵢ = [ γₜ ]
+   *      [ γₙ ],
+   *
+   * where γₙ is the normal component and γₜ is the tangential component
+   * 
+   * TODO: add this to the caching system
+   *
+   * @param state optimizer state containing q at each timestep
+   * @param gamma contact impulses γ at each timestep
+   */
+  void CalcContactImpulses(const TrajectoryOptimizerState<T>& state,
+                           std::vector<VectorX<T>>* gamma) const;
+
+  /**
    * Overwrite the initial conditions x0 = [q0, v0] stored in the solver
    * parameters. This is particularly useful when re-solving the optimization
    * problem for MPC.

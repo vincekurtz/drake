@@ -86,6 +86,7 @@
       </geometry>
       <material name="red"/>
     </visual>
+    <!--
     <collision>
       <origin rpy="0 0 0" xyz="0 0 0.05"/>
       <geometry>
@@ -152,6 +153,7 @@
         <sphere radius=".05"/>
       </geometry>
     </collision>
+    -->
     <collision>
       <origin rpy="0 0 0" xyz="0 0 0.95"/>
       <geometry>
