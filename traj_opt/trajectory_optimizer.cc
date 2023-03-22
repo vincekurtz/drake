@@ -243,7 +243,6 @@ void TrajectoryOptimizer<T>::CalcAccelerations(
 template <typename T>
 void TrajectoryOptimizer<T>::CalcInverseDynamics(
     const TrajectoryOptimizerState<T>& state, const std::vector<VectorX<T>>& a,
-    TrajectoryOptimizerWorkspace<T>* workspace,
     std::vector<VectorX<T>>* tau) const {
   // Generalized forces aren't defined for the last timestep
   // TODO(vincekurtz): additional checks that q_t, v_t, tau_t are the right size
@@ -251,11 +250,16 @@ void TrajectoryOptimizer<T>::CalcInverseDynamics(
   DRAKE_DEMAND(static_cast<int>(a.size()) == num_steps());
   DRAKE_DEMAND(static_cast<int>(tau->size()) == num_steps());
 
+#if defined(_OPENMP)
+#pragma omp parallel for num_threads(params_.num_threads)
+#endif
   for (int t = 0; t < num_steps(); ++t) {
+    TrajectoryOptimizerWorkspace<T>& workspace =
+        state.per_timestep_workspace[t];
     const Context<T>& context_tp = EvalPlantContext(state, t + 1);
     // All dynamics terms are treated implicitly, i.e.,
     // tau[t] = M(q[t+1]) * a[t] - k(q[t+1],v[t+1]) - f_ext[t+1]
-    CalcInverseDynamicsSingleTimeStep(context_tp, a[t], workspace, &tau->at(t));
+    CalcInverseDynamicsSingleTimeStep(context_tp, a[t], &workspace, &tau->at(t));
   }
 }
 
@@ -1756,11 +1760,9 @@ template <typename T>
 void TrajectoryOptimizer<T>::CalcInverseDynamicsCache(
     const TrajectoryOptimizerState<T>& state,
     typename TrajectoryOptimizerCache<T>::InverseDynamicsCache* cache) const {
-  TrajectoryOptimizerWorkspace<T>& workspace = state.workspace;
-
   // Compute corresponding generalized torques
   const std::vector<VectorX<T>>& a = EvalA(state);
-  CalcInverseDynamics(state, a, &workspace, &cache->tau);
+  CalcInverseDynamics(state, a, &cache->tau);
 
   // Set cache invalidation flag
   cache->up_to_date = true;

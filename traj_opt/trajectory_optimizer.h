@@ -647,12 +647,10 @@ class TrajectoryOptimizer {
    * @param state state variable storing a context for each timestep. This
    * context in turn stores q(t) and v(t) for each timestep.
    * @param a sequence of generalized accelerations
-   * @param workspace scratch space for intermediate computations
    * @param tau sequence of generalized forces
    */
   void CalcInverseDynamics(const TrajectoryOptimizerState<T>& state,
                            const std::vector<VectorX<T>>& a,
-                           TrajectoryOptimizerWorkspace<T>* workspace,
                            std::vector<VectorX<T>>* tau) const;
 
   /**
