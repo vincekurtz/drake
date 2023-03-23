@@ -465,6 +465,20 @@ class TrajectoryOptimizer {
    */
   const std::vector<VectorX<T>>& EvalContactImpulses(
       const TrajectoryOptimizerState<T>& state) const;
+  
+  /**
+   * Evaluate the derivatives of contact impulses
+   * 
+   *    ∂γ(qₜ₊₁,vₜ₊₁)/∂qₜ₊₁,
+   *    ∂γ(qₜ₊₁,vₜ₊₁)/∂vₜ₊₁,
+   * 
+   * for each time step.
+   * 
+   * @param state optimizer state
+   * @return struct holding ∂γ/∂q and ∂γ/∂v
+   */
+  const typename TrajectoryOptimizerCache<T>::ContactImpulsePartials&
+  EvalContactImpulsePartials(const TrajectoryOptimizerState<T>& state) const;
 
   /**
    * Overwrite the initial conditions x0 = [q0, v0] stored in the solver
@@ -741,6 +755,22 @@ class TrajectoryOptimizer {
    */
   void CalcContactImpulses(const TrajectoryOptimizerState<T>& state,
                            std::vector<VectorX<T>>* gamma) const;
+
+  /**
+   * Compute the derivatives of contact impulses
+   * 
+   *    ∂γ(qₜ₊₁,vₜ₊₁)/∂qₜ₊₁,
+   *    ∂γ(qₜ₊₁,vₜ₊₁)/∂vₜ₊₁,
+   * 
+   * analytically for each time step.
+   * 
+   * @param state optimizer state
+   * @param contact_impulse_partials struct for holding ∂γ/∂q and ∂γ/∂v
+   */
+  void CalcContactImpulsePartials(
+      const TrajectoryOptimizerState<T>& state,
+      typename TrajectoryOptimizerCache<T>::ContactImpulsePartials*
+          contact_impulse_partials) const;
 
   /**
    * Compute the mapping from qdot to v, v = N+(q)*qdot, at each time step.

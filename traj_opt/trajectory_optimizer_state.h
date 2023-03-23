@@ -68,9 +68,12 @@ struct TrajectoryOptimizerCache {
     scale_factors.setConstant(1.0);
     constraint_jacobian.setZero();
     lagrange_multipliers.setZero();
-    // TODO(amcastro-tri): We could allocate contact_jacobian_data here if we
-    // knew the number of contacts. For now, we'll defer the allocation to a
-    // later stage when the number of contacts is available.
+    // TODO(amcastro-tri): We could allocate contact_jacobian_data, gamma, and
+    // contact_impulse_partials here if we knew the number of contacts. For now,
+    // we'll defer the allocation to a later stage when the number of contacts
+    // is available.
+    contact_impulse_partials.dgamma_dq.resize(num_steps + 1);
+    contact_impulse_partials.dgamma_dv.resize(num_steps + 1);
   }
 
   TrajectoryOptimizerCache(const int num_steps, const Diagram<T>& diagram,
@@ -154,9 +157,21 @@ struct TrajectoryOptimizerCache {
     bool up_to_date{false};
   } contact_jacobian_data;
 
-  // Contact impulses at each time step
+  // Contact impulses γₜ = γ(qₜ₊₁,vₜ₊₁) at each time step
   std::vector<VectorX<T>> gamma;
   bool gamma_up_to_date{false};
+
+  struct ContactImpulsePartials {
+    // Derivative of contact impulses w.r.t. q,
+    // ∂γ(qₜ₊₁,vₜ₊₁)/∂qₜ₊₁ 
+    std::vector<MatrixX<T>> dgamma_dq;
+
+    // Derivative of contact impulses w.r.t. v, 
+    // ∂γ(qₜ₊₁,vₜ₊₁)/∂vₜ₊₁ 
+    std::vector<MatrixX<T>> dgamma_dv;
+    
+    bool up_to_date{false};
+  } contact_impulse_partials;
 
   // The mapping from qdot to v, v = N+(q)*qdot, at each time step
   std::vector<MatrixX<T>> N_plus;
@@ -428,6 +443,7 @@ class TrajectoryOptimizerState {
     if (cache_.context_cache) cache_.context_cache->up_to_date = false;
     cache_.sdf_data.up_to_date = false;
     cache_.gamma_up_to_date = false;
+    cache_.contact_impulse_partials.up_to_date = false;
     cache_.n_plus_up_to_date = false;
     cache_.scaled_hessian_up_to_date = false;
     cache_.scaled_gradient_up_to_date = false;

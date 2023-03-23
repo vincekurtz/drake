@@ -108,8 +108,6 @@ GTEST_TEST(FreezeContactJacobianTest, Spinner) {
   const VectorXd tau_separate = tau_id - tau_c;
 
   // Verify that ID(q, v, a, γ) = ID(q, v, a) - J'γ
-  PRINT_VAR(tau_gt.transpose());
-  PRINT_VAR(tau_separate.transpose());
   const double kTolerance = 100 * std::numeric_limits<double>::epsilon();
   EXPECT_TRUE(CompareMatrices(tau_gt, tau_separate, kTolerance,
                               MatrixCompareType::relative));
@@ -166,6 +164,89 @@ GTEST_TEST(FreezeContactJacobianTest, Spinner) {
       math::ExtractGradient(-J_ad.transpose() * gamma[1]);
   EXPECT_TRUE(CompareMatrices(dtau_dq_gt, dtau_dq_approx + missing_terms,
                               kTolerance, MatrixCompareType::relative));
+}
+
+/**
+ * Test analytical computation of partial derivatives of contact impulses
+ */
+GTEST_TEST(FreezeContactJacobianTest, ContactImpulsePartials) {
+  // Set up a simple system with contact
+  DiagramBuilder<double> builder;
+  MultibodyPlantConfig config;
+  config.time_step = 0.1;
+  auto [plant, scene_graph] = multibody::AddMultibodyPlant(config, &builder);
+  Parser(&plant).AddAllModelsFromFile(FindResourceOrThrow(
+      "drake/traj_opt/examples/models/spinner_sphere.urdf"));
+  plant.Finalize();
+  auto diagram = builder.Build();
+  auto diagram_context = diagram->CreateDefaultContext();
+
+  // Set up an optimization problem
+  const int num_steps = 1;
+  ProblemDefinition opt_prob;
+  opt_prob.num_steps = num_steps;
+  opt_prob.q_init = Vector3d(0.3, 1.5, 0.0);
+  opt_prob.v_init = Vector3d(0.0, 0.0, 0.0);
+  for (int t = 0; t <= num_steps; ++t) {
+    opt_prob.q_nom.push_back(Vector3d(0.4, 1.5, 0.0));
+    opt_prob.v_nom.push_back(Vector3d(0.0, 0.0, 0.0));
+  }
+  SolverParameters solver_params;
+  solver_params.F = 1.0;
+  solver_params.delta = 0.01;
+  solver_params.dissipation_velocity = 1e100; // no dissipation
+  solver_params.force_at_a_distance = true;
+  solver_params.smoothing_factor = 1.0;
+  solver_params.friction_coefficient = 0.0;  // no friction
+  solver_params.stiction_velocity = 0.1;
+
+  // Create a double-type optimizer
+  TrajectoryOptimizer<double> optimizer(diagram.get(), &plant, opt_prob,
+                                        solver_params);
+  TrajectoryOptimizerState<double> state = optimizer.CreateState();
+
+  // Create an autodiff optimizer
+  auto diagram_ad = systems::System<double>::ToAutoDiffXd(*diagram);
+  const auto& plant_ad = dynamic_cast<const MultibodyPlant<AutoDiffXd>&>(
+      diagram_ad->GetSubsystemByName(plant.get_name()));
+  auto diagram_context_ad = diagram_ad->CreateDefaultContext();
+  TrajectoryOptimizer<AutoDiffXd> optimizer_ad(diagram_ad.get(), &plant_ad,
+                                               opt_prob, solver_params);
+  TrajectoryOptimizerState<AutoDiffXd> state_ad = optimizer_ad.CreateState();
+
+  // Create some fake data
+  std::vector<VectorXd> q;
+  q.push_back(opt_prob.q_init);
+  q.push_back(Vector3d(0.4, 1.5, 0.0));
+  state.set_q(q);
+
+  std::vector<VectorX<AutoDiffXd>> q_ad;
+  q_ad.push_back(q[0]);
+  q_ad.push_back(math::InitializeAutoDiff(q[1]));
+  state_ad.set_q(q_ad);
+
+  // Compute contact impulses with double and autodiff
+  const std::vector<VectorXd>& gamma = optimizer.EvalContactImpulses(state);
+  const std::vector<VectorX<AutoDiffXd>>& gamma_ad =
+      optimizer_ad.EvalContactImpulses(state_ad);
+
+  const double kTolerance = 100 * std::numeric_limits<double>::epsilon();
+  EXPECT_TRUE(CompareMatrices(gamma[0], math::ExtractValue(gamma_ad[0]),
+                              kTolerance, MatrixCompareType::relative));
+  EXPECT_TRUE(CompareMatrices(gamma[1], math::ExtractValue(gamma_ad[1]),
+                              kTolerance, MatrixCompareType::relative));
+
+  // Compute contact impulse derivatives with double and autodiff
+  const TrajectoryOptimizerCache<double>::ContactImpulsePartials&
+      contact_impulse_partials = optimizer.EvalContactImpulsePartials(state);
+  const MatrixXd dgamma_dq = contact_impulse_partials.dgamma_dq[1];
+  const MatrixXd dgamma_dq_ad = math::ExtractGradient(gamma_ad[1]);
+
+  PRINT_VARn(gamma[0]);
+  PRINT_VARn(gamma[1]);
+
+  PRINT_VARn(dgamma_dq)
+  PRINT_VARn(dgamma_dq_ad);
 }
 
 }  // namespace internal

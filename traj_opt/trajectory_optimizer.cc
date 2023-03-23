@@ -387,16 +387,16 @@ void TrajectoryOptimizer<T>::CalcContactForceContribution(
       // of 2F/delta Newtons per meter, with some smoothing that may or may not
       // allow for force at a distance.
       T compliant_fn;
-      const T x = -pair.distance / delta;
+      const T x = - 2 * F * pair.distance / delta;
       if (params_.force_at_a_distance) {
         if (x / sigma >= 37) {
           // If the exponent is going to be very large, replace with the
           // functional limit.
           // N.B. x = 37 is the first integer such that exp(x)+1 = exp(x) in
           // double precision.
-          compliant_fn = 2 * F * x;
+          compliant_fn = x;
         } else {
-          compliant_fn = 2 * F * sigma * log(1 + exp(x / sigma));
+          compliant_fn = sigma * log(1 + exp(x / sigma));
         }
       } else {
         if (x < 0) {
@@ -692,16 +692,16 @@ void TrajectoryOptimizer<T>::CalcContactImpulses(
       // of 2F/delta Newtons per meter, with some smoothing that may or may not
       // allow for force at a distance.
       T compliant_fn;
-      const T x = -pair.distance / delta;
+      const T x = - 2 * F * pair.distance / delta;
       if (params_.force_at_a_distance) {
         if (x / sigma >= 37) {
           // If the exponent is going to be very large, replace with the
           // functional limit.
           // N.B. x = 37 is the first integer such that exp(x)+1 = exp(x) in
           // double precision.
-          compliant_fn = 2 * F * x;
+          compliant_fn = x;
         } else {
-          compliant_fn = 2 * F * sigma * log(1 + exp(x / sigma));
+          compliant_fn = sigma * log(1 + exp(x / sigma));
         }
       } else {
         if (x < 0) {
@@ -742,6 +742,80 @@ const std::vector<VectorX<T>>& TrajectoryOptimizer<T>::EvalContactImpulses(
     state.mutable_cache().gamma_up_to_date = true;
   }
   return state.cache().gamma;
+}
+
+template <typename T>
+void TrajectoryOptimizer<T>::CalcContactImpulsePartials(
+    const TrajectoryOptimizerState<T>& state,
+    typename TrajectoryOptimizerCache<T>::ContactImpulsePartials*
+        contact_impulse_partials) const {
+  using std::exp;
+  using std::log;
+
+  // Contact parameters
+  const double F = params_.F;
+  const double delta = params_.delta;
+  const double sigma = params_.smoothing_factor;
+
+  // Get the vectors that we'll set
+  std::vector<MatrixX<T>>& dgamma_dq = contact_impulse_partials->dgamma_dq;
+  std::vector<MatrixX<T>>& dgamma_dv = contact_impulse_partials->dgamma_dv;
+  (void)dgamma_dv;  // TODO: add dissipation and friction
+
+  const std::vector<MatrixX<T>>& J = EvalContactJacobianData(state).J;
+
+  // TODO: add other contact model
+  if (!params_.force_at_a_distance) {
+    throw std::runtime_error(
+        "Analytical gradients only support force at a distance model for now.");
+  }
+
+  for (int t=0; t<= num_steps(); ++t) {
+    // Get contact pairs at each timestep
+    const std::vector<geometry::SignedDistancePair<T>>& sdf_pairs =
+        EvalSignedDistancePairs(state, t);
+    const int nc = sdf_pairs.size();
+
+    // We'll first compute derivatives w.r.t. the contact point c
+    // TODO(vincekurtz): remove heap allocation
+    VectorX<T> dgamma_dc(3 * nc);
+
+    for (int i = 0; i < nc; ++i) {
+      const T phi = sdf_pairs[i].distance;
+
+      // TODO(vincekurtz) include friction and damping
+      dgamma_dc[3 * i] = 0;      // ∂γₜ₁/∂c₁
+      dgamma_dc[3 * i + 1] = 0;  // ∂γₜ₂/∂c₂
+
+      // ∂γₙ/∂ϕ
+      const double k = 2 * F / delta;
+      if (k * phi / sigma >= 37) {
+        // if the exponent is large, replace w/ functional limit
+        dgamma_dc[3 * i + 2] = 0;
+      } else {
+        dgamma_dc[3 * i + 2] = -k / (exp(k * phi / sigma) + 1);
+      }
+
+      const T x = -2 * F * phi / delta;
+      PRINT_VAR(sigma * log(1 + exp(x / sigma)));
+      PRINT_VAR(sigma * log(1 + exp(-k * phi / sigma)));
+    }
+
+    // ∂γ/∂q = ∂γ/∂c * J
+    dgamma_dq[t] = dgamma_dc.asDiagonal() * J[t];
+  }
+}
+
+template <typename T>
+const typename TrajectoryOptimizerCache<T>::ContactImpulsePartials&
+TrajectoryOptimizer<T>::EvalContactImpulsePartials(
+    const TrajectoryOptimizerState<T>& state) const {
+  if (!state.cache().contact_impulse_partials.up_to_date) {
+    CalcContactImpulsePartials(state,
+                               &state.mutable_cache().contact_impulse_partials);
+    state.mutable_cache().contact_impulse_partials.up_to_date = true;
+  }
+  return state.cache().contact_impulse_partials;
 }
 
 template <typename T>
