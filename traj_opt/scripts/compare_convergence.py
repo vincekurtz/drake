@@ -17,11 +17,11 @@ import os
 
 # Basic parameters: set these to define the location and name of the log files
 # that we'll compare, as well as corresponding legend labels
-example_name = "allegro_hand"
-csv_names = ["solver_stats_normalize.csv",
-             "solver_stats_no_normalize.csv"]
-labels = ["normalized reference",
-          "non-normalized reference"]
+example_name = "frictionless_spinner"
+csv_names = ["solver_stats_exact.csv",
+             "solver_stats_approximate.csv"]
+labels = ["forward diff",
+          "analytical approximation"]
 
 # Get file locations
 drake_root = os.getcwd()

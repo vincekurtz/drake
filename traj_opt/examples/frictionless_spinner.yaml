@@ -33,9 +33,7 @@ num_steps : 40      # number of timesteps
 max_iters : 500             # maximum Gauss-Newton iterations
 method : "trust_region"     # solver method, {linesearch, trust_region}
 scaling : false
-equality_constraints : false
-
-Delta0 : 1e-2
+equality_constraints : true
 
 tolerances:
   rel_cost_reduction: 0
