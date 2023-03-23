@@ -249,26 +249,27 @@ void TrajectoryOptimizer<T>::CalcInverseDynamics(
 
   for (int t = 0; t < num_steps(); ++t) {
     const Context<T>& context_tp = EvalPlantContext(state, t + 1);
-    // All dynamics terms are treated implicitly, i.e.,
-    // tau[t] = M(q[t+1]) * a[t] - k(q[t+1],v[t+1]) - f_ext[t+1]
-    //CalcInverseDynamicsSingleTimeStep(context_tp, a[t], workspace, &tau->at(t));
+    const MatrixX<T>& J = EvalContactJacobianData(state).J[t+1];
+    const VectorX<T>& gamma = EvalContactImpulses(state)[t+1];
 
     plant().CalcForceElementsContribution(context_tp, &workspace->f_ext);
-    CalcContactForceContribution(context_tp, &workspace->f_ext);
-    tau->at(t) = plant().CalcInverseDynamics(context_tp, a[t], workspace->f_ext);
+    tau->at(t) =
+        plant().CalcInverseDynamics(context_tp, a[t], workspace->f_ext) -
+        J.transpose() * gamma;
   }
 }
 
 template <typename T>
 void TrajectoryOptimizer<T>::CalcInverseDynamicsSingleTimeStep(
     const Context<T>& context, const VectorX<T>& a,
-    TrajectoryOptimizerWorkspace<T>* workspace, VectorX<T>* tau) const {
+    TrajectoryOptimizerWorkspace<T>* workspace, VectorX<T>* tau,
+    bool include_contact) const {
   INSTRUMENT_FUNCTION("Computes inverse dynamics.");
 
   plant().CalcForceElementsContribution(context, &workspace->f_ext);
 
   // Add in contact force contribution to f_ext
-  if (plant().geometry_source_is_registered()) {
+  if (plant().geometry_source_is_registered() && include_contact) {
     // Only compute contact forces if the plant is connected to a scene graph
     // TODO(vincekurtz): perform this check earlier, and maybe print some
     // warnings to stdout if we're not connected (we do want to be able to run
@@ -891,9 +892,18 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsFiniteDiff(
       if (t < num_steps() - 1) {
         plant().SetPositions(context_, q[t + 2]);
         plant().SetVelocities(context_, v[t + 2]);
+        VectorX<T> tau_tp(tau_eps_tp);
+        CalcInverseDynamicsSingleTimeStep(*context_, a[t+1], &workspace,
+                                          &tau_tp,
+                                          /* include_contact = */ false);
+
+        plant().SetPositions(context_, q[t + 2]);
+        plant().SetVelocities(context_, v[t + 2]);
         CalcInverseDynamicsSingleTimeStep(*context_, a_eps_tp, &workspace,
-                                          &tau_eps_tp);
-        dtau_dqm[t + 1].col(i) = (tau_eps_tp - tau[t + 1]) / dq_i;
+                                          &tau_eps_tp,
+                                          /* include_contact = */ false);
+        //dtau_dqm[t + 1].col(i) = (tau_eps_tp - tau[t + 1]) / dq_i;
+        dtau_dqm[t + 1].col(i) = (tau_eps_tp - tau_tp) / dq_i;
       }
 
       // Unperturb q_t[i], v_t[i], and a_t[i]

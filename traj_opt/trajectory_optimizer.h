@@ -666,11 +666,13 @@ class TrajectoryOptimizer {
    * @param context system context storing q and v
    * @param a generalized acceleration
    * @param workspace scratch space for intermediate computations
-   * @param tau generalized forces
+   * @param tau generalized forces that we compute
+   * @param include_contact flag for including contact forces f_ext
    */
   void CalcInverseDynamicsSingleTimeStep(
       const Context<T>& context, const VectorX<T>& a,
-      TrajectoryOptimizerWorkspace<T>* workspace, VectorX<T>* tau) const;
+      TrajectoryOptimizerWorkspace<T>* workspace, VectorX<T>* tau,
+      bool include_contact = true) const;
 
   /**
    * Calculate the force contribution from contacts for each body, and add them
