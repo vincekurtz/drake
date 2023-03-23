@@ -230,7 +230,7 @@ GTEST_TEST(FreezeContactJacobianTest, ContactImpulsePartials) {
   const std::vector<VectorX<AutoDiffXd>>& gamma_ad =
       optimizer_ad.EvalContactImpulses(state_ad);
 
-  const double kTolerance = 100 * std::numeric_limits<double>::epsilon();
+  const double kTolerance = 10 * std::numeric_limits<double>::epsilon();
   EXPECT_TRUE(CompareMatrices(gamma[0], math::ExtractValue(gamma_ad[0]),
                               kTolerance, MatrixCompareType::relative));
   EXPECT_TRUE(CompareMatrices(gamma[1], math::ExtractValue(gamma_ad[1]),
@@ -241,12 +241,9 @@ GTEST_TEST(FreezeContactJacobianTest, ContactImpulsePartials) {
       contact_impulse_partials = optimizer.EvalContactImpulsePartials(state);
   const MatrixXd dgamma_dq = contact_impulse_partials.dgamma_dq[1];
   const MatrixXd dgamma_dq_ad = math::ExtractGradient(gamma_ad[1]);
-
-  PRINT_VARn(gamma[0]);
-  PRINT_VARn(gamma[1]);
-
-  PRINT_VARn(dgamma_dq)
-  PRINT_VARn(dgamma_dq_ad);
+  
+  EXPECT_TRUE(CompareMatrices(dgamma_dq, dgamma_dq_ad,
+                              kTolerance, MatrixCompareType::relative));
 }
 
 }  // namespace internal

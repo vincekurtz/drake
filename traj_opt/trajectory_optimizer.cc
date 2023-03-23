@@ -795,10 +795,6 @@ void TrajectoryOptimizer<T>::CalcContactImpulsePartials(
       } else {
         dgamma_dc[3 * i + 2] = -k / (exp(k * phi / sigma) + 1);
       }
-
-      const T x = -2 * F * phi / delta;
-      PRINT_VAR(sigma * log(1 + exp(x / sigma)));
-      PRINT_VAR(sigma * log(1 + exp(-k * phi / sigma)));
     }
 
     // ∂γ/∂q = ∂γ/∂c * J
