@@ -33,7 +33,9 @@ num_steps : 40      # number of timesteps
 max_iters : 500             # maximum Gauss-Newton iterations
 method : "trust_region"     # solver method, {linesearch, trust_region}
 scaling : false
-equality_constraints : true
+equality_constraints : false
+
+Delta0 : 1e-2
 
 tolerances:
   rel_cost_reduction: 0
@@ -61,6 +63,7 @@ save_solver_stats_csv : true
 F : 1.0        # force at delta meters of penetration
 delta : 0.01  # penetration distance with F newtons of normal force
 dissipation_velocity : 1e100  # Hunt & Crossley-like model parameter, in m/s.
+force_at_a_distance : true
 
 # Friction
 friction_coefficient : 0.0  # Coefficient of friction.

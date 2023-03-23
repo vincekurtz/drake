@@ -943,11 +943,30 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsFiniteDiff(
       // via finite differencing
 
       // tau[t-1] = ID(q[t], v[t], a[t-1])
+      //plant().SetPositions(context_, q_eps_t);
+      //plant().SetVelocities(context_, v_eps_t);
+      //CalcInverseDynamicsSingleTimeStep(*context_, a_eps_tm, &workspace,
+      //                                  &tau_eps_tm);
+      //dtau_dqp[t - 1].col(i) = (tau_eps_tm - tau[t - 1]) / dq_i;
+
+      // tau[t-1] = ID(q[t], v[t], a[t-1]): analytical approximation
+      (void)tau;
+      VectorX<T> tau_tm(tau_eps_tm);
+      plant().SetPositions(context_, q[t]);
+      plant().SetVelocities(context_, v[t]);
+      CalcInverseDynamicsSingleTimeStep(*context_, a[t-1], &workspace,
+                                        &tau_tm,
+                                        /* include contact */ false);
       plant().SetPositions(context_, q_eps_t);
       plant().SetVelocities(context_, v_eps_t);
       CalcInverseDynamicsSingleTimeStep(*context_, a_eps_tm, &workspace,
-                                        &tau_eps_tm);
-      dtau_dqp[t - 1].col(i) = (tau_eps_tm - tau[t - 1]) / dq_i;
+                                        &tau_eps_tm,
+                                        /* include contact */ false);
+      const MatrixX<T>& J = EvalContactJacobianData(state).J[t];
+      const MatrixX<T>& dgamma_dq =
+          EvalContactImpulsePartials(state).dgamma_dq[t];
+      dtau_dqp[t - 1].col(i) =
+          (tau_eps_tm - tau_tm) / dq_i - (J.transpose() * dgamma_dq).col(i);
 
       // tau[t] = ID(q[t+1], v[t+1], a[t])
       if (t < num_steps()) {
