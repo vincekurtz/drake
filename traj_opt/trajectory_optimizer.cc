@@ -881,27 +881,34 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsFiniteDiff(
 
       // tau[t] = ID(q[t+1], v[t+1], a[t])
       if (t < num_steps()) {
+        VectorX<T> tau_t(tau_eps_t);
+        plant().SetPositions(context_, q[t + 1]);
+        plant().SetVelocities(context_, v[t + 1]);
+        CalcInverseDynamicsSingleTimeStep(*context_, a[t], &workspace,
+                                          &tau_t,
+                                          /* include_contact */ false);
+
         plant().SetPositions(context_, q[t + 1]);
         plant().SetVelocities(context_, v_eps_tp);
         CalcInverseDynamicsSingleTimeStep(*context_, a_eps_t, &workspace,
-                                          &tau_eps_t);
-        dtau_dqt[t].col(i) = (tau_eps_t - tau[t]) / dq_i;
+                                          &tau_eps_t,
+                                          /* include_contact */ false);
+        dtau_dqt[t].col(i) = (tau_eps_t - tau_t) / dq_i;
       }
 
       // tau[t+1] = ID(q[t+2], v[t+2], a[t+1])
       if (t < num_steps() - 1) {
+        VectorX<T> tau_tp(tau_eps_tp);
         plant().SetPositions(context_, q[t + 2]);
         plant().SetVelocities(context_, v[t + 2]);
-        VectorX<T> tau_tp(tau_eps_tp);
-        CalcInverseDynamicsSingleTimeStep(*context_, a[t+1], &workspace,
+        CalcInverseDynamicsSingleTimeStep(*context_, a[t + 1], &workspace,
                                           &tau_tp,
-                                          /* include_contact = */ false);
-
+                                          /* include_contact */ false);
         plant().SetPositions(context_, q[t + 2]);
         plant().SetVelocities(context_, v[t + 2]);
         CalcInverseDynamicsSingleTimeStep(*context_, a_eps_tp, &workspace,
                                           &tau_eps_tp,
-                                          /* include_contact = */ false);
+                                          /* include_contact */ false);
         //dtau_dqm[t + 1].col(i) = (tau_eps_tp - tau[t + 1]) / dq_i;
         dtau_dqm[t + 1].col(i) = (tau_eps_tp - tau_tp) / dq_i;
       }
