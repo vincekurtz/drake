@@ -44,10 +44,10 @@ q_guess : [-0.1, 1.0, 1.0, 1.0,
            -0.06, 0.0, 0.1]
 
 # Cost Weights
-Qq : [0e0, 0e0, 0e0, 0e0,
-      0e0, 0e0, 0e0, 0e0,
-      0e0, 0e0, 0e0, 0e0,
-      0e0, 0e0, 0e0, 0e0,
+Qq : [1e-2, 1e-2, 1e-2, 1e-2,
+      1e-2, 1e-2, 1e-2, 1e-2,
+      1e-2, 1e-2, 1e-2, 1e-2,
+      1e-2, 1e-2, 1e-2, 1e-2,
       1e1, 1e1, 1e1, 1e1,
       1e1, 1e1, 1e1]
 Qv : [1e0, 1e0, 1e0, 1e0,
@@ -63,10 +63,10 @@ R : [1e-2, 1e-2, 1e-2, 1e-2,
      1e3, 1e3, 1e3,
      1e3, 1e3, 1e3]
 
-Qfq : [0e0, 0e0, 0e0, 0e0,
-       0e0, 0e0, 0e0, 0e0,
-       0e0, 0e0, 0e0, 0e0,
-       0e0, 0e0, 0e0, 0e0,
+Qfq : [1e0, 1e0, 1e0, 1e0,
+       1e0, 1e0, 1e0, 1e0,
+       1e0, 1e0, 1e0, 1e0,
+       1e0, 1e0, 1e0, 1e0,
        1e2, 1e2, 1e2, 1e2,
        1e2, 1e2, 1e2]
 Qfv : [1e0, 1e0, 1e0, 1e0,
@@ -93,6 +93,7 @@ tolerances:
   abs_state_change: 0
 scaling : true
 equality_constraints : true
+num_threads : 4
 
 # Method used to compute gradients of inverse dynamics, one of
 # {forward_differences, central_differences, central_differences4, autodiff}
