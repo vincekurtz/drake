@@ -85,6 +85,7 @@ max_iters : 50              # maximum Gauss-Newton iterations
 method : "trust_region"     # solver method, {linesearch, trust_region}
 scaling : true
 equality_constraints : true
+num_threads : 4
 
 tolerances:
   rel_cost_reduction: 0

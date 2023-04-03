@@ -83,6 +83,7 @@ struct TrajOptExampleParams {
     a->Visit(DRAKE_NVP(equality_constraints));
     a->Visit(DRAKE_NVP(Delta_max));
     a->Visit(DRAKE_NVP(Delta0));
+    a->Visit(DRAKE_NVP(num_threads));
   }
   // Initial state
   VectorXd q_init;
@@ -223,6 +224,9 @@ struct TrajOptExampleParams {
 
   // Initial trust region radius
   double Delta0 = 1e-1;
+
+  // Number of cpu threads to use for parallel computation of derivatives
+  int num_threads = 1;
 };
 
 }  // namespace examples

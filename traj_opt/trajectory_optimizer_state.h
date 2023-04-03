@@ -273,6 +273,8 @@ class TrajectoryOptimizerState {
     q_.assign(num_steps + 1, VectorX<T>(nq));
     proximal_operator_data_.q_last.assign(num_steps + 1, VectorX<T>(nq));
     proximal_operator_data_.H_diag.assign(num_steps + 1, VectorX<T>::Zero(nq));
+    per_timestep_workspace.assign(
+        num_steps + 1, TrajectoryOptimizerWorkspace<T>(num_steps, plant));
   }
 
   // TrajectoryOptimizer state for a `plant` model within `diagram`.
@@ -287,6 +289,8 @@ class TrajectoryOptimizerState {
     q_.assign(num_steps + 1, VectorX<T>(nq));
     proximal_operator_data_.q_last.assign(num_steps + 1, VectorX<T>(nq));
     proximal_operator_data_.H_diag.assign(num_steps + 1, VectorX<T>::Zero(nq));
+    per_timestep_workspace.assign(
+        num_steps + 1, TrajectoryOptimizerWorkspace<T>(num_steps, plant));
   }
 
   /** Getter for the sequence of generalized positions. */
@@ -360,6 +364,12 @@ class TrajectoryOptimizerState {
    * allocations.
    */
   mutable TrajectoryOptimizerWorkspace<T> workspace;
+
+  /**
+   * Scratch space for intermediate computations, one per timestep to enable
+   * parallelization.
+   */
+  mutable std::vector<TrajectoryOptimizerWorkspace<T>> per_timestep_workspace;
 
   /**
    * Getter for the decision variables and Hessian diagonal at the previous

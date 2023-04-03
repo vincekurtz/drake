@@ -507,7 +507,23 @@ class TrajectoryOptimizer {
                                   TrajectoryOptimizerStats<T>* stats,
                                   ConvergenceReason* reason) const;
 
-  // Updates `cache` to store q and v from `state`.
+  /**
+   * Return a mutable system context for the plant at the given time step.
+   *
+   * @param state optimizer state
+   * @param t time step
+   * @return Context<T>& context for the plant at time t
+   */
+  Context<T>& GetMutablePlantContext(const TrajectoryOptimizerState<T>& state,
+                                     int t) const;
+
+  /**
+   * Update the system context for the plant at each time step to store q and v
+   * from the state.
+   *
+   * @param state optimizer state containing q and v
+   * @param cache context cache containing a plant context for each timestep
+   */
   void CalcContextCache(
       const TrajectoryOptimizerState<T>& state,
       typename TrajectoryOptimizerCache<T>::ContextCache* cache) const;
@@ -631,12 +647,10 @@ class TrajectoryOptimizer {
    * @param state state variable storing a context for each timestep. This
    * context in turn stores q(t) and v(t) for each timestep.
    * @param a sequence of generalized accelerations
-   * @param workspace scratch space for intermediate computations
    * @param tau sequence of generalized forces
    */
   void CalcInverseDynamics(const TrajectoryOptimizerState<T>& state,
                            const std::vector<VectorX<T>>& a,
-                           TrajectoryOptimizerWorkspace<T>* workspace,
                            std::vector<VectorX<T>>* tau) const;
 
   /**

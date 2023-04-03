@@ -24,7 +24,7 @@ time_step : 0.05   # Discretization timestep (seconds)
 num_steps : 40    # number of timesteps
 
 # Solver parameters
-max_iters : 500            # maximum Gauss-Newton iterations
+max_iters : 500               # maximum Gauss-Newton iterations
 method : "trust_region"       # solver method, {linesearch, trust_region}
 linesearch: "backtracking"
 scaling : false
@@ -32,6 +32,7 @@ scaling_method : "double_sqrt"
 equality_constraints : true
 linear_solver : "pentadiagonal_lu"
 Delta0 : 1e-3
+num_threads : 4 
 
 # Convergence thresholds
 tolerances:
@@ -68,7 +69,7 @@ dissipation_velocity : 0.1  # Hunt & Crossley-like model parameter, in m/s.
 
 # With force at a distance, contact normal forces increases linearly at a rate
 # of 2F/delta Newtons / meter, with a given smoothing factor (higher is smoother)
-smoothing_factor : 0.1
+smoothing_factor : 2.0
 force_at_a_distance : true
 
 # Friction

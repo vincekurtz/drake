@@ -181,6 +181,9 @@ struct SolverParameters {
   // trust region radius is more appropriate.
   double Delta0 = 1e-1;
   double Delta_max = 1e5;
+
+  // Number of cpu threads for parallel computation of derivatives
+  int num_threads = 1;
 };
 
 }  // namespace traj_opt

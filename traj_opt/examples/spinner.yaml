@@ -35,9 +35,10 @@ method : "trust_region"     # solver method, {linesearch, trust_region}
 linesearch : "backtracking" # linesearch strategy, {armino, backtracking}
 scaling : true
 equality_constraints : true
+num_threads : 4
 
 tolerances:
-  rel_cost_reduction: 1e-5
+  rel_cost_reduction: 0
   abs_cost_reduction: 0
   rel_gradient_along_dq: 0
   abs_gradient_along_dq: 0
@@ -51,7 +52,7 @@ Delta_max : 1e5    # maximum trust region radius
 
 # Method used to compute gradients of inverse dynamics, one of
 # {forward_differences, central_differences, central_differences4, autodiff}
-gradients_method: "central_differences"
+gradients_method: "forward_differences"
 
 # Playback/visualization parameters
 play_target_trajectory : true
@@ -74,7 +75,7 @@ dissipation_velocity : 0.1  # Hunt & Crossley-like model parameter, in m/s.
 
 # With force at a distance, contact normal forces increases linearly at a rate
 # of 2F/delta Newtons / meter, with a given smoothing factor (higher is smoother)
-smoothing_factor : 1.0
+smoothing_factor : 2.0
 force_at_a_distance : true
 
 # Friction
