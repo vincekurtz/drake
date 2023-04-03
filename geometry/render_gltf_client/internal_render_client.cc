@@ -29,14 +29,14 @@ namespace {
 
 namespace fs = std::filesystem;
 
-using drake::geometry::render::ClippingRange;
-using drake::geometry::render::DepthRange;
-using drake::geometry::render::RenderCameraCore;
-using drake::systems::sensors::CameraInfo;
-using drake::systems::sensors::ImageDepth16U;
-using drake::systems::sensors::ImageDepth32F;
-using drake::systems::sensors::ImageLabel16I;
-using drake::systems::sensors::ImageRgba8U;
+using render::ClippingRange;
+using render::DepthRange;
+using render::RenderCameraCore;
+using systems::sensors::CameraInfo;
+using systems::sensors::ImageDepth16U;
+using systems::sensors::ImageDepth32F;
+using systems::sensors::ImageLabel16I;
+using systems::sensors::ImageRgba8U;
 
 /* Adds field_name = field_data to the map, assumes data_map does **not**
  already have the key `field_name`. */
@@ -167,14 +167,13 @@ RenderClient::~RenderClient() {
     } catch (const std::exception& e) {
       // Note: Catching an exception is generally verboten.  However, since
       // exceptions can't be thrown in a destructor, doing so is allowed here.
-      drake::log()->debug("RenderClient: could not delete '{}'. {}",
-                          temp_directory_, e.what());
+      log()->debug("RenderClient: could not delete '{}'. {}", temp_directory_,
+                   e.what());
     }
   } else if (params_.verbose) {
     // NOTE: This gets printed twice because of cloning, cannot be avoided.
-    drake::log()->debug(
-        "RenderClient: temporary directory '{}' was *NOT* deleted.",
-        temp_directory_);
+    log()->debug("RenderClient: temporary directory '{}' was *NOT* deleted.",
+                 temp_directory_);
   }
 }
 
@@ -240,21 +239,19 @@ std::string RenderClient::RenderOnServer(
     const std::string service_error_message =
         response.service_error_message.value_or("None.");
     throw std::runtime_error(fmt::format(
-        R"""(
-        ERROR doing POST:
-          URL:             {}
-          Service Message: {}
-          HTTP Code:       {}
-          Server Message:  {}
-        )""",
+        R"""(RenderClient: error from POST:
+  URL:             {}
+  Service Message: {}
+  HTTP Code:       {}
+  Server Message:  {})""",
         url, service_error_message, response.http_code, server_message));
   }
 
   // If the server did not respond with a file, there is nothing to load.
   if (!response.data_path.has_value()) {
     throw std::runtime_error(fmt::format(
-        "ERROR doing POST to {}, HTTP code={}: the server was supposed to "
-        "respond with a file but did not.",
+        "RenderClient: error from POST to {}, HTTP code={}: the server was "
+        "supposed to respond with a file but did not.",
         url, response.http_code));
   }
   const std::string bin_out_path = response.data_path.value();
@@ -293,7 +290,7 @@ std::string RenderClient::ComputeSha256(const std::string& path) {
   std::ifstream f_in(path, std::ios::binary);
   if (!f_in.good()) {
     throw std::runtime_error(
-        fmt::format("ComputeSha256: cannot open file '{}'.", path));
+        fmt::format("RenderClient: cannot open file '{}'.", path));
   }
   std::vector<unsigned char> hash(picosha2::k_digest_size);
   picosha2::hash256(f_in, hash.begin(), hash.end());
@@ -397,7 +394,7 @@ void RenderClient::LoadDepthImage(const std::string& path,
   } else if (ext == ".tiff") {
     ReadTiffFile(path, image_exporter);
   } else {
-    throw std::runtime_error("Unsupported file extension");
+    throw std::runtime_error("RenderClient: unsupported file extension");
   }
 
   const int width = depth_image_out->width();
@@ -434,7 +431,7 @@ void RenderClient::LoadDepthImage(const std::string& path,
     }
   } else {
     /* no cover */
-    throw std::runtime_error("Unsupported channel type");
+    throw std::runtime_error("RenderClient: unsupported channel type");
   }
 }
 

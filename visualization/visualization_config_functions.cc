@@ -102,8 +102,13 @@ void ApplyVisualizationConfig(const VisualizationConfig& config,
                                builder);
 }
 
-void AddDefaultVisualization(DiagramBuilder<double>* builder) {
-  ApplyVisualizationConfig(VisualizationConfig{}, builder);
+void AddDefaultVisualization(DiagramBuilder<double>* builder,
+                             std::shared_ptr<geometry::Meshcat> meshcat) {
+  ApplyVisualizationConfig(VisualizationConfig{}, builder,
+                           nullptr,  // lcm_buses
+                           nullptr,  // plant
+                           nullptr,  // scene_graph
+                           meshcat);
 }
 
 namespace internal {
@@ -146,6 +151,7 @@ std::vector<MeshcatVisualizerParams> ConvertVisualizationConfigToMeshcatParams(
     illustration.delete_on_initialization_event =
         config.delete_on_initialization_event;
     illustration.enable_alpha_slider = config.enable_alpha_sliders;
+    illustration.visible_by_default = true;
     result.push_back(illustration);
   }
 
@@ -158,6 +164,8 @@ std::vector<MeshcatVisualizerParams> ConvertVisualizationConfigToMeshcatParams(
     proximity.delete_on_initialization_event =
         config.delete_on_initialization_event;
     proximity.enable_alpha_slider = config.enable_alpha_sliders;
+    proximity.visible_by_default = false;
+    proximity.show_hydroelastic = true;
     result.push_back(proximity);
   }
 

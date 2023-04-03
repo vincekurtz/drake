@@ -264,7 +264,16 @@ void DoScalarDependentDefinitions(py::module m, T) {
         .def("AddCouplerConstraint", &Class::AddCouplerConstraint,
             py::arg("joint0"), py::arg("joint1"), py::arg("gear_ratio"),
             py::arg("offset") = 0.0, py_rvp::reference_internal,
-            cls_doc.AddCouplerConstraint.doc);
+            cls_doc.AddCouplerConstraint.doc)
+        .def("AddDistanceConstraint", &Class::AddDistanceConstraint,
+            py::arg("body_A"), py::arg("p_AP"), py::arg("body_B"),
+            py::arg("p_BQ"), py::arg("distance"),
+            py::arg("stiffness") = std::numeric_limits<double>::infinity(),
+            py::arg("damping") = 0.0, py_rvp::reference_internal,
+            cls_doc.AddDistanceConstraint.doc)
+        .def("AddBallConstraint", &Class::AddBallConstraint, py::arg("body_A"),
+            py::arg("p_AP"), py::arg("body_B"), py::arg("p_BQ"),
+            py_rvp::reference_internal, cls_doc.AddBallConstraint.doc);
     // Mathy bits
     cls  // BR
         .def(
@@ -654,6 +663,9 @@ void DoScalarDependentDefinitions(py::module m, T) {
             py::arg("user_to_joint_index_map"),
             cls_doc.MakeActuatorSelectorMatrix
                 .doc_1args_user_to_joint_index_map)
+        .def("MakeStateSelectorMatrix", &Class::MakeStateSelectorMatrix,
+            py::arg("user_to_joint_index_map"),
+            cls_doc.MakeStateSelectorMatrix.doc)
         .def(
             "MapVelocityToQDot",
             [](const Class* self, const Context<T>& context,
@@ -787,6 +799,12 @@ void DoScalarDependentDefinitions(py::module m, T) {
                 &Class::GetJointActuatorByName),
             py::arg("name"), py_rvp::reference_internal,
             cls_doc.GetJointActuatorByName.doc_1args)
+        .def("GetJointActuatorByName",
+            overload_cast_explicit<const JointActuator<T>&, string_view,
+                ModelInstanceIndex>(&Class::GetJointActuatorByName),
+            py::arg("name"), py::arg("model_instance"),
+            py_rvp::reference_internal,
+            cls_doc.GetJointActuatorByName.doc_2args)
         .def("GetModelInstanceByName",
             overload_cast_explicit<ModelInstanceIndex, string_view>(
                 &Class::GetModelInstanceByName),

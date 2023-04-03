@@ -7,10 +7,8 @@ from setuptools import setup, find_packages, glob
 DRAKE_VERSION = os.environ.get('DRAKE_VERSION', '0.0.0')
 
 # Required python packages that will be pip installed along with pydrake
-# TODO Can we remove any of these?
 python_required = [
     'matplotlib',
-    'meshcat',
     'numpy',
     'pydot',
     'PyYAML',
@@ -28,13 +26,13 @@ def _actually_find_packages():
     """Work around broken(?!) setuptools."""
     result = find_packages()
     result.extend([
-        "pydrake.examples",
-        "pydrake.geometry",
-        "pydrake.manipulation",
-        "pydrake.solvers",
-        "pydrake.visualization",
+        'pydrake.examples',
+        'pydrake.geometry',
+        'pydrake.manipulation',
+        'pydrake.solvers',
+        'pydrake.visualization',
     ])
-    print(f"Using packages={result}")
+    print(f'Using packages={result}')
     return result
 
 

@@ -19,6 +19,8 @@ namespace {
 
 namespace fs = std::filesystem;
 
+// N.B. See also package_map_remote_test.cc for additional test cases.
+
 string GetTestDataRoot() {
   const string desired_dir =
       "drake/multibody/parsing/test/package_map_test_packages/";
@@ -144,7 +146,7 @@ GTEST_TEST(PackageMapTest, TestManualPopulation) {
   // Adding a duplicate package with a different path throws.
   DRAKE_EXPECT_THROWS_MESSAGE(
       package_map.Add("package_foo", "package_baz"),
-      ".*conflicts with.*");
+      ".*paths are not eq.*");
   // Adding a package with a nonexistent path throws.
   DRAKE_EXPECT_THROWS_MESSAGE(
       package_map.Add("garbage", "garbage"),
@@ -163,6 +165,16 @@ GTEST_TEST(PackageMapTest, TestManualPopulation) {
   VerifyMatch(package_map, std::map<string, string>());
 
   EXPECT_THROW(package_map.Remove("package_baz"), std::runtime_error);
+}
+
+// Default-constructed maps must always be merge-able.
+GTEST_TEST(PackageMapTest, AddDefaultConstructedMaps) {
+  const PackageMap foo;
+  const PackageMap bar;
+  PackageMap dut;
+  dut.AddMap(foo);
+  dut.AddMap(bar);
+  EXPECT_EQ(dut.size(), foo.size());
 }
 
 // Tests that PackageMaps can be combined via AddMap.
@@ -219,7 +231,42 @@ GTEST_TEST(PackageMapTest, TestAddMap) {
   // Combining package maps with a conflicting package + path throws.
   DRAKE_EXPECT_THROWS_MESSAGE(
       package_map_1_copy.AddMap(package_map_conflicting),
-      ".*conflicts with.*");
+      ".*paths are not eq.*");
+}
+
+// Tests that combining via AddMap retains deprecation information
+GTEST_TEST(PackageMapTest, TestAddMapDeprecated) {
+  PackageMap dut = PackageMap::MakeEmpty();
+  dut.Add("default", ".");
+
+  // The deprecation comes along while merging.
+  PackageMap hats = PackageMap::MakeEmpty();
+  hats.Add("hats", ".");
+  hats.SetDeprecated("hats", "I like hats.");
+  dut.AddMap(hats);
+  EXPECT_EQ(dut.size(), 2);
+  EXPECT_EQ(dut.GetDeprecated("default").value_or(""), "");
+  EXPECT_EQ(dut.GetDeprecated("hats").value_or(""), "I like hats.");
+
+  // An *existing* deprecation on the dut remains intact when merging in
+  // another map that doesn't have any deprecation.
+  PackageMap temp = PackageMap::MakeEmpty();
+  temp.Add("hats", ".");
+  dut.AddMap(temp);
+  EXPECT_EQ(dut.GetDeprecated("hats").value_or(""), "I like hats.");
+
+  // Likewise even if the merged map is deprecated with some new message.
+  temp.SetDeprecated("hats", "Ignored!");
+  dut.AddMap(temp);
+  EXPECT_EQ(dut.GetDeprecated("hats").value_or(""), "I like hats.");
+
+  // However, merging a deprecated package onto an undeprecated does inherit
+  // the deprecation.
+  temp = PackageMap::MakeEmpty();
+  temp.Add("default", ".");
+  temp.SetDeprecated("default", "Oh nelly!");
+  dut.AddMap(temp);
+  EXPECT_EQ(dut.GetDeprecated("default").value_or(""), "Oh nelly!");
 }
 
 // Tests that PackageMap can be populated by a package.xml.
@@ -249,7 +296,12 @@ GTEST_TEST(PackageMapTest, TestPopulateFromXml) {
       "package.xml");
   DRAKE_EXPECT_THROWS_MESSAGE(
       package_map.AddPackageXml(conflicting_xml_filename),
-      ".*conflicts with.*");
+      ".*paths are not eq.*");
+
+  // Adding the same filesystem-canonical package.xml twice is not an error.
+  fs::create_directory("alternative_package_a");
+  fs::create_symlink(xml_filename, "alternative_package_a/package.xml");
+  package_map.Add("package_map_test_package_a", "alternative_package_a");
 }
 
 // Tests that PackageMap can be populated by crawling down a directory tree.
@@ -348,6 +400,10 @@ GTEST_TEST(PackageMapTest, TestStreamingToString) {
   for (const auto& it : expected_packages) {
     package_map.Add(it.first, it.second);
   }
+  const std::string url = "file:///tmp/missing.zip";
+  package_map.AddRemote("remote", {
+      .urls = {url},
+      .sha256 = std::string(64u, '0')});
 
   std::stringstream string_buffer;
   string_buffer << package_map;
@@ -360,10 +416,11 @@ GTEST_TEST(PackageMapTest, TestStreamingToString) {
     EXPECT_NE(resulting_string.find(it.first), std::string::npos);
     EXPECT_NE(resulting_string.find(it.second), std::string::npos);
   }
+  EXPECT_NE(resulting_string.find(url), std::string::npos);
 
-  // Verifies that there are three lines in the resulting string.
+  // Verifies the number of lines in the resulting string.
   EXPECT_EQ(std::count(resulting_string.begin(), resulting_string.end(), '\n'),
-            3);
+            4);
 }
 
 // Tests that PackageMap is parsing deprecation messages
@@ -375,7 +432,7 @@ GTEST_TEST(PackageMapTest, TestDeprecation) {
       "package_map_test_package_b is deprecated, and will be removed on or "
           "around 2038-01-19. Please use the 'drake' package instead."
     },
-    {"package_map_test_package_d", ""},
+    {"package_map_test_package_d", "(no explanation given)"},
   };
   const string root_path = GetTestDataRoot();
   PackageMap package_map;

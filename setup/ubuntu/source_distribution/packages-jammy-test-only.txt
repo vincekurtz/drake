@@ -1,7 +1,6 @@
 curl
 kcov
 libstdc++6-10-dbg
-llvm-12
 python3-dateutil
 python3-dbg
 python3-flask
@@ -12,6 +11,7 @@ python3-pandas
 python3-psutil
 python3-requests
 python3-six
+python3-u-msgpack
 python3-uritemplate
 python3-websockets
 valgrind

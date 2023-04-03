@@ -5,6 +5,7 @@
 #include <thread>
 
 #include "drake/common/find_resource.h"
+#include "drake/common/find_runfiles.h"
 #include "drake/common/temp_directory.h"
 #include "drake/geometry/meshcat.h"
 #include "drake/geometry/meshcat_animation.h"
@@ -60,10 +61,10 @@ int do_main() {
                   .25));
   meshcat->SetTransform("obj", RigidTransformd(Vector3d{2, 0, 0}));
 
-  meshcat->SetObject(
-      "mustard",
-      Mesh(FindResourceOrThrow("drake/manipulation/models/ycb/meshes/"
-                               "006_mustard_bottle_textured.obj"), 3.0));
+  auto mustard_obj =
+      FindRunfile("drake_models/ycb/meshes/006_mustard_bottle_textured.obj")
+          .abspath;
+  meshcat->SetObject("mustard", Mesh(mustard_obj, 3.0));
   meshcat->SetTransform("mustard", RigidTransformd(Vector3d{3, 0, 0}));
 
   {
@@ -344,7 +345,7 @@ Open up your browser to the URL above.
 
     multibody::meshcat::ContactVisualizerParams cparams;
     cparams.newtons_per_meter = 60.0;
-    auto& contact = multibody::meshcat::ContactVisualizerd::AddToBuilder(
+    multibody::meshcat::ContactVisualizerd::AddToBuilder(
         &builder, plant, meshcat, std::move(cparams));
 
     auto diagram = builder.Build();
@@ -369,12 +370,10 @@ Open up your browser to the URL above.
     visualizer.StartRecording();
     simulator.AdvanceTo(4.0);
     visualizer.PublishRecording();
-    contact.Delete();
 
     std::cout
         << "The recorded simulation results should now be available as an "
-           "animation.  Use the animation GUI to confirm.  The contact "
-           "forces are not recorded (yet)."
+           "animation.  Use the animation GUI to confirm."
         << std::endl;
 
     std::cout << "[Press RETURN to continue]." << std::endl;
