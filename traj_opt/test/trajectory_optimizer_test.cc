@@ -51,13 +51,11 @@ class TrajectoryOptimizerTester {
     optimizer.CalcAccelerations(v, a);
   }
 
-  static void CalcInverseDynamics(
-      const TrajectoryOptimizer<double>& optimizer,
-      const TrajectoryOptimizerState<double>& state,
-      const std::vector<VectorXd>& a,
-      TrajectoryOptimizerWorkspace<double>* workspace,
-      std::vector<VectorXd>* tau) {
-    optimizer.CalcInverseDynamics(state, a, workspace, tau);
+  static void CalcInverseDynamics(const TrajectoryOptimizer<double>& optimizer,
+                                  const TrajectoryOptimizerState<double>& state,
+                                  const std::vector<VectorXd>& a,
+                                  std::vector<VectorXd>* tau) {
+    optimizer.CalcInverseDynamics(state, a, tau);
   }
 
   static void CalcInverseDynamicsPartials(
@@ -1065,7 +1063,6 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumDtauDq) {
   opt_prob.v_nom.resize(num_steps + 1);
   TrajectoryOptimizer<double> optimizer(diagram.get(), &plant, opt_prob);
   TrajectoryOptimizerState<double> state = optimizer.CreateState();
-  TrajectoryOptimizerWorkspace<double> workspace(num_steps, plant);
 
   // Create some fake data
   std::vector<VectorXd> q;
@@ -1083,8 +1080,7 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumDtauDq) {
   const std::vector<MatrixXd>& Nplus = optimizer.EvalNplus(state);
   TrajectoryOptimizerTester::CalcVelocities(optimizer, q, Nplus, &v);
   TrajectoryOptimizerTester::CalcAccelerations(optimizer, v, &a);
-  TrajectoryOptimizerTester::CalcInverseDynamics(optimizer, state, a,
-                                                 &workspace, &tau);
+  TrajectoryOptimizerTester::CalcInverseDynamics(optimizer, state, a, &tau);
   TrajectoryOptimizerTester::CalcInverseDynamicsPartials(optimizer, state,
                                                          &grad_data);
 
@@ -1319,7 +1315,6 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumCalcInverseDynamics) {
   opt_prob.v_nom.resize(num_steps + 1);
   TrajectoryOptimizer<double> optimizer(diagram.get(), &plant, opt_prob);
   TrajectoryOptimizerState<double> state = optimizer.CreateState();
-  TrajectoryOptimizerWorkspace<double> workspace(num_steps, plant);
   state.set_q(q);
 
   const std::vector<VectorXd>& v = optimizer.EvalV(state);
@@ -1353,8 +1348,7 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumCalcInverseDynamics) {
     // TODO(vincekurtz): track down whatever extra allocations we got from
     // refactoring
     TrajectoryOptimizerTester::CalcAccelerations(optimizer, v, &a);
-    TrajectoryOptimizerTester::CalcInverseDynamics(optimizer, state, a,
-                                                   &workspace, &tau);
+    TrajectoryOptimizerTester::CalcInverseDynamics(optimizer, state, a, &tau);
   }
 
   // Check that our computed values match the true (recorded) ones

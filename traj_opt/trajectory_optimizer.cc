@@ -267,7 +267,8 @@ void TrajectoryOptimizer<T>::CalcInverseDynamics(
     const Context<T>& context_tp = EvalPlantContext(state, t + 1);
     // All dynamics terms are treated implicitly, i.e.,
     // tau[t] = M(q[t+1]) * a[t] - k(q[t+1],v[t+1]) - f_ext[t+1]
-    CalcInverseDynamicsSingleTimeStep(context_tp, a[t], &workspace, &tau->at(t));
+    CalcInverseDynamicsSingleTimeStep(context_tp, a[t], &workspace,
+                                      &tau->at(t));
   }
 }
 
@@ -682,7 +683,7 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsFiniteDiff(
     // Therefore we compute one column of grad_tau at a time. That is, once the
     // loop on position indices i is over, we effectively computed the t-th
     // column of grad_tau.
-    
+
     // N.B. we need a separate workspace for each timestep, otherwise threads
     // will fight over the same workspace
     TrajectoryOptimizerWorkspace<T>& workspace =

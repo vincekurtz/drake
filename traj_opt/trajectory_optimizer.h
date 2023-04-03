@@ -506,7 +506,7 @@ class TrajectoryOptimizer {
                                   TrajectoryOptimizerSolution<T>* solution,
                                   TrajectoryOptimizerStats<T>* stats,
                                   ConvergenceReason* reason) const;
-  
+
   /**
    * Return a mutable system context for the plant at the given time step.
    *
