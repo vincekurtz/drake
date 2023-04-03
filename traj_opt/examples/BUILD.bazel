@@ -11,14 +11,6 @@ load("//tools/lint:lint.bzl", "add_lint_tests")
 package(default_visibility = ["//visibility:public"])
 
 drake_cc_binary(
-    name="openmp_test",
-    srcs = ["openmp_test.cc"],
-    add_test_rule = 0,
-    data = [],
-    deps = [],
-)
-
-drake_cc_binary(
     name = "acrobot",
     srcs = ["acrobot.cc"],
     add_test_rule = 1,
