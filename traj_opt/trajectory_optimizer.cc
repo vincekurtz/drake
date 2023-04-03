@@ -147,6 +147,14 @@ TrajectoryOptimizer<T>::TrajectoryOptimizer(const Diagram<T>* diagram,
           "TrajectoryOptimizer<AutoDiffXd>.");
     }
   }
+
+  // Print warning if parallelization is requested with a slower gradient method
+  if ((params_.gradients_method != GradientsMethod::kForwardDifferences) &&
+      (params_.num_threads != 1)) {
+    drake::log()->warn(
+        "Parallel derivatives are currently supported only for forward "
+        "differences, not for central differences or autodiff.");
+  }
 }
 
 template <typename T>
@@ -422,7 +430,7 @@ void TrajectoryOptimizer<T>::CalcContactForceContribution(
       //  ft = -mu*fn*sigmoid(||vt||/vs)*vt/||vt||.
       // with the algebraic sigmoid function defined as sigmoid(x) =
       // x/sqrt(1+x^2). The algebraic simplification is performed to avoid
-      // division by zero when vt = 0 (or lost of precision when close to zero).
+      // division by zero when vt = 0 (or loss of precision when close to zero).
       const Vector3<T> that_regularized =
           -vt / sqrt(vs * vs + vt.squaredNorm());
       const Vector3<T> ft_BC_W = that_regularized * mu * fn;
