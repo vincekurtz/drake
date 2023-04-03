@@ -35,6 +35,7 @@ method : "trust_region"     # solver method, {linesearch, trust_region}
 linesearch : "backtracking" # linesearch strategy, {armino, backtracking}
 scaling : true
 equality_constraints : true
+num_threads : 4
 
 tolerances:
   rel_cost_reduction: 0
@@ -51,7 +52,7 @@ Delta_max : 1e5    # maximum trust region radius
 
 # Method used to compute gradients of inverse dynamics, one of
 # {forward_differences, central_differences, central_differences4, autodiff}
-gradients_method: "central_differences"
+gradients_method: "forward_differences"
 
 # Playback/visualization parameters
 play_target_trajectory : true
