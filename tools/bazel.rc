@@ -83,6 +83,3 @@ build:snopt --define=WITH_SNOPT=ON
 build:packaging --define=WITH_SNOPT=ON
 build:everything --define=WITH_SNOPT=ON
 
-# Enable timers (for profiling) and openmp (for parallelization) by default
-build --copt=-DENABLE_TIMERS
-build --config=omp
