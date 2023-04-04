@@ -26,7 +26,9 @@ class JacoExample : public TrajOptExample {
     std::string robot_file = FindResourceOrThrow(
         "drake/traj_opt/examples/models/j2s7s300_arm_sphere_collision_v2.sdf");
     ModelInstanceIndex jaco = Parser(plant).AddModelFromFile(robot_file);
-    plant->WeldFrames(plant->world_frame(), plant->GetFrameByName("base"));
+    RigidTransformd X_jaco(Vector3d(0,-0.27, 0.11));
+    plant->WeldFrames(plant->world_frame(), plant->GetFrameByName("base"),
+                      X_jaco);
     plant->disable_gravity(jaco);
 
     // Add a manipuland
@@ -35,11 +37,11 @@ class JacoExample : public TrajOptExample {
     Parser(plant).AddAllModelsFromFile(manipuland_file);
 
     // Add the ground
-    RigidTransformd X_ground(Vector3d(0.0, 0.0, -5.0));
-    plant->RegisterVisualGeometry(plant->world_body(), X_ground,
-                                  Box(25, 25, 10), "ground", green);
+    RigidTransformd X_ground(Vector3d(0.0, 0.0, -0.5));
+    plant->RegisterVisualGeometry(plant->world_body(), X_ground, Box(25, 25, 1),
+                                  "ground", green);
     plant->RegisterCollisionGeometry(plant->world_body(), X_ground,
-                                     Box(25, 25, 10), "ground",
+                                     Box(25, 25, 1), "ground",
                                      CoulombFriction<double>(0.5, 0.5));
   }
 };

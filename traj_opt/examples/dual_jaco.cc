@@ -28,14 +28,14 @@ class DualJacoExample : public TrajOptExample {
 
     ModelInstanceIndex jaco_left =
         Parser(plant).AddModelFromFile(robot_file, "jaco_left");
-    RigidTransformd X_left(Vector3d(0, 0.27, 0.0));
+    RigidTransformd X_left(Vector3d(0, 0.27, 0.11));
     plant->WeldFrames(plant->world_frame(),
                       plant->GetFrameByName("base", jaco_left), X_left);
     plant->disable_gravity(jaco_left);
 
     ModelInstanceIndex jaco_right =
         Parser(plant).AddModelFromFile(robot_file, "jaco_right");
-    RigidTransformd X_right(Vector3d(0, -0.27, 0.0));
+    RigidTransformd X_right(Vector3d(0, -0.27, 0.11));
     plant->WeldFrames(plant->world_frame(),
                       plant->GetFrameByName("base", jaco_right), X_right);
     plant->disable_gravity(jaco_right);
@@ -46,11 +46,11 @@ class DualJacoExample : public TrajOptExample {
     Parser(plant).AddAllModelsFromFile(manipuland_file);
 
     // Add the ground
-    RigidTransformd X_ground(Vector3d(0.0, 0.0, -5.0));
+    RigidTransformd X_ground(Vector3d(0.0, 0.0, -0.5));
     plant->RegisterVisualGeometry(plant->world_body(), X_ground,
-                                  Box(25, 25, 10), "ground", green);
+                                  Box(25, 25, 1), "ground", green);
     plant->RegisterCollisionGeometry(plant->world_body(), X_ground,
-                                     Box(25, 25, 10), "ground",
+                                     Box(25, 25, 1), "ground",
                                      CoulombFriction<double>(0.5, 0.5));
   }
 };
