@@ -26,7 +26,7 @@ class JacoExample : public TrajOptExample {
     std::string robot_file = FindResourceOrThrow(
         "drake/traj_opt/examples/models/j2s7s300_arm_sphere_collision_v2.sdf");
     ModelInstanceIndex jaco = Parser(plant).AddModelFromFile(robot_file);
-    RigidTransformd X_jaco(Vector3d(0,-0.27, 0.11));
+    RigidTransformd X_jaco(Vector3d(0, -0.27, 0.11));
     plant->WeldFrames(plant->world_frame(), plant->GetFrameByName("base"),
                       X_jaco);
     plant->disable_gravity(jaco);

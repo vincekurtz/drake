@@ -113,8 +113,8 @@ drake_cc_binary(
     add_test_rule = 1,
     data = [
         ":dual_jaco.yaml",
-        "//manipulation/models/jaco_description:models",
         ":models",
+        "//manipulation/models/jaco_description:models",
     ],
     deps = [
         ":example_base",
@@ -130,8 +130,8 @@ drake_cc_binary(
     add_test_rule = 1,
     data = [
         ":jaco.yaml",
-        "//manipulation/models/jaco_description:models",
         ":models",
+        "//manipulation/models/jaco_description:models",
     ],
     deps = [
         ":example_base",
