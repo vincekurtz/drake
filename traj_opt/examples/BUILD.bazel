@@ -108,6 +108,23 @@ drake_cc_binary(
 )
 
 drake_cc_binary(
+    name = "jaco",
+    srcs = ["jaco.cc"],
+    add_test_rule = 1,
+    data = [
+        ":jaco.yaml",
+        "//manipulation/models/jaco_description:models",
+        ":models",
+    ],
+    deps = [
+        ":example_base",
+        "//common:find_resource",
+        "//multibody/parsing",
+        "//multibody/plant",
+    ],
+)
+
+drake_cc_binary(
     name = "kuka",
     srcs = ["kuka.cc"],
     add_test_rule = 1,
