@@ -42,7 +42,7 @@ class DualJacoExample : public TrajOptExample {
 
     // Add a manipuland
     std::string manipuland_file =
-        FindResourceOrThrow("drake/traj_opt/examples/models/box_intel_nuc.sdf");
+        FindResourceOrThrow("drake/traj_opt/examples/models/box_15cm.sdf");
     Parser(plant).AddAllModelsFromFile(manipuland_file);
 
     // Add the ground
