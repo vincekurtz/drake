@@ -51,7 +51,7 @@ void TrajOptExample::RunModelPredictiveControl(
       SolveTrajectoryOptimization(options);
 
   // Start an LCM instance
-  lcm::DrakeLcm lcm_instance();
+  lcm::DrakeLcm lcm_instance;
 
   // Start the simulator, which reads control inputs and publishes the system
   // state over LCM
