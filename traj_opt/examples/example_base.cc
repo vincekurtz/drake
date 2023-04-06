@@ -97,7 +97,7 @@ void TrajOptExample::RunModelPredictiveControl(
 
   // Set up the MPC controller system
   auto controller = builder.AddSystem<ModelPredictiveController>(
-      ctrl_diagram.get(), &ctrl_plant, opt_prob, initial_solution.q,
+      ctrl_diagram.get(), &ctrl_plant, opt_prob, initial_solution,
       solver_params, Kp, Kd, 1. / options.controller_frequency);
 
   // Connect the MPC controller to the simulated plant

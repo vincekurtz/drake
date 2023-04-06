@@ -55,18 +55,18 @@ class ModelPredictiveController : public LeafSystem<double> {
    * @param diagram System diagram for the controller's internal model
    * @param plant MultibodyPlant model of the system, part of diagram
    * @param prob Problem definition, including cost, target state, etc
-   * @param q_guess Initial guess for the first MPC iteration
+   * @param warm_start_solution Prior solution for first iteration warm-start
    * @param params Solver parameters, including frequency, PD gains, etc
    * @param Kp proportional gain of size (nu x nq)
    * @param Kd derivative gain of size (nu x nv)
    * @param replan_period time (in seconds) between optimizer solves
    */
-  ModelPredictiveController(const Diagram<double>* diagram,
-                            const MultibodyPlant<double>* plant,
-                            const ProblemDefinition& prob,
-                            const std::vector<VectorXd>& q_guess,
-                            const SolverParameters& params, const MatrixXd& Kp,
-                            const MatrixXd& Kd, const double replan_period);
+  ModelPredictiveController(
+      const Diagram<double>* diagram, const MultibodyPlant<double>* plant,
+      const ProblemDefinition& prob,
+      const TrajectoryOptimizerSolution<double>& warm_start_solution,
+      const SolverParameters& params, const MatrixXd& Kp, const MatrixXd& Kd,
+      const double replan_period);
 
   const InputPort<double>& get_state_input_port() const {
     return this->get_input_port(state_input_port_);

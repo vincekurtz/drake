@@ -9,26 +9,25 @@ namespace mpc {
 
 ModelPredictiveController::ModelPredictiveController(
     const Diagram<double>* diagram, const MultibodyPlant<double>* plant,
-    const ProblemDefinition& prob, const std::vector<VectorXd>& q_guess,
+    const ProblemDefinition& prob,
+    const TrajectoryOptimizerSolution<double>& warm_start_solution,
     const SolverParameters& params, const MatrixXd& Kp, const MatrixXd& Kd,
     const double replan_period)
     : time_step_(plant->time_step()),
-      num_steps_(q_guess.size()),
+      num_steps_(prob.num_steps + 1),
       nq_(plant->num_positions()),
       nv_(plant->num_velocities()),
       nu_(plant->num_actuators()),
       B_(plant->MakeActuationMatrix()),
       Kp_(Kp),
       Kd_(Kd),
-      q_guess_(q_guess),
+      q_guess_(warm_start_solution.q),
       optimizer_(diagram, plant, prob, params) {
   // Some size sanity checks
   DRAKE_DEMAND(Kp_.rows() == nu_);
   DRAKE_DEMAND(Kp_.cols() == nq_);
   DRAKE_DEMAND(Kd_.rows() == nu_);
   DRAKE_DEMAND(Kd_.cols() == nv_);
-  DRAKE_DEMAND(static_cast<int>(q_guess.size()) == prob.num_steps + 1);
-  DRAKE_DEMAND(static_cast<int>(q_guess[0].size()) == nq_);
 
   // Input port recieves state estimates
   state_input_port_ = this->DeclareVectorInputPort(
@@ -42,7 +41,9 @@ ModelPredictiveController::ModelPredictiveController(
                              .get_index();
 
   // Discrete state stores optimal trajectories
-  stored_trajectory_ = this->DeclareAbstractState(Value<StoredTrajectory>());
+  StoredTrajectory initial_guess_traj;
+  StoreOptimizerSolution(warm_start_solution, 0.0, &initial_guess_traj);
+  stored_trajectory_ = this->DeclareAbstractState(Value(initial_guess_traj));
   this->DeclarePeriodicUnrestrictedUpdateEvent(
       replan_period, 0, &ModelPredictiveController::UpdateAbstractState);
 }
@@ -60,9 +61,7 @@ EventStatus ModelPredictiveController::UpdateAbstractState(
       state->get_mutable_abstract_state<StoredTrajectory>(stored_trajectory_);
 
   // Set the initial guess from the stored solution
-  if (context.get_time() > 0) {
-    UpdateInitialGuess(stored_trajectory, context.get_time(), &q_guess_);
-  }
+  UpdateInitialGuess(stored_trajectory, context.get_time(), &q_guess_);
   q_guess_[0] = q0;  // guess must be consistent with the initial condition
 
   // Solve the trajectory optimization problem from the new initial condition
@@ -118,13 +117,17 @@ void ModelPredictiveController::StoreOptimizerSolution(
   }
 
   // Perform polynomial interpolation and store the result in our struct
+  // TODO(vincekurz): set interpolation with some parameter
   stored_trajectory->start_time = start_time;
   stored_trajectory->q =
-      PiecewisePolynomial<double>::FirstOrderHold(time_steps, q_knots);
+      PiecewisePolynomial<double>::CubicWithContinuousSecondDerivatives(
+          time_steps, q_knots);
   stored_trajectory->v =
-      PiecewisePolynomial<double>::FirstOrderHold(time_steps, v_knots);
+      PiecewisePolynomial<double>::CubicWithContinuousSecondDerivatives(
+          time_steps, v_knots);
   stored_trajectory->u =
-      PiecewisePolynomial<double>::FirstOrderHold(time_steps, u_knots);
+      PiecewisePolynomial<double>::CubicWithContinuousSecondDerivatives(
+          time_steps, u_knots);
 }
 
 void ModelPredictiveController::SendControlTorques(
@@ -135,22 +138,17 @@ void ModelPredictiveController::SendControlTorques(
   const auto& q = x.topRows(nq_);
   const auto& v = x.bottomRows(nv_);
 
-  // TODO: handle initial step more gracefully
-  if (t > 0) {
-    // Get the nominal state and input for this timestep from the latest
-    // trajectory optimization
-    const StoredTrajectory& traj =
-        context.get_abstract_state<StoredTrajectory>(stored_trajectory_);
-    VectorXd q_nom = traj.q.value(t - traj.start_time);
-    VectorXd v_nom = traj.v.value(t - traj.start_time);
-    VectorXd u_nom = traj.u.value(t - traj.start_time);
+  // Get the nominal state and input for this timestep from the latest
+  // trajectory optimization
+  const StoredTrajectory& traj =
+      context.get_abstract_state<StoredTrajectory>(stored_trajectory_);
+  VectorXd q_nom = traj.q.value(t - traj.start_time);
+  VectorXd v_nom = traj.v.value(t - traj.start_time);
+  VectorXd u_nom = traj.u.value(t - traj.start_time);
 
-    // Set control torques according to a PD controller
-    Eigen::VectorBlock<VectorXd> u = output->get_mutable_value();
-    u = u_nom - Kp_ * (q - q_nom) - Kd_ * (v - v_nom);
-  } else {
-    output->set_value(VectorXd::Zero(nu_));
-  }
+  // Set control torques according to a PD controller
+  Eigen::VectorBlock<VectorXd> u = output->get_mutable_value();
+  u = u_nom - Kp_ * (q - q_nom) - Kd_ * (v - v_nom);
 }
 
 }  // namespace mpc
