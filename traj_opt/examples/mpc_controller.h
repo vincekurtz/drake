@@ -142,11 +142,6 @@ class ModelPredictiveController : public LeafSystem<double> {
   const MatrixXd Kp_;
   const MatrixXd Kd_;
 
-  // Initial guess of sequence of generalized positions, used to warm start the
-  // optimizer at each step.
-  // TODO: get rid of this
-  mutable std::vector<VectorXd> q_guess_;
-
   // Optimizer used to compute control inputs at each time step. Mutable because
   // the stored intitial conditions must be updated at each step.
   mutable TrajectoryOptimizer<double> optimizer_;

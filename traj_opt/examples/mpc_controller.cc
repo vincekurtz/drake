@@ -21,7 +21,6 @@ ModelPredictiveController::ModelPredictiveController(
       B_(plant->MakeActuationMatrix()),
       Kp_(Kp),
       Kd_(Kd),
-      q_guess_(warm_start_solution.q),
       optimizer_(diagram, plant, prob, params) {
   // Some size sanity checks
   DRAKE_DEMAND(Kp_.rows() == nu_);
@@ -61,14 +60,15 @@ EventStatus ModelPredictiveController::UpdateAbstractState(
       state->get_mutable_abstract_state<StoredTrajectory>(stored_trajectory_);
 
   // Set the initial guess from the stored solution
-  UpdateInitialGuess(stored_trajectory, context.get_time(), &q_guess_);
-  q_guess_[0] = q0;  // guess must be consistent with the initial condition
+  std::vector<VectorXd> q_guess(num_steps_, VectorXd(nq_));
+  UpdateInitialGuess(stored_trajectory, context.get_time(), &q_guess);
+  q_guess[0] = q0;  // guess must be consistent with the initial condition
 
   // Solve the trajectory optimization problem from the new initial condition
   optimizer_.ResetInitialConditions(q0, v0);
   TrajectoryOptimizerStats<double> stats;
   TrajectoryOptimizerSolution<double> solution;
-  optimizer_.Solve(q_guess_, &solution, &stats);
+  optimizer_.Solve(q_guess, &solution, &stats);
 
   // Store the result in the discrete state
   StoreOptimizerSolution(solution, context.get_time(), &stored_trajectory);
