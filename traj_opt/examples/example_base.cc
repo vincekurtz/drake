@@ -76,13 +76,14 @@ void TrajOptExample::RunModelPredictiveControl(
   auto ctrl_diagram = ctrl_builder.Build();
   
   // Set PD gains for lower level controller
-  VectorXd Kp = options.Kp;
-  VectorXd Kd = options.Kd;
-  if (Kp.size() != options.q_init.size()) {
-    Kp.setZero(options.q_init.size());
+  MatrixXd B = plant.MakeActuationMatrix();
+  MatrixXd Kp = MatrixXd::Zero(plant.num_actuators(), plant.num_positions());
+  MatrixXd Kd = MatrixXd::Zero(plant.num_actuators(), plant.num_velocities());
+  if (options.Kp.size() != 0) {
+    Kp = B.transpose() * options.Kp.asDiagonal();
   }
-  if (Kd.size() != options.v_init.size()) {
-    Kd.setZero(options.v_init.size());
+  if (options.Kd.size() != 0) {
+    Kd = B.transpose() * options.Kd.asDiagonal();
   }
 
   // Define the optimization problem 

@@ -82,9 +82,9 @@ void ModelPredictiveController::UpdateInitialGuess(
     std::vector<VectorXd>* q_guess) const {
   DRAKE_DEMAND(static_cast<int>(q_guess->size()) == num_steps_);
 
+  const double start_time = current_time - stored_trajectory.start_time;
   for (int i=0; i < num_steps_; ++i) {
-    const double t =
-        i * time_step_ + current_time - stored_trajectory.start_time;
+    const double t = start_time + i * time_step_;
     q_guess->at(i) = stored_trajectory.q.value(t);
   }
 }
