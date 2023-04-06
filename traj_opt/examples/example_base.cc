@@ -15,6 +15,7 @@
 #include "drake/systems/lcm/lcm_subscriber_system.h"
 #include "drake/systems/primitives/constant_vector_source.h"
 #include "drake/traj_opt/examples/lcm_interfaces.h"
+#include "drake/traj_opt/examples/mpc_controller.h"
 #include "drake/visualization/visualization_config_functions.h"
 
 namespace drake {
@@ -24,6 +25,7 @@ namespace examples {
 using systems::lcm::LcmInterfaceSystem;
 using systems::lcm::LcmPublisherSystem;
 using systems::lcm::LcmSubscriberSystem;
+using mpc::ModelPredictiveController;
 
 void TrajOptExample::RunExample(const std::string options_file) const {
   // Load parameters from file
@@ -50,22 +52,74 @@ void TrajOptExample::RunModelPredictiveControl(
   TrajectoryOptimizerSolution<double> initial_solution =
       SolveTrajectoryOptimization(options);
 
-  // Start an LCM instance
-  lcm::DrakeLcm lcm_instance;
+  // Set up the system diagram for the simulator
+  DiagramBuilder<double> builder;
 
-  // Start the simulator, which reads control inputs and publishes the system
-  // state over LCM
-  std::thread sim_thread(&TrajOptExample::SimulateWithControlFromLcm, this,
-                         options);
+  // Construct the multibody plant system model
+  MultibodyPlantConfig config;
+  config.time_step = options.sim_time_step;
+  auto [plant, scene_graph] = AddMultibodyPlant(config, &builder);
+  CreatePlantModel(&plant);
+  plant.Finalize();
 
-  // Start the controller, which reads the system state and publishes
-  // control torques over LCM
-  std::thread ctrl_thread(&TrajOptExample::ControlWithStateFromLcm, this,
-                          options, initial_solution.q);
+  // Connect to the visualizer
+  visualization::AddDefaultVisualization(&builder);
 
-  // Wait for all threads to stop
-  sim_thread.join();
-  ctrl_thread.join();
+  // Create a system model for the controller
+  DiagramBuilder<double> ctrl_builder;
+  MultibodyPlantConfig ctrl_config;
+  ctrl_config.time_step = options.time_step;
+  auto [ctrl_plant, ctrl_scene_graph] =
+      AddMultibodyPlant(ctrl_config, &ctrl_builder);
+  CreatePlantModel(&ctrl_plant);
+  ctrl_plant.Finalize();
+  auto ctrl_diagram = ctrl_builder.Build();
+  
+  // Set PD gains for lower level controller
+  VectorXd Kp = options.Kp;
+  VectorXd Kd = options.Kd;
+  if (Kp.size() != options.q_init.size()) {
+    Kp.setZero(options.q_init.size());
+  }
+  if (Kd.size() != options.v_init.size()) {
+    Kd.setZero(options.v_init.size());
+  }
+
+  // Define the optimization problem 
+  ProblemDefinition opt_prob;
+  SetProblemDefinition(options, &opt_prob);
+  NormalizeQuaternions(ctrl_plant, &opt_prob.q_nom);
+  
+  // Set MPC-specific solver parameters
+  SolverParameters solver_params;
+  SetSolverParameters(options, &solver_params);
+  solver_params.max_iterations = options.mpc_iters;
+
+  // Set up the MPC controller system
+  auto controller = builder.AddSystem<ModelPredictiveController>(
+      ctrl_diagram.get(), &ctrl_plant, opt_prob, initial_solution.q,
+      solver_params, Kp, Kd, 1. / options.controller_frequency);
+
+  // Connect the MPC controller to the simulated plant
+  builder.Connect(plant.get_state_output_port(),
+                  controller->get_state_input_port());
+  builder.Connect(controller->get_control_output_port(),
+                  plant.get_actuation_input_port());
+
+  // Compile the diagram
+  auto diagram = builder.Build();
+  std::unique_ptr<systems::Context<double>> diagram_context =
+      diagram->CreateDefaultContext();
+  systems::Context<double>& plant_context =
+      diagram->GetMutableSubsystemContext(plant, diagram_context.get());
+
+  // Run the simulation
+  plant.SetPositions(&plant_context, options.q_init);
+  plant.SetVelocities(&plant_context, options.v_init);
+  systems::Simulator<double> simulator(*diagram, std::move(diagram_context));
+  simulator.set_target_realtime_rate(options.sim_realtime_rate);
+  simulator.Initialize();
+  simulator.AdvanceTo(options.sim_time);
 
   // Print profiling info
   std::cout << TableOfAverages() << std::endl;

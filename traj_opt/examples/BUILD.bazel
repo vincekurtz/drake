@@ -295,11 +295,28 @@ drake_cc_library(
 )
 
 drake_cc_library(
+    name = "mpc_controller",
+    srcs = ["mpc_controller.cc"],
+    hdrs = ["mpc_controller.h"],
+    deps = [
+        "//lcmtypes:traj_opt",
+        "//multibody/plant",
+        "//systems/framework:diagram",
+        "//systems/framework:leaf_system",
+        "//systems/framework:vector",
+        "//common/trajectories:piecewise_polynomial",
+        "//traj_opt:problem_definition",
+        "//traj_opt:trajectory_optimizer",
+    ],
+)
+
+drake_cc_library(
     name = "example_base",
     srcs = ["example_base.cc"],
     hdrs = ["example_base.h"],
     deps = [
         ":lcm_interfaces",
+        ":mpc_controller",
         ":yaml_config",
         "//common:find_resource",
         "//examples/acrobot:acrobot_lcm",
