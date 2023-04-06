@@ -101,6 +101,35 @@ class ModelPredictiveController : public LeafSystem<double> {
   void SendControlTorques(const Context<double>& context,
                           BasicVector<double>* output) const;
 
+  /**
+   * Set an initial guess for trajectory optimization based on the stored
+   * previous solution to the trajectory optimization problem.
+   *
+   * @param stored_trajectory the solution from the previous optimization
+   * @param current_time the current time, in seconds
+   * @param q_guess the guess (sequence of positions) to set
+   */
+  void UpdateInitialGuess(const StoredTrajectory& stored_trajectory,
+                          const double current_time,
+                          std::vector<VectorXd>* q_guess) const;
+
+  /**
+   * Store the solution we get from trajectory optimization in a little struct
+   * that performs interpolation between time steps.
+   *
+   * @param solution the trajectory optimization solution
+   * @param start_time the time at which the optimization was solved
+   * @param stored_trajectory a struct holding the solution
+   */
+  void StoreOptimizerSolution(
+      const TrajectoryOptimizerSolution<double>& solution,
+      const double start_time, StoredTrajectory* stored_trajectory) const;
+
+  // Timestep size and total number of steps. We use this to interpolate the
+  // solution between timesteps for the low-level PD controller.
+  const double time_step_;
+  const int num_steps_;
+
   // Number of positions, velocities, and actuators
   const int nq_;
   const int nv_;
@@ -115,6 +144,7 @@ class ModelPredictiveController : public LeafSystem<double> {
 
   // Initial guess of sequence of generalized positions, used to warm start the
   // optimizer at each step.
+  // TODO: get rid of this
   mutable std::vector<VectorXd> q_guess_;
 
   // Optimizer used to compute control inputs at each time step. Mutable because

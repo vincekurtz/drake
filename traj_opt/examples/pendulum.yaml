@@ -54,8 +54,8 @@ save_solver_stats_csv : true
 
 # MPC parameters
 mpc : true
-mpc_iters : 10
-controller_frequency : 1.0
+mpc_iters : 50
+controller_frequency : 50.0
 sim_time : 2
 sim_time_step : 1e-3
 sim_realtime_rate : 1.0
