@@ -40,8 +40,7 @@ ModelPredictiveController::ModelPredictiveController(
                              .get_index();
 
   // Discrete state stores optimal trajectories
-  stored_trajectory_ =
-      this->DeclareAbstractState(Value<PiecewisePolynomial<double>>());
+  stored_trajectory_ = this->DeclareAbstractState(Value<StoredTrajectory>());
   this->DeclarePeriodicUnrestrictedUpdateEvent(
       replan_period, 0, &ModelPredictiveController::UpdateAbstractState);
 }
@@ -50,14 +49,45 @@ EventStatus ModelPredictiveController::UpdateAbstractState(
     const Context<double>& context, State<double>* state) const {
   std::cout << "Resolving at t=" << context.get_time() << std::endl;
   // Get the latest initial condition
+  const VectorXd& x0 = EvalVectorInput(context, state_input_port_)->value();
+  const auto& q0 = x0.topRows(nq_);
+  const auto& v0 = x0.bottomRows(nv_);
 
   // Solve the trajectory optimization problem from the new initial condition
+  optimizer_.ResetInitialConditions(q0, v0);
+  // TODO: set a better initial guess
+  q_guess_[0] = q0;   // guess must be consistent with initial condition
+  TrajectoryOptimizerStats<double> stats;
+  TrajectoryOptimizerSolution<double> solution;
+  optimizer_.Solve(q_guess_, &solution, &stats);
 
   // Store the result in the discrete state
-  PiecewisePolynomial<double>& traj =
-      state->get_mutable_abstract_state<PiecewisePolynomial<double>>(
-          stored_trajectory_);
-  (void) traj;
+  StoredTrajectory& traj =
+      state->get_mutable_abstract_state<StoredTrajectory>(stored_trajectory_);
+
+  // TODO: make this a separate function?
+  traj.start_time = context.get_time();
+
+  const int num_steps = solution.q.size();
+  std::vector<double> time_steps;
+  std::vector<MatrixXd> q_knots(num_steps, VectorXd(nq_));
+  std::vector<MatrixXd> v_knots(num_steps, VectorXd(nq_));
+  std::vector<MatrixXd> u_knots(num_steps, VectorXd(nq_));
+  for (int i = 0; i < num_steps; ++i) {
+    time_steps.push_back(i * 0.05);  // TODO: get from params
+    
+    q_knots[i] = solution.q[i];
+    v_knots[i] = solution.v[i];
+
+    if (i == num_steps-1) {
+        u_knots[i] = B_.transpose() * solution.tau[i-1];
+    } else {
+        u_knots[i] = B_.transpose() * solution.tau[i];
+    }
+  }
+  traj.q = PiecewisePolynomial<double>::FirstOrderHold(time_steps, q_knots);
+  traj.v = PiecewisePolynomial<double>::FirstOrderHold(time_steps, v_knots);
+  traj.u = PiecewisePolynomial<double>::FirstOrderHold(time_steps, u_knots);
 
   return EventStatus::Succeeded();
 }
@@ -67,21 +97,26 @@ void ModelPredictiveController::SendControlTorques(
   // Get the current time and state estimate
   const double t = context.get_time();
   const VectorXd& x = EvalVectorInput(context, state_input_port_)->value();
-  auto q = x.topRows(nq_);
-  auto v = x.bottomRows(nv_);
+  const auto& q = x.topRows(nq_);
+  const auto& v = x.bottomRows(nv_);
 
-  // Get the nominal state and input for this timestep from the latest
-  // trajectory optimization
-  (void) t;
-  VectorXd q_nom(1);
-  VectorXd v_nom(1);
-  q_nom << 3.14;
-  v_nom << 0.0;
-  VectorXd u_nom = VectorXd::Zero(nu_);
+  // TODO: handle initial step more gracefully
+  if (t > 0) {
 
-  // Set control torques according to a PD controller
-  Eigen::VectorBlock<VectorXd> u = output->get_mutable_value();
-  u = u_nom - Kp_ * (q - q_nom) - Kd_ * (v - v_nom);
+    // Get the nominal state and input for this timestep from the latest
+    // trajectory optimization
+    const StoredTrajectory& traj =
+        context.get_abstract_state<StoredTrajectory>(stored_trajectory_);
+    VectorXd q_nom = traj.q.value(t - traj.start_time);
+    VectorXd v_nom = traj.v.value(t - traj.start_time);
+    VectorXd u_nom = traj.u.value(t - traj.start_time);
+
+    // Set control torques according to a PD controller
+    Eigen::VectorBlock<VectorXd> u = output->get_mutable_value();
+    u = u_nom - Kp_ * (q - q_nom) - Kd_ * (v - v_nom);
+  } else {
+    output->set_value(VectorXd::Zero(nu_));
+  }
 }
 
 }  // namespace mpc

@@ -27,6 +27,22 @@ using systems::LeafSystem;
 using systems::State;
 using trajectories::PiecewisePolynomial;
 
+/// A little struct for holding an optimal trajectory so that we can track it
+/// between MPC solves.
+struct StoredTrajectory {
+  // Time (in seconds) at which this trajectory was generated
+  double start_time{0.0};
+
+  // Generalized positions
+  PiecewisePolynomial<double> q;
+
+  // Generalized velocities
+  PiecewisePolynomial<double> v;
+
+  // Control torques
+  PiecewisePolynomial<double> u;
+};
+
 /// An MPC controller that recieves state estimate as input and sends control
 /// torques as output. The trajectory optimization problem is re-solved at a
 /// fixed frequency (params.controller_frequency), and a low-level PD controller
