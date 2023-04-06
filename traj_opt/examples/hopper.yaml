@@ -14,7 +14,7 @@ q_guess :   [ 1.0, 0.61, 0.3,-0.5, 0.2]
 Qq : [10, 0.1, 0.1, 10, 0.1]      # Running cost
 Qv : [0.1, 0.1, 0.1, 0.1, 0.1]
 
-R : [1e1, 1e1, 1e3, 0.1, 0.1]
+R : [1e3, 1e3, 1e3, 0.1, 0.1]
 
 Qfq : [10, 10, 10, 10, 10]  # Terminal cost
 Qfv : [1.0, 1.0, 1.0, 1.0, 1.0]
@@ -26,7 +26,6 @@ num_steps : 40    # number of timesteps
 # Solver parameters
 max_iters : 500               # maximum Gauss-Newton iterations
 method : "trust_region"       # solver method, {linesearch, trust_region}
-linesearch: "backtracking"
 scaling : false
 scaling_method : "double_sqrt"
 equality_constraints : true
@@ -77,11 +76,11 @@ friction_coefficient : 1.0  # Coefficient of friction.
 stiction_velocity: 0.01     # Regularization velocity, in m/s.
 
 # MPC parameters
-mpc : false
-mpc_iters : 20
-controller_frequency : 5
-sim_time : 2
+mpc : true
+mpc_iters : 10
+controller_frequency : 20
+sim_time : 5
 sim_time_step : 1e-3
-sim_realtime_rate : 0.05
-Kp : [0, 0, 0, 10.0, 10.0]
-Kd : [0, 0, 0, 1.0, 1.0]
+sim_realtime_rate : 1.0
+Kp : [0, 0, 0, 20.0, 20.0]
+Kd : [0, 0, 0, 0.5, 0.5]
