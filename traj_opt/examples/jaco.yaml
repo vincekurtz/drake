@@ -27,7 +27,7 @@ q_guess : [0.0, 1.7, 0.0, 5.0, 0.0, 4.5, 0.0,
            0.5,-0.1, 0.1]
 
 # Cost Weights
-Qq: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+Qq: [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1,
      1.0, 1.0, 1.0, 1.0,
      1.0, 1.0, 1.0]
 Qv: [1e-1, 1e-1, 1e-1, 1e-1, 1e-1, 1e-1, 1e-1,
@@ -49,7 +49,7 @@ time_step : 0.05    # Discretization timestep (seconds)
 num_steps : 40      # number of timesteps
 
 # Solver parameters
-max_iters : 200             # maximum Gauss-Newton iterations
+max_iters : 50             # maximum Gauss-Newton iterations
 method : "trust_region"     # solver method, {linesearch, trust_region}
 scaling : true
 equality_constraints : true
@@ -94,3 +94,16 @@ force_at_a_distance : true
 # Friction
 friction_coefficient : 0.1  # Coefficient of friction.
 stiction_velocity: 0.05      # Regularization velocity, in m/s.
+
+# MPC parameters
+mpc : true
+mpc_iters : 5
+controller_frequency : 5
+sim_time : 5
+sim_time_step : 1e-3
+sim_realtime_rate : 1.0
+
+Kp: [100, 100, 100, 100, 100, 100, 100,
+     0, 0, 0, 0, 0, 0, 0]
+Kd: [20, 20, 20, 20, 20, 20, 20,
+     0, 0, 0, 0, 0, 0]
