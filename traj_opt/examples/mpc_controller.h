@@ -22,8 +22,8 @@ using systems::Context;
 using systems::Diagram;
 using systems::EventStatus;
 using systems::InputPort;
-using systems::OutputPort;
 using systems::LeafSystem;
+using systems::OutputPort;
 using systems::State;
 using trajectories::PiecewisePolynomial;
 
@@ -85,7 +85,7 @@ class ModelPredictiveController : public LeafSystem<double> {
    * @param state abstract state used to store the optimal trajectory
    */
   EventStatus UpdateAbstractState(const Context<double>& context,
-                           State<double>* state) const;
+                                  State<double>* state) const;
 
   /**
    * Send low-level control torques to the robot according to the PD control law
@@ -150,7 +150,7 @@ class ModelPredictiveController : public LeafSystem<double> {
   int state_input_port_;
   int control_output_port_;
 
-  // Index for the abstract state used to store optimal trajectories 
+  // Index for the abstract state used to store optimal trajectories
   systems::AbstractStateIndex stored_trajectory_;
 };
 

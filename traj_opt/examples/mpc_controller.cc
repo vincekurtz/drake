@@ -77,13 +77,12 @@ EventStatus ModelPredictiveController::UpdateAbstractState(
 }
 
 void ModelPredictiveController::UpdateInitialGuess(
-    const StoredTrajectory& stored_trajectory,
-    const double current_time,
+    const StoredTrajectory& stored_trajectory, const double current_time,
     std::vector<VectorXd>* q_guess) const {
   DRAKE_DEMAND(static_cast<int>(q_guess->size()) == num_steps_);
 
   const double start_time = current_time - stored_trajectory.start_time;
-  for (int i=0; i < num_steps_; ++i) {
+  for (int i = 0; i < num_steps_; ++i) {
     const double t = start_time + i * time_step_;
     q_guess->at(i) = stored_trajectory.q.value(t);
   }
@@ -110,9 +109,9 @@ void ModelPredictiveController::StoreOptimizerSolution(
 
     // Control inputs, which are undefined at the last time step
     if (i == num_steps_ - 1) {
-        u_knots[i] = B_.transpose() * solution.tau[i - 1];
+      u_knots[i] = B_.transpose() * solution.tau[i - 1];
     } else {
-        u_knots[i] = B_.transpose() * solution.tau[i];
+      u_knots[i] = B_.transpose() * solution.tau[i];
     }
   }
 

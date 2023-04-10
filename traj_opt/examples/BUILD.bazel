@@ -280,31 +280,16 @@ drake_cc_binary(
 )
 
 drake_cc_library(
-    name = "lcm_interfaces",
-    srcs = ["lcm_interfaces.cc"],
-    hdrs = ["lcm_interfaces.h"],
-    deps = [
-        "//lcmtypes:traj_opt",
-        "//multibody/plant",
-        "//systems/framework:diagram",
-        "//systems/framework:leaf_system",
-        "//systems/framework:vector",
-        "//traj_opt:problem_definition",
-        "//traj_opt:trajectory_optimizer",
-    ],
-)
-
-drake_cc_library(
     name = "mpc_controller",
     srcs = ["mpc_controller.cc"],
     hdrs = ["mpc_controller.h"],
     deps = [
+        "//common/trajectories:piecewise_polynomial",
         "//lcmtypes:traj_opt",
         "//multibody/plant",
         "//systems/framework:diagram",
         "//systems/framework:leaf_system",
         "//systems/framework:vector",
-        "//common/trajectories:piecewise_polynomial",
         "//traj_opt:problem_definition",
         "//traj_opt:trajectory_optimizer",
     ],
@@ -315,19 +300,13 @@ drake_cc_library(
     srcs = ["example_base.cc"],
     hdrs = ["example_base.h"],
     deps = [
-        ":lcm_interfaces",
         ":mpc_controller",
         ":yaml_config",
         "//common:find_resource",
-        "//examples/acrobot:acrobot_lcm",
-        "//lcmtypes:acrobot",
-        "//lcmtypes:traj_opt",
         "//multibody/parsing",
         "//multibody/plant",
-        "//multibody/plant:contact_results_to_lcm",
         "//systems/analysis:simulator",
         "//systems/framework:diagram",
-        "//systems/lcm",
         "//systems/primitives:constant_vector_source",
         "//traj_opt:problem_definition",
         "//traj_opt:trajectory_optimizer",
