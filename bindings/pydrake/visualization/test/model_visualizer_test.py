@@ -1,4 +1,5 @@
 import copy
+import inspect
 import subprocess
 import textwrap
 import unittest
@@ -152,6 +153,19 @@ class TestModelVisualizer(unittest.TestCase):
                 dut.AddModels(FindResourceOrThrow(model_runpath))
                 dut.Run(loop_once=True)
 
+    def test_model_from_url(self):
+        url = "package://drake/multibody/benchmarks/acrobot/acrobot.sdf"
+        dut = mut.ModelVisualizer()
+        dut.AddModels(url=url)
+        dut.Run(loop_once=True)
+
+    def test_add_model_args_error(self):
+        filename = "drake/multibody/benchmarks/acrobot/acrobot.sdf"
+        url = f"package://{filename}"
+        dut = mut.ModelVisualizer()
+        with self.assertRaisesRegex(ValueError, "either filename.*url"):
+            dut.AddModels(filename, url=url)
+
     def test_methods_and_multiple_models(self):
         """
         Tests main class methods individually as well as adding models twice.
@@ -268,3 +282,10 @@ class TestModelVisualizer(unittest.TestCase):
         dut.parser().AddModelsFromString(self.SAMPLE_OBJ, "sdf")
         with catch_drake_warnings(expected_count=1):
             dut.RunWithReload(loop_once=True)
+
+    def test_triad_defaults(self):
+        # Cross-check the default triad parameters.
+        expected = inspect.signature(mut.AddFrameTriadIllustration).parameters
+        actual = mut.ModelVisualizer._get_constructor_defaults()
+        for name in ("length", "radius", "opacity"):
+            self.assertEqual(actual[f"triad_{name}"], expected[name].default)
