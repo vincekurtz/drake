@@ -5,7 +5,6 @@
 #include <string>
 #include <thread>
 #include <vector>
-#include <iostream> //debug
 
 #include "drake/common/find_resource.h"
 #include "drake/geometry/scene_graph.h"
