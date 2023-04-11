@@ -70,7 +70,7 @@ class ModelPredictiveController : public LeafSystem<double> {
   const OutputPort<double>& get_trajectory_output_port() const {
     return this->get_output_port(trajectory_output_port_);
   }
-  
+
   /**
    * Store the solution we get from trajectory optimization in a little struct
    * that performs interpolation between time steps.
