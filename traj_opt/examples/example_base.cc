@@ -5,25 +5,19 @@
 #include <thread>
 #include <utility>
 
-#include "drake/examples/acrobot/acrobot_lcm.h"
-#include "drake/lcmt_acrobot_u.hpp"
-#include "drake/lcmt_traj_opt_u.hpp"
-#include "drake/lcmt_traj_opt_x.hpp"
-#include "drake/multibody/plant/contact_results_to_lcm.h"
-#include "drake/systems/lcm/lcm_interface_system.h"
-#include "drake/systems/lcm/lcm_publisher_system.h"
-#include "drake/systems/lcm/lcm_subscriber_system.h"
-#include "drake/systems/primitives/constant_vector_source.h"
-#include "drake/traj_opt/examples/lcm_interfaces.h"
+#include "drake/systems/primitives/discrete_time_delay.h"
+#include "drake/traj_opt/examples/mpc_controller.h"
+#include "drake/traj_opt/examples/pd_plus_controller.h"
 #include "drake/visualization/visualization_config_functions.h"
 
 namespace drake {
 namespace traj_opt {
 namespace examples {
 
-using systems::lcm::LcmInterfaceSystem;
-using systems::lcm::LcmPublisherSystem;
-using systems::lcm::LcmSubscriberSystem;
+using mpc::Interpolator;
+using mpc::ModelPredictiveController;
+using pd_plus::PdPlusController;
+using systems::DiscreteTimeDelay;
 
 void TrajOptExample::RunExample(const std::string options_file) const {
   // Load parameters from file
@@ -32,8 +26,7 @@ void TrajOptExample::RunExample(const std::string options_file) const {
       FindResourceOrThrow(options_file), {}, default_options);
 
   if (options.mpc) {
-    // Do MPC with a simulator in one thread and a controller in another,
-    // communicating over LCM
+    // Run a simulation that uses the optimizer as a model predictive controller
     RunModelPredictiveControl(options);
   } else {
     // Solve a single instance of the optimization problem and play back the
@@ -50,88 +43,8 @@ void TrajOptExample::RunModelPredictiveControl(
   TrajectoryOptimizerSolution<double> initial_solution =
       SolveTrajectoryOptimization(options);
 
-  // Start an LCM instance
-  lcm::DrakeLcm lcm_instance;
-
-  // Start the simulator, which reads control inputs and publishes the system
-  // state over LCM
-  std::thread sim_thread(&TrajOptExample::SimulateWithControlFromLcm, this,
-                         options);
-
-  // Start the controller, which reads the system state and publishes
-  // control torques over LCM
-  std::thread ctrl_thread(&TrajOptExample::ControlWithStateFromLcm, this,
-                          options, initial_solution.q);
-
-  // Wait for all threads to stop
-  sim_thread.join();
-  ctrl_thread.join();
-
-  // Print profiling info
-  std::cout << TableOfAverages() << std::endl;
-}
-
-void TrajOptExample::ControlWithStateFromLcm(
-    const TrajOptExampleParams& options,
-    const std::vector<VectorXd>& q_guess) const {
-  // Create a system model for the controller
-  DiagramBuilder<double> builder_ctrl;
-  MultibodyPlantConfig config;
-  config.time_step = options.time_step;
-  auto [plant, scene_graph] = AddMultibodyPlant(config, &builder_ctrl);
-  CreatePlantModel(&plant);
-  plant.Finalize();
-  auto diagram_ctrl = builder_ctrl.Build();
-
-  // Define the optimization problem
-  ProblemDefinition opt_prob;
-  SetProblemDefinition(options, &opt_prob);
-
-  // Normalize quaternions in the reference
-  NormalizeQuaternions(plant, &opt_prob.q_nom);
-
-  // Set our solver parameters
-  SolverParameters solver_params;
-  SetSolverParameters(options, &solver_params);
-  solver_params.max_iterations = options.mpc_iters;
-
-  // Here we'll set up a whole separate system diagram with LCM reciever,
-  // controller, and LCM publisher:
-  //
-  //    state_subscriber -> controller -> command_publisher
-  //
-  DiagramBuilder<double> builder;
-  auto lcm = builder.AddSystem<LcmInterfaceSystem>();
-
-  auto state_subscriber = builder.AddSystem(
-      LcmSubscriberSystem::Make<lcmt_traj_opt_x>("traj_opt_x", lcm));
-
-  auto controller = builder.AddSystem<TrajOptLcmController>(
-      diagram_ctrl.get(), &plant, opt_prob, q_guess, solver_params);
-
-  auto command_publisher =
-      builder.AddSystem(LcmPublisherSystem::Make<lcmt_traj_opt_u>(
-          "traj_opt_u", lcm, 1. / options.controller_frequency));
-
-  builder.Connect(state_subscriber->get_output_port(),
-                  controller->get_input_port());
-  builder.Connect(controller->get_output_port(),
-                  command_publisher->get_input_port());
-
-  // Run this system diagram, which recieves states over LCM and publishes
-  // controls over LCM
-  auto diagram = builder.Build();
-  systems::Simulator<double> simulator(*diagram);
-  simulator.set_target_realtime_rate(1.0);
-  simulator.Initialize();
-  simulator.AdvanceTo(options.sim_time / options.sim_realtime_rate);
-}
-
-void TrajOptExample::SimulateWithControlFromLcm(
-    const TrajOptExampleParams& options) const {
   // Set up the system diagram for the simulator
   DiagramBuilder<double> builder;
-  auto lcm = builder.AddSystem<LcmInterfaceSystem>();
 
   // Construct the multibody plant system model
   MultibodyPlantConfig config;
@@ -140,42 +53,87 @@ void TrajOptExample::SimulateWithControlFromLcm(
   CreatePlantModel(&plant);
   plant.Finalize();
 
+  const int nq = plant.num_positions();
+  const int nv = plant.num_velocities();
+  const int nu = plant.num_actuators();
+
   // Connect to the visualizer
   visualization::AddDefaultVisualization(&builder);
 
-  // Recieve control inputs from LCM
-  auto command_subscriber = builder.AddSystem(
-      LcmSubscriberSystem::Make<lcmt_traj_opt_u>("traj_opt_u", lcm));
+  // Create a system model for the controller
+  DiagramBuilder<double> ctrl_builder;
+  MultibodyPlantConfig ctrl_config;
+  ctrl_config.time_step = options.time_step;
+  auto [ctrl_plant, ctrl_scene_graph] =
+      AddMultibodyPlant(ctrl_config, &ctrl_builder);
+  CreatePlantModel(&ctrl_plant);
+  ctrl_plant.Finalize();
+  auto ctrl_diagram = ctrl_builder.Build();
 
-  // Set PD gains for lower level controller to zero if they aren't defined
-  VectorXd Kp = options.Kp;
-  VectorXd Kd = options.Kd;
-  if (Kp.size() != options.q_init.size()) {
-    Kp.setZero(options.q_init.size());
-  }
-  if (Kd.size() != options.v_init.size()) {
-    Kd.setZero(options.v_init.size());
-  }
+  // Define the optimization problem
+  ProblemDefinition opt_prob;
+  SetProblemDefinition(options, &opt_prob);
+  NormalizeQuaternions(ctrl_plant, &opt_prob.q_nom);
 
-  // Connect the low-level controller
-  auto controller =
-      builder.AddSystem<LowLevelController>(&plant, Kp, Kd);
-  builder.Connect(command_subscriber->get_output_port(),
-                  controller->get_control_input_port());
+  // Set MPC-specific solver parameters
+  SolverParameters solver_params;
+  SetSolverParameters(options, &solver_params);
+  solver_params.max_iterations = options.mpc_iters;
+
+  // Set up the MPC system
+  const double replan_period = 1. / options.controller_frequency;
+  auto controller = builder.AddSystem<ModelPredictiveController>(
+      ctrl_diagram.get(), &ctrl_plant, opt_prob, initial_solution,
+      solver_params, replan_period);
+
+  // Create an interpolator to send samples from the optimal trajectory at a
+  // faster rate
+  auto interpolator = builder.AddSystem<Interpolator>(nq, nv, nu);
+
+  // Connect the MPC controller to the interpolator
+  // N.B. We place a delay block between the MPC controller and the interpolator
+  // to simulate the fact that the system continues to evolve over time as the
+  // optimizer solves the trajectory optimization problem.
+  mpc::StoredTrajectory placeholder_trajectory;
+  controller->StoreOptimizerSolution(initial_solution, 0.0,
+                                     &placeholder_trajectory);
+
+  auto delay = builder.AddSystem<DiscreteTimeDelay>(
+      replan_period, 1, Value(placeholder_trajectory));
+  builder.Connect(controller->get_trajectory_output_port(),
+                  delay->get_input_port());
+  builder.Connect(delay->get_output_port(),
+                  interpolator->get_trajectory_input_port());
+
+  // Connect the interpolator to a low-level PD controller
+  const MatrixXd B = plant.MakeActuationMatrix();
+  auto dummy_context = plant.CreateDefaultContext();
+  MatrixXd N(nq, nv);
+  plant.CalcNMatrix(*dummy_context, &N);
+  MatrixXd Bq = N * B;
+
+  const MatrixXd Kp =
+      (options.Kp.size() == 0)
+          ? MatrixXd::Zero(nu, nq)
+          : static_cast<MatrixXd>(Bq.transpose() * options.Kp.asDiagonal());
+  const MatrixXd Kd =
+      (options.Kd.size() == 0)
+          ? MatrixXd::Zero(nu, nv)
+          : static_cast<MatrixXd>(B.transpose() * options.Kd.asDiagonal());
+
+  auto pd = builder.AddSystem<PdPlusController>(Kp, Kd, options.feed_forward);
+  builder.Connect(interpolator->get_state_output_port(),
+                  pd->get_nominal_state_input_port());
+  builder.Connect(interpolator->get_control_output_port(),
+                  pd->get_nominal_control_input_port());
   builder.Connect(plant.get_state_output_port(),
-                  controller->get_state_estimate_input_port());
-  builder.Connect(controller->get_output_port(),
+                  pd->get_state_input_port());
+  builder.Connect(pd->get_control_output_port(),
                   plant.get_actuation_input_port());
 
-  // Send state estimates out over LCM
-  auto state_sender = builder.AddSystem<StateSender>(plant.num_positions(),
-                                                     plant.num_velocities());
-  auto state_publisher = builder.AddSystem(
-      LcmPublisherSystem::Make<lcmt_traj_opt_x>("traj_opt_x", lcm));
+  // Connect the plant's state estimate to the MPC planner
   builder.Connect(plant.get_state_output_port(),
-                  state_sender->get_input_port());
-  builder.Connect(state_sender->get_output_port(),
-                  state_publisher->get_input_port());
+                  controller->get_state_input_port());
 
   // Compile the diagram
   auto diagram = builder.Build();
@@ -191,6 +149,9 @@ void TrajOptExample::SimulateWithControlFromLcm(
   simulator.set_target_realtime_rate(options.sim_realtime_rate);
   simulator.Initialize();
   simulator.AdvanceTo(options.sim_time);
+
+  // Print profiling info
+  std::cout << TableOfAverages() << std::endl;
 }
 
 TrajectoryOptimizerSolution<double> TrajOptExample::SolveTrajectoryOptimization(
@@ -536,7 +497,7 @@ void TrajOptExample::SetSolverParameters(
 }
 
 void TrajOptExample::NormalizeQuaternions(const MultibodyPlant<double>& plant,
-                                  std::vector<VectorXd>* q) const {
+                                          std::vector<VectorXd>* q) const {
   const int num_steps = q->size() - 1;
   for (const multibody::BodyIndex& index : plant.GetFloatingBaseBodies()) {
     const multibody::Body<double>& body = plant.get_body(index);

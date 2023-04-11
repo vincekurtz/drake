@@ -42,7 +42,10 @@ class JacoExample : public TrajOptExample {
                                   "ground", green);
     plant->RegisterCollisionGeometry(plant->world_body(), X_ground,
                                      Box(25, 25, 1), "ground",
-                                     CoulombFriction<double>(0.5, 0.5));
+                                     CoulombFriction<double>(0.05, 0.05));
+    // N.B. When combined with the friction coefficient of the box according to
+    // μ = 2μₘμₙ/(μₘ + μₙ), this gives a friction coefficient of roughly 0.1
+    // between the box and the ground.
   }
 };
 

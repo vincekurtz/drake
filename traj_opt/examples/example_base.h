@@ -8,7 +8,6 @@
 
 #include "drake/common/find_resource.h"
 #include "drake/geometry/scene_graph.h"
-#include "drake/lcm/drake_lcm.h"
 #include "drake/multibody/parsing/parser.h"
 #include "drake/multibody/plant/multibody_plant.h"
 #include "drake/multibody/plant/multibody_plant_config_functions.h"
@@ -56,10 +55,7 @@ class TrajOptExample {
       const TrajOptExampleParams& options) const;
 
   /**
-   * Use the optimizer as an MPC controller in simulation. The simulator reads
-   * control inputs sent over LCM, while in another thread, the controller reads
-   * system state from the controller and computes optimal control inputs,
-   * terminating the optimization early after a fixed number of iterations.
+   * Use the optimizer as an MPC controller in simulation.
    *
    * @param options YAML options, incluidng cost function definition, solver
    * parameters, etc.
@@ -126,26 +122,6 @@ class TrajOptExample {
     }
     return result;
   }
-
-  /**
-   * Simulate the system from the given initial condition, reading control
-   * inputs and publishing (ground truth) state information over LCM.
-   *
-   * @param options parameters, read from a YAML file, defining the initial
-   * condition, simulation time, realtime rate, etc.
-   */
-  void SimulateWithControlFromLcm(const TrajOptExampleParams& options) const;
-
-  /**
-   * Use MPC to control the system, reading state measurements from LCM and
-   * sending control inputs back over LCM.
-   *
-   * @param options parameters, read from a YAML file, defining the cost
-   * function, MPC parameters, etc.
-   * @param q_guess initial guess to warm-start the first MPC iteration
-   */
-  void ControlWithStateFromLcm(const TrajOptExampleParams& options,
-                               const std::vector<VectorXd>& q_guess) const;
 
   /**
    * Normalize quaternions in the given sequence of generalized positions. This

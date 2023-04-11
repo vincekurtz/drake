@@ -20,7 +20,7 @@ q_guess : [0.0]
 
 # Cost Weights. These define diagonal matrices, again with the ordering
 # [finger 1, finger 2, spinner]
-Qq : [1.0]  # Running cost
+Qq : [0.0]  # Running cost
 Qv : [0.1]
 R : [1.0]
 
@@ -43,8 +43,8 @@ rho_proximal : 1e-5         # the proximal cost multiplier
 gradients_method: "central_differences"
 
 # Playback/visualization parameters
-play_target_trajectory : true
-play_initial_guess : true
+play_target_trajectory : false
+play_initial_guess : false
 play_optimal_trajectory : true
 
 # Debugging parameters
@@ -53,9 +53,11 @@ print_debug_data : false
 save_solver_stats_csv : true
 
 # MPC parameters
-mpc : true
+mpc : false
 mpc_iters : 5
-controller_frequency : 50
+controller_frequency : 25
 sim_time : 5
 sim_time_step : 1e-3
 sim_realtime_rate : 1.0
+Kp : [0.0]
+Kd : [0.0]

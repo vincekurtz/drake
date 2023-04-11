@@ -79,6 +79,7 @@ struct TrajOptExampleParams {
     a->Visit(DRAKE_NVP(sim_realtime_rate));
     a->Visit(DRAKE_NVP(Kp));
     a->Visit(DRAKE_NVP(Kd));
+    a->Visit(DRAKE_NVP(feed_forward));
     a->Visit(DRAKE_NVP(scaling_method));
     a->Visit(DRAKE_NVP(equality_constraints));
     a->Visit(DRAKE_NVP(Delta_max));
@@ -212,6 +213,7 @@ struct TrajOptExampleParams {
   // iterations. Terms related to unactuated DoFs are ignored.
   VectorXd Kp;
   VectorXd Kd;
+  bool feed_forward = true;
 
   // Method to use when rescaling the Hessian
   std::string scaling_method = "double_sqrt";
