@@ -101,7 +101,7 @@ mpc_iters : 5
 controller_frequency : 0.1
 sim_time : 5
 sim_time_step : 1e-3
-sim_realtime_rate : 1.0
+sim_realtime_rate : 0.0
 
 feed_forward : false
 Kp: [500, 500, 250, 500, 250, 250, 250,

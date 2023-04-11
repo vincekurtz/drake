@@ -382,6 +382,12 @@ Later edited by hand to:
           </ode>
           </friction>
         </surface>
+        <drake:proximity_properties>
+          <drake:compliant_hydroelastic/>
+          <drake:mesh_resolution_hint>0.1</drake:mesh_resolution_hint>
+          <drake:hydroelastic_modulus>5e7</drake:hydroelastic_modulus>
+          <drake:hunt_crossley_dissipation>1.25</drake:hunt_crossley_dissipation>
+        </drake:proximity_properties>
       </collision>
     </link>
     <joint name='j2s7s300_joint_6' type='revolute'>
@@ -493,6 +499,12 @@ Later edited by hand to:
           </ode>
           </friction>
         </surface>
+        <drake:proximity_properties>
+          <drake:compliant_hydroelastic/>
+          <drake:mesh_resolution_hint>0.1</drake:mesh_resolution_hint>
+          <drake:hydroelastic_modulus>5e7</drake:hydroelastic_modulus>
+          <drake:hunt_crossley_dissipation>1.25</drake:hunt_crossley_dissipation>
+        </drake:proximity_properties>
       </collision>
     </link>
 
