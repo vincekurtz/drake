@@ -9,7 +9,7 @@
 q_init : [0.0, 1.7, 0.0, 5.0,-1.0, 4.5, 0.0,   # left arm positions
           0.0, 1.7, 0.0, 5.0, 1.0, 4.5, 0.0,   # right arm positions
           1.0, 0.0, 0.0, 0.0,                  # box orientation
-          0.5, 0.0, 0.08]                       # box position
+          0.5, 0.0, 0.1]                       # box position
 v_init : [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
           0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
           0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
@@ -18,7 +18,7 @@ v_init : [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
 q_nom_start : [0.0, 1.7, 0.0, 5.0,-1.0, 4.5, 0.0,
                0.0, 1.7, 0.0, 5.0, 1.0, 4.5, 0.0,
                1.0, 0.0, 0.0, 0.0,
-               0.5, 0.0, 0.08]
+               0.5, 0.0, 0.1]
 q_nom_end : [0.0, 1.7, 0.0, 5.0,-1.0, 4.5, 0.0,
              0.0, 1.7, 0.0, 5.0, 1.0, 4.5, 0.0,
              0.7, 0.0, 0.0,-0.3,
@@ -59,7 +59,7 @@ time_step : 0.05    # Discretization timestep (seconds)
 num_steps : 40      # number of timesteps
 
 # Solver parameters
-max_iters : 200             # maximum Gauss-Newton iterations
+max_iters : 50              # maximum Gauss-Newton iterations
 method : "trust_region"     # solver method, {linesearch, trust_region}
 scaling : true
 equality_constraints : true
@@ -106,9 +106,9 @@ friction_coefficient : 0.5  # Coefficient of friction.
 stiction_velocity: 0.05      # Regularization velocity, in m/s.
 
 # MPC parameters
-mpc : false
+mpc : true
 mpc_iters : 10
-controller_frequency : 5.0
+controller_frequency : 0.1
 sim_time : 5
 sim_time_step : 1e-3
 sim_realtime_rate : 1.0

@@ -1,8 +1,8 @@
 #include "drake/common/find_resource.h"
+#include "drake/geometry/proximity_properties.h"
 #include "drake/multibody/parsing/parser.h"
 #include "drake/multibody/plant/multibody_plant.h"
 #include "drake/traj_opt/examples/example_base.h"
-#include "drake/geometry/proximity_properties.h"
 
 namespace drake {
 namespace traj_opt {
@@ -10,10 +10,10 @@ namespace examples {
 namespace jaco {
 
 using Eigen::Vector3d;
-using geometry::Box;
-using geometry::ProximityProperties;
 using geometry::AddContactMaterial;
 using geometry::AddRigidHydroelasticProperties;
+using geometry::Box;
+using geometry::ProximityProperties;
 using math::RigidTransformd;
 using multibody::CoulombFriction;
 using multibody::ModelInstanceIndex;
@@ -22,9 +22,7 @@ using multibody::Parser;
 
 class JacoExample : public TrajOptExample {
   void CreatePlantModel(MultibodyPlant<double>* plant) const final {
-    const Vector4<double> green(0.3, 0.6, 0.4, 1.0);
-
-    // Add a jaco arm
+    // Add a jaco arm without gravity
     std::string robot_file = FindResourceOrThrow(
         "drake/traj_opt/examples/models/j2s7s300_arm_sphere_collision_v2.sdf");
     ModelInstanceIndex jaco = Parser(plant).AddModelFromFile(robot_file);
@@ -33,12 +31,13 @@ class JacoExample : public TrajOptExample {
                       X_jaco);
     plant->disable_gravity(jaco);
 
-    // Add a manipuland
+    // Add a manipuland with sphere contact
     std::string manipuland_file =
         FindResourceOrThrow("drake/traj_opt/examples/models/box_15cm.sdf");
     Parser(plant).AddAllModelsFromFile(manipuland_file);
 
     // Add the ground
+    const Vector4<double> green(0.3, 0.6, 0.4, 1.0);
     RigidTransformd X_ground(Vector3d(0.0, 0.0, -0.5));
     plant->RegisterVisualGeometry(plant->world_body(), X_ground, Box(25, 25, 1),
                                   "ground", green);
@@ -52,9 +51,7 @@ class JacoExample : public TrajOptExample {
 
   void CreatePlantModelForSimulation(
       MultibodyPlant<double>* plant) const final {
-    const Vector4<double> green(0.3, 0.6, 0.4, 1.0);
-
-    // Add a jaco arm
+    // Add a jaco arm, including gravity
     std::string robot_file = FindResourceOrThrow(
         "drake/traj_opt/examples/models/j2s7s300_arm_sphere_collision_v2.sdf");
     Parser(plant).AddModelFromFile(robot_file);
@@ -68,6 +65,7 @@ class JacoExample : public TrajOptExample {
     Parser(plant).AddAllModelsFromFile(manipuland_file);
 
     // Add the ground with rigid hydroelastic contact
+    const Vector4<double> green(0.3, 0.6, 0.4, 1.0);
     RigidTransformd X_ground(Vector3d(0.0, 0.0, -0.5));
     plant->RegisterVisualGeometry(plant->world_body(), X_ground, Box(25, 25, 1),
                                   "ground", green);
