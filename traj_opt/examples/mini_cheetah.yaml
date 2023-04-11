@@ -125,11 +125,3 @@ force_at_a_distance : true
 # Friction
 friction_coefficient : 1.0  # Coefficient of friction.
 stiction_velocity: 0.5     # Regularization velocity, in m/s.
-
-# MPC parameters
-mpc : false
-mpc_iters : 5
-controller_frequency : 2
-sim_time : 5
-sim_time_step : 1e-3
-sim_realtime_rate : 0.1
