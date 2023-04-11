@@ -285,7 +285,6 @@ drake_cc_library(
     hdrs = ["mpc_controller.h"],
     deps = [
         "//common/trajectories:piecewise_polynomial",
-        "//lcmtypes:traj_opt",
         "//multibody/plant",
         "//systems/framework:diagram",
         "//systems/framework:leaf_system",
@@ -296,11 +295,22 @@ drake_cc_library(
 )
 
 drake_cc_library(
+    name = "pd_plus_controller",
+    srcs = ["pd_plus_controller.cc"],
+    hdrs = ["pd_plus_controller.h"],
+    deps = [
+        "//systems/framework:leaf_system",
+        "//systems/framework:vector",
+    ],
+)
+
+drake_cc_library(
     name = "example_base",
     srcs = ["example_base.cc"],
     hdrs = ["example_base.h"],
     deps = [
         ":mpc_controller",
+        ":pd_plus_controller",
         ":yaml_config",
         "//common:find_resource",
         "//multibody/parsing",

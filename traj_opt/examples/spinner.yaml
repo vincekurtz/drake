@@ -89,5 +89,6 @@ controller_frequency : 30.0
 sim_time : 5.0
 sim_time_step : 1e-3
 sim_realtime_rate : 1.0
-Kp : [0,0,0]
-Kd : [0.0,0.0,0]
+feed_forward : true
+Kp : [100,100,0]
+Kd : [1.0,1.0,0]

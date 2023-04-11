@@ -6,13 +6,16 @@
 #include <utility>
 
 #include "drake/traj_opt/examples/mpc_controller.h"
+#include "drake/traj_opt/examples/pd_plus_controller.h"
 #include "drake/visualization/visualization_config_functions.h"
 
 namespace drake {
 namespace traj_opt {
 namespace examples {
 
+using mpc::Interpolator;
 using mpc::ModelPredictiveController;
+using pd_plus::PdPlusController;
 
 void TrajOptExample::RunExample(const std::string options_file) const {
   // Load parameters from file
@@ -21,8 +24,7 @@ void TrajOptExample::RunExample(const std::string options_file) const {
       FindResourceOrThrow(options_file), {}, default_options);
 
   if (options.mpc) {
-    // Do MPC with a simulator in one thread and a controller in another,
-    // communicating over LCM
+    // Run a simulation that uses the optimizer as a model predictive controller
     RunModelPredictiveControl(options);
   } else {
     // Solve a single instance of the optimization problem and play back the
@@ -49,6 +51,10 @@ void TrajOptExample::RunModelPredictiveControl(
   CreatePlantModel(&plant);
   plant.Finalize();
 
+  const int nq = plant.num_positions();
+  const int nv = plant.num_velocities();
+  const int nu = plant.num_actuators();
+
   // Connect to the visualizer
   visualization::AddDefaultVisualization(&builder);
 
@@ -62,17 +68,6 @@ void TrajOptExample::RunModelPredictiveControl(
   ctrl_plant.Finalize();
   auto ctrl_diagram = ctrl_builder.Build();
 
-  // Set PD gains for lower level controller
-  MatrixXd B = plant.MakeActuationMatrix();
-  MatrixXd Kp = MatrixXd::Zero(plant.num_actuators(), plant.num_positions());
-  MatrixXd Kd = MatrixXd::Zero(plant.num_actuators(), plant.num_velocities());
-  if (options.Kp.size() != 0) {
-    Kp = B.transpose() * options.Kp.asDiagonal();
-  }
-  if (options.Kd.size() != 0) {
-    Kd = B.transpose() * options.Kd.asDiagonal();
-  }
-
   // Define the optimization problem
   ProblemDefinition opt_prob;
   SetProblemDefinition(options, &opt_prob);
@@ -83,16 +78,43 @@ void TrajOptExample::RunModelPredictiveControl(
   SetSolverParameters(options, &solver_params);
   solver_params.max_iterations = options.mpc_iters;
 
-  // Set up the MPC controller system
+  // Set up the MPC system
   auto controller = builder.AddSystem<ModelPredictiveController>(
       ctrl_diagram.get(), &ctrl_plant, opt_prob, initial_solution,
-      solver_params, Kp, Kd, 1. / options.controller_frequency);
+      solver_params, 1. / options.controller_frequency);
 
-  // Connect the MPC controller to the simulated plant
+  // Create an interpolator to send samples from the optimal trajectory at a
+  // faster rate
+  auto interpolator = builder.AddSystem<Interpolator>(nq, nv, nu);
+
+  // Connect the MPC controller to the interpolator
+  builder.Connect(controller->get_trajectory_output_port(),
+                  interpolator->get_trajectory_input_port());
+
+  // Connect the interpolator to a low-level PD controller
+  const MatrixXd B = plant.MakeActuationMatrix();
+  const MatrixXd Kp =
+      (options.Kp.size() == 0)
+          ? MatrixXd::Zero(nu, nq)
+          : static_cast<MatrixXd>(B.transpose() * options.Kp.asDiagonal());
+  const MatrixXd Kd =
+      (options.Kd.size() == 0)
+          ? MatrixXd::Zero(nu, nv)
+          : static_cast<MatrixXd>(B.transpose() * options.Kd.asDiagonal());
+
+  auto pd = builder.AddSystem<PdPlusController>(Kp, Kd, options.feed_forward);
+  builder.Connect(interpolator->get_state_output_port(),
+                  pd->get_nominal_state_input_port());
+  builder.Connect(interpolator->get_control_output_port(),
+                  pd->get_nominal_control_input_port());
+  builder.Connect(plant.get_state_output_port(),
+                  pd->get_state_input_port());
+  builder.Connect(pd->get_control_output_port(),
+                  plant.get_actuation_input_port());
+
+  // Connect the plant's state estimate to the MPC planner
   builder.Connect(plant.get_state_output_port(),
                   controller->get_state_input_port());
-  builder.Connect(controller->get_control_output_port(),
-                  plant.get_actuation_input_port());
 
   // Compile the diagram
   auto diagram = builder.Build();
