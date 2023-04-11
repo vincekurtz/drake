@@ -5,6 +5,7 @@
 #include <thread>
 #include <utility>
 
+#include "drake/systems/primitives/discrete_time_delay.h"
 #include "drake/traj_opt/examples/mpc_controller.h"
 #include "drake/traj_opt/examples/pd_plus_controller.h"
 #include "drake/visualization/visualization_config_functions.h"
@@ -16,6 +17,7 @@ namespace examples {
 using mpc::Interpolator;
 using mpc::ModelPredictiveController;
 using pd_plus::PdPlusController;
+using systems::DiscreteTimeDelay;
 
 void TrajOptExample::RunExample(const std::string options_file) const {
   // Load parameters from file
@@ -79,16 +81,28 @@ void TrajOptExample::RunModelPredictiveControl(
   solver_params.max_iterations = options.mpc_iters;
 
   // Set up the MPC system
+  const double replan_period = 1. / options.controller_frequency;
   auto controller = builder.AddSystem<ModelPredictiveController>(
       ctrl_diagram.get(), &ctrl_plant, opt_prob, initial_solution,
-      solver_params, 1. / options.controller_frequency);
+      solver_params, replan_period);
 
   // Create an interpolator to send samples from the optimal trajectory at a
   // faster rate
   auto interpolator = builder.AddSystem<Interpolator>(nq, nv, nu);
 
   // Connect the MPC controller to the interpolator
+  // N.B. We place a delay block between the MPC controller and the interpolator
+  // to simulate the fact that the system continues to evolve over time as the
+  // optimizer solves the trajectory optimization problem.
+  mpc::StoredTrajectory placeholder_trajectory;
+  controller->StoreOptimizerSolution(initial_solution, 0.0,
+                                     &placeholder_trajectory);
+
+  auto delay = builder.AddSystem<DiscreteTimeDelay>(
+      replan_period, 1, Value(placeholder_trajectory));
   builder.Connect(controller->get_trajectory_output_port(),
+                  delay->get_input_port());
+  builder.Connect(delay->get_output_port(),
                   interpolator->get_trajectory_input_port());
 
   // Connect the interpolator to a low-level PD controller

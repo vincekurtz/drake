@@ -31,7 +31,7 @@ using trajectories::PiecewisePolynomial;
 /// between MPC solves.
 struct StoredTrajectory {
   // Time (in seconds) at which this trajectory was generated
-  double start_time{0.0};
+  double start_time{-1.0};
 
   // Generalized positions
   PiecewisePolynomial<double> q;
@@ -70,6 +70,18 @@ class ModelPredictiveController : public LeafSystem<double> {
   const OutputPort<double>& get_trajectory_output_port() const {
     return this->get_output_port(trajectory_output_port_);
   }
+  
+  /**
+   * Store the solution we get from trajectory optimization in a little struct
+   * that performs interpolation between time steps.
+   *
+   * @param solution the trajectory optimization solution
+   * @param start_time the time at which the optimization was solved
+   * @param stored_trajectory a struct holding the solution
+   */
+  void StoreOptimizerSolution(
+      const TrajectoryOptimizerSolution<double>& solution,
+      const double start_time, StoredTrajectory* stored_trajectory) const;
 
  private:
   /**
@@ -93,18 +105,6 @@ class ModelPredictiveController : public LeafSystem<double> {
   void UpdateInitialGuess(const StoredTrajectory& stored_trajectory,
                           const double current_time,
                           std::vector<VectorXd>* q_guess) const;
-
-  /**
-   * Store the solution we get from trajectory optimization in a little struct
-   * that performs interpolation between time steps.
-   *
-   * @param solution the trajectory optimization solution
-   * @param start_time the time at which the optimization was solved
-   * @param stored_trajectory a struct holding the solution
-   */
-  void StoreOptimizerSolution(
-      const TrajectoryOptimizerSolution<double>& solution,
-      const double start_time, StoredTrajectory* stored_trajectory) const;
 
   // Timestep size and total number of steps. We use this to interpolate the
   // solution between timesteps for the low-level PD controller.
