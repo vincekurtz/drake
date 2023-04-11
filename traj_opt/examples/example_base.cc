@@ -107,10 +107,15 @@ void TrajOptExample::RunModelPredictiveControl(
 
   // Connect the interpolator to a low-level PD controller
   const MatrixXd B = plant.MakeActuationMatrix();
+  auto dummy_context = plant.CreateDefaultContext();
+  MatrixXd N(nq, nv);
+  plant.CalcNMatrix(*dummy_context, &N);
+  MatrixXd Bq = N * B;
+
   const MatrixXd Kp =
       (options.Kp.size() == 0)
           ? MatrixXd::Zero(nu, nq)
-          : static_cast<MatrixXd>(B.transpose() * options.Kp.asDiagonal());
+          : static_cast<MatrixXd>(Bq.transpose() * options.Kp.asDiagonal());
   const MatrixXd Kd =
       (options.Kd.size() == 0)
           ? MatrixXd::Zero(nu, nv)
