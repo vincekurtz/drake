@@ -46,7 +46,7 @@ class PdPlusController : public LeafSystem<double> {
   const InputPort<double>& get_nominal_control_input_port() const {
     return this->get_input_port(nominal_control_input_port_);
   }
-  
+
   const OutputPort<double>& get_control_output_port() const {
     return this->get_output_port(control_output_port_);
   }

@@ -159,7 +159,7 @@ class Interpolator : public LeafSystem<double> {
    * @param output output that we'll set
    */
   void SendState(const Context<double>& context,
-                        BasicVector<double>* output) const;
+                 BasicVector<double>* output) const;
 
   /**
    * Send the control value u(t) from the StoredTrajectory that we get from the
@@ -169,7 +169,7 @@ class Interpolator : public LeafSystem<double> {
    * @param output output that we'll set
    */
   void SendControl(const Context<double>& context,
-                        BasicVector<double>* output) const;
+                   BasicVector<double>* output) const;
 
   // Dimensions of the state (nq, nv) and output (nu)
   const int nq_;
@@ -180,7 +180,6 @@ class Interpolator : public LeafSystem<double> {
   int trajectory_input_port_;
   int state_output_port_;
   int control_output_port_;
-
 };
 
 }  // namespace mpc

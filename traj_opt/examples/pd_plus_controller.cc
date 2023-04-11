@@ -45,7 +45,8 @@ void PdPlusController::CalcOutput(const Context<double>& context,
   const auto& v = x.bottomRows(nv_);
 
   // Desired state
-  const VectorXd& x_nom = EvalVectorInput(context, nominal_state_input_port_)->value();
+  const VectorXd& x_nom =
+      EvalVectorInput(context, nominal_state_input_port_)->value();
   const auto& q_nom = x_nom.topRows(nq_);
   const auto& v_nom = x_nom.bottomRows(nv_);
 

@@ -11,8 +11,7 @@ ModelPredictiveController::ModelPredictiveController(
     const Diagram<double>* diagram, const MultibodyPlant<double>* plant,
     const ProblemDefinition& prob,
     const TrajectoryOptimizerSolution<double>& warm_start_solution,
-    const SolverParameters& params,
-    const double replan_period)
+    const SolverParameters& params, const double replan_period)
     : time_step_(plant->time_step()),
       num_steps_(prob.num_steps + 1),
       nq_(plant->num_positions()),
@@ -31,7 +30,7 @@ ModelPredictiveController::ModelPredictiveController(
   state_input_port_ = this->DeclareVectorInputPort(
                               "state_estimate", BasicVector<double>(nq_ + nv_))
                           .get_index();
-  
+
   // Output port sends the optimal trajectory
   trajectory_output_port_ =
       this->DeclareStateOutputPort("optimal_trajectory", stored_trajectory_)
@@ -151,7 +150,7 @@ void Interpolator::SendState(const Context<double>& context,
 }
 
 void Interpolator::SendControl(const Context<double>& context,
-                             BasicVector<double>* output) const {
+                               BasicVector<double>* output) const {
   const StoredTrajectory& traj =
       EvalAbstractInput(context, trajectory_input_port_)
           ->get_value<StoredTrajectory>();
