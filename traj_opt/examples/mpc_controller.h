@@ -57,7 +57,6 @@ class ModelPredictiveController : public LeafSystem<double> {
    * @param params Solver parameters
    * @param replan_period time (in seconds) between optimizer solves
    */
-  // TODO: take optimizer and replan period as only parameters
   ModelPredictiveController(
       const Diagram<double>* diagram, const MultibodyPlant<double>* plant,
       const ProblemDefinition& prob,
@@ -113,7 +112,6 @@ class ModelPredictiveController : public LeafSystem<double> {
   const int num_steps_;
 
   // Number of positions, velocities, and actuators
-  // TODO: remove?
   const int nq_;
   const int nv_;
   const int nu_;

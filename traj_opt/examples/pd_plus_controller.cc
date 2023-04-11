@@ -2,8 +2,6 @@
 
 #include "drake/common/eigen_types.h"
 
-#include <iostream>
-
 namespace drake {
 namespace traj_opt {
 namespace examples {
