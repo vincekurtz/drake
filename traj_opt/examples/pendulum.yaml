@@ -20,7 +20,7 @@ q_guess : [0.0]
 
 # Cost Weights. These define diagonal matrices, again with the ordering
 # [finger 1, finger 2, spinner]
-Qq : [1.0]  # Running cost
+Qq : [0.0]  # Running cost
 Qv : [0.1]
 R : [1.0]
 
@@ -53,9 +53,9 @@ print_debug_data : false
 save_solver_stats_csv : true
 
 # MPC parameters
-mpc : true
-mpc_iters : 2
-controller_frequency : 10.0
+mpc : false
+mpc_iters : 5
+controller_frequency : 25
 sim_time : 5
 sim_time_step : 1e-3
 sim_realtime_rate : 1.0
