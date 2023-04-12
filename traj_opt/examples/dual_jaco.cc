@@ -10,6 +10,7 @@ namespace dual_jaco {
 
 using Eigen::Vector3d;
 using geometry::Box;
+using math::RollPitchYaw;
 using math::RigidTransformd;
 using multibody::CoulombFriction;
 using multibody::ModelInstanceIndex;
@@ -28,14 +29,16 @@ class DualJacoExample : public TrajOptExample {
 
     ModelInstanceIndex jaco_left =
         Parser(plant).AddModelFromFile(robot_file, "jaco_left");
-    RigidTransformd X_left(Vector3d(0, 0.27, 0.11));
+    RigidTransformd X_left(RollPitchYaw<double>(0, 0, M_PI_2),
+                           Vector3d(0, 0.27, 0.11));
     plant->WeldFrames(plant->world_frame(),
                       plant->GetFrameByName("base", jaco_left), X_left);
     plant->disable_gravity(jaco_left);
 
     ModelInstanceIndex jaco_right =
         Parser(plant).AddModelFromFile(robot_file, "jaco_right");
-    RigidTransformd X_right(Vector3d(0, -0.27, 0.11));
+    RigidTransformd X_right(RollPitchYaw<double>(0, 0, M_PI_2),
+                            Vector3d(0,-0.27, 0.11));
     plant->WeldFrames(plant->world_frame(),
                       plant->GetFrameByName("base", jaco_right), X_right);
     plant->disable_gravity(jaco_right);
