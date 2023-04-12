@@ -50,7 +50,7 @@ void TrajOptExample::RunModelPredictiveControl(
   MultibodyPlantConfig config;
   config.time_step = options.sim_time_step;
   auto [plant, scene_graph] = AddMultibodyPlant(config, &builder);
-  CreatePlantModel(&plant);
+  CreatePlantModelForSimulation(&plant);
   plant.Finalize();
 
   const int nq = plant.num_positions();
