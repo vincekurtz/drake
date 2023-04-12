@@ -46,7 +46,7 @@ class DualJacoExample : public TrajOptExample {
 
     // Add the ground
     const Vector4<double> green(0.3, 0.6, 0.4, 1.0);
-    const Vector4<double> tan(0.8, 0.6, 0.5, 1.0);
+    const Vector4<double> tan(0.87, 0.7, 0.5, 1.0);
     RigidTransformd X_ground(Vector3d(0.0, 0.0, -0.5));
     RigidTransformd X_table(Vector3d(0.6, 0.0, -0.499));
     plant->RegisterVisualGeometry(plant->world_body(), X_ground, Box(25, 25, 1),

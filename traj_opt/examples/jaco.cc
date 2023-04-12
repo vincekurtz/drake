@@ -10,6 +10,7 @@ namespace jaco {
 
 using Eigen::Vector3d;
 using geometry::Box;
+using math::RollPitchYaw;
 using math::RigidTransformd;
 using multibody::CoulombFriction;
 using multibody::ModelInstanceIndex;
@@ -26,7 +27,8 @@ class JacoExample : public TrajOptExample {
     std::string robot_file = FindResourceOrThrow(
         "drake/traj_opt/examples/models/j2s7s300_arm_sphere_collision_v2.sdf");
     ModelInstanceIndex jaco = Parser(plant).AddModelFromFile(robot_file);
-    RigidTransformd X_jaco(Vector3d(0, -0.27, 0.11));
+    RigidTransformd X_jaco(RollPitchYaw<double>(0, 0, M_PI_2),
+                            Vector3d(0, 0.27, 0.11));
     plant->WeldFrames(plant->world_frame(), plant->GetFrameByName("base"),
                       X_jaco);
     plant->disable_gravity(jaco);
@@ -37,9 +39,13 @@ class JacoExample : public TrajOptExample {
     Parser(plant).AddAllModelsFromFile(manipuland_file);
 
     // Add the ground
+    const Vector4<double> tan(0.87, 0.7, 0.5, 1.0);
     RigidTransformd X_ground(Vector3d(0.0, 0.0, -0.5));
+    RigidTransformd X_table(Vector3d(0.6, 0.0, -0.499));
     plant->RegisterVisualGeometry(plant->world_body(), X_ground, Box(25, 25, 1),
                                   "ground", green);
+    plant->RegisterVisualGeometry(plant->world_body(), X_table, Box(1.5, 1.5, 1),
+                                  "table", tan);
     plant->RegisterCollisionGeometry(plant->world_body(), X_ground,
                                      Box(25, 25, 1), "ground",
                                      CoulombFriction<double>(0.05, 0.05));
