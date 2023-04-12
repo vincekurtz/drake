@@ -10,8 +10,8 @@ namespace dual_jaco {
 
 using Eigen::Vector3d;
 using geometry::Box;
-using math::RollPitchYaw;
 using math::RigidTransformd;
+using math::RollPitchYaw;
 using multibody::CoulombFriction;
 using multibody::ModelInstanceIndex;
 using multibody::MultibodyPlant;
@@ -34,7 +34,7 @@ class DualJacoExample : public TrajOptExample {
     ModelInstanceIndex jaco_right =
         Parser(plant).AddModelFromFile(robot_file, "jaco_right");
     RigidTransformd X_right(RollPitchYaw<double>(0, 0, M_PI_2),
-                            Vector3d(0,-0.27, 0.11));
+                            Vector3d(0, -0.27, 0.11));
     plant->WeldFrames(plant->world_frame(),
                       plant->GetFrameByName("base", jaco_right), X_right);
     plant->disable_gravity(jaco_right);
@@ -51,8 +51,8 @@ class DualJacoExample : public TrajOptExample {
     RigidTransformd X_table(Vector3d(0.6, 0.0, -0.499));
     plant->RegisterVisualGeometry(plant->world_body(), X_ground, Box(25, 25, 1),
                                   "ground", green);
-    plant->RegisterVisualGeometry(plant->world_body(), X_table, Box(1.5, 1.5, 1),
-                                  "table", tan);
+    plant->RegisterVisualGeometry(plant->world_body(), X_table,
+                                  Box(1.5, 1.5, 1), "table", tan);
     plant->RegisterCollisionGeometry(plant->world_body(), X_ground,
                                      Box(25, 25, 1), "ground",
                                      CoulombFriction<double>(0.5, 0.5));
