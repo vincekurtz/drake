@@ -11,7 +11,7 @@ namespace jaco {
 
 using Eigen::Vector3d;
 using geometry::AddContactMaterial;
-using geometry::AddRigidHydroelasticProperties;
+using geometry::AddCompliantHydroelasticProperties;
 using geometry::Box;
 using geometry::ProximityProperties;
 using math::RigidTransformd;
@@ -57,9 +57,12 @@ class JacoExample : public TrajOptExample {
 
   void CreatePlantModelForSimulation(
       MultibodyPlant<double>* plant) const final {
-    // Add a jaco arm, including gravity
+    // Use hydroelastic contact, and throw instead of point contact fallback
+    plant->set_contact_model(multibody::ContactModel::kHydroelastic);
+      
+    // Add a jaco arm, including gravity, with rigid hydroelastic contact
     std::string robot_file = FindResourceOrThrow(
-        "drake/traj_opt/examples/models/j2s7s300_arm_sphere_collision_v2.sdf");
+        "drake/traj_opt/examples/models/j2s7s300_arm_hydro_collision.sdf");
     Parser(plant).AddModelFromFile(robot_file);
     RigidTransformd X_jaco(RollPitchYaw<double>(0, 0, M_PI_2),
                            Vector3d(0, 0.27, 0.11));
@@ -71,7 +74,7 @@ class JacoExample : public TrajOptExample {
         "drake/traj_opt/examples/models/box_15cm_hydro.sdf");
     Parser(plant).AddAllModelsFromFile(manipuland_file);
 
-    // Add the ground with rigid hydroelastic contact
+    // Add the ground with compliant hydroelastic contact
     const Vector4<double> tan(0.87, 0.7, 0.5, 1.0);
     const Vector4<double> green(0.3, 0.6, 0.4, 1.0);
     RigidTransformd X_ground(Vector3d(0.0, 0.0, -0.5));
@@ -84,7 +87,7 @@ class JacoExample : public TrajOptExample {
     ProximityProperties ground_proximity;
     AddContactMaterial({}, {}, CoulombFriction<double>(0.05, 0.05),
                        &ground_proximity);
-    AddRigidHydroelasticProperties(0.1, &ground_proximity);
+    AddCompliantHydroelasticProperties(0.1, 5e7, &ground_proximity);
     plant->RegisterCollisionGeometry(plant->world_body(), X_ground,
                                      Box(25, 25, 1), "ground",
                                      ground_proximity);

@@ -42,6 +42,12 @@ Later edited by hand to:
             <uri>meshes/jaco_coarse/base.obj</uri>
           </mesh>
         </geometry>
+        <drake:proximity_properties>
+          <drake:rigid_hydroelastic/>
+        </drake:proximity_properties>
+        <drake:proximity_properties>
+          <drake:rigid_hydroelastic/>
+        </drake:proximity_properties>
       </collision>
     </link>
     <link name='j2s7s300_link_1'>
@@ -78,6 +84,9 @@ Later edited by hand to:
             <uri>meshes/jaco_coarse/shoulder.obj</uri>
           </mesh>
         </geometry>
+        <drake:proximity_properties>
+          <drake:rigid_hydroelastic/>
+        </drake:proximity_properties>
       </collision>
       <visual name='j2s7s300_link_1_visual2'>
         <pose>0 0 0 0 -0 0</pose>
@@ -99,6 +108,9 @@ Later edited by hand to:
             <uri>meshes/jaco_coarse/ring_big.obj</uri>
           </mesh>
         </geometry>
+        <drake:proximity_properties>
+          <drake:rigid_hydroelastic/>
+        </drake:proximity_properties>
       </collision>
     </link>
     <joint name='j2s7s300_joint_1' type='revolute'>
@@ -155,6 +167,9 @@ Later edited by hand to:
             <uri>meshes/jaco_coarse/arm_half_1.obj</uri>
           </mesh>
         </geometry>
+        <drake:proximity_properties>
+          <drake:rigid_hydroelastic/>
+        </drake:proximity_properties>
       </collision>
     </link>
     <joint name='j2s7s300_joint_2' type='revolute'>
@@ -211,6 +226,9 @@ Later edited by hand to:
             <uri>meshes/jaco_coarse/arm_half_2.obj</uri>
           </mesh>
         </geometry>
+        <drake:proximity_properties>
+          <drake:rigid_hydroelastic/>
+        </drake:proximity_properties>
       </collision>
       <visual name='j2s7s300_link_3_visual2'>
         <pose>0 0 0 0 -0 0</pose>
@@ -232,6 +250,9 @@ Later edited by hand to:
             <uri>meshes/jaco_coarse/ring_big.obj</uri>
           </mesh>
         </geometry>
+        <drake:proximity_properties>
+          <drake:rigid_hydroelastic/>
+        </drake:proximity_properties>
       </collision>
     </link>
     <joint name='j2s7s300_joint_3' type='revolute'>
@@ -288,6 +309,9 @@ Later edited by hand to:
             <uri>meshes/jaco_coarse/forearm.obj</uri>
           </mesh>
         </geometry>
+        <drake:proximity_properties>
+          <drake:rigid_hydroelastic/>
+        </drake:proximity_properties>
       </collision>
       <visual name='j2s7s300_link_4_visual2'>
         <pose>0 0 0 0 -0 0</pose>
@@ -309,6 +333,9 @@ Later edited by hand to:
             <uri>meshes/jaco_coarse/ring_small.obj</uri>
           </mesh>
         </geometry>
+        <drake:proximity_properties>
+          <drake:rigid_hydroelastic/>
+        </drake:proximity_properties>
       </collision>
     </link>
     <joint name='j2s7s300_joint_4' type='revolute'>
@@ -365,6 +392,9 @@ Later edited by hand to:
             <uri>meshes/jaco_coarse/wrist_spherical_1.obj</uri>
           </mesh>
         </geometry>
+        <drake:proximity_properties>
+          <drake:rigid_hydroelastic/>
+        </drake:proximity_properties>
       </collision>
       <visual name='j2s7s300_link_5_visual2'>
         <pose>0 0 0 0 -0 0</pose>
@@ -386,6 +416,9 @@ Later edited by hand to:
             <uri>meshes/jaco_coarse/ring_small.obj</uri>
           </mesh>
         </geometry>
+        <drake:proximity_properties>
+          <drake:rigid_hydroelastic/>
+        </drake:proximity_properties>
       </collision>
     </link>
     <joint name='j2s7s300_joint_5' type='revolute'>
@@ -442,6 +475,9 @@ Later edited by hand to:
             <uri>meshes/jaco_coarse/wrist_spherical_2.obj</uri>
           </mesh>
         </geometry>
+        <drake:proximity_properties>
+          <drake:rigid_hydroelastic/>
+        </drake:proximity_properties>
       </collision>
       <visual name='j2s7s300_link_6_visual2'>
         <pose>0 0 0 0 -0 0</pose>
@@ -463,6 +499,9 @@ Later edited by hand to:
             <uri>meshes/jaco_coarse/ring_small.obj</uri>
           </mesh>
         </geometry>
+        <drake:proximity_properties>
+          <drake:rigid_hydroelastic/>
+        </drake:proximity_properties>
       </collision>
     </link>
     <joint name='j2s7s300_joint_6' type='revolute'>
@@ -556,6 +595,9 @@ Later edited by hand to:
             <uri>meshes/jaco_coarse/jaco_nub.obj</uri>
           </mesh>
         </geometry>
+        <drake:proximity_properties>
+          <drake:rigid_hydroelastic/>
+        </drake:proximity_properties>
       </collision>
     </link>
 
@@ -563,5 +605,18 @@ Later edited by hand to:
       <child>nub_link</child>
       <parent>j2s7s300_link_7</parent>
     </joint>
+
+    <!-- Ignore self-collisions -->
+    <drake:collision_filter_group name="all">
+        <drake:member>base</drake:member>
+        <drake:member>j2s7s300_link_1</drake:member>
+        <drake:member>j2s7s300_link_2</drake:member>
+        <drake:member>j2s7s300_link_3</drake:member>
+        <drake:member>j2s7s300_link_4</drake:member>
+        <drake:member>j2s7s300_link_5</drake:member>
+        <drake:member>j2s7s300_link_6</drake:member>
+        <drake:member>nub_link</drake:member>
+        <drake:ignored_collision_filter_group>all</drake:ignored_collision_filter_group>
+    </drake:collision_filter_group>
   </model>
 </sdf>
