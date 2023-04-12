@@ -19,10 +19,6 @@ using multibody::Parser;
 
 class DualJacoExample : public TrajOptExample {
   void CreatePlantModel(MultibodyPlant<double>* plant) const final {
-    const Vector4<double> blue(0.1, 0.3, 0.5, 1.0);
-    const Vector4<double> green(0.3, 0.6, 0.4, 1.0);
-    const Vector4<double> black(0.0, 0.0, 0.0, 1.0);
-
     // Add a jaco arms
     std::string robot_file = FindResourceOrThrow(
         "drake/traj_opt/examples/models/j2s7s300_arm_sphere_collision_v2.sdf");
@@ -49,9 +45,14 @@ class DualJacoExample : public TrajOptExample {
     Parser(plant).AddAllModelsFromFile(manipuland_file);
 
     // Add the ground
+    const Vector4<double> green(0.3, 0.6, 0.4, 1.0);
+    const Vector4<double> tan(0.8, 0.6, 0.5, 1.0);
     RigidTransformd X_ground(Vector3d(0.0, 0.0, -0.5));
+    RigidTransformd X_table(Vector3d(0.6, 0.0, -0.499));
     plant->RegisterVisualGeometry(plant->world_body(), X_ground, Box(25, 25, 1),
                                   "ground", green);
+    plant->RegisterVisualGeometry(plant->world_body(), X_table, Box(1.5, 1.5, 1),
+                                  "table", tan);
     plant->RegisterCollisionGeometry(plant->world_body(), X_ground,
                                      Box(25, 25, 1), "ground",
                                      CoulombFriction<double>(0.5, 0.5));
