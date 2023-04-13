@@ -10,8 +10,8 @@ namespace examples {
 namespace jaco {
 
 using Eigen::Vector3d;
-using geometry::AddContactMaterial;
 using geometry::AddCompliantHydroelasticProperties;
+using geometry::AddContactMaterial;
 using geometry::Box;
 using geometry::ProximityProperties;
 using math::RigidTransformd;
@@ -59,7 +59,7 @@ class JacoExample : public TrajOptExample {
       MultibodyPlant<double>* plant) const final {
     // Use hydroelastic contact, and throw instead of point contact fallback
     plant->set_contact_model(multibody::ContactModel::kHydroelastic);
-      
+
     // Add a jaco arm, including gravity, with rigid hydroelastic contact
     std::string robot_file = FindResourceOrThrow(
         "drake/traj_opt/examples/models/j2s7s300_arm_hydro_collision.sdf");
