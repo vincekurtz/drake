@@ -49,10 +49,7 @@ class JacoExample : public TrajOptExample {
                                   Box(1.5, 1.5, 1), "table", tan);
     plant->RegisterCollisionGeometry(plant->world_body(), X_ground,
                                      Box(25, 25, 1), "ground",
-                                     CoulombFriction<double>(0.05, 0.05));
-    // N.B. When combined with the friction coefficient of the box according to
-    // μ = 2μₘμₙ/(μₘ + μₙ), this gives a friction coefficient of roughly 0.1
-    // between the box and the ground.
+                                     CoulombFriction<double>(0.5, 0.5));
   }
 
   void CreatePlantModelForSimulation(
@@ -85,7 +82,7 @@ class JacoExample : public TrajOptExample {
                                   Box(1.5, 1.5, 1), "table", tan);
 
     ProximityProperties ground_proximity;
-    AddContactMaterial({}, {}, CoulombFriction<double>(0.05, 0.05),
+    AddContactMaterial({}, {}, CoulombFriction<double>(0.5, 0.5),
                        &ground_proximity);
     AddCompliantHydroelasticProperties(0.1, 5e7, &ground_proximity);
     plant->RegisterCollisionGeometry(plant->world_body(), X_ground,
