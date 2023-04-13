@@ -42,9 +42,14 @@ Later edited by hand to:
             <uri>meshes/jaco_coarse/base.obj</uri>
           </mesh>
         </geometry>
-        <drake:proximity_properties>
-          <drake:rigid_hydroelastic/>
-        </drake:proximity_properties>
+        <surface>
+          <friction>
+          <ode>
+            <mu>0.5</mu>
+            <mu2>0.5</mu2>
+          </ode>
+          </friction>
+        </surface>
         <drake:proximity_properties>
           <drake:rigid_hydroelastic/>
         </drake:proximity_properties>
@@ -84,6 +89,14 @@ Later edited by hand to:
             <uri>meshes/jaco_coarse/shoulder.obj</uri>
           </mesh>
         </geometry>
+        <surface>
+          <friction>
+          <ode>
+            <mu>0.5</mu>
+            <mu2>0.5</mu2>
+          </ode>
+          </friction>
+        </surface>
         <drake:proximity_properties>
           <drake:rigid_hydroelastic/>
         </drake:proximity_properties>
@@ -108,6 +121,14 @@ Later edited by hand to:
             <uri>meshes/jaco_coarse/ring_big.obj</uri>
           </mesh>
         </geometry>
+        <surface>
+          <friction>
+          <ode>
+            <mu>0.5</mu>
+            <mu2>0.5</mu2>
+          </ode>
+          </friction>
+        </surface>
         <drake:proximity_properties>
           <drake:rigid_hydroelastic/>
         </drake:proximity_properties>
@@ -167,6 +188,14 @@ Later edited by hand to:
             <uri>meshes/jaco_coarse/arm_half_1.obj</uri>
           </mesh>
         </geometry>
+        <surface>
+          <friction>
+          <ode>
+            <mu>0.5</mu>
+            <mu2>0.5</mu2>
+          </ode>
+          </friction>
+        </surface>
         <drake:proximity_properties>
           <drake:rigid_hydroelastic/>
         </drake:proximity_properties>
@@ -226,6 +255,14 @@ Later edited by hand to:
             <uri>meshes/jaco_coarse/arm_half_2.obj</uri>
           </mesh>
         </geometry>
+        <surface>
+          <friction>
+          <ode>
+            <mu>0.5</mu>
+            <mu2>0.5</mu2>
+          </ode>
+          </friction>
+        </surface>
         <drake:proximity_properties>
           <drake:rigid_hydroelastic/>
         </drake:proximity_properties>
@@ -250,6 +287,14 @@ Later edited by hand to:
             <uri>meshes/jaco_coarse/ring_big.obj</uri>
           </mesh>
         </geometry>
+        <surface>
+          <friction>
+          <ode>
+            <mu>0.5</mu>
+            <mu2>0.5</mu2>
+          </ode>
+          </friction>
+        </surface>
         <drake:proximity_properties>
           <drake:rigid_hydroelastic/>
         </drake:proximity_properties>
@@ -309,6 +354,14 @@ Later edited by hand to:
             <uri>meshes/jaco_coarse/forearm.obj</uri>
           </mesh>
         </geometry>
+        <surface>
+          <friction>
+          <ode>
+            <mu>0.5</mu>
+            <mu2>0.5</mu2>
+          </ode>
+          </friction>
+        </surface>
         <drake:proximity_properties>
           <drake:rigid_hydroelastic/>
         </drake:proximity_properties>
@@ -333,6 +386,14 @@ Later edited by hand to:
             <uri>meshes/jaco_coarse/ring_small.obj</uri>
           </mesh>
         </geometry>
+        <surface>
+          <friction>
+          <ode>
+            <mu>0.5</mu>
+            <mu2>0.5</mu2>
+          </ode>
+          </friction>
+        </surface>
         <drake:proximity_properties>
           <drake:rigid_hydroelastic/>
         </drake:proximity_properties>
@@ -392,6 +453,14 @@ Later edited by hand to:
             <uri>meshes/jaco_coarse/wrist_spherical_1.obj</uri>
           </mesh>
         </geometry>
+        <surface>
+          <friction>
+          <ode>
+            <mu>0.5</mu>
+            <mu2>0.5</mu2>
+          </ode>
+          </friction>
+        </surface>
         <drake:proximity_properties>
           <drake:rigid_hydroelastic/>
         </drake:proximity_properties>
@@ -416,6 +485,14 @@ Later edited by hand to:
             <uri>meshes/jaco_coarse/ring_small.obj</uri>
           </mesh>
         </geometry>
+        <surface>
+          <friction>
+          <ode>
+            <mu>0.5</mu>
+            <mu2>0.5</mu2>
+          </ode>
+          </friction>
+        </surface>
         <drake:proximity_properties>
           <drake:rigid_hydroelastic/>
         </drake:proximity_properties>
@@ -475,6 +552,14 @@ Later edited by hand to:
             <uri>meshes/jaco_coarse/wrist_spherical_2.obj</uri>
           </mesh>
         </geometry>
+        <surface>
+          <friction>
+          <ode>
+            <mu>0.5</mu>
+            <mu2>0.5</mu2>
+          </ode>
+          </friction>
+        </surface>
         <drake:proximity_properties>
           <drake:rigid_hydroelastic/>
         </drake:proximity_properties>
@@ -499,6 +584,14 @@ Later edited by hand to:
             <uri>meshes/jaco_coarse/ring_small.obj</uri>
           </mesh>
         </geometry>
+        <surface>
+          <friction>
+          <ode>
+            <mu>0.5</mu>
+            <mu2>0.5</mu2>
+          </ode>
+          </friction>
+        </surface>
         <drake:proximity_properties>
           <drake:rigid_hydroelastic/>
         </drake:proximity_properties>
@@ -595,6 +688,14 @@ Later edited by hand to:
             <uri>meshes/jaco_coarse/jaco_nub.obj</uri>
           </mesh>
         </geometry>
+        <surface>
+          <friction>
+          <ode>
+            <mu>0.5</mu>
+            <mu2>0.5</mu2>
+          </ode>
+          </friction>
+        </surface>
         <drake:proximity_properties>
           <drake:rigid_hydroelastic/>
         </drake:proximity_properties>
