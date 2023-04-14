@@ -696,10 +696,8 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsFiniteDiff(
     VectorX<T>& v_eps_tp = workspace.v_size_tmp2;
     VectorX<T>& a_eps_tm = workspace.a_size_tmp1;
     VectorX<T>& a_eps_t = workspace.a_size_tmp2;
-    VectorX<T>& a_eps_tp = workspace.a_size_tmp3;
     VectorX<T>& tau_eps_tm = workspace.tau_size_tmp1;
     VectorX<T>& tau_eps_t = workspace.tau_size_tmp2;
-    VectorX<T>& tau_eps_tp = workspace.tau_size_tmp3;
 
     // Small perturbations
     T& dq_i = dq_is[t];
@@ -715,11 +713,10 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsFiniteDiff(
       // a[num_steps] is not defined
       a_eps_t = a[t];
     }
-    if (t < num_steps() - 1) {
-      // a[num_steps + 1] is not defined
-      a_eps_tp = a[t + 1];
-    }
     a_eps_tm = a[t - 1];
+      
+    // Get a context for this time step
+    Context<T>& context_t = GetMutablePlantContext(state, t);
 
     for (int i = 0; i < plant().num_positions(); ++i) {
       // Determine perturbation sizes to avoid losing precision to floating
@@ -742,15 +739,9 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsFiniteDiff(
         v_eps_tp -= dv_i * Nplus[t + 1].col(i);
         a_eps_t -= da_i * (Nplus[t + 1].col(i) + Nplus[t].col(i));
       }
-      if (t < num_steps() - 1) {
-        a_eps_tp += da_i * Nplus[t + 1].col(i);
-      }
 
       // Compute perturbed tau(q) and calculate the nonzero entries of dtau/dq
       // via finite differencing
-
-      // Get a context for this time step
-      Context<T>& context_t = GetMutablePlantContext(state, t);
 
       // tau[t-1] = ID(q[t], v[t], a[t-1])
       plant().SetPositions(&context_t, q_eps_t);
@@ -768,15 +759,6 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsFiniteDiff(
         dtau_dqt[t].col(i) = (tau_eps_t - tau[t]) / dq_i;
       }
 
-      // tau[t+1] = ID(q[t+2], v[t+2], a[t+1])
-      if (t < num_steps() - 1) {
-        plant().SetPositions(&context_t, q[t + 2]);
-        plant().SetVelocities(&context_t, v[t + 2]);
-        CalcInverseDynamicsSingleTimeStep(context_t, a_eps_tp, &workspace,
-                                          &tau_eps_tp);
-        dtau_dqm[t + 1].col(i) = (tau_eps_tp - tau[t + 1]) / dq_i;
-      }
-
       // Unperturb q_t[i], v_t[i], and a_t[i]
       q_eps_t = q[t];
       v_eps_t = v[t];
@@ -785,9 +767,20 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsFiniteDiff(
         v_eps_tp = v[t + 1];
         a_eps_t = a[t];
       }
-      if (t < num_steps() - 1) {
-        a_eps_tp = a[t + 1];
-      }
+    }
+
+    // tau[t+1] = ID(q[t+2], v[t+2], a[t+1])
+    // N.B. Since tau[t+1] depends on q only through a, we can compute
+    // dtau_dqm[t+1] analytically rather than relying on column-wise forward
+    // differences
+    if (t < num_steps() - 1) {
+      plant().SetPositions(&context_t, q[t + 2]);
+      plant().SetVelocities(&context_t, v[t + 2]);
+
+      // TODO: remove heap allocation
+      MatrixX<T> M(plant().num_velocities(), plant().num_velocities());
+      plant().CalcMassMatrix(context_t, &M);
+      dtau_dqm[t+1] = 1 / time_step() / time_step() * M * Nplus[t+1];
     }
   }
 }
