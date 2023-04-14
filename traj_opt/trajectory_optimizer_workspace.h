@@ -83,6 +83,7 @@ struct TrajectoryOptimizerWorkspace {
     num_vars_size_tmp2.resize(num_vars);
 
     num_vars_by_num_eq_cons_tmp.resize(num_vars, num_eq_cons);
+    mass_matrix_size_tmp.resize(nv, nv);
 
     // Allocate sequences
     q_sequence_tmp1.assign(num_steps, VectorX<T>(nq));
@@ -146,6 +147,9 @@ struct TrajectoryOptimizerWorkspace {
 
   // Matrix of size (number of variables) * (number of equality constraints)
   MatrixX<T> num_vars_by_num_eq_cons_tmp;
+
+  // Matrix of size nv x nv, used to store the mass matrix
+  MatrixX<T> mass_matrix_size_tmp;
 };
 
 }  // namespace traj_opt

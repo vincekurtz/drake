@@ -699,6 +699,9 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsFiniteDiff(
     VectorX<T>& tau_eps_tm = workspace.tau_size_tmp1;
     VectorX<T>& tau_eps_t = workspace.tau_size_tmp2;
 
+    // Mass matrix, for analytical computation of dtau[t+1]/dq[t]
+    MatrixX<T>& M = workspace.mass_matrix_size_tmp;
+
     // Small perturbations
     T& dq_i = dq_is[t];
     T& dv_i = dv_is[t];
@@ -776,9 +779,6 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsFiniteDiff(
     if (t < num_steps() - 1) {
       plant().SetPositions(&context_t, q[t + 2]);
       plant().SetVelocities(&context_t, v[t + 2]);
-
-      // TODO: remove heap allocation
-      MatrixX<T> M(plant().num_velocities(), plant().num_velocities());
       plant().CalcMassMatrix(context_t, &M);
       dtau_dqm[t+1] = 1 / time_step() / time_step() * M * Nplus[t+1];
     }
