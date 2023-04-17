@@ -64,9 +64,6 @@ class DualJacoExample : public TrajOptExample {
 
   void CreatePlantModelForSimulation(
       MultibodyPlant<double>* plant) const final {
-    // Use hydroelastic contact, and throw instead of point contact fallback
-    plant->set_contact_model(multibody::ContactModel::kHydroelastic);
-
     // Add jaco arms, including gravity
     std::string robot_file = FindResourceOrThrow(
         "drake/traj_opt/examples/models/j2s7s300_arm_hydro_collision.sdf");
