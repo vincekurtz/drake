@@ -1,0 +1,63 @@
+#pragma once
+
+#include <chrono>
+#include <string>
+
+#include "drake/common/eigen_types.h"
+#include "drake/multibody/plant/multibody_plant.h"
+#include "drake/systems/framework/diagram.h"
+#include "drake/traj_opt/trajectory_optimizer_state.h"
+
+namespace drake {
+namespace traj_opt {
+
+using Eigen::VectorXd;
+
+/**
+ * A container for holding variables that are re-used between MPC solves. Using
+ * this container allows us to perform a full warm-start (including trust region
+ * radius) for MPC, and allows us to avoid expensive state allocations between
+ * MPC re-solves.
+ */
+class IterationData {
+ public:
+  /**
+   * The constructor allocates state variables
+   * 
+   * @param num_steps Number of steps in the trajectory optimization problem
+   * @param diagram Overall system diagram containing the plant
+   * @param plant MultibodyPlant model to optimize over
+   * @param num_eq_constraints Number of equality constraints
+   */
+  IterationData(const int num_steps, const Diagram<double>& diagram,
+                const MultibodyPlant<double>& plant,
+                const int num_eq_constraints)
+      : state(num_steps, diagram, plant, num_eq_constraints),
+        scratch_state(num_steps, diagram, plant, num_eq_constraints){};
+
+  // A state variable to store q and everything that is computed from q
+  TrajectoryOptimizerState<double> state;
+
+  // A separate state variable for computations like L(q + dq)
+  TrajectoryOptimizerState<double> scratch_state;
+
+  // The update vector q_{k+1} = q_k + dq
+  VectorXd dq;
+
+  // The full Newton step H * dqH = -g
+  VectorXd dqH;
+
+  // Trust region size
+  double Delta;
+
+  // Printout strings
+  const std::string separator_bar =
+      "------------------------------------------------------------------------"
+      "---------------------";
+  const std::string printout_labels =
+      "|  iter  |   cost   |    Δ    |    ρ    |  time (s)  |  |g|/cost  | "
+      "dL_dq/cost |    |h|     |";
+};
+
+}  // namespace traj_opt
+}  // namespace drake

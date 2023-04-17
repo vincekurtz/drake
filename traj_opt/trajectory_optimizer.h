@@ -11,6 +11,7 @@
 #include "drake/common/profiler.h"
 #include "drake/multibody/plant/multibody_plant.h"
 #include "drake/traj_opt/inverse_dynamics_partials.h"
+#include "drake/traj_opt/iteration_data.h"
 #include "drake/traj_opt/penta_diagonal_matrix.h"
 #include "drake/traj_opt/problem_definition.h"
 #include "drake/traj_opt/solver_parameters.h"
@@ -184,6 +185,23 @@ class TrajectoryOptimizer {
                    TrajectoryOptimizerSolution<T>* solution,
                    TrajectoryOptimizerStats<T>* stats,
                    ConvergenceReason* reason = nullptr) const;
+
+  /**
+   * Solve the optimization with a full warm-start, including both an initial
+   * guess and optimizer parameters like the trust region radius.
+   * 
+   * @note this is only used for the trust-region method
+   *
+   * @param warm_start Container for the initial guess, optimizer state, etc.
+   * @param solution Optimal solution, including velocities and torques
+   * @param stats timing and other iteration-specific statistics
+   * @param reason convergence reason, if applicable
+   * @return SolverFlag
+   */
+  SolverFlag SolveWithWarmStart(IterationData* warm_start,
+                                TrajectoryOptimizerSolution<T>* solution,
+                                TrajectoryOptimizerStats<T>* stats,
+                                ConvergenceReason* reason = nullptr) const;
 
   // The following evaluator functions get data from the state's cache, and
   // update it if necessary.
@@ -1153,6 +1171,11 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithLinesearch(
 template <>
 SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
     const std::vector<VectorXd>&, TrajectoryOptimizerSolution<double>*,
+    TrajectoryOptimizerStats<double>*, ConvergenceReason*) const;
+
+template <>
+SolverFlag TrajectoryOptimizer<double>::SolveWithWarmStart(
+    IterationData*, TrajectoryOptimizerSolution<double>*,
     TrajectoryOptimizerStats<double>*, ConvergenceReason*) const;
 
 }  // namespace traj_opt

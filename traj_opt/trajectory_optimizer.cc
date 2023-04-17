@@ -2709,25 +2709,56 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
     TrajectoryOptimizerStats<double>* stats,
     ConvergenceReason* reason_out) const {
   INSTRUMENT_FUNCTION("Trust region solver.");
-  using std::min;
-  // Allocate a state variable to store q and everything that is computed from q
-  TrajectoryOptimizerState<double> state = CreateState();
-  state.set_q(q_guess);
-
-  // Allocate a separate state variable for computations like L(q + dq)
-  TrajectoryOptimizerState<double> scratch_state = CreateState();
-
-  // Allocate the update vector q_{k+1} = q_k + dq
-  VectorXd dq(plant().num_positions() * (num_steps() + 1));
-  VectorXd dqH(dq.size());
-
-  // Set up a file to record iteration data for a contour plot
+  
+  // Set up a file to record iteration data for a contour plot, if requested
   if (params_.save_contour_data) {
     SetupQuadraticDataFile();
   }
   if (params_.save_lineplot_data) {
     SetupIterationDataFile();
   }
+
+  // TODO: separate function to create this warm_start from q_guess?
+  DRAKE_DEMAND(diagram_ != nullptr);
+  IterationData warm_start(num_steps(), *diagram_, plant(),
+                           num_equality_constraints());
+  warm_start.state.set_q(q_guess);
+
+  const int num_vars = plant().num_positions() * (num_steps() + 1);
+  warm_start.dq.resize(num_vars);
+  warm_start.dqH.resize(num_vars);
+
+  warm_start.Delta = params_.Delta0;
+
+  return SolveWithWarmStart(&warm_start, solution, stats, reason_out);
+  return SolverFlag::kSuccess;
+}
+
+template <typename T>
+SolverFlag TrajectoryOptimizer<T>::SolveWithWarmStart(
+    IterationData*, TrajectoryOptimizerSolution<T>*,
+    TrajectoryOptimizerStats<T>*, ConvergenceReason*) const {
+  throw std::runtime_error(
+      "TrajectoryOptimizer::SolveWithWarmStart only supports T=double.");
+}
+
+template <>
+SolverFlag TrajectoryOptimizer<double>::SolveWithWarmStart(
+    IterationData* warm_start, TrajectoryOptimizerSolution<double>* solution,
+    TrajectoryOptimizerStats<double>* stats, ConvergenceReason* reason_out) const {
+  using std::min;
+  INSTRUMENT_FUNCTION("Solve with warm start.");
+
+  // Warm-starting doesn't support the linesearch method
+  DRAKE_DEMAND(params_.method == SolverMethod::kTrustRegion);
+  
+  // State variable stores q and everything that is computed from q
+  TrajectoryOptimizerState<double>& state = warm_start->state;
+  TrajectoryOptimizerState<double>& scratch_state = warm_start->scratch_state;
+
+  // The update vector q_{k+1} = q_k + dq and full Newton step (for logging)
+  VectorXd& dq = warm_start->dq;
+  VectorXd& dqH = warm_start->dqH;
 
   // Allocate timing variables
   auto start_time = std::chrono::high_resolution_clock::now();
@@ -2741,19 +2772,15 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
                            // the trust ratio is above this threshold
 
   // Variables that we'll update throughout the main loop
-  int k = 0;                      // iteration counter
-  double Delta = params_.Delta0;  // trust region size
-  double rho;                     // trust region ratio
-  bool tr_constraint_active;      // flag for whether the trust region
-                                  // constraint is active
+  int k = 0;                         // iteration counter
+  double Delta = warm_start->Delta;  // trust region size
+  double rho;                        // trust region ratio
+  bool tr_constraint_active;         // flag for whether the trust region
+                                     // constraint is active
 
   // Define printout data
-  const std::string separator_bar =
-      "------------------------------------------------------------------------"
-      "---------------------";
-  const std::string printout_labels =
-      "|  iter  |   cost   |    Δ    |    ρ    |  time (s)  |  |g|/cost  | "
-      "dL_dq/cost |    |h|     |";
+  const std::string& separator_bar = warm_start->separator_bar;
+  const std::string& printout_labels = warm_start->printout_labels;
 
   double previous_cost = EvalCost(state);
   while (k < params_.max_iterations) {

@@ -72,6 +72,7 @@ drake_cc_library(
     ],
     deps = [
         ":inverse_dynamics_partials",
+        ":iteration_data",
         ":penta_diagonal_matrix",
         ":penta_diagonal_solver",
         ":penta_diagonal_to_petsc_matrix",
@@ -115,6 +116,16 @@ drake_cc_library(
         "solver_parameters.h",
     ],
     deps = [":convergence_criteria_tolerances"],
+)
+
+drake_cc_library(
+    name = "iteration_data",
+    hdrs = [
+        "iteration_data.h",
+    ],
+    deps = [":trajectory_optimizer_state",
+            "//multibody/plant",
+            "//common:essential"],
 )
 
 drake_cc_library(
