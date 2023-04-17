@@ -55,10 +55,10 @@
       </visual>
       
       <collision name="sphere_corner_1">
-        <pose> -0.045 -0.045 -0.045 0 0 0</pose>
+        <pose> -0.04 -0.04 -0.04 0 0 0</pose>
         <geometry>
           <sphere>
-            <radius>0.03</radius>
+            <radius>0.035</radius>
           </sphere>
         </geometry>
         <surface>
@@ -71,10 +71,10 @@
         </surface>
       </collision>
       <visual name="sphere_corner_1_visual">
-        <pose> -0.045 -0.045 -0.045 0 0 0</pose>
+        <pose> -0.04 -0.04 -0.04 0 0 0</pose>
         <geometry>
           <sphere>
-            <radius>0.03</radius>
+            <radius>0.035</radius>
           </sphere>
         </geometry>
         <material>
@@ -83,10 +83,10 @@
       </visual>
 
       <collision name="sphere_corner_2">
-        <pose> 0.045 -0.045 -0.045 0 0 0</pose>
+        <pose> 0.04 -0.04 -0.04 0 0 0</pose>
         <geometry>
           <sphere>
-            <radius>0.03</radius>
+            <radius>0.035</radius>
           </sphere>
         </geometry>
         <surface>
@@ -99,10 +99,10 @@
         </surface>
       </collision>
       <visual name="sphere_corner_2_visual">
-        <pose> 0.045 -0.045 -0.045 0 0 0</pose>
+        <pose> 0.04 -0.04 -0.04 0 0 0</pose>
         <geometry>
           <sphere>
-            <radius>0.03</radius>
+            <radius>0.035</radius>
           </sphere>
         </geometry>
         <material>
@@ -111,10 +111,10 @@
       </visual>
 
       <collision name="sphere_corner_3">
-        <pose> -0.045 0.045 -0.045 0 0 0</pose>
+        <pose> -0.04 0.04 -0.04 0 0 0</pose>
         <geometry>
           <sphere>
-            <radius>0.03</radius>
+            <radius>0.035</radius>
           </sphere>
         </geometry>
         <surface>
@@ -127,10 +127,10 @@
         </surface>
       </collision>
       <visual name="sphere_corner_3_visual">
-        <pose> -0.045 0.045 -0.045 0 0 0</pose>
+        <pose> -0.04 0.04 -0.04 0 0 0</pose>
         <geometry>
           <sphere>
-            <radius>0.03</radius>
+            <radius>0.035</radius>
           </sphere>
         </geometry>
         <material>
@@ -139,10 +139,10 @@
       </visual>
 
       <collision name="sphere_corner_4">
-        <pose> 0.045 0.045 -0.045 0 0 0</pose>
+        <pose> 0.04 0.04 -0.04 0 0 0</pose>
         <geometry>
           <sphere>
-            <radius>0.03</radius>
+            <radius>0.035</radius>
           </sphere>
         </geometry>
         <surface>
@@ -155,10 +155,10 @@
         </surface>
       </collision>
       <visual name="sphere_corner_4_visual">
-        <pose> 0.045 0.045 -0.045 0 0 0</pose>
+        <pose> 0.04 0.04 -0.04 0 0 0</pose>
         <geometry>
           <sphere>
-            <radius>0.03</radius>
+            <radius>0.035</radius>
           </sphere>
         </geometry>
         <material>
@@ -167,10 +167,10 @@
       </visual>
 
       <collision name="sphere_corner_5">
-        <pose> -0.045 -0.045 0.045 0 0 0</pose>
+        <pose> -0.04 -0.04 0.04 0 0 0</pose>
         <geometry>
           <sphere>
-            <radius>0.03</radius>
+            <radius>0.035</radius>
           </sphere>
         </geometry>
         <surface>
@@ -183,10 +183,10 @@
         </surface>
       </collision>
       <visual name="sphere_corner_5_visual">
-        <pose> -0.045 -0.045 0.045 0 0 0</pose>
+        <pose> -0.04 -0.04 0.04 0 0 0</pose>
         <geometry>
           <sphere>
-            <radius>0.03</radius>
+            <radius>0.035</radius>
           </sphere>
         </geometry>
         <material>
@@ -195,10 +195,10 @@
       </visual>
 
       <collision name="sphere_corner_6">
-        <pose> 0.045 -0.045 0.045 0 0 0</pose>
+        <pose> 0.04 -0.04 0.04 0 0 0</pose>
         <geometry>
           <sphere>
-            <radius>0.03</radius>
+            <radius>0.035</radius>
           </sphere>
         </geometry>
         <surface>
@@ -211,10 +211,10 @@
         </surface>
       </collision>
       <visual name="sphere_corner_6_visual">
-        <pose> 0.045 -0.045 0.045 0 0 0</pose>
+        <pose> 0.04 -0.04 0.04 0 0 0</pose>
         <geometry>
           <sphere>
-            <radius>0.03</radius>
+            <radius>0.035</radius>
           </sphere>
         </geometry>
         <material>
@@ -223,10 +223,10 @@
       </visual>
 
       <collision name="sphere_corner_7">
-        <pose> -0.045 0.045 0.045 0 0 0</pose>
+        <pose> -0.04 0.04 0.04 0 0 0</pose>
         <geometry>
           <sphere>
-            <radius>0.03</radius>
+            <radius>0.035</radius>
           </sphere>
         </geometry>
         <surface>
@@ -239,10 +239,10 @@
         </surface>
       </collision>
       <visual name="sphere_corner_7_visual">
-        <pose> -0.045 0.045 0.045 0 0 0</pose>
+        <pose> -0.04 0.04 0.04 0 0 0</pose>
         <geometry>
           <sphere>
-            <radius>0.03</radius>
+            <radius>0.035</radius>
           </sphere>
         </geometry>
         <material>
@@ -251,10 +251,10 @@
       </visual>
 
       <collision name="sphere_corner_8">
-        <pose> 0.045 0.045 0.045 0 0 0</pose>
+        <pose> 0.04 0.04 0.04 0 0 0</pose>
         <geometry>
           <sphere>
-            <radius>0.03</radius>
+            <radius>0.035</radius>
           </sphere>
         </geometry>
         <surface>
@@ -267,10 +267,10 @@
         </surface>
       </collision>
       <visual name="sphere_corner_8_visual">
-        <pose> 0.045 0.045 0.045 0 0 0</pose>
+        <pose> 0.04 0.04 0.04 0 0 0</pose>
         <geometry>
           <sphere>
-            <radius>0.03</radius>
+            <radius>0.035</radius>
           </sphere>
         </geometry>
         <material>
