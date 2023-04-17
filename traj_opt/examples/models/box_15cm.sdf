@@ -30,7 +30,7 @@
         <pose> 0 0 0 0 0 0</pose>
         <geometry>
           <sphere>
-            <radius>0.075</radius>
+            <radius>0.06</radius>
           </sphere>
         </geometry>
         <surface>
@@ -46,7 +46,7 @@
         <pose> 0 0 0 0 0 0</pose>
         <geometry>
           <sphere>
-            <radius>0.075</radius>
+            <radius>0.06</radius>
           </sphere>
         </geometry>
         <material>
