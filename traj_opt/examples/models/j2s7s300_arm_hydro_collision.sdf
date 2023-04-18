@@ -716,6 +716,7 @@ Later edited by hand to:
         <drake:member>j2s7s300_link_4</drake:member>
         <drake:member>j2s7s300_link_5</drake:member>
         <drake:member>j2s7s300_link_6</drake:member>
+        <drake:member>j2s7s300_link_7</drake:member>
         <drake:member>nub_link</drake:member>
         <drake:ignored_collision_filter_group>all</drake:ignored_collision_filter_group>
     </drake:collision_filter_group>
