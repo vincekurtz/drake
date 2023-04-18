@@ -115,6 +115,17 @@ class TrajectoryOptimizer {
   const MultibodyPlant<T>& plant() const { return *plant_; }
 
   /**
+   * Convienience function to get a const reference to the system diagram that
+   * contains the multibody plant that we are optimizing over.
+   *
+   * @return const Diagram<T>&, the system diagram.
+   */
+  const Diagram<T>& diagram() const {
+    DRAKE_DEMAND(diagram_ != nullptr);
+    return *diagram_;
+  }
+
+  /**
    * Create a state object which contains the decision variables (generalized
    * positions at each timestep), along with a cache of other things that are
    * computed from positions, such as velocities, accelerations, forces, and
@@ -198,7 +209,7 @@ class TrajectoryOptimizer {
    * @param reason convergence reason, if applicable
    * @return SolverFlag
    */
-  SolverFlag SolveWithWarmStart(WarmStart* warm_start,
+  SolverFlag SolveFromWarmStart(WarmStart* warm_start,
                                 TrajectoryOptimizerSolution<T>* solution,
                                 TrajectoryOptimizerStats<T>* stats,
                                 ConvergenceReason* reason = nullptr) const;
@@ -1174,7 +1185,7 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
     TrajectoryOptimizerStats<double>*, ConvergenceReason*) const;
 
 template <>
-SolverFlag TrajectoryOptimizer<double>::SolveWithWarmStart(
+SolverFlag TrajectoryOptimizer<double>::SolveFromWarmStart(
     WarmStart*, TrajectoryOptimizerSolution<double>*,
     TrajectoryOptimizerStats<double>*, ConvergenceReason*) const;
 

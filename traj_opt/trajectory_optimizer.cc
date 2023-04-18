@@ -2721,23 +2721,23 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
   // Allocate a warm start, which includes the initial guess along with state
   // variables and the trust region radius.
   DRAKE_DEMAND(diagram_ != nullptr);
-  WarmStart warm_start(num_steps(), *diagram_, plant(),
+  WarmStart warm_start(num_steps(), diagram(), plant(),
                        num_equality_constraints(), q_guess, params_.Delta0);
 
-  return SolveWithWarmStart(&warm_start, solution, stats, reason_out);
+  return SolveFromWarmStart(&warm_start, solution, stats, reason_out);
   return SolverFlag::kSuccess;
 }
 
 template <typename T>
-SolverFlag TrajectoryOptimizer<T>::SolveWithWarmStart(
+SolverFlag TrajectoryOptimizer<T>::SolveFromWarmStart(
     WarmStart*, TrajectoryOptimizerSolution<T>*,
     TrajectoryOptimizerStats<T>*, ConvergenceReason*) const {
   throw std::runtime_error(
-      "TrajectoryOptimizer::SolveWithWarmStart only supports T=double.");
+      "TrajectoryOptimizer::SolveFromWarmStart only supports T=double.");
 }
 
 template <>
-SolverFlag TrajectoryOptimizer<double>::SolveWithWarmStart(
+SolverFlag TrajectoryOptimizer<double>::SolveFromWarmStart(
     WarmStart* warm_start, TrajectoryOptimizerSolution<double>* solution,
     TrajectoryOptimizerStats<double>* stats, ConvergenceReason* reason_out) const {
   using std::min;
@@ -2766,11 +2766,11 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithWarmStart(
                            // the trust ratio is above this threshold
 
   // Variables that we'll update throughout the main loop
-  int k = 0;                         // iteration counter
-  double Delta = warm_start->Delta;  // trust region size
-  double rho;                        // trust region ratio
-  bool tr_constraint_active;         // flag for whether the trust region
-                                     // constraint is active
+  int k = 0;                          // iteration counter
+  double& Delta = warm_start->Delta;  // trust region size
+  double rho;                         // trust region ratio
+  bool tr_constraint_active;          // flag for whether the trust region
+                                      // constraint is active
 
   // Define printout data
   const std::string& separator_bar = warm_start->separator_bar;

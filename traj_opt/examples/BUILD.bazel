@@ -291,6 +291,7 @@ drake_cc_library(
         "//systems/framework:vector",
         "//traj_opt:problem_definition",
         "//traj_opt:trajectory_optimizer",
+        "//traj_opt:warm_start",
     ],
 )
 

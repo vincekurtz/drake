@@ -11,6 +11,7 @@
 #include "drake/traj_opt/problem_definition.h"
 #include "drake/traj_opt/solver_parameters.h"
 #include "drake/traj_opt/trajectory_optimizer.h"
+#include "drake/traj_opt/warm_start.h"
 
 namespace drake {
 namespace traj_opt {
@@ -122,6 +123,11 @@ class ModelPredictiveController : public LeafSystem<double> {
   // Optimizer used to compute control inputs at each time step. Mutable because
   // the stored intitial conditions must be updated at each step.
   mutable TrajectoryOptimizer<double> optimizer_;
+
+  // Stuct to store the full warm-start (including optimizer state) between MPC
+  // solves. Mutable because we need to update the stored data each time we
+  // solve.
+  mutable WarmStart warm_start_;
 
   // Indexes for the input and output ports
   int state_input_port_;

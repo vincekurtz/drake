@@ -61,7 +61,10 @@ class WarmStart {
   // The full Newton step H * dqH = -g
   VectorXd dqH;
 
+  // TODO: add stats and solution here?
+
   // Printout strings
+  // TODO: remove from here
   const std::string separator_bar =
       "------------------------------------------------------------------------"
       "---------------------";
