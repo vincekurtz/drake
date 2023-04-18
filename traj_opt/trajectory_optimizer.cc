@@ -2742,6 +2742,12 @@ SolverFlag TrajectoryOptimizer<double>::SolveFromWarmStart(
     TrajectoryOptimizerStats<double>* stats, ConvergenceReason* reason_out) const {
   using std::min;
   INSTRUMENT_FUNCTION("Solve with warm start.");
+  
+  // Allocate timing variables
+  auto start_time = std::chrono::high_resolution_clock::now();
+  auto iter_start_time = std::chrono::high_resolution_clock::now();
+  std::chrono::duration<double> iter_time;
+  std::chrono::duration<double> solve_time;
 
   // Warm-starting doesn't support the linesearch method
   DRAKE_DEMAND(params_.method == SolverMethod::kTrustRegion);
@@ -2753,12 +2759,6 @@ SolverFlag TrajectoryOptimizer<double>::SolveFromWarmStart(
   // The update vector q_{k+1} = q_k + dq and full Newton step (for logging)
   VectorXd& dq = warm_start->dq;
   VectorXd& dqH = warm_start->dqH;
-
-  // Allocate timing variables
-  auto start_time = std::chrono::high_resolution_clock::now();
-  auto iter_start_time = std::chrono::high_resolution_clock::now();
-  std::chrono::duration<double> iter_time;
-  std::chrono::duration<double> solve_time;
 
   // Trust region parameters
   const double Delta_max = params_.Delta_max;  // Maximum trust region size
@@ -2775,7 +2775,7 @@ SolverFlag TrajectoryOptimizer<double>::SolveFromWarmStart(
   // Define printout data
   const std::string& separator_bar = warm_start->separator_bar;
   const std::string& printout_labels = warm_start->printout_labels;
-
+  
   double previous_cost = EvalCost(state);
   while (k < params_.max_iterations) {
     // Obtain the candiate update dq
@@ -2891,11 +2891,16 @@ SolverFlag TrajectoryOptimizer<double>::SolveFromWarmStart(
     // Only check convergence criteria for valid steps.
     ConvergenceReason reason{
         ConvergenceReason::kNoConvergenceCriteriaSatisfied};
-    if (rho > eta) {
-      reason = VerifyConvergenceCriteria(state, previous_cost, dq);
-      previous_cost = EvalCost(state);
-      if (reason_out) *reason_out = reason;
-    }
+    // TODO: add flag to enable/disable convergence criteria. Checking these
+    // criteria can add some extra cost, which is fine most of the time but no
+    // good for MPC
+    // if (rho > eta) {
+    //  reason = VerifyConvergenceCriteria(state, previous_cost, dq);
+    //  previous_cost = EvalCost(state);
+    //  if (reason_out) *reason_out = reason;
+    //}
+    (void) reason_out;
+    (void) previous_cost;
 
     if (reason != ConvergenceReason::kNoConvergenceCriteriaSatisfied) {
       break;
