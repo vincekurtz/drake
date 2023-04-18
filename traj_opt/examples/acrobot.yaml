@@ -39,6 +39,7 @@ exact_hessian : false
 scaling : true
 equality_constraints : true
 Delta0 : 1e3
+num_threads : 4
 
 # Convergence thresholds
 tolerances:
@@ -51,7 +52,7 @@ tolerances:
 
 # Method used to compute gradients of inverse dynamics, one of
 # {forward_differences, central_differences, central_differences4, autodiff}
-gradients_method: "central_differences"
+gradients_method: "forward_differences"
 
 linear_solver: "pentadiagonal_lu"
 #linear_solver: "dense_ldlt"
@@ -79,9 +80,9 @@ save_solver_stats_csv : true
 # MPC parameters
 mpc : true
 mpc_iters : 1
-controller_frequency : 150
+controller_frequency : 300
 sim_time : 5
-sim_time_step : 1e-3
+sim_time_step : 5e-3
 sim_realtime_rate : 0.0
 feed_forward : true
 Kp : [0.0, 100.0]
