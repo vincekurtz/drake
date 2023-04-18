@@ -2720,7 +2720,6 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
 
   // Allocate a warm start, which includes the initial guess along with state
   // variables and the trust region radius.
-  DRAKE_DEMAND(diagram_ != nullptr);
   WarmStart warm_start(num_steps(), diagram(), plant(),
                        num_equality_constraints(), q_guess, params_.Delta0);
 
