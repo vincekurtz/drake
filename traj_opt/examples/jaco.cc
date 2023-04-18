@@ -83,9 +83,9 @@ class JacoExample : public TrajOptExample {
                                   Box(1.5, 1.5, 1), "table", tan);
 
     ProximityProperties ground_proximity;
-    AddContactMaterial({}, {}, CoulombFriction<double>(0.5, 0.5),
+    AddContactMaterial(3.0, {}, CoulombFriction<double>(0.5, 0.5),
                        &ground_proximity);
-    AddCompliantHydroelasticProperties(0.1, 5e7, &ground_proximity);
+    AddCompliantHydroelasticProperties(0.1, 5e6, &ground_proximity);
     plant->RegisterCollisionGeometry(plant->world_body(), X_ground,
                                      Box(25, 25, 1), "ground",
                                      ground_proximity);
