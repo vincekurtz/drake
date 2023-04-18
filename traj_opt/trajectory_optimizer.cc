@@ -2891,16 +2891,11 @@ SolverFlag TrajectoryOptimizer<double>::SolveFromWarmStart(
     // Only check convergence criteria for valid steps.
     ConvergenceReason reason{
         ConvergenceReason::kNoConvergenceCriteriaSatisfied};
-    // TODO: add flag to enable/disable convergence criteria. Checking these
-    // criteria can add some extra cost, which is fine most of the time but no
-    // good for MPC
-    // if (rho > eta) {
-    //  reason = VerifyConvergenceCriteria(state, previous_cost, dq);
-    //  previous_cost = EvalCost(state);
-    //  if (reason_out) *reason_out = reason;
-    //}
-    (void) reason_out;
-    (void) previous_cost;
+    if (params_.check_convergence && (rho > eta)) {
+      reason = VerifyConvergenceCriteria(state, previous_cost, dq);
+      previous_cost = EvalCost(state);
+      if (reason_out) *reason_out = reason;
+    }
 
     if (reason != ConvergenceReason::kNoConvergenceCriteriaSatisfied) {
       break;

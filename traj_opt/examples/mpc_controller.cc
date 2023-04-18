@@ -1,7 +1,6 @@
 #include "drake/traj_opt/examples/mpc_controller.h"
 
 #include <iostream>
-#include <chrono> //DEBUG
 
 namespace drake {
 namespace traj_opt {
@@ -44,54 +43,30 @@ ModelPredictiveController::ModelPredictiveController(
 EventStatus ModelPredictiveController::UpdateAbstractState(
     const Context<double>& context, State<double>* state) const {
   std::cout << "Resolving at t=" << context.get_time() << std::endl;
-  
-  auto start_time = std::chrono::high_resolution_clock::now();
-  std::chrono::duration<double> my_time;
 
   // Get the latest initial condition
   const VectorXd& x0 = EvalVectorInput(context, state_input_port_)->value();
   const auto& q0 = x0.topRows(nq_);
   const auto& v0 = x0.bottomRows(nv_);
 
-  my_time = std::chrono::high_resolution_clock::now() - start_time;
-  std::cout << "Get x0 " << my_time.count() << std::endl;
-
   // Get a reference to the previous solution stored in the discrete state
   StoredTrajectory& stored_trajectory =
       state->get_mutable_abstract_state<StoredTrajectory>(stored_trajectory_);
-  
-  my_time = std::chrono::high_resolution_clock::now() - start_time;
-  std::cout << "Get stored_trajectory " << my_time.count() << std::endl;
 
   // Set the initial guess from the stored solution
   std::vector<VectorXd> q_guess(num_steps_, VectorXd(nq_));
   UpdateInitialGuess(stored_trajectory, context.get_time(), &q_guess);
   q_guess[0] = q0;  // guess must be consistent with the initial condition
   warm_start_.state.set_q(q_guess);
-  
-  my_time = std::chrono::high_resolution_clock::now() - start_time;
-  std::cout << "Update initial guess " << my_time.count() << std::endl;
 
   // Solve the trajectory optimization problem from the new initial condition
   optimizer_.ResetInitialConditions(q0, v0);
   TrajectoryOptimizerStats<double> stats;
   TrajectoryOptimizerSolution<double> solution;
-  
-  my_time = std::chrono::high_resolution_clock::now() - start_time;
-  std::cout << "Set initial condition " << my_time.count() << std::endl;
-
   optimizer_.SolveFromWarmStart(&warm_start_, &solution, &stats);
-  std::cout << "Solve Time: " << stats.solve_time << std::endl;
-  
-  my_time = std::chrono::high_resolution_clock::now() - start_time;
-  std::cout << "Solve " << my_time.count() << std::endl;
 
   // Store the result in the discrete state
   StoreOptimizerSolution(solution, context.get_time(), &stored_trajectory);
-  
-  my_time = std::chrono::high_resolution_clock::now() - start_time;
-  std::cout << "Store solution " << my_time.count() << std::endl;
-  std::cout << std::endl;
 
   return EventStatus::Succeeded();
 }
