@@ -458,6 +458,7 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumSwingup) {
   SolverParameters solver_params;
   solver_params.max_iterations = 20;
   solver_params.verbose = false;
+  solver_params.check_convergence = true;
   solver_params.convergence_tolerances.rel_cost_reduction = 1e-5;
   TrajectoryOptimizer<double> optimizer(diagram.get(), &plant, opt_prob,
                                         solver_params);

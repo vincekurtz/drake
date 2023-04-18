@@ -18,6 +18,7 @@
 #include "drake/traj_opt/trajectory_optimizer_state.h"
 #include "drake/traj_opt/trajectory_optimizer_workspace.h"
 #include "drake/traj_opt/velocity_partials.h"
+#include "drake/traj_opt/warm_start.h"
 
 namespace drake {
 namespace systems {
@@ -114,6 +115,17 @@ class TrajectoryOptimizer {
   const MultibodyPlant<T>& plant() const { return *plant_; }
 
   /**
+   * Convienience function to get a const reference to the system diagram that
+   * contains the multibody plant that we are optimizing over.
+   *
+   * @return const Diagram<T>&, the system diagram.
+   */
+  const Diagram<T>& diagram() const {
+    DRAKE_DEMAND(diagram_ != nullptr);
+    return *diagram_;
+  }
+
+  /**
    * Create a state object which contains the decision variables (generalized
    * positions at each timestep), along with a cache of other things that are
    * computed from positions, such as velocities, accelerations, forces, and
@@ -184,6 +196,23 @@ class TrajectoryOptimizer {
                    TrajectoryOptimizerSolution<T>* solution,
                    TrajectoryOptimizerStats<T>* stats,
                    ConvergenceReason* reason = nullptr) const;
+
+  /**
+   * Solve the optimization with a full warm-start, including both an initial
+   * guess and optimizer parameters like the trust region radius.
+   *
+   * @note this is only used for the trust-region method
+   *
+   * @param warm_start Container for the initial guess, optimizer state, etc.
+   * @param solution Optimal solution, including velocities and torques
+   * @param stats timing and other iteration-specific statistics
+   * @param reason convergence reason, if applicable
+   * @return SolverFlag
+   */
+  SolverFlag SolveFromWarmStart(WarmStart* warm_start,
+                                TrajectoryOptimizerSolution<T>* solution,
+                                TrajectoryOptimizerStats<T>* stats,
+                                ConvergenceReason* reason = nullptr) const;
 
   // The following evaluator functions get data from the state's cache, and
   // update it if necessary.
@@ -1153,6 +1182,11 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithLinesearch(
 template <>
 SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
     const std::vector<VectorXd>&, TrajectoryOptimizerSolution<double>*,
+    TrajectoryOptimizerStats<double>*, ConvergenceReason*) const;
+
+template <>
+SolverFlag TrajectoryOptimizer<double>::SolveFromWarmStart(
+    WarmStart*, TrajectoryOptimizerSolution<double>*,
     TrajectoryOptimizerStats<double>*, ConvergenceReason*) const;
 
 }  // namespace traj_opt

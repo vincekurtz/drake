@@ -317,7 +317,7 @@ void TrajectoryOptimizer<T>::CalcContactForceContribution(
   if (params_.force_at_a_distance) {
     const double k = F / delta;
     const double eps = sqrt(std::numeric_limits<double>::epsilon());
-    threshold = -sigma / k * log(exp(eps/sigma) - 1.0);
+    threshold = -sigma / k * log(exp(eps / sigma) - 1.0);
   }
 
   // Get signed distance pairs
@@ -671,9 +671,9 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsFiniteDiff(
 
   // Allocate small perturbations to q, v, and a at each time step
   const double eps = sqrt(std::numeric_limits<double>::epsilon());
-  std::vector<T> dq_is(num_steps()+1);
-  std::vector<T> dv_is(num_steps()+1);
-  std::vector<T> da_is(num_steps()+1);
+  std::vector<T> dq_is(num_steps() + 1);
+  std::vector<T> dv_is(num_steps() + 1);
+  std::vector<T> da_is(num_steps() + 1);
 
 #if defined(_OPENMP)
 #pragma omp parallel for num_threads(params_.num_threads)
@@ -2709,19 +2709,8 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
     TrajectoryOptimizerStats<double>* stats,
     ConvergenceReason* reason_out) const {
   INSTRUMENT_FUNCTION("Trust region solver.");
-  using std::min;
-  // Allocate a state variable to store q and everything that is computed from q
-  TrajectoryOptimizerState<double> state = CreateState();
-  state.set_q(q_guess);
 
-  // Allocate a separate state variable for computations like L(q + dq)
-  TrajectoryOptimizerState<double> scratch_state = CreateState();
-
-  // Allocate the update vector q_{k+1} = q_k + dq
-  VectorXd dq(plant().num_positions() * (num_steps() + 1));
-  VectorXd dqH(dq.size());
-
-  // Set up a file to record iteration data for a contour plot
+  // Set up a file to record iteration data for a contour plot, if requested
   if (params_.save_contour_data) {
     SetupQuadraticDataFile();
   }
@@ -2729,11 +2718,47 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
     SetupIterationDataFile();
   }
 
+  // Allocate a warm start, which includes the initial guess along with state
+  // variables and the trust region radius.
+  WarmStart warm_start(num_steps(), diagram(), plant(),
+                       num_equality_constraints(), q_guess, params_.Delta0);
+
+  return SolveFromWarmStart(&warm_start, solution, stats, reason_out);
+  return SolverFlag::kSuccess;
+}
+
+template <typename T>
+SolverFlag TrajectoryOptimizer<T>::SolveFromWarmStart(
+    WarmStart*, TrajectoryOptimizerSolution<T>*, TrajectoryOptimizerStats<T>*,
+    ConvergenceReason*) const {
+  throw std::runtime_error(
+      "TrajectoryOptimizer::SolveFromWarmStart only supports T=double.");
+}
+
+template <>
+SolverFlag TrajectoryOptimizer<double>::SolveFromWarmStart(
+    WarmStart* warm_start, TrajectoryOptimizerSolution<double>* solution,
+    TrajectoryOptimizerStats<double>* stats,
+    ConvergenceReason* reason_out) const {
+  using std::min;
+  INSTRUMENT_FUNCTION("Solve with warm start.");
+
   // Allocate timing variables
   auto start_time = std::chrono::high_resolution_clock::now();
   auto iter_start_time = std::chrono::high_resolution_clock::now();
   std::chrono::duration<double> iter_time;
   std::chrono::duration<double> solve_time;
+
+  // Warm-starting doesn't support the linesearch method
+  DRAKE_DEMAND(params_.method == SolverMethod::kTrustRegion);
+
+  // State variable stores q and everything that is computed from q
+  TrajectoryOptimizerState<double>& state = warm_start->state;
+  TrajectoryOptimizerState<double>& scratch_state = warm_start->scratch_state;
+
+  // The update vector q_{k+1} = q_k + dq and full Newton step (for logging)
+  VectorXd& dq = warm_start->dq;
+  VectorXd& dqH = warm_start->dqH;
 
   // Trust region parameters
   const double Delta_max = params_.Delta_max;  // Maximum trust region size
@@ -2741,13 +2766,13 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
                            // the trust ratio is above this threshold
 
   // Variables that we'll update throughout the main loop
-  int k = 0;                      // iteration counter
-  double Delta = params_.Delta0;  // trust region size
-  double rho;                     // trust region ratio
-  bool tr_constraint_active;      // flag for whether the trust region
-                                  // constraint is active
+  int k = 0;                          // iteration counter
+  double& Delta = warm_start->Delta;  // trust region size
+  double rho;                         // trust region ratio
+  bool tr_constraint_active;          // flag for whether the trust region
+                                      // constraint is active
 
-  // Define printout data
+  // Define printout strings
   const std::string separator_bar =
       "------------------------------------------------------------------------"
       "---------------------";
@@ -2870,7 +2895,7 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
     // Only check convergence criteria for valid steps.
     ConvergenceReason reason{
         ConvergenceReason::kNoConvergenceCriteriaSatisfied};
-    if (rho > eta) {
+    if (params_.check_convergence && (rho > eta)) {
       reason = VerifyConvergenceCriteria(state, previous_cost, dq);
       previous_cost = EvalCost(state);
       if (reason_out) *reason_out = reason;
