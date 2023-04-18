@@ -2718,17 +2718,11 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
     SetupIterationDataFile();
   }
 
-  // TODO: separate function to create this warm_start from q_guess?
+  // Allocate a warm start, which includes the initial guess along with state
+  // variables and the trust region radius.
   DRAKE_DEMAND(diagram_ != nullptr);
-  IterationData warm_start(num_steps(), *diagram_, plant(),
-                           num_equality_constraints());
-  warm_start.state.set_q(q_guess);
-
-  const int num_vars = plant().num_positions() * (num_steps() + 1);
-  warm_start.dq.resize(num_vars);
-  warm_start.dqH.resize(num_vars);
-
-  warm_start.Delta = params_.Delta0;
+  WarmStart warm_start(num_steps(), *diagram_, plant(),
+                       num_equality_constraints(), q_guess, params_.Delta0);
 
   return SolveWithWarmStart(&warm_start, solution, stats, reason_out);
   return SolverFlag::kSuccess;
@@ -2736,7 +2730,7 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
 
 template <typename T>
 SolverFlag TrajectoryOptimizer<T>::SolveWithWarmStart(
-    IterationData*, TrajectoryOptimizerSolution<T>*,
+    WarmStart*, TrajectoryOptimizerSolution<T>*,
     TrajectoryOptimizerStats<T>*, ConvergenceReason*) const {
   throw std::runtime_error(
       "TrajectoryOptimizer::SolveWithWarmStart only supports T=double.");
@@ -2744,7 +2738,7 @@ SolverFlag TrajectoryOptimizer<T>::SolveWithWarmStart(
 
 template <>
 SolverFlag TrajectoryOptimizer<double>::SolveWithWarmStart(
-    IterationData* warm_start, TrajectoryOptimizerSolution<double>* solution,
+    WarmStart* warm_start, TrajectoryOptimizerSolution<double>* solution,
     TrajectoryOptimizerStats<double>* stats, ConvergenceReason* reason_out) const {
   using std::min;
   INSTRUMENT_FUNCTION("Solve with warm start.");

@@ -11,7 +11,7 @@
 #include "drake/common/profiler.h"
 #include "drake/multibody/plant/multibody_plant.h"
 #include "drake/traj_opt/inverse_dynamics_partials.h"
-#include "drake/traj_opt/iteration_data.h"
+#include "drake/traj_opt/warm_start.h"
 #include "drake/traj_opt/penta_diagonal_matrix.h"
 #include "drake/traj_opt/problem_definition.h"
 #include "drake/traj_opt/solver_parameters.h"
@@ -198,7 +198,7 @@ class TrajectoryOptimizer {
    * @param reason convergence reason, if applicable
    * @return SolverFlag
    */
-  SolverFlag SolveWithWarmStart(IterationData* warm_start,
+  SolverFlag SolveWithWarmStart(WarmStart* warm_start,
                                 TrajectoryOptimizerSolution<T>* solution,
                                 TrajectoryOptimizerStats<T>* stats,
                                 ConvergenceReason* reason = nullptr) const;
@@ -1175,7 +1175,7 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
 
 template <>
 SolverFlag TrajectoryOptimizer<double>::SolveWithWarmStart(
-    IterationData*, TrajectoryOptimizerSolution<double>*,
+    WarmStart*, TrajectoryOptimizerSolution<double>*,
     TrajectoryOptimizerStats<double>*, ConvergenceReason*) const;
 
 }  // namespace traj_opt

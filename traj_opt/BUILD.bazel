@@ -72,7 +72,7 @@ drake_cc_library(
     ],
     deps = [
         ":inverse_dynamics_partials",
-        ":iteration_data",
+        ":warm_start",
         ":penta_diagonal_matrix",
         ":penta_diagonal_solver",
         ":penta_diagonal_to_petsc_matrix",
@@ -119,9 +119,9 @@ drake_cc_library(
 )
 
 drake_cc_library(
-    name = "iteration_data",
+    name = "warm_start",
     hdrs = [
-        "iteration_data.h",
+        "warm_start.h",
     ],
     deps = [":trajectory_optimizer_state",
             "//multibody/plant",
