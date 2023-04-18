@@ -11,7 +11,6 @@
 #include "drake/common/profiler.h"
 #include "drake/multibody/plant/multibody_plant.h"
 #include "drake/traj_opt/inverse_dynamics_partials.h"
-#include "drake/traj_opt/warm_start.h"
 #include "drake/traj_opt/penta_diagonal_matrix.h"
 #include "drake/traj_opt/problem_definition.h"
 #include "drake/traj_opt/solver_parameters.h"
@@ -19,6 +18,7 @@
 #include "drake/traj_opt/trajectory_optimizer_state.h"
 #include "drake/traj_opt/trajectory_optimizer_workspace.h"
 #include "drake/traj_opt/velocity_partials.h"
+#include "drake/traj_opt/warm_start.h"
 
 namespace drake {
 namespace systems {
@@ -200,7 +200,7 @@ class TrajectoryOptimizer {
   /**
    * Solve the optimization with a full warm-start, including both an initial
    * guess and optimizer parameters like the trust region radius.
-   * 
+   *
    * @note this is only used for the trust-region method
    *
    * @param warm_start Container for the initial guess, optimizer state, etc.

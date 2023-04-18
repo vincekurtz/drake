@@ -29,6 +29,7 @@ drake_cc_package_library(
         ":trajectory_optimizer_state",
         ":trajectory_optimizer_workspace",
         ":velocity_partials",
+        ":warm_start",
     ],
 )
 
@@ -72,7 +73,6 @@ drake_cc_library(
     ],
     deps = [
         ":inverse_dynamics_partials",
-        ":warm_start",
         ":penta_diagonal_matrix",
         ":penta_diagonal_solver",
         ":penta_diagonal_to_petsc_matrix",
@@ -82,6 +82,7 @@ drake_cc_library(
         ":trajectory_optimizer_state",
         ":trajectory_optimizer_workspace",
         ":velocity_partials",
+        ":warm_start",
         "//common:essential",
         "//common:profiler",
         "//geometry:scene_graph_inspector",
@@ -123,9 +124,11 @@ drake_cc_library(
     hdrs = [
         "warm_start.h",
     ],
-    deps = [":trajectory_optimizer_state",
-            "//multibody/plant",
-            "//common:essential"],
+    deps = [
+        ":trajectory_optimizer_state",
+        "//common:essential",
+        "//multibody/plant",
+    ],
 )
 
 drake_cc_library(

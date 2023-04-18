@@ -1,7 +1,7 @@
 #pragma once
 
-#include <chrono>
 #include <string>
+#include <vector>
 
 #include "drake/common/eigen_types.h"
 #include "drake/multibody/plant/multibody_plant.h"
@@ -23,7 +23,7 @@ class WarmStart {
  public:
   /**
    * The constructor allocates state variables.
-   * 
+   *
    * @param num_steps Number of steps in the trajectory optimization problem
    * @param diagram Overall system diagram containing the plant
    * @param plant MultibodyPlant model to optimize over
@@ -44,14 +44,14 @@ class WarmStart {
     const int num_vars = plant.num_positions() + (num_steps + 1);
     dq.resize(num_vars);
     dqH.resize(num_vars);
-  };
+  }
 
   // A state variable to store q and everything that is computed from q
   TrajectoryOptimizerState<double> state;
 
   // A separate state variable for computations like L(q + dq)
   TrajectoryOptimizerState<double> scratch_state;
-  
+
   // Trust region size
   double Delta;
 
@@ -60,17 +60,6 @@ class WarmStart {
 
   // The full Newton step H * dqH = -g
   VectorXd dqH;
-
-  // TODO: add stats and solution here?
-
-  // Printout strings
-  // TODO: remove from here
-  const std::string separator_bar =
-      "------------------------------------------------------------------------"
-      "---------------------";
-  const std::string printout_labels =
-      "|  iter  |   cost   |    Δ    |    ρ    |  time (s)  |  |g|/cost  | "
-      "dL_dq/cost |    |h|     |";
 };
 
 }  // namespace traj_opt

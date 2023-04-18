@@ -317,7 +317,7 @@ void TrajectoryOptimizer<T>::CalcContactForceContribution(
   if (params_.force_at_a_distance) {
     const double k = F / delta;
     const double eps = sqrt(std::numeric_limits<double>::epsilon());
-    threshold = -sigma / k * log(exp(eps/sigma) - 1.0);
+    threshold = -sigma / k * log(exp(eps / sigma) - 1.0);
   }
 
   // Get signed distance pairs
@@ -671,9 +671,9 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsFiniteDiff(
 
   // Allocate small perturbations to q, v, and a at each time step
   const double eps = sqrt(std::numeric_limits<double>::epsilon());
-  std::vector<T> dq_is(num_steps()+1);
-  std::vector<T> dv_is(num_steps()+1);
-  std::vector<T> da_is(num_steps()+1);
+  std::vector<T> dq_is(num_steps() + 1);
+  std::vector<T> dv_is(num_steps() + 1);
+  std::vector<T> da_is(num_steps() + 1);
 
 #if defined(_OPENMP)
 #pragma omp parallel for num_threads(params_.num_threads)
@@ -2709,7 +2709,7 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
     TrajectoryOptimizerStats<double>* stats,
     ConvergenceReason* reason_out) const {
   INSTRUMENT_FUNCTION("Trust region solver.");
-  
+
   // Set up a file to record iteration data for a contour plot, if requested
   if (params_.save_contour_data) {
     SetupQuadraticDataFile();
@@ -2730,8 +2730,8 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
 
 template <typename T>
 SolverFlag TrajectoryOptimizer<T>::SolveFromWarmStart(
-    WarmStart*, TrajectoryOptimizerSolution<T>*,
-    TrajectoryOptimizerStats<T>*, ConvergenceReason*) const {
+    WarmStart*, TrajectoryOptimizerSolution<T>*, TrajectoryOptimizerStats<T>*,
+    ConvergenceReason*) const {
   throw std::runtime_error(
       "TrajectoryOptimizer::SolveFromWarmStart only supports T=double.");
 }
@@ -2739,10 +2739,11 @@ SolverFlag TrajectoryOptimizer<T>::SolveFromWarmStart(
 template <>
 SolverFlag TrajectoryOptimizer<double>::SolveFromWarmStart(
     WarmStart* warm_start, TrajectoryOptimizerSolution<double>* solution,
-    TrajectoryOptimizerStats<double>* stats, ConvergenceReason* reason_out) const {
+    TrajectoryOptimizerStats<double>* stats,
+    ConvergenceReason* reason_out) const {
   using std::min;
   INSTRUMENT_FUNCTION("Solve with warm start.");
-  
+
   // Allocate timing variables
   auto start_time = std::chrono::high_resolution_clock::now();
   auto iter_start_time = std::chrono::high_resolution_clock::now();
@@ -2751,7 +2752,7 @@ SolverFlag TrajectoryOptimizer<double>::SolveFromWarmStart(
 
   // Warm-starting doesn't support the linesearch method
   DRAKE_DEMAND(params_.method == SolverMethod::kTrustRegion);
-  
+
   // State variable stores q and everything that is computed from q
   TrajectoryOptimizerState<double>& state = warm_start->state;
   TrajectoryOptimizerState<double>& scratch_state = warm_start->scratch_state;
@@ -2772,10 +2773,14 @@ SolverFlag TrajectoryOptimizer<double>::SolveFromWarmStart(
   bool tr_constraint_active;          // flag for whether the trust region
                                       // constraint is active
 
-  // Define printout data
-  const std::string& separator_bar = warm_start->separator_bar;
-  const std::string& printout_labels = warm_start->printout_labels;
-  
+  // Define printout strings
+  const std::string separator_bar =
+      "------------------------------------------------------------------------"
+      "---------------------";
+  const std::string printout_labels =
+      "|  iter  |   cost   |    Δ    |    ρ    |  time (s)  |  |g|/cost  | "
+      "dL_dq/cost |    |h|     |";
+
   double previous_cost = EvalCost(state);
   while (k < params_.max_iterations) {
     // Obtain the candiate update dq
