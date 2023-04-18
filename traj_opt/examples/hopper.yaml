@@ -62,7 +62,7 @@ save_solver_stats_csv : true
 # quadratically from 0 Newtons at 0 meters penetration to F Newtons at delta
 # meters of penetration. After this point, force increases linearly at a rate
 # of 2F/delta Newtons / meter. 
-F : 10.0       # force at delta meters of penetration
+F : 5.0       # force at delta meters of penetration
 delta : 0.01  # penetration distance with F newtons of normal force
 dissipation_velocity : 0.1  # Hunt & Crossley-like model parameter, in m/s.
 
@@ -78,7 +78,7 @@ stiction_velocity: 0.01     # Regularization velocity, in m/s.
 # MPC parameters
 mpc : false
 mpc_iters : 10
-controller_frequency : 50
+controller_frequency : 10
 sim_time : 5
 sim_time_step : 1e-3
 sim_realtime_rate : 1.0
