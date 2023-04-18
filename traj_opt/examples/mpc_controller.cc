@@ -63,10 +63,9 @@ EventStatus ModelPredictiveController::UpdateAbstractState(
   TrajectoryOptimizerStats<double> stats;
   TrajectoryOptimizerSolution<double> solution;
 
-  std::cout << "Starting Delta: " << warm_start_.Delta << std::endl;
   optimizer_.SolveFromWarmStart(&warm_start_, &solution, &stats);
   std::cout << "Solve Time: " << stats.solve_time << std::endl;
-  std::cout << "Ending Delta: " << warm_start_.Delta << std::endl;
+  std::cout << std::endl;
 
   // Store the result in the discrete state
   StoreOptimizerSolution(solution, context.get_time(), &stored_trajectory);
