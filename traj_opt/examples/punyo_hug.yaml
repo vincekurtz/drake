@@ -126,3 +126,24 @@ force_at_a_distance : true
 # Friction
 friction_coefficient : 0.5  # Coefficient of friction.
 stiction_velocity: 0.05     # Regularization velocity, in m/s.
+
+# MPC parameters
+mpc : true
+mpc_iters : 1
+controller_frequency : 20
+sim_time : 10
+sim_time_step : 1e-3
+sim_realtime_rate : 1.0
+feed_forward : true
+Kp : [900,                      # height
+      700, 700, 700,            # torso
+      500, 200, 200, 200, 200,  # right arm
+      500, 200, 200, 200, 200,  # left arm
+      0.0, 0.0, 0.0, 0.0,       # ball orientation
+      0.0, 0.0, 0.0]            # ball position
+Kd : [100,
+      70, 70, 70,
+      80, 50, 50, 50, 50,
+      80, 50, 50, 50, 50,
+      0.0, 0.0, 0.0,
+      0.0, 0.0, 0.0]
