@@ -37,36 +37,36 @@ q_guess : [ 1.0, 0.0, 0.0, 0.0,
            0.0,-0.8, 1.6]
 
 # Cost Weights
-Qq : [2.0, 2.0, 2.0, 2.0,
-      5.0, 5.0, 5.0,
-      0.0, 0.0, 0.0,
-      0.0, 0.0, 0.0,
-      0.0, 0.0, 0.0,
-      0.0, 0.0, 0.0]
+Qq : [2, 2, 2, 2,
+      5, 5, 5,
+      0, 0, 0,
+      0, 0, 0,
+      0, 0, 0,
+      0, 0, 0]
 
-Qv : [1.0, 1.0, 1.0,
-      1.0, 1.0, 1.0, 
+Qv : [1, 1, 1,
+      1, 1, 1, 
       0.1, 0.1, 0.1,
       0.1, 0.1, 0.1,
       0.1, 0.1, 0.1,
       0.1, 0.1, 0.1]
 
-R : [1e0, 1e0, 1e0,
-     1e0, 1e0, 1e0, 
-     1e-2, 1e-2, 1e-2,
-     1e-2, 1e-2, 1e-2,
-     1e-2, 1e-2, 1e-2,
-     1e-2, 1e-2, 1e-2]
+R : [1, 1, 1,
+     1, 1, 1, 
+     0.01, 0.01, 0.01,
+     0.01, 0.01, 0.01,
+     0.01, 0.01, 0.01,
+     0.01, 0.01, 0.01]
 
-Qfq : [2.0, 2.0, 2.0, 2.0,
-      5.0, 5.0, 5.0,
-      1.0, 1.0, 1.0,
-      1.0, 1.0, 1.0,
-      1.0, 1.0, 1.0,
-      1.0, 1.0, 1.0]
+Qfq : [5, 5, 5, 5,
+      10, 10, 10,
+      1, 1, 1,
+      1, 1, 1,
+      1, 1, 1,
+      1, 1, 1]
 
-Qfv : [1.0, 1.0, 1.0,
-      1.0, 1.0, 1.0, 
+Qfv : [1, 1, 1,
+      1, 1, 1, 
       0.1, 0.1, 0.1,
       0.1, 0.1, 0.1,
       0.1, 0.1, 0.1,
@@ -74,10 +74,10 @@ Qfv : [1.0, 1.0, 1.0,
 
 # Problem definition parameters
 time_step : 0.05   # Discretization timestep (seconds)
-num_steps : 40     # number of timesteps
+num_steps : 30     # number of timesteps
 
 # Solver parameters
-max_iters : 00             # maximum Gauss-Newton iterations
+max_iters : 50             # maximum Gauss-Newton iterations
 method : "trust_region"    # solver method, {linesearch, trust_region}
 scaling : true
 equality_constraints : true
@@ -128,11 +128,11 @@ stiction_velocity: 0.5     # Regularization velocity, in m/s.
 
 # MPC parameters
 mpc : true
-mpc_iters : 10
+mpc_iters : 1
 controller_frequency : 20
 sim_time : 5
-sim_time_step : 1e-4
-sim_realtime_rate : 1.0
+sim_time_step : 1e-3
+sim_realtime_rate : 0.0
 feed_forward : true
 Kp : [0, 0, 0, 0,    # base orientation
       0, 0, 0,       # base position
@@ -142,7 +142,7 @@ Kp : [0, 0, 0, 0,    # base orientation
       50, 50, 50]
 Kd : [0, 0, 0,
       0, 0, 0, 
-      5, 5, 5,
-      5, 5, 5,
-      5, 5, 5,
-      5, 5, 5]
+      2, 2, 2,
+      2, 2, 2,
+      2, 2, 2,
+      2, 2, 2]
