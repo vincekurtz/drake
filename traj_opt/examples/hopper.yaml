@@ -28,7 +28,7 @@ max_iters : 500               # maximum Gauss-Newton iterations
 method : "trust_region"       # solver method, {linesearch, trust_region}
 scaling : true
 scaling_method : "double_sqrt"
-equality_constraints : false
+equality_constraints : true
 linear_solver : "pentadiagonal_lu"
 Delta0 : 1e-3
 num_threads : 4 
@@ -77,8 +77,8 @@ stiction_velocity: 0.01     # Regularization velocity, in m/s.
 
 # MPC parameters
 mpc : true
-mpc_iters : 10
-controller_frequency : 50
+mpc_iters : 1 
+controller_frequency : 100
 sim_time : 10
 sim_time_step : 1e-3
 sim_realtime_rate : 0.0
