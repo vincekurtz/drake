@@ -40,27 +40,6 @@ class TrajectoryOptimizer {
   /**
    * Construct a new Trajectory Optimizer object.
    *
-   * @param plant A model of the system that we're trying to find an optimal
-   *              trajectory for.
-   * @param context A context for the plant, used to perform various multibody
-   *                dynamics computations. Should be part of a larger Diagram
-   *                context, and be connected to a scene graph.
-   * @param prob Problem definition, including cost, initial and target states,
-   *             etc.
-   * @param params solver parameters, including max iterations, linesearch
-   *               method, etc.
-   */
-  // TODO(amcastro-tri): Get rid of this constructor. Favor the new construction
-  // below so that we can cache the context at each time step in the state.
-  // In particular, context only gets used for
-  // CalcInverseDynamicsPartialsFiniteDiff().
-  TrajectoryOptimizer(const MultibodyPlant<T>* plant, Context<T>* context,
-                      const ProblemDefinition& prob,
-                      const SolverParameters& params = SolverParameters{});
-
-  /**
-   * Construct a new Trajectory Optimizer object.
-   *
    * @param diagram Diagram for the entire model that will include the plant and
    * SceneGraph for geometric queries. Used to allocate context resources.
    * @param plant A model of the system that we're trying to find an optimal

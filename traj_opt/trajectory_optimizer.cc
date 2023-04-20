@@ -43,43 +43,6 @@ using multibody::SpatialVelocity;
 using systems::System;
 
 template <typename T>
-TrajectoryOptimizer<T>::TrajectoryOptimizer(const MultibodyPlant<T>* plant,
-                                            Context<T>* context,
-                                            const ProblemDefinition& prob,
-                                            const SolverParameters& params)
-    : plant_(plant), context_(context), prob_(prob), params_(params) {
-  // Define joint damping coefficients.
-  joint_damping_ = VectorX<T>::Zero(plant_->num_velocities());
-  for (JointIndex j(0); j < plant_->num_joints(); ++j) {
-    const Joint<T>& joint = plant_->get_joint(j);
-    const int velocity_start = joint.velocity_start();
-    const int nv = joint.num_velocities();
-    joint_damping_.segment(velocity_start, nv) = joint.damping_vector();
-  }
-
-  // Define unactuated degrees of freedom
-  const MatrixX<T> B = plant_->MakeActuationMatrix();
-  if (B.size() > 0) {
-    // if B is of size zero, assume the system is fully actuated
-    for (int i = 0; i < plant_->num_velocities(); ++i) {
-      if (B.row(i).sum() == 0) {
-        unactuated_dofs_.push_back(i);
-      }
-    }
-  }
-
-  // Must have a target position and velocity specified for each time step
-  DRAKE_DEMAND(static_cast<int>(prob.q_nom.size()) == (num_steps() + 1));
-  DRAKE_DEMAND(static_cast<int>(prob.v_nom.size()) == (num_steps() + 1));
-
-  if (params_.gradients_method == GradientsMethod::kAutoDiff) {
-    throw std::runtime_error(
-        "It is not possible to use automatic differentiation when only the "
-        "plant is provided. Use the constructor providing the full Diagram.");
-  }
-}
-
-template <typename T>
 TrajectoryOptimizer<T>::TrajectoryOptimizer(const Diagram<T>* diagram,
                                             const MultibodyPlant<T>* plant,
                                             const ProblemDefinition& prob,
