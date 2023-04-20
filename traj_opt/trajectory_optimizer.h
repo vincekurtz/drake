@@ -703,9 +703,11 @@ class TrajectoryOptimizer {
    * into the given MultibodyForces object.
    *
    * @param context system context storing q and v
+   * @param workspace scratch space for intermediate computations
    * @param forces total forces applied to the plant, which we will add into.
    */
   void CalcContactForceContribution(const Context<T>& context,
+                                    TrajectoryOptimizerWorkspace<T>* workspace,
                                     MultibodyForces<T>* forces) const;
 
   /**

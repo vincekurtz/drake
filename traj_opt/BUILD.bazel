@@ -176,6 +176,18 @@ drake_cc_googletest(
     ],
 )
 
+drake_cc_googletest(
+    name = "workspace_test",
+    data = [
+        "//traj_opt/examples:models",
+    ],
+    deps = [
+        ":trajectory_optimizer_workspace",
+        "//common:find_resource",
+        "//multibody/parsing",
+    ],
+)
+
 drake_cc_library(
     name = "trajectory_optimizer_state",
     srcs = ["trajectory_optimizer_state.cc"],

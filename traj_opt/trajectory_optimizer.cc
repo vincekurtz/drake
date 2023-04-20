@@ -197,8 +197,8 @@ T TrajectoryOptimizer<T>::CalcCost(
     const std::vector<VectorX<T>>& tau,
     TrajectoryOptimizerWorkspace<T>* workspace) const {
   T cost = 0;
-  VectorX<T>& q_err = workspace->q_size_tmp1;
-  VectorX<T>& v_err = workspace->v_size_tmp1;
+  VectorX<T>& q_err = workspace->get_q_size_tmp();
+  VectorX<T>& v_err = workspace->get_v_size_tmp();
 
   // Running cost
   for (int t = 0; t < num_steps(); ++t) {
@@ -218,6 +218,10 @@ T TrajectoryOptimizer<T>::CalcCost(
   v_err = v[num_steps()] - prob_.v_nom[num_steps()];
   cost += T(q_err.transpose() * prob_.Qf_q * q_err);
   cost += T(v_err.transpose() * prob_.Qf_v * v_err);
+
+  // Release temporary variables back to the workspace
+  workspace->release_q_size_tmp(q_err);
+  workspace->release_v_size_tmp(v_err);
 
   return cost;
 }
@@ -276,7 +280,8 @@ template <typename T>
 void TrajectoryOptimizer<T>::CalcInverseDynamicsSingleTimeStep(
     const Context<T>& context, const VectorX<T>& a,
     TrajectoryOptimizerWorkspace<T>* workspace, VectorX<T>* tau) const {
-  plant().CalcForceElementsContribution(context, &workspace->f_ext);
+  MultibodyForces<T>& f_ext = workspace->get_multibody_forces_tmp();
+  plant().CalcForceElementsContribution(context, &f_ext);
 
   // Add in contact force contribution to f_ext
   if (plant().geometry_source_is_registered()) {
@@ -284,16 +289,18 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsSingleTimeStep(
     // TODO(vincekurtz): perform this check earlier, and maybe print some
     // warnings to stdout if we're not connected (we do want to be able to run
     // problems w/o contact sometimes)
-    CalcContactForceContribution(context, &workspace->f_ext);
+    CalcContactForceContribution(context, workspace, &f_ext);
   }
 
   // Inverse dynamics computes tau = M*a - k(q,v) - f_ext
-  *tau = plant().CalcInverseDynamics(context, a, workspace->f_ext);
+  *tau = plant().CalcInverseDynamics(context, a, f_ext);
+  workspace->release_multibody_forces_tmp(f_ext);
 }
 
 template <typename T>
 void TrajectoryOptimizer<T>::CalcContactForceContribution(
-    const Context<T>& context, MultibodyForces<T>* forces) const {
+    const Context<T>& context, TrajectoryOptimizerWorkspace<T>* workspace,
+    MultibodyForces<T>* forces) const {
   using std::abs;
   using std::exp;
   using std::log;
@@ -330,16 +337,31 @@ void TrajectoryOptimizer<T>::CalcContactForceContribution(
   const std::vector<SignedDistancePair<T>>& signed_distance_pairs =
       query_object.ComputeSignedDistancePairwiseClosestPoints(threshold);
 
+  // Get temporary variables from the workspace
+  Vector3<T>& p_WCa_W = workspace->get_vector3_tmp();
+  Vector3<T>& p_WCb_W = workspace->get_vector3_tmp();
+  Vector3<T>& p_WC = workspace->get_vector3_tmp();
+  Vector3<T>& p_AC_W = workspace->get_vector3_tmp();
+  Vector3<T>& p_BC_W = workspace->get_vector3_tmp();
+  Vector3<T>& v_AcBc_W = workspace->get_vector3_tmp();
+  Vector3<T>& vt = workspace->get_vector3_tmp();
+  Vector3<T>& ft_BC_W = workspace->get_vector3_tmp();
+  Vector3<T>& f_BC_W = workspace->get_vector3_tmp();
+  SpatialVelocity<T>& V_WAc = workspace->get_spatial_velocity_tmp();
+  SpatialVelocity<T>& V_WBc = workspace->get_spatial_velocity_tmp();
+  SpatialForce<T>& F_AC_W = workspace->get_spatial_force_tmp();
+  SpatialForce<T>& F_BC_W = workspace->get_spatial_force_tmp();
+
   for (const SignedDistancePair<T>& pair : signed_distance_pairs) {
     // Don't do any contact force computations if we're not in contact, unless
     // we're using a contact model that allows force at a distance.
     if ((params_.force_at_a_distance) || (pair.distance < 0)) {
       // Normal outwards from A.
-      const Vector3<T> nhat = -pair.nhat_BA_W;
+      const Vector3<T>& nhat = -pair.nhat_BA_W;
 
       // Get geometry and transformation data for the witness points
-      const GeometryId geometryA_id = pair.id_A;
-      const GeometryId geometryB_id = pair.id_B;
+      const GeometryId& geometryA_id = pair.id_A;
+      const GeometryId& geometryB_id = pair.id_B;
 
       const BodyIndex bodyA_index =
           plant().geometry_id_to_body_index().at(geometryA_id);
@@ -355,41 +377,37 @@ void TrajectoryOptimizer<T>::CalcContactForceContribution(
           plant().EvalBodyPoseInWorld(context, bodyB);
 
       // Geometry poses in body frames.
-      const math::RigidTransform<T> X_AGa =
+      const math::RigidTransform<T>& X_AGa =
           inspector.GetPoseInFrame(geometryA_id).template cast<T>();
-      const math::RigidTransform<T> X_BGb =
+      const math::RigidTransform<T>& X_BGb =
           inspector.GetPoseInFrame(geometryB_id).template cast<T>();
 
       // Position of the witness points in the world frame.
       const auto& p_GaCa_Ga = pair.p_ACa;
-      const RigidTransform<T> X_WGa = X_WA * X_AGa;
-      const Vector3<T> p_WCa_W = X_WGa * p_GaCa_Ga;
+      p_WCa_W = X_WA * X_AGa * p_GaCa_Ga;
       const auto& p_GbCb_Gb = pair.p_BCb;
-      const RigidTransform<T> X_WGb = X_WB * X_BGb;
-      const Vector3<T> p_WCb_W = X_WGb * p_GbCb_Gb;
+      p_WCb_W = X_WB * X_BGb * p_GbCb_Gb;
 
       // We define the (common, unique) contact point C as the midpoint between
       // witness points Ca and Cb.
-      const Vector3<T> p_WC = 0.5 * (p_WCa_W + p_WCb_W);
+      p_WC = 0.5 * (p_WCa_W + p_WCb_W);
 
       // Shift vectors.
-      const Vector3<T> p_AC_W = p_WC - X_WA.translation();
-      const Vector3<T> p_BC_W = p_WC - X_WB.translation();
+      p_AC_W = p_WC - X_WA.translation();
+      p_BC_W = p_WC - X_WB.translation();
 
       // Velocities.
-      const SpatialVelocity<T>& V_WA =
-          plant().EvalBodySpatialVelocityInWorld(context, bodyA);
-      const SpatialVelocity<T>& V_WB =
-          plant().EvalBodySpatialVelocityInWorld(context, bodyB);
-      const SpatialVelocity<T> V_WAc = V_WA.Shift(p_AC_W);
-      const SpatialVelocity<T> V_WBc = V_WB.Shift(p_BC_W);
+      V_WAc = plant().EvalBodySpatialVelocityInWorld(context, bodyA);
+      V_WBc = plant().EvalBodySpatialVelocityInWorld(context, bodyB);
+      V_WAc.ShiftInPlace(p_AC_W);
+      V_WBc.ShiftInPlace(p_BC_W);
 
       // Relative contact velocity.
-      const Vector3<T> v_AcBc_W = V_WBc.translational() - V_WAc.translational();
+      v_AcBc_W = V_WBc.translational() - V_WAc.translational();
 
       // Split into normal and tangential components.
       const T vn = nhat.dot(v_AcBc_W);
-      const Vector3<T> vt = v_AcBc_W - vn * nhat;
+      vt = v_AcBc_W - vn * nhat;
 
       // Normal dissipation follows a smoothed Hunt and Crossley model
       T dissipation_factor = 0.0;
@@ -432,25 +450,38 @@ void TrajectoryOptimizer<T>::CalcContactForceContribution(
       // with the algebraic sigmoid function defined as sigmoid(x) =
       // x/sqrt(1+x^2). The algebraic simplification is performed to avoid
       // division by zero when vt = 0 (or loss of precision when close to zero).
-      const Vector3<T> that_regularized =
-          -vt / sqrt(vs * vs + vt.squaredNorm());
-      const Vector3<T> ft_BC_W = that_regularized * mu * fn;
+      ft_BC_W = -vt / sqrt(vs * vs + vt.squaredNorm()) * mu * fn;
 
       // Total contact force on B at C, expressed in W.
-      const Vector3<T> f_BC_W = nhat * fn + ft_BC_W;
+      f_BC_W = nhat * fn + ft_BC_W;
 
       // Spatial contact forces on bodies A and B.
-      const SpatialForce<T> F_BC_W(Vector3<T>::Zero(), f_BC_W);
-      const SpatialForce<T> F_BBo_W = F_BC_W.Shift(-p_BC_W);
+      F_AC_W = SpatialForce<T>(Vector3<T>::Zero(), -f_BC_W);
+      SpatialForce<T>& F_AAo_W = F_AC_W.ShiftInPlace(-p_AC_W);
 
-      const SpatialForce<T> F_AC_W(Vector3<T>::Zero(), -f_BC_W);
-      const SpatialForce<T> F_AAo_W = F_AC_W.Shift(-p_AC_W);
+      F_BC_W = SpatialForce<T>(Vector3<T>::Zero(), f_BC_W);
+      SpatialForce<T>& F_BBo_W = F_BC_W.ShiftInPlace(-p_BC_W);
 
       // Add the forces into the given MultibodyForces
       forces->mutable_body_forces()[bodyA.node_index()] += F_AAo_W;
       forces->mutable_body_forces()[bodyB.node_index()] += F_BBo_W;
     }
   }
+
+  // Release temporary variables back to the workspace
+  workspace->release_vector3_tmp(p_WCa_W);
+  workspace->release_vector3_tmp(p_WCb_W);
+  workspace->release_vector3_tmp(p_WC);
+  workspace->release_vector3_tmp(p_AC_W);
+  workspace->release_vector3_tmp(p_BC_W);
+  workspace->release_vector3_tmp(v_AcBc_W);
+  workspace->release_vector3_tmp(vt);
+  workspace->release_vector3_tmp(ft_BC_W);
+  workspace->release_vector3_tmp(f_BC_W);
+  workspace->release_spatial_velocity_tmp(V_WAc);
+  workspace->release_spatial_velocity_tmp(V_WBc);
+  workspace->release_spatial_force_tmp(F_AC_W);
+  workspace->release_spatial_force_tmp(F_BC_W);
 }
 
 template <typename T>
@@ -691,15 +722,15 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsFiniteDiff(
 
     // Get references to perturbed versions of q, v, tau, and a, at (t-1, t, t).
     // These are all of the quantities that change when we perturb q_t.
-    VectorX<T>& q_eps_t = workspace.q_size_tmp1;
-    VectorX<T>& v_eps_t = workspace.v_size_tmp1;
-    VectorX<T>& v_eps_tp = workspace.v_size_tmp2;
-    VectorX<T>& a_eps_tm = workspace.a_size_tmp1;
-    VectorX<T>& a_eps_t = workspace.a_size_tmp2;
-    VectorX<T>& a_eps_tp = workspace.a_size_tmp3;
-    VectorX<T>& tau_eps_tm = workspace.tau_size_tmp1;
-    VectorX<T>& tau_eps_t = workspace.tau_size_tmp2;
-    VectorX<T>& tau_eps_tp = workspace.tau_size_tmp3;
+    VectorX<T>& q_eps_t = workspace.get_q_size_tmp();
+    VectorX<T>& v_eps_t = workspace.get_v_size_tmp();
+    VectorX<T>& v_eps_tp = workspace.get_v_size_tmp();
+    VectorX<T>& a_eps_tm = workspace.get_v_size_tmp();
+    VectorX<T>& a_eps_t = workspace.get_v_size_tmp();
+    VectorX<T>& a_eps_tp = workspace.get_v_size_tmp();
+    VectorX<T>& tau_eps_tm = workspace.get_v_size_tmp();
+    VectorX<T>& tau_eps_t = workspace.get_v_size_tmp();
+    VectorX<T>& tau_eps_tp = workspace.get_v_size_tmp();
 
     // Small perturbations
     T& dq_i = dq_is[t];
@@ -789,6 +820,17 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsFiniteDiff(
         a_eps_tp = a[t + 1];
       }
     }
+
+    // Release temporary variables back to the (per-timestep) workspace
+    workspace.release_q_size_tmp(q_eps_t);
+    workspace.release_v_size_tmp(v_eps_t);
+    workspace.release_v_size_tmp(v_eps_tp);
+    workspace.release_v_size_tmp(a_eps_tm);
+    workspace.release_v_size_tmp(a_eps_t);
+    workspace.release_v_size_tmp(a_eps_tp);
+    workspace.release_v_size_tmp(tau_eps_tm);
+    workspace.release_v_size_tmp(tau_eps_t);
+    workspace.release_v_size_tmp(tau_eps_tp);
   }
 }
 
@@ -842,48 +884,48 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsWrtQtCentralDiff(
 
   // Get references to perturbed versions of q, v, tau, and a, at (t-1, t, t).
   // These are all of the quantities that change when we perturb q_t.
-  VectorX<T>& q_emm_t = workspace.q_size_tmp1;
-  VectorX<T>& q_em_t = workspace.q_size_tmp2;
-  VectorX<T>& q_ep_t = workspace.q_size_tmp3;
-  VectorX<T>& q_epp_t = workspace.q_size_tmp4;
+  VectorX<T>& q_emm_t = workspace.get_q_size_tmp();
+  VectorX<T>& q_em_t = workspace.get_q_size_tmp();
+  VectorX<T>& q_ep_t = workspace.get_q_size_tmp();
+  VectorX<T>& q_epp_t = workspace.get_q_size_tmp();
 
-  VectorX<T>& v_emm_t = workspace.v_size_tmp1;
-  VectorX<T>& v_em_t = workspace.v_size_tmp2;
-  VectorX<T>& v_ep_t = workspace.v_size_tmp3;
-  VectorX<T>& v_epp_t = workspace.v_size_tmp4;
-  VectorX<T>& v_emm_tp = workspace.v_size_tmp5;
-  VectorX<T>& v_em_tp = workspace.v_size_tmp6;
-  VectorX<T>& v_ep_tp = workspace.v_size_tmp7;
-  VectorX<T>& v_epp_tp = workspace.v_size_tmp8;
+  VectorX<T>& v_emm_t = workspace.get_v_size_tmp();
+  VectorX<T>& v_em_t = workspace.get_v_size_tmp();
+  VectorX<T>& v_ep_t = workspace.get_v_size_tmp();
+  VectorX<T>& v_epp_t = workspace.get_v_size_tmp();
+  VectorX<T>& v_emm_tp = workspace.get_v_size_tmp();
+  VectorX<T>& v_em_tp = workspace.get_v_size_tmp();
+  VectorX<T>& v_ep_tp = workspace.get_v_size_tmp();
+  VectorX<T>& v_epp_tp = workspace.get_v_size_tmp();
 
-  VectorX<T>& a_emm_tm = workspace.a_size_tmp1;
-  VectorX<T>& a_em_tm = workspace.a_size_tmp2;
-  VectorX<T>& a_ep_tm = workspace.a_size_tmp3;
-  VectorX<T>& a_epp_tm = workspace.a_size_tmp4;
-  VectorX<T>& a_emm_t = workspace.a_size_tmp5;
-  VectorX<T>& a_em_t = workspace.a_size_tmp6;
-  VectorX<T>& a_ep_t = workspace.a_size_tmp7;
-  VectorX<T>& a_epp_t = workspace.a_size_tmp8;
-  VectorX<T>& a_emm_tp = workspace.a_size_tmp9;
-  VectorX<T>& a_em_tp = workspace.a_size_tmp10;
-  VectorX<T>& a_ep_tp = workspace.a_size_tmp11;
-  VectorX<T>& a_epp_tp = workspace.a_size_tmp12;
+  VectorX<T>& a_emm_tm = workspace.get_v_size_tmp();
+  VectorX<T>& a_em_tm = workspace.get_v_size_tmp();
+  VectorX<T>& a_ep_tm = workspace.get_v_size_tmp();
+  VectorX<T>& a_epp_tm = workspace.get_v_size_tmp();
+  VectorX<T>& a_emm_t = workspace.get_v_size_tmp();
+  VectorX<T>& a_em_t = workspace.get_v_size_tmp();
+  VectorX<T>& a_ep_t = workspace.get_v_size_tmp();
+  VectorX<T>& a_epp_t = workspace.get_v_size_tmp();
+  VectorX<T>& a_emm_tp = workspace.get_v_size_tmp();
+  VectorX<T>& a_em_tp = workspace.get_v_size_tmp();
+  VectorX<T>& a_ep_tp = workspace.get_v_size_tmp();
+  VectorX<T>& a_epp_tp = workspace.get_v_size_tmp();
 
   // TODO(vincekurtz): we only need a single set of {tau_emm, tau_m, tau_ep,
   // tau_epp}, regardless of time step (so no distinction for _tm, _t, _tp).
   // Then we can reuse them below since they get overriden.
-  VectorX<T>& tau_emm_tm = workspace.tau_size_tmp1;
-  VectorX<T>& tau_em_tm = workspace.tau_size_tmp2;
-  VectorX<T>& tau_ep_tm = workspace.tau_size_tmp3;
-  VectorX<T>& tau_epp_tm = workspace.tau_size_tmp4;
-  VectorX<T>& tau_emm_t = workspace.tau_size_tmp5;
-  VectorX<T>& tau_em_t = workspace.tau_size_tmp6;
-  VectorX<T>& tau_ep_t = workspace.tau_size_tmp7;
-  VectorX<T>& tau_epp_t = workspace.tau_size_tmp8;
-  VectorX<T>& tau_emm_tp = workspace.tau_size_tmp9;
-  VectorX<T>& tau_em_tp = workspace.tau_size_tmp10;
-  VectorX<T>& tau_ep_tp = workspace.tau_size_tmp11;
-  VectorX<T>& tau_epp_tp = workspace.tau_size_tmp12;
+  VectorX<T>& tau_emm_tm = workspace.get_v_size_tmp();
+  VectorX<T>& tau_em_tm = workspace.get_v_size_tmp();
+  VectorX<T>& tau_ep_tm = workspace.get_v_size_tmp();
+  VectorX<T>& tau_epp_tm = workspace.get_v_size_tmp();
+  VectorX<T>& tau_emm_t = workspace.get_v_size_tmp();
+  VectorX<T>& tau_em_t = workspace.get_v_size_tmp();
+  VectorX<T>& tau_ep_t = workspace.get_v_size_tmp();
+  VectorX<T>& tau_epp_t = workspace.get_v_size_tmp();
+  VectorX<T>& tau_emm_tp = workspace.get_v_size_tmp();
+  VectorX<T>& tau_em_tp = workspace.get_v_size_tmp();
+  VectorX<T>& tau_ep_tp = workspace.get_v_size_tmp();
+  VectorX<T>& tau_epp_tp = workspace.get_v_size_tmp();
 
   // Get the trajectory data
   const std::vector<VectorX<T>>& q = state.q();
@@ -1112,6 +1154,47 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsWrtQtCentralDiff(
       }
     }
   }
+
+  // Release temporary variables back to the workspace
+  workspace.release_q_size_tmp(q_emm_t);
+  workspace.release_q_size_tmp(q_em_t);
+  workspace.release_q_size_tmp(q_ep_t);
+  workspace.release_q_size_tmp(q_epp_t);
+
+  workspace.release_v_size_tmp(v_emm_t);
+  workspace.release_v_size_tmp(v_em_t);
+  workspace.release_v_size_tmp(v_ep_t);
+  workspace.release_v_size_tmp(v_epp_t);
+  workspace.release_v_size_tmp(v_emm_tp);
+  workspace.release_v_size_tmp(v_em_tp);
+  workspace.release_v_size_tmp(v_ep_tp);
+  workspace.release_v_size_tmp(v_epp_tp);
+
+  workspace.release_v_size_tmp(a_emm_tm);
+  workspace.release_v_size_tmp(a_em_tm);
+  workspace.release_v_size_tmp(a_ep_tm);
+  workspace.release_v_size_tmp(a_epp_tm);
+  workspace.release_v_size_tmp(a_emm_t);
+  workspace.release_v_size_tmp(a_em_t);
+  workspace.release_v_size_tmp(a_ep_t);
+  workspace.release_v_size_tmp(a_epp_t);
+  workspace.release_v_size_tmp(a_emm_tp);
+  workspace.release_v_size_tmp(a_em_tp);
+  workspace.release_v_size_tmp(a_ep_tp);
+  workspace.release_v_size_tmp(a_epp_tp);
+
+  workspace.release_v_size_tmp(tau_emm_tm);
+  workspace.release_v_size_tmp(tau_em_tm);
+  workspace.release_v_size_tmp(tau_ep_tm);
+  workspace.release_v_size_tmp(tau_epp_tm);
+  workspace.release_v_size_tmp(tau_emm_t);
+  workspace.release_v_size_tmp(tau_em_t);
+  workspace.release_v_size_tmp(tau_ep_t);
+  workspace.release_v_size_tmp(tau_epp_t);
+  workspace.release_v_size_tmp(tau_emm_tp);
+  workspace.release_v_size_tmp(tau_em_tp);
+  workspace.release_v_size_tmp(tau_ep_tp);
+  workspace.release_v_size_tmp(tau_epp_tp);
 }
 
 template <>
@@ -1133,8 +1216,8 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsAutoDiff(
   // Heap allocations.
   std::vector<VectorX<AutoDiffXd>> q_ad(num_steps() + 1);
   VectorX<AutoDiffXd> tau_ad(plant().num_velocities());
-  TrajectoryOptimizerWorkspace<AutoDiffXd> workspace_ad(num_steps(),
-                                                        *plant_ad_);
+  TrajectoryOptimizerWorkspace<AutoDiffXd> workspace_ad(
+      num_steps(), num_equality_constraints(), *plant_ad_);
 
   // Initialize q_ad. First with no derivatives, as a constant.
   const std::vector<VectorX<double>>& q = state.q();
@@ -1209,8 +1292,8 @@ void TrajectoryOptimizer<T>::CalcGradientFiniteDiff(
   using std::max;
 
   // Perturbed versions of q
-  std::vector<VectorX<T>>& q_plus = state.workspace.q_sequence_tmp1;
-  std::vector<VectorX<T>>& q_minus = state.workspace.q_sequence_tmp2;
+  std::vector<VectorX<T>>& q_plus = state.workspace.get_q_sequence_tmp();
+  std::vector<VectorX<T>>& q_minus = state.workspace.get_q_sequence_tmp();
   q_plus = state.q();
   q_minus = state.q();
 
@@ -1245,6 +1328,9 @@ void TrajectoryOptimizer<T>::CalcGradientFiniteDiff(
       ++j;
     }
   }
+
+  state.workspace.release_q_sequence_tmp(q_plus);
+  state.workspace.release_q_sequence_tmp(q_minus);
 }
 
 template <typename T>
@@ -1273,12 +1359,12 @@ void TrajectoryOptimizer<T>::CalcGradient(
   g->topRows(plant().num_positions()).setZero();
 
   // Scratch variables for storing intermediate cost terms
-  VectorX<T>& qt_term = workspace->q_size_tmp1;
-  VectorX<T>& vt_term = workspace->v_size_tmp1;
-  VectorX<T>& vp_term = workspace->v_size_tmp2;
-  VectorX<T>& taum_term = workspace->tau_size_tmp1;
-  VectorX<T>& taut_term = workspace->tau_size_tmp2;
-  VectorX<T>& taup_term = workspace->tau_size_tmp3;
+  VectorX<T>& qt_term = workspace->get_q_size_tmp();
+  VectorX<T>& vt_term = workspace->get_v_size_tmp();
+  VectorX<T>& vp_term = workspace->get_v_size_tmp();
+  VectorX<T>& taum_term = workspace->get_v_size_tmp();
+  VectorX<T>& taut_term = workspace->get_v_size_tmp();
+  VectorX<T>& taup_term = workspace->get_v_size_tmp();
 
   for (int t = 1; t < num_steps(); ++t) {
     // Contribution from position cost
@@ -1332,6 +1418,14 @@ void TrajectoryOptimizer<T>::CalcGradient(
           params_.rho_proximal * H_diag[t].asDiagonal() * (q[t] - q_last[t]);
     }
   }
+
+  // Release temporary variables back to the workspace
+  workspace->release_q_size_tmp(qt_term);
+  workspace->release_v_size_tmp(vt_term);
+  workspace->release_v_size_tmp(vp_term);
+  workspace->release_v_size_tmp(taum_term);
+  workspace->release_v_size_tmp(taut_term);
+  workspace->release_v_size_tmp(taup_term);
 }
 
 template <typename T>
@@ -1491,7 +1585,7 @@ void TrajectoryOptimizer<T>::CalcScaleFactors(
   using std::sqrt;
 
   const PentaDiagonalMatrix<T>& H = EvalHessian(state);
-  VectorX<T>& hessian_diag = state.workspace.num_vars_size_tmp1;
+  VectorX<T>& hessian_diag = state.workspace.get_num_vars_size_tmp();
   H.ExtractDiagonal(&hessian_diag);
 
   for (int i = 0; i < D->size(); ++i) {
@@ -1514,6 +1608,9 @@ void TrajectoryOptimizer<T>::CalcScaleFactors(
       }
     }
   }
+
+  // Release temporary variable back to the workspace
+  state.workspace.release_num_vars_size_tmp(hessian_diag);
 }
 
 template <typename T>
@@ -1626,7 +1723,7 @@ void TrajectoryOptimizer<double>::CalcLagrangeMultipliers(
 
   // compute H⁻¹ Jᵀ
   // TODO(vincekurtz): add options for other linear systems solvers
-  MatrixXd& Hinv_JT = state.workspace.num_vars_by_num_eq_cons_tmp;
+  MatrixXd& Hinv_JT = state.workspace.get_num_vars_times_num_eq_size_tmp();
   Hinv_JT = J.transpose();
   PentaDiagonalFactorization Hlu(H);
   DRAKE_DEMAND(Hlu.status() == PentaDiagonalFactorizationStatus::kSuccess);
@@ -1639,6 +1736,8 @@ void TrajectoryOptimizer<double>::CalcLagrangeMultipliers(
   // TODO(vincekurtz): it may be possible to exploit the structure of JH⁻¹Jᵀ to
   // perform this step more efficiently.
   *lambda = (J * Hinv_JT).ldlt().solve(h - Hinv_JT.transpose() * g);
+
+  state.workspace.release_num_vars_times_num_eq_size_tmp(Hinv_JT);
 }
 
 template <typename T>
@@ -2266,7 +2365,7 @@ T TrajectoryOptimizer<T>::CalcTrustRatio(
   }
 
   // Compute predicted reduction in the merit function, −gᵀΔq − 1/2 ΔqᵀHΔq
-  VectorX<T>& dq_scaled = state.workspace.num_vars_size_tmp1;
+  VectorX<T>& dq_scaled = state.workspace.get_num_vars_size_tmp();
   if (params_.scaling) {
     const VectorX<T>& D = EvalScaleFactors(state);
     // TODO(vincekurtz): consider caching D^{-1}
@@ -2274,7 +2373,7 @@ T TrajectoryOptimizer<T>::CalcTrustRatio(
   } else {
     dq_scaled = dq;
   }
-  VectorX<T>& Hdq = state.workspace.num_vars_size_tmp2;
+  VectorX<T>& Hdq = state.workspace.get_num_vars_size_tmp();
   H_k.MultiplyBy(dq_scaled, &Hdq);  // Hdq = H_k * dq
   const T hessian_term = 0.5 * dq_scaled.transpose() * Hdq;
   T gradient_term = g_tilde_k.dot(dq_scaled);
@@ -2292,8 +2391,16 @@ T TrajectoryOptimizer<T>::CalcTrustRatio(
     // Actual and predicted improvements are both essentially zero, so we set
     // the trust ratio to a value such that the step will be accepted, but the
     // size of the trust region will not change.
+
+    // Release temporary variables back to the workspace
+    state.workspace.release_num_vars_size_tmp(dq_scaled);
+    state.workspace.release_num_vars_size_tmp(Hdq);
     return 0.5;
   }
+
+  // Release temporary variables back to the workspace
+  state.workspace.release_num_vars_size_tmp(dq_scaled);
+  state.workspace.release_num_vars_size_tmp(Hdq);
 
   return actual_reduction / predicted_reduction;
 }
@@ -2396,9 +2503,10 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
   // direction of -g - J'λ.
   const VectorXd& g = EvalMeritFunctionGradient(state);
 
-  VectorXd& Hg = state.workspace.num_vars_size_tmp1;
+  VectorXd& Hg = state.workspace.get_num_vars_size_tmp();
   H.MultiplyBy(g, &Hg);
   const double gHg = g.transpose() * Hg;
+  state.workspace.release_num_vars_size_tmp(Hg);
 
   // Compute the full Gauss-Newton step
   // N.B. We can avoid computing pH when pU is the dog-leg solution.
@@ -2407,7 +2515,7 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
   // of gradients of the inverse dynamics.)
   // TODO(amcastro-tri): move this to after pU whenever we make the cost of
   // gradients computation negligible.
-  VectorXd& pH = state.workspace.q_size_tmp2;
+  VectorXd& pH = state.workspace.get_num_vars_size_tmp();
 
   pH = -g / Delta;  // normalize by Δ
   SolveLinearSystemInPlace(H, &pH);
@@ -2426,7 +2534,7 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
 
   // Compute the unconstrained minimizer of m(δq) = L(q) + g(q)'*δq + 1/2
   // δq'*H(q)*δq along -g
-  VectorXd& pU = state.workspace.q_size_tmp1;
+  VectorXd& pU = state.workspace.get_num_vars_size_tmp();
   pU = -(g.dot(g) / gHg) * g / Delta;  // normalize by Δ
 
   // Check if the trust region is smaller than this unconstrained minimizer
@@ -2437,6 +2545,8 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
     if (params_.scaling) {
       *dq = EvalScaleFactors(state).asDiagonal() * (*dq);
     }
+    state.workspace.release_num_vars_size_tmp(pH);
+    state.workspace.release_num_vars_size_tmp(pU);
     return true;  // the trust region constraint is active
   }
 
@@ -2447,6 +2557,8 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
       // TODO(vincekurtz): consider adding a MultiplyByScaleFactors method
       *dq = EvalScaleFactors(state).asDiagonal() * (*dq);
     }
+    state.workspace.release_num_vars_size_tmp(pH);
+    state.workspace.release_num_vars_size_tmp(pU);
     return false;  // the trust region constraint is not active
   }
 
@@ -2471,6 +2583,8 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
   if (params_.scaling) {
     *dq = EvalScaleFactors(state).asDiagonal() * (*dq);
   }
+  state.workspace.release_num_vars_size_tmp(pH);
+  state.workspace.release_num_vars_size_tmp(pU);
   return true;  // the trust region constraint is active
 }
 
