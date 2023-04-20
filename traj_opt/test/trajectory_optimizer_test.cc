@@ -723,7 +723,7 @@ GTEST_TEST(TrajectoryOptimizerTest, AutodiffGradient) {
   // Create an optimizer
   TrajectoryOptimizer<double> optimizer(diagram.get(), &plant, opt_prob);
   TrajectoryOptimizerState<double> state = optimizer.CreateState();
-  TrajectoryOptimizerWorkspace<double> workspace(num_steps, plant);
+  TrajectoryOptimizerWorkspace<double> workspace(num_steps, 0, plant);
 
   // Make some fake data
   std::vector<VectorXd> q(num_steps + 1);
@@ -744,7 +744,7 @@ GTEST_TEST(TrajectoryOptimizerTest, AutodiffGradient) {
   TrajectoryOptimizer<AutoDiffXd> optimizer_ad(diagram_ad.get(), &plant_ad,
                                                opt_prob);
   TrajectoryOptimizerState<AutoDiffXd> state_ad = optimizer_ad.CreateState();
-  TrajectoryOptimizerWorkspace<AutoDiffXd> workspace_ad(num_steps, plant_ad);
+  TrajectoryOptimizerWorkspace<AutoDiffXd> workspace_ad(num_steps, 0, plant_ad);
 
   std::vector<VectorX<AutoDiffXd>> q_ad(num_steps + 1);
   for (int t = 0; t <= num_steps; ++t) {
@@ -804,7 +804,6 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcGradientKuka) {
   // Create an optimizer
   TrajectoryOptimizer<double> optimizer(diagram.get(), &plant, opt_prob);
   TrajectoryOptimizerState<double> state = optimizer.CreateState();
-  TrajectoryOptimizerWorkspace<double> workspace(num_steps, plant);
 
   // Make some fake data
   std::vector<VectorXd> q(num_steps + 1);
@@ -867,7 +866,7 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcGradientPendulumNoGravity) {
   // Create an optimizer
   TrajectoryOptimizer<double> optimizer(diagram.get(), &plant, opt_prob);
   TrajectoryOptimizerState<double> state = optimizer.CreateState();
-  TrajectoryOptimizerWorkspace<double> workspace(num_steps, plant);
+  TrajectoryOptimizerWorkspace<double> workspace(num_steps, 0, plant);
 
   // Create some fake data
   std::vector<VectorXd> q;
@@ -891,7 +890,7 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcGradientPendulumNoGravity) {
   TrajectoryOptimizer<AutoDiffXd> optimizer_ad(diagram_ad.get(), &plant_ad,
                                                opt_prob);
   TrajectoryOptimizerState<AutoDiffXd> state_ad = optimizer_ad.CreateState();
-  TrajectoryOptimizerWorkspace<AutoDiffXd> workspace_ad(num_steps, plant_ad);
+  TrajectoryOptimizerWorkspace<AutoDiffXd> workspace_ad(num_steps, 0, plant_ad);
 
   std::vector<VectorX<AutoDiffXd>> q_ad(num_steps + 1);
   for (int t = 0; t <= num_steps; ++t) {
@@ -1017,7 +1016,7 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcGradientPendulum) {
   // Create an optimizer
   TrajectoryOptimizer<double> optimizer(diagram.get(), &plant, opt_prob);
   TrajectoryOptimizerState<double> state = optimizer.CreateState();
-  TrajectoryOptimizerWorkspace<double> workspace(num_steps, plant);
+  TrajectoryOptimizerWorkspace<double> workspace(num_steps, 0, plant);
 
   // Make some fake data
   std::vector<VectorXd> q(num_steps + 1);
@@ -1270,7 +1269,7 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcCost) {
 
   // Compute the cost and compare with the true value
   TrajectoryOptimizer<double> optimizer(&plant, context.get(), opt_prob);
-  TrajectoryOptimizerWorkspace<double> workspace(num_steps, plant);
+  TrajectoryOptimizerWorkspace<double> workspace(num_steps, 0, plant);
   double L =
       TrajectoryOptimizerTester::CalcCost(optimizer, q, v, tau, &workspace);
   double L_gt =

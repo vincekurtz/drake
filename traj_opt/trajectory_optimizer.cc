@@ -219,7 +219,7 @@ T TrajectoryOptimizer<T>::CalcCost(
   cost += T(q_err.transpose() * prob_.Qf_q * q_err);
   cost += T(v_err.transpose() * prob_.Qf_v * v_err);
 
-  // Release temporary variables back to the workspace 
+  // Release temporary variables back to the workspace
   workspace->release_q_size_tmp(q_err);
   workspace->release_v_size_tmp(v_err);
 
@@ -1584,7 +1584,7 @@ void TrajectoryOptimizer<T>::CalcScaleFactors(
     }
   }
 
-  // Release temporary variable back to the workspace 
+  // Release temporary variable back to the workspace
   state.workspace.release_num_vars_size_tmp(hessian_diag);
 }
 
@@ -1711,7 +1711,7 @@ void TrajectoryOptimizer<double>::CalcLagrangeMultipliers(
   // TODO(vincekurtz): it may be possible to exploit the structure of JH⁻¹Jᵀ to
   // perform this step more efficiently.
   *lambda = (J * Hinv_JT).ldlt().solve(h - Hinv_JT.transpose() * g);
-  
+
   state.workspace.release_num_vars_times_num_eq_size_tmp(Hinv_JT);
 }
 
@@ -2367,13 +2367,13 @@ T TrajectoryOptimizer<T>::CalcTrustRatio(
     // the trust ratio to a value such that the step will be accepted, but the
     // size of the trust region will not change.
 
-    // Release temporary variables back to the workspace 
+    // Release temporary variables back to the workspace
     state.workspace.release_num_vars_size_tmp(dq_scaled);
     state.workspace.release_num_vars_size_tmp(Hdq);
     return 0.5;
   }
 
-  // Release temporary variables back to the workspace 
+  // Release temporary variables back to the workspace
   state.workspace.release_num_vars_size_tmp(dq_scaled);
   state.workspace.release_num_vars_size_tmp(Hdq);
 

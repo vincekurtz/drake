@@ -2,9 +2,9 @@
 
 #include <gtest/gtest.h>
 
-#include "drake/traj_opt/trajectory_optimizer_workspace.h"
 #include "drake/common/find_resource.h"
 #include "drake/multibody/parsing/parser.h"
+#include "drake/traj_opt/trajectory_optimizer_workspace.h"
 
 #define PRINT_VAR(a) std::cout << #a ": " << a << std::endl;
 #define PRINT_VARn(a) std::cout << #a ":\n" << a << std::endl;
@@ -13,8 +13,8 @@ namespace drake {
 namespace traj_opt {
 namespace internal {
 
-using Eigen::VectorXd;
 using Eigen::MatrixXd;
+using Eigen::VectorXd;
 
 using multibody::MultibodyPlant;
 using multibody::Parser;
@@ -31,7 +31,7 @@ GTEST_TEST(WorkspaceTest, SimpleWorkspaceDouble) {
   EXPECT_FALSE(&a == &b);
 
   workspace.release(a);
-  
+
   double& c = workspace.get();
   EXPECT_TRUE(&c == &a);
   EXPECT_TRUE(c == 1.1);
@@ -69,7 +69,7 @@ GTEST_TEST(WorkspaceTest, Spinner) {
 
   VectorXd& v = workspace.get_v_size_tmp();
   EXPECT_TRUE(v.size() == plant.num_velocities());
-  
+
   VectorXd& num_vars_tmp = workspace.get_num_vars_size_tmp();
   EXPECT_TRUE(num_vars_tmp.size() == num_vars);
 
@@ -83,7 +83,6 @@ GTEST_TEST(WorkspaceTest, Spinner) {
 
   MultibodyForces<double>& f_ext = workspace.get_multibody_forces_tmp();
   EXPECT_TRUE(f_ext.CheckHasRightSizeForModel(plant));
-
 }
 
 }  // namespace internal
