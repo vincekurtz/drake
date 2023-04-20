@@ -132,13 +132,11 @@ class TrajectoryOptimizerWorkspace {
   }
 
   // Get/release a reference to a Vector3<T>
-  Vector3<T>& get_vector3_tmp() {
-    return vector3_workspace_.get();
-  }
+  Vector3<T>& get_vector3_tmp() { return vector3_workspace_.get(); }
   void release_vector3_tmp(const Vector3<T>& var) {
     vector3_workspace_.release(var);
   }
-  
+
   // Get/release a reference to a spatial velocity
   SpatialVelocity<T>& get_spatial_velocity_tmp() {
     return spatial_velocity_workspace_.get();
@@ -146,7 +144,7 @@ class TrajectoryOptimizerWorkspace {
   void release_spatial_velocity_tmp(const SpatialVelocity<T>& var) {
     spatial_velocity_workspace_.release(var);
   }
-  
+
   // Get/release a reference to a spatial force
   SpatialForce<T>& get_spatial_force_tmp() {
     return spatial_force_workspace_.get();

@@ -337,7 +337,7 @@ void TrajectoryOptimizer<T>::CalcContactForceContribution(
   const std::vector<SignedDistancePair<T>>& signed_distance_pairs =
       query_object.ComputeSignedDistancePairwiseClosestPoints(threshold);
 
-  // Get temporary variables from the workspace    
+  // Get temporary variables from the workspace
   Vector3<T>& p_WCa_W = workspace->get_vector3_tmp();
   Vector3<T>& p_WCb_W = workspace->get_vector3_tmp();
   Vector3<T>& p_WC = workspace->get_vector3_tmp();
@@ -467,8 +467,8 @@ void TrajectoryOptimizer<T>::CalcContactForceContribution(
       forces->mutable_body_forces()[bodyB.node_index()] += F_BBo_W;
     }
   }
-  
-  // Release temporary variables back to the workspace    
+
+  // Release temporary variables back to the workspace
   workspace->release_vector3_tmp(p_WCa_W);
   workspace->release_vector3_tmp(p_WCb_W);
   workspace->release_vector3_tmp(p_WC);
