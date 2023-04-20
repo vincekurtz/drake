@@ -264,7 +264,10 @@ class TrajectoryOptimizerState {
    */
   TrajectoryOptimizerState(const int num_steps, const MultibodyPlant<T>& plant,
                            const int num_eq_constraints)
-      : workspace(num_steps, plant),
+      : workspace(num_steps, num_eq_constraints, plant),
+        per_timestep_workspace(num_steps + 1,
+                               TrajectoryOptimizerWorkspace<T>(
+                                   num_steps, num_eq_constraints, plant)),
         num_steps_(num_steps),
         nq_(plant.num_positions()),
         cache_(num_steps, plant.num_velocities(), plant.num_positions(),
@@ -273,15 +276,16 @@ class TrajectoryOptimizerState {
     q_.assign(num_steps + 1, VectorX<T>(nq));
     proximal_operator_data_.q_last.assign(num_steps + 1, VectorX<T>(nq));
     proximal_operator_data_.H_diag.assign(num_steps + 1, VectorX<T>::Zero(nq));
-    per_timestep_workspace.assign(
-        num_steps + 1, TrajectoryOptimizerWorkspace<T>(num_steps, plant));
   }
 
   // TrajectoryOptimizer state for a `plant` model within `diagram`.
   TrajectoryOptimizerState(const int num_steps, const Diagram<T>& diagram,
                            const MultibodyPlant<T>& plant,
                            const int num_eq_constraints)
-      : workspace(num_steps, plant),
+      : workspace(num_steps, num_eq_constraints, plant),
+        per_timestep_workspace(num_steps + 1,
+                               TrajectoryOptimizerWorkspace<T>(
+                                   num_steps, num_eq_constraints, plant)),
         num_steps_(num_steps),
         nq_(plant.num_positions()),
         cache_(num_steps, diagram, plant, num_eq_constraints) {
@@ -289,8 +293,6 @@ class TrajectoryOptimizerState {
     q_.assign(num_steps + 1, VectorX<T>(nq));
     proximal_operator_data_.q_last.assign(num_steps + 1, VectorX<T>(nq));
     proximal_operator_data_.H_diag.assign(num_steps + 1, VectorX<T>::Zero(nq));
-    per_timestep_workspace.assign(
-        num_steps + 1, TrajectoryOptimizerWorkspace<T>(num_steps, plant));
   }
 
   /** Getter for the sequence of generalized positions. */

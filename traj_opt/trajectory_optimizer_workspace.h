@@ -1,6 +1,7 @@
 #pragma once
 
 #include <vector>
+#include <iostream> //DEBUG TODO
 
 #include "drake/common/eigen_types.h"
 #include "drake/multibody/plant/multibody_plant.h"
@@ -40,6 +41,7 @@ class SimpleWorkspace {
         return vars_[i];
       }
     }
+    std::cout << "size: " << size_ << std::endl;
     throw std::runtime_error(
         "Out of workspace memory! Make sure you are calling release on "
         "workspace elements once you're finished with them. Otherwise, try "
@@ -109,7 +111,7 @@ class TrajectoryOptimizerWorkspace {
   MatrixX<T>& get_num_vars_times_num_eq_size_tmp() {
     return num_vars_times_num_eq_size_workspace_.get();
   }
-  void release_num_vars_size_tmp(const MatrixX<T>& var) {
+  void release_num_vars_times_num_eq_size_tmp(const MatrixX<T>& var) {
     num_vars_times_num_eq_size_workspace_.release(var);
   }
 
