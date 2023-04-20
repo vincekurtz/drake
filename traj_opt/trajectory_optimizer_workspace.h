@@ -12,6 +12,58 @@ using multibody::MultibodyForces;
 using multibody::MultibodyPlant;
 
 /**
+ * A simple workspace class that allows us to pre-allocate variables of type T.
+ * Keeps track of which variables are in use and which are not.
+ */
+template <typename T>
+class SimpleWorkspace {
+ public:
+  /**
+   * Initialize a simple workspace storing variables of type T
+   *
+   * @param size number of variables to store
+   * @param default_value default value to initialize the variables
+   */
+  SimpleWorkspace(const int size, const T default_value)
+      : size_(size), vars_(size, default_value), in_use_(size, false) {}
+
+  /**
+   * Get a mutable reference to a variable from the workspace that is not
+   * currently in use.
+   *
+   * @return T& the pre-allocated variable
+   */
+  T& get() {
+    for (int i = 0; i < size_; ++i) {
+      if (!in_use_[i]) {
+        in_use_[i] = true;
+        return vars_[i];
+      }
+    }
+    throw std::runtime_error(
+        "Out of workspace memory! Make sure you are calling release on "
+        "workspace elements once you're finished with them. Otherwise, try "
+        "initializing the workspace with a larger size.");
+  }
+
+  void release(const T& var) {
+    for (int i = 0; i < size_; ++i) {
+      if (&var == &vars_[i]) {
+        in_use_[i] = false;
+        return;
+      }
+    }
+    throw std::runtime_error(
+        "The given variable is not stored in this workspace.");
+  }
+
+ private:
+  const int size_;            // number of variables we're storing
+  std::vector<T> vars_;       // the stored variables
+  std::vector<bool> in_use_;  // flag for which variables are available
+};
+
+/**
  * A container for scratch variables that we use in various intermediate
  * computations. Allows us to avoid extra allocations when speed is important.
  */
