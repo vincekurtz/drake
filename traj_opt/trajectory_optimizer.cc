@@ -1744,12 +1744,6 @@ template <typename T>
 void TrajectoryOptimizer<T>::CalcContextCache(
     const TrajectoryOptimizerState<T>& state,
     typename TrajectoryOptimizerCache<T>::ContextCache* cache) const {
-  if (diagram_ == nullptr) {
-    throw std::runtime_error(
-        "No Diagram was provided at construction of the TrajectoryOptimizer. "
-        "Use the constructor that takes a Diagram to enable the caching of "
-        "contexts.");
-  }
   const std::vector<VectorX<T>>& q = state.q();
   const std::vector<VectorX<T>>& v = EvalV(state);
   auto& plant_contexts = cache->plant_contexts;
@@ -1763,12 +1757,6 @@ void TrajectoryOptimizer<T>::CalcContextCache(
 template <typename T>
 const Context<T>& TrajectoryOptimizer<T>::EvalPlantContext(
     const TrajectoryOptimizerState<T>& state, int t) const {
-  if (diagram_ == nullptr) {
-    throw std::runtime_error(
-        "No Diagram was provided at construction of the TrajectoryOptimizer. "
-        "Use the constructor that takes a Diagram to enable the caching of "
-        "contexts.");
-  }
   if (!state.cache().context_cache->up_to_date) {
     CalcContextCache(state, state.mutable_cache().context_cache.get());
   }
@@ -1778,12 +1766,6 @@ const Context<T>& TrajectoryOptimizer<T>::EvalPlantContext(
 template <typename T>
 Context<T>& TrajectoryOptimizer<T>::GetMutablePlantContext(
     const TrajectoryOptimizerState<T>& state, int t) const {
-  if (diagram_ == nullptr) {
-    throw std::runtime_error(
-        "No Diagram was provided at construction of the TrajectoryOptimizer. "
-        "Use the constructor that takes a Diagram to enable the caching of "
-        "contexts.");
-  }
   state.mutable_cache().context_cache->up_to_date = false;
   return *state.mutable_cache().context_cache->plant_contexts[t];
 }

@@ -99,10 +99,7 @@ class TrajectoryOptimizer {
    *
    * @return const Diagram<T>&, the system diagram.
    */
-  const Diagram<T>& diagram() const {
-    DRAKE_DEMAND(diagram_ != nullptr);
-    return *diagram_;
-  }
+  const Diagram<T>& diagram() const { return *diagram_; }
 
   /**
    * Create a state object which contains the decision variables (generalized
@@ -114,11 +111,7 @@ class TrajectoryOptimizer {
    */
   TrajectoryOptimizerState<T> CreateState() const {
     INSTRUMENT_FUNCTION("Creates state object with caching.");
-    if (diagram_ != nullptr) {
-      return TrajectoryOptimizerState<T>(num_steps(), *diagram_, plant(),
-                                         num_equality_constraints());
-    }
-    return TrajectoryOptimizerState<T>(num_steps(), plant(),
+    return TrajectoryOptimizerState<T>(num_steps(), diagram(), plant(),
                                        num_equality_constraints());
   }
 
