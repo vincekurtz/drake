@@ -289,7 +289,7 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsSingleTimeStep(
     // TODO(vincekurtz): perform this check earlier, and maybe print some
     // warnings to stdout if we're not connected (we do want to be able to run
     // problems w/o contact sometimes)
-    CalcContactForceContribution(context, &f_ext);
+    CalcContactForceContribution(context, workspace, &f_ext);
   }
 
   // Inverse dynamics computes tau = M*a - k(q,v) - f_ext
@@ -299,7 +299,8 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsSingleTimeStep(
 
 template <typename T>
 void TrajectoryOptimizer<T>::CalcContactForceContribution(
-    const Context<T>& context, MultibodyForces<T>* forces) const {
+    const Context<T>& context, TrajectoryOptimizerWorkspace<T>* workspace,
+    MultibodyForces<T>* forces) const {
   using std::abs;
   using std::exp;
   using std::log;
@@ -336,16 +337,31 @@ void TrajectoryOptimizer<T>::CalcContactForceContribution(
   const std::vector<SignedDistancePair<T>>& signed_distance_pairs =
       query_object.ComputeSignedDistancePairwiseClosestPoints(threshold);
 
+  // Get temporary variables from the workspace    
+  Vector3<T>& p_WCa_W = workspace->get_vector3_tmp();
+  Vector3<T>& p_WCb_W = workspace->get_vector3_tmp();
+  Vector3<T>& p_WC = workspace->get_vector3_tmp();
+  Vector3<T>& p_AC_W = workspace->get_vector3_tmp();
+  Vector3<T>& p_BC_W = workspace->get_vector3_tmp();
+  Vector3<T>& v_AcBc_W = workspace->get_vector3_tmp();
+  Vector3<T>& vt = workspace->get_vector3_tmp();
+  Vector3<T>& ft_BC_W = workspace->get_vector3_tmp();
+  Vector3<T>& f_BC_W = workspace->get_vector3_tmp();
+  SpatialVelocity<T>& V_WAc = workspace->get_spatial_velocity_tmp();
+  SpatialVelocity<T>& V_WBc = workspace->get_spatial_velocity_tmp();
+  SpatialForce<T>& F_AC_W = workspace->get_spatial_force_tmp();
+  SpatialForce<T>& F_BC_W = workspace->get_spatial_force_tmp();
+
   for (const SignedDistancePair<T>& pair : signed_distance_pairs) {
     // Don't do any contact force computations if we're not in contact, unless
     // we're using a contact model that allows force at a distance.
     if ((params_.force_at_a_distance) || (pair.distance < 0)) {
       // Normal outwards from A.
-      const Vector3<T> nhat = -pair.nhat_BA_W;
+      const Vector3<T>& nhat = -pair.nhat_BA_W;
 
       // Get geometry and transformation data for the witness points
-      const GeometryId geometryA_id = pair.id_A;
-      const GeometryId geometryB_id = pair.id_B;
+      const GeometryId& geometryA_id = pair.id_A;
+      const GeometryId& geometryB_id = pair.id_B;
 
       const BodyIndex bodyA_index =
           plant().geometry_id_to_body_index().at(geometryA_id);
@@ -361,41 +377,37 @@ void TrajectoryOptimizer<T>::CalcContactForceContribution(
           plant().EvalBodyPoseInWorld(context, bodyB);
 
       // Geometry poses in body frames.
-      const math::RigidTransform<T> X_AGa =
+      const math::RigidTransform<T>& X_AGa =
           inspector.GetPoseInFrame(geometryA_id).template cast<T>();
-      const math::RigidTransform<T> X_BGb =
+      const math::RigidTransform<T>& X_BGb =
           inspector.GetPoseInFrame(geometryB_id).template cast<T>();
 
       // Position of the witness points in the world frame.
       const auto& p_GaCa_Ga = pair.p_ACa;
-      const RigidTransform<T> X_WGa = X_WA * X_AGa;
-      const Vector3<T> p_WCa_W = X_WGa * p_GaCa_Ga;
+      p_WCa_W = X_WA * X_AGa * p_GaCa_Ga;
       const auto& p_GbCb_Gb = pair.p_BCb;
-      const RigidTransform<T> X_WGb = X_WB * X_BGb;
-      const Vector3<T> p_WCb_W = X_WGb * p_GbCb_Gb;
+      p_WCb_W = X_WB * X_BGb * p_GbCb_Gb;
 
       // We define the (common, unique) contact point C as the midpoint between
       // witness points Ca and Cb.
-      const Vector3<T> p_WC = 0.5 * (p_WCa_W + p_WCb_W);
+      p_WC = 0.5 * (p_WCa_W + p_WCb_W);
 
       // Shift vectors.
-      const Vector3<T> p_AC_W = p_WC - X_WA.translation();
-      const Vector3<T> p_BC_W = p_WC - X_WB.translation();
+      p_AC_W = p_WC - X_WA.translation();
+      p_BC_W = p_WC - X_WB.translation();
 
       // Velocities.
-      const SpatialVelocity<T>& V_WA =
-          plant().EvalBodySpatialVelocityInWorld(context, bodyA);
-      const SpatialVelocity<T>& V_WB =
-          plant().EvalBodySpatialVelocityInWorld(context, bodyB);
-      const SpatialVelocity<T> V_WAc = V_WA.Shift(p_AC_W);
-      const SpatialVelocity<T> V_WBc = V_WB.Shift(p_BC_W);
+      V_WAc = plant().EvalBodySpatialVelocityInWorld(context, bodyA);
+      V_WBc = plant().EvalBodySpatialVelocityInWorld(context, bodyB);
+      V_WAc.ShiftInPlace(p_AC_W);
+      V_WBc.ShiftInPlace(p_BC_W);
 
       // Relative contact velocity.
-      const Vector3<T> v_AcBc_W = V_WBc.translational() - V_WAc.translational();
+      v_AcBc_W = V_WBc.translational() - V_WAc.translational();
 
       // Split into normal and tangential components.
       const T vn = nhat.dot(v_AcBc_W);
-      const Vector3<T> vt = v_AcBc_W - vn * nhat;
+      vt = v_AcBc_W - vn * nhat;
 
       // Normal dissipation follows a smoothed Hunt and Crossley model
       T dissipation_factor = 0.0;
@@ -438,25 +450,38 @@ void TrajectoryOptimizer<T>::CalcContactForceContribution(
       // with the algebraic sigmoid function defined as sigmoid(x) =
       // x/sqrt(1+x^2). The algebraic simplification is performed to avoid
       // division by zero when vt = 0 (or loss of precision when close to zero).
-      const Vector3<T> that_regularized =
-          -vt / sqrt(vs * vs + vt.squaredNorm());
-      const Vector3<T> ft_BC_W = that_regularized * mu * fn;
+      ft_BC_W = -vt / sqrt(vs * vs + vt.squaredNorm()) * mu * fn;
 
       // Total contact force on B at C, expressed in W.
-      const Vector3<T> f_BC_W = nhat * fn + ft_BC_W;
+      f_BC_W = nhat * fn + ft_BC_W;
 
       // Spatial contact forces on bodies A and B.
-      const SpatialForce<T> F_BC_W(Vector3<T>::Zero(), f_BC_W);
-      const SpatialForce<T> F_BBo_W = F_BC_W.Shift(-p_BC_W);
+      F_AC_W = SpatialForce<T>(Vector3<T>::Zero(), -f_BC_W);
+      SpatialForce<T>& F_AAo_W = F_AC_W.ShiftInPlace(-p_AC_W);
 
-      const SpatialForce<T> F_AC_W(Vector3<T>::Zero(), -f_BC_W);
-      const SpatialForce<T> F_AAo_W = F_AC_W.Shift(-p_AC_W);
+      F_BC_W = SpatialForce<T>(Vector3<T>::Zero(), f_BC_W);
+      SpatialForce<T>& F_BBo_W = F_BC_W.ShiftInPlace(-p_BC_W);
 
       // Add the forces into the given MultibodyForces
       forces->mutable_body_forces()[bodyA.node_index()] += F_AAo_W;
       forces->mutable_body_forces()[bodyB.node_index()] += F_BBo_W;
     }
   }
+  
+  // Release temporary variables back to the workspace    
+  workspace->release_vector3_tmp(p_WCa_W);
+  workspace->release_vector3_tmp(p_WCb_W);
+  workspace->release_vector3_tmp(p_WC);
+  workspace->release_vector3_tmp(p_AC_W);
+  workspace->release_vector3_tmp(p_BC_W);
+  workspace->release_vector3_tmp(v_AcBc_W);
+  workspace->release_vector3_tmp(vt);
+  workspace->release_vector3_tmp(ft_BC_W);
+  workspace->release_vector3_tmp(f_BC_W);
+  workspace->release_spatial_velocity_tmp(V_WAc);
+  workspace->release_spatial_velocity_tmp(V_WBc);
+  workspace->release_spatial_force_tmp(F_AC_W);
+  workspace->release_spatial_force_tmp(F_BC_W);
 }
 
 template <typename T>

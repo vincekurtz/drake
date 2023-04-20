@@ -10,6 +10,8 @@ namespace traj_opt {
 
 using multibody::MultibodyForces;
 using multibody::MultibodyPlant;
+using multibody::SpatialForce;
+using multibody::SpatialVelocity;
 
 /**
  * A simple workspace class that allows us to pre-allocate variables of type T.
@@ -79,7 +81,10 @@ class TrajectoryOptimizerWorkspace {
             1, MatrixX<T>(num_vars_, num_equality_constraints)),
         q_sequence_workspace_(
             2, std::vector<VectorX<T>>(num_steps, VectorX<T>(nq_))),
-        multibody_forces_workspace_(1, MultibodyForces<T>(plant)) {}
+        multibody_forces_workspace_(1, MultibodyForces<T>(plant)),
+        vector3_workspace_(10, Vector3<T>()),
+        spatial_velocity_workspace_(2, SpatialVelocity<T>()),
+        spatial_force_workspace_(2, SpatialForce<T>()) {}
 
   // Get/release a reference to an Eigen vector of size nq
   VectorX<T>& get_q_size_tmp() { return q_size_workspace_.get(); }
@@ -126,6 +131,30 @@ class TrajectoryOptimizerWorkspace {
     multibody_forces_workspace_.release(var);
   }
 
+  // Get/release a reference to a Vector3<T>
+  Vector3<T>& get_vector3_tmp() {
+    return vector3_workspace_.get();
+  }
+  void release_vector3_tmp(const Vector3<T>& var) {
+    vector3_workspace_.release(var);
+  }
+  
+  // Get/release a reference to a spatial velocity
+  SpatialVelocity<T>& get_spatial_velocity_tmp() {
+    return spatial_velocity_workspace_.get();
+  }
+  void release_spatial_velocity_tmp(const SpatialVelocity<T>& var) {
+    spatial_velocity_workspace_.release(var);
+  }
+  
+  // Get/release a reference to a spatial force
+  SpatialForce<T>& get_spatial_force_tmp() {
+    return spatial_force_workspace_.get();
+  }
+  void release_spatial_force_tmp(const SpatialForce<T>& var) {
+    spatial_force_workspace_.release(var);
+  }
+
  private:
   const int nq_;
   const int nv_;
@@ -136,6 +165,9 @@ class TrajectoryOptimizerWorkspace {
   SimpleWorkspace<MatrixX<T>> num_vars_times_num_eq_size_workspace_;
   SimpleWorkspace<std::vector<VectorX<T>>> q_sequence_workspace_;
   SimpleWorkspace<MultibodyForces<T>> multibody_forces_workspace_;
+  SimpleWorkspace<Vector3<T>> vector3_workspace_;
+  SimpleWorkspace<SpatialVelocity<T>> spatial_velocity_workspace_;
+  SimpleWorkspace<SpatialForce<T>> spatial_force_workspace_;
 };
 
 }  // namespace traj_opt
