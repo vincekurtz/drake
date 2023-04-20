@@ -259,25 +259,10 @@ class TrajectoryOptimizerState {
    * Constructor which allocates things of the proper sizes.
    *
    * @param num_steps number of timesteps in the optimization problem
+   * @param diagram system diagram containing the plant (for context allocation)
    * @param plant multibody plant system model
    * @param num_eq_constraints number of equality constraints
    */
-  TrajectoryOptimizerState(const int num_steps, const MultibodyPlant<T>& plant,
-                           const int num_eq_constraints)
-      : workspace(num_steps, plant),
-        num_steps_(num_steps),
-        nq_(plant.num_positions()),
-        cache_(num_steps, plant.num_velocities(), plant.num_positions(),
-               num_eq_constraints) {
-    const int nq = plant.num_positions();
-    q_.assign(num_steps + 1, VectorX<T>(nq));
-    proximal_operator_data_.q_last.assign(num_steps + 1, VectorX<T>(nq));
-    proximal_operator_data_.H_diag.assign(num_steps + 1, VectorX<T>::Zero(nq));
-    per_timestep_workspace.assign(
-        num_steps + 1, TrajectoryOptimizerWorkspace<T>(num_steps, plant));
-  }
-
-  // TrajectoryOptimizer state for a `plant` model within `diagram`.
   TrajectoryOptimizerState(const int num_steps, const Diagram<T>& diagram,
                            const MultibodyPlant<T>& plant,
                            const int num_eq_constraints)
