@@ -178,8 +178,13 @@ drake_cc_googletest(
 
 drake_cc_googletest(
     name = "workspace_test",
+    data = [
+        "//traj_opt/examples:models",
+    ],
     deps = [
         ":trajectory_optimizer_workspace",
+        "//common:find_resource",
+        "//multibody/parsing",
     ],
 )
 
