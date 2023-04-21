@@ -43,43 +43,6 @@ using multibody::SpatialVelocity;
 using systems::System;
 
 template <typename T>
-TrajectoryOptimizer<T>::TrajectoryOptimizer(const MultibodyPlant<T>* plant,
-                                            Context<T>* context,
-                                            const ProblemDefinition& prob,
-                                            const SolverParameters& params)
-    : plant_(plant), context_(context), prob_(prob), params_(params) {
-  // Define joint damping coefficients.
-  joint_damping_ = VectorX<T>::Zero(plant_->num_velocities());
-  for (JointIndex j(0); j < plant_->num_joints(); ++j) {
-    const Joint<T>& joint = plant_->get_joint(j);
-    const int velocity_start = joint.velocity_start();
-    const int nv = joint.num_velocities();
-    joint_damping_.segment(velocity_start, nv) = joint.damping_vector();
-  }
-
-  // Define unactuated degrees of freedom
-  const MatrixX<T> B = plant_->MakeActuationMatrix();
-  if (B.size() > 0) {
-    // if B is of size zero, assume the system is fully actuated
-    for (int i = 0; i < plant_->num_velocities(); ++i) {
-      if (B.row(i).sum() == 0) {
-        unactuated_dofs_.push_back(i);
-      }
-    }
-  }
-
-  // Must have a target position and velocity specified for each time step
-  DRAKE_DEMAND(static_cast<int>(prob.q_nom.size()) == (num_steps() + 1));
-  DRAKE_DEMAND(static_cast<int>(prob.v_nom.size()) == (num_steps() + 1));
-
-  if (params_.gradients_method == GradientsMethod::kAutoDiff) {
-    throw std::runtime_error(
-        "It is not possible to use automatic differentiation when only the "
-        "plant is provided. Use the constructor providing the full Diagram.");
-  }
-}
-
-template <typename T>
 TrajectoryOptimizer<T>::TrajectoryOptimizer(const Diagram<T>* diagram,
                                             const MultibodyPlant<T>* plant,
                                             const ProblemDefinition& prob,
@@ -1781,12 +1744,6 @@ template <typename T>
 void TrajectoryOptimizer<T>::CalcContextCache(
     const TrajectoryOptimizerState<T>& state,
     typename TrajectoryOptimizerCache<T>::ContextCache* cache) const {
-  if (diagram_ == nullptr) {
-    throw std::runtime_error(
-        "No Diagram was provided at construction of the TrajectoryOptimizer. "
-        "Use the constructor that takes a Diagram to enable the caching of "
-        "contexts.");
-  }
   const std::vector<VectorX<T>>& q = state.q();
   const std::vector<VectorX<T>>& v = EvalV(state);
   auto& plant_contexts = cache->plant_contexts;
@@ -1800,12 +1757,6 @@ void TrajectoryOptimizer<T>::CalcContextCache(
 template <typename T>
 const Context<T>& TrajectoryOptimizer<T>::EvalPlantContext(
     const TrajectoryOptimizerState<T>& state, int t) const {
-  if (diagram_ == nullptr) {
-    throw std::runtime_error(
-        "No Diagram was provided at construction of the TrajectoryOptimizer. "
-        "Use the constructor that takes a Diagram to enable the caching of "
-        "contexts.");
-  }
   if (!state.cache().context_cache->up_to_date) {
     CalcContextCache(state, state.mutable_cache().context_cache.get());
   }
@@ -1815,12 +1766,6 @@ const Context<T>& TrajectoryOptimizer<T>::EvalPlantContext(
 template <typename T>
 Context<T>& TrajectoryOptimizer<T>::GetMutablePlantContext(
     const TrajectoryOptimizerState<T>& state, int t) const {
-  if (diagram_ == nullptr) {
-    throw std::runtime_error(
-        "No Diagram was provided at construction of the TrajectoryOptimizer. "
-        "Use the constructor that takes a Diagram to enable the caching of "
-        "contexts.");
-  }
   state.mutable_cache().context_cache->up_to_date = false;
   return *state.mutable_cache().context_cache->plant_contexts[t];
 }
