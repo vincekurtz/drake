@@ -32,7 +32,7 @@ time_step : 0.05  # Discretization timestep (seconds)
 num_steps : 40    # number of timesteps
 
 # Solver parameters
-max_iters : 250             # maximum Gauss-Newton iterations
+max_iters : 0               # maximum Gauss-Newton iterations
 method : "trust_region"     # solver method, {linesearch, trust_region}
 linesearch : "armijo"       # linesearch strategy, {armino, backtracking}
 proximal_operator : false   # whether to add a proximal operator cost term
@@ -40,7 +40,7 @@ rho_proximal : 1e-5         # the proximal cost multiplier
 
 # Method used to compute gradients of inverse dynamics, one of
 # {forward_differences, central_differences, central_differences4, autodiff}
-gradients_method: "central_differences"
+gradients_method: "forward_differences"
 
 # Playback/visualization parameters
 play_target_trajectory : false
@@ -53,11 +53,11 @@ print_debug_data : false
 save_solver_stats_csv : true
 
 # MPC parameters
-mpc : false
-mpc_iters : 5
-controller_frequency : 25
+mpc : true
+mpc_iters : 1
+controller_frequency : 300
 sim_time : 5
-sim_time_step : 1e-3
-sim_realtime_rate : 1.0
+sim_time_step : 5e-3
+sim_realtime_rate : 0.0
 Kp : [0.0]
 Kd : [0.0]
