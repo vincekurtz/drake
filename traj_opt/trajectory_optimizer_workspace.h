@@ -81,6 +81,7 @@ struct TrajectoryOptimizerWorkspace {
 
     num_vars_size_tmp1.resize(num_vars);
     num_vars_size_tmp2.resize(num_vars);
+    num_vars_size_tmp3.resize(num_vars);
 
     num_vars_by_num_eq_cons_tmp.resize(num_vars, num_eq_cons);
 
@@ -143,6 +144,7 @@ struct TrajectoryOptimizerWorkspace {
   // Vector of all decision variables
   VectorX<T> num_vars_size_tmp1;
   VectorX<T> num_vars_size_tmp2;
+  VectorX<T> num_vars_size_tmp3;
 
   // Matrix of size (number of variables) * (number of equality constraints)
   MatrixX<T> num_vars_by_num_eq_cons_tmp;
