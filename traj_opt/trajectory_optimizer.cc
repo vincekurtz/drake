@@ -2407,7 +2407,7 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
   // of gradients of the inverse dynamics.)
   // TODO(amcastro-tri): move this to after pU whenever we make the cost of
   // gradients computation negligible.
-  VectorXd& pH = state.workspace.q_size_tmp2;
+  VectorXd& pH = state.workspace.num_vars_size_tmp2;
 
   pH = -g / Delta;  // normalize by Δ
   SolveLinearSystemInPlace(H, &pH);
@@ -2426,7 +2426,7 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
 
   // Compute the unconstrained minimizer of m(δq) = L(q) + g(q)'*δq + 1/2
   // δq'*H(q)*δq along -g
-  VectorXd& pU = state.workspace.q_size_tmp1;
+  VectorXd& pU = state.workspace.num_vars_size_tmp3;
   pU = -(g.dot(g) / gHg) * g / Delta;  // normalize by Δ
 
   // Check if the trust region is smaller than this unconstrained minimizer

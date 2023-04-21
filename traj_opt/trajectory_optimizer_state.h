@@ -54,7 +54,7 @@ struct TrajectoryOptimizerCache {
         gradient((num_steps + 1) * nq),
         hessian(num_steps + 1, nq),
         scaled_hessian(num_steps + 1, nq),
-        scaled_gradient(num_steps + 1, nq),
+        scaled_gradient((num_steps + 1) * nq),
         scale_factors((num_steps + 1) * nq),
         constraint_violation(num_eq_constraints),
         constraint_jacobian(num_eq_constraints, (num_steps + 1) * nq),
