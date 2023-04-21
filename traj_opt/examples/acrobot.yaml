@@ -30,7 +30,7 @@ time_step : 0.05   # Discretization timestep (seconds)
 num_steps : 40     # number of timesteps
 
 # Solver parameters
-max_iters : 0               # maximum Gauss-Newton iterations
+max_iters : 50              # maximum Gauss-Newton iterations
 method : "trust_region"     # solver method, {linesearch, trust_region}
 linesearch : "backtracking" # linesearch strategy, {armino, backtracking}
 proximal_operator : false   # whether to add a proximal operator cost term
@@ -78,7 +78,7 @@ print_debug_data : false
 save_solver_stats_csv : true
 
 # MPC parameters
-mpc : true
+mpc : false
 mpc_iters : 1
 controller_frequency : 300
 sim_time : 5

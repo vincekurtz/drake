@@ -79,8 +79,9 @@ class AllegroHandExample : public TrajOptExample {
                                   Cylinder(0.1 * radius, 2 * radius),
                                   "ball_marker_three", black);
   }
-  
-  void CreatePlantModelForSimulation(MultibodyPlant<double>* plant) const final {
+
+  void CreatePlantModelForSimulation(
+      MultibodyPlant<double>* plant) const final {
     const Vector4<double> blue(0.1, 0.3, 0.5, 0.8);
     const Vector4<double> black(0.0, 0.0, 0.0, 0.5);
 
