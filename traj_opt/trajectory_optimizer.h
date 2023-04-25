@@ -464,14 +464,14 @@ class TrajectoryOptimizer {
     prob_.q_init = q_init;
     prob_.v_init = v_init;
 
-    if (params_.cost_relative_to_initial_condition) {
-      // Reset the nominal generalized positions to be relative to the new
-      // initial condition.
-      const VectorXd q_init_old = prob_.q_nom[0];
-      for (VectorXd& qt_nom : prob_.q_nom) {
-        qt_nom += q_init - q_init_old;
-      }
-    }
+    //if (params_.cost_relative_to_initial_condition) {
+    //  // Reset the nominal generalized positions to be relative to the new
+    //  // initial condition.
+    //  const VectorXd q_init_old = prob_.q_nom[0];
+    //  for (VectorXd& qt_nom : prob_.q_nom) {
+    //    qt_nom += q_init - q_init_old;
+    //  }
+    //}
   }
 
  private:
