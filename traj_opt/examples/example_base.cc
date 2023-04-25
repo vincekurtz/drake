@@ -329,8 +329,14 @@ void TrajOptExample::SetProblemDefinition(const TrajOptExampleParams& options,
   opt_prob->R = options.R.asDiagonal();
 
   // Target state at each timestep
-  opt_prob->q_nom = MakeLinearInterpolation(
-      options.q_nom_start, options.q_nom_end, options.num_steps + 1);
+  VectorXd q_nom_start = options.q_nom_start;
+  VectorXd q_nom_end = options.q_nom_end;
+  if (options.cost_relative_to_initial_condition) {
+    q_nom_start += options.q_init;
+    q_nom_end += options.q_init;
+  }
+  opt_prob->q_nom =
+      MakeLinearInterpolation(q_nom_start, q_nom_end, options.num_steps + 1);
 
   opt_prob->v_nom.push_back(opt_prob->v_init);
   for (int t = 1; t <= options.num_steps; ++t) {
@@ -494,6 +500,10 @@ void TrajOptExample::SetSolverParameters(
 
   // Number of threads
   solver_params->num_threads = options.num_threads;
+
+  // Whether to shift the nominal trajectory depending on q0.
+  solver_params->cost_relative_to_initial_condition =
+      options.cost_relative_to_initial_condition;
 }
 
 void TrajOptExample::NormalizeQuaternions(const MultibodyPlant<double>& plant,

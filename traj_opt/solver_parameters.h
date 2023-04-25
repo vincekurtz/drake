@@ -186,6 +186,10 @@ struct SolverParameters {
 
   // Number of cpu threads for parallel computation of derivatives
   int num_threads{1};
+  
+  // Flag for defining the nominal trajectory as relative to the initial
+  // condition. Useful for locomotion or continuous rotation tasks.
+  bool cost_relative_to_initial_condition{false};
 };
 
 }  // namespace traj_opt

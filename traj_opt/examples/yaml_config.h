@@ -85,6 +85,7 @@ struct TrajOptExampleParams {
     a->Visit(DRAKE_NVP(Delta_max));
     a->Visit(DRAKE_NVP(Delta0));
     a->Visit(DRAKE_NVP(num_threads));
+    a->Visit(DRAKE_NVP(cost_relative_to_initial_condition));
   }
   // Initial state
   VectorXd q_init;
@@ -225,6 +226,10 @@ struct TrajOptExampleParams {
 
   // Number of cpu threads to use for parallel computation of derivatives
   int num_threads{1};
+
+  // Flag for defining the nominal trajectory as relative to the initial
+  // condition. Useful for locomotion or continuous rotation tasks.
+  bool cost_relative_to_initial_condition{false};
 };
 
 }  // namespace examples
