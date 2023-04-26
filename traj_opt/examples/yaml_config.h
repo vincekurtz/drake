@@ -85,7 +85,7 @@ struct TrajOptExampleParams {
     a->Visit(DRAKE_NVP(Delta_max));
     a->Visit(DRAKE_NVP(Delta0));
     a->Visit(DRAKE_NVP(num_threads));
-    a->Visit(DRAKE_NVP(q_nom_relative_to_q0));
+    a->Visit(DRAKE_NVP(q_nom_relative_to_q_init));
   }
   // Initial state
   VectorXd q_init;
@@ -229,7 +229,7 @@ struct TrajOptExampleParams {
 
   // Indicator for which DoFs the nominal trajectory is defined as relative to
   // the initial condition. Useful for locomotion or continuous rotation tasks.
-  VectorX<bool> q_nom_relative_to_q0;
+  VectorX<bool> q_nom_relative_to_q_init;
 };
 
 }  // namespace examples

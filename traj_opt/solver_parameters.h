@@ -189,7 +189,7 @@ struct SolverParameters {
   
   // Indicator for which DoFs the nominal trajectory is defined as relative to
   // the initial condition. Useful for locomotion or continuous rotation tasks.
-  VectorX<bool> q_nom_relative_to_q0;
+  VectorX<bool> q_nom_relative_to_q_init;
 };
 
 }  // namespace traj_opt

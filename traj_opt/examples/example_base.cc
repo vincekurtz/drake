@@ -328,13 +328,19 @@ void TrajOptExample::SetProblemDefinition(const TrajOptExampleParams& options,
   opt_prob->Qf_v = options.Qfv.asDiagonal();
   opt_prob->R = options.R.asDiagonal();
 
+  // Check which DoFs the cost is updated relative to the initial condition for
+  VectorX<bool> q_nom_relative = options.q_nom_relative_to_q_init;
+  if (q_nom_relative.size() == 0) {
+    // If not specified, assume the nominal trajectory is not relative to the
+    // initial conditions.
+    q_nom_relative = VectorX<bool>::Constant(options.q_init.size(), false);
+  }
+
   // Target state at each timestep
   VectorXd q_nom_start = options.q_nom_start;
   VectorXd q_nom_end = options.q_nom_end;
-  if (options.cost_relative_to_initial_condition) {
-    q_nom_start += options.q_init;
-    q_nom_end += options.q_init;
-  }
+  q_nom_start += q_nom_relative.cast<double>().cwiseProduct(options.q_init);
+  q_nom_end += q_nom_relative.cast<double>().cwiseProduct(options.q_init);
   opt_prob->q_nom =
       MakeLinearInterpolation(q_nom_start, q_nom_end, options.num_steps + 1);
 
@@ -502,8 +508,8 @@ void TrajOptExample::SetSolverParameters(
   solver_params->num_threads = options.num_threads;
 
   // Whether to shift the nominal trajectory depending on q0.
-  solver_params->cost_relative_to_initial_condition =
-      options.cost_relative_to_initial_condition;
+  //solver_params->cost_relative_to_initial_condition =
+  //    options.cost_relative_to_initial_condition;
 }
 
 void TrajOptExample::NormalizeQuaternions(const MultibodyPlant<double>& plant,
