@@ -54,7 +54,7 @@ print_debug_data : false
 save_solver_stats_csv : true
 
 # MPC parameters
-mpc : false
+mpc : true
 mpc_iters : 1
 controller_frequency : 300
 sim_time : 5

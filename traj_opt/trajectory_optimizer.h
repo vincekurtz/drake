@@ -461,17 +461,19 @@ class TrajectoryOptimizer {
   void ResetInitialConditions(const VectorXd& q_init, const VectorXd& v_init) {
     DRAKE_DEMAND(q_init.size() == plant().num_positions());
     DRAKE_DEMAND(v_init.size() == plant().num_velocities());
+    DRAKE_DEMAND(params_.q_nom_relative_to_q_init.size() ==
+                 plant().num_positions());
+    // Reset the initial conditions
     prob_.q_init = q_init;
     prob_.v_init = v_init;
 
-    //if (params_.cost_relative_to_initial_condition) {
-    //  // Reset the nominal generalized positions to be relative to the new
-    //  // initial condition.
-    //  const VectorXd q_init_old = prob_.q_nom[0];
-    //  for (VectorXd& qt_nom : prob_.q_nom) {
-    //    qt_nom += q_init - q_init_old;
-    //  }
-    //}
+    // Update the nominal trajectory for those DoFs that are relative to the
+    // initial condition
+    const VectorXd q_init_old = prob_.q_nom[0];
+    const VectorXd selector = params_.q_nom_relative_to_q_init.cast<double>();
+    for (VectorXd& qt_nom : prob_.q_nom) {
+      qt_nom += selector.cwiseProduct(q_init - q_init_old);
+    }
   }
 
  private:

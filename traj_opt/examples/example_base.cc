@@ -507,9 +507,14 @@ void TrajOptExample::SetSolverParameters(
   // Number of threads
   solver_params->num_threads = options.num_threads;
 
-  // Whether to shift the nominal trajectory depending on q0.
-  //solver_params->cost_relative_to_initial_condition =
-  //    options.cost_relative_to_initial_condition;
+  // Check which DoFs the cost is updated relative to the initial condition for
+  VectorX<bool> q_nom_relative = options.q_nom_relative_to_q_init;
+  if (q_nom_relative.size() == 0) {
+    // If not specified, assume the nominal trajectory is not relative to the
+    // initial conditions.
+    q_nom_relative = VectorX<bool>::Constant(options.q_init.size(), false);
+  }
+  solver_params->q_nom_relative_to_q_init = q_nom_relative;
 }
 
 void TrajOptExample::NormalizeQuaternions(const MultibodyPlant<double>& plant,
