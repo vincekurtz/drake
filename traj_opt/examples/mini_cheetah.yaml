@@ -21,13 +21,13 @@ q_nom_start : [ 1.0, 0.0, 0.0, 0.0,
            0.0,-0.8, 1.6,
            0.0,-0.8, 1.6]
 q_nom_end : [ 1.0, 0.0, 0.0, 0.0,
-           0.5, 0.0, 0.29,
+           0.3, 0.3, 0.29,
            0.0,-0.8, 1.6,
            0.0,-0.8, 1.6,
            0.0,-0.8, 1.6,
            0.0,-0.8, 1.6]
 q_nom_relative_to_q_init : [false, false, false, false,
-                            true, false, false,
+                            true, true, false,
                             false, false, false,
                             false, false, false,
                             false, false, false,
@@ -57,8 +57,8 @@ Qv : [1, 1, 1,
       0.1, 0.1, 0.1,
       0.1, 0.1, 0.1]
 
-R : [1, 1, 1,
-     1, 1, 1, 
+R : [100, 100, 100,
+     100, 100, 100, 
      0.01, 0.01, 0.01,
      0.01, 0.01, 0.01,
      0.01, 0.01, 0.01,
@@ -136,7 +136,7 @@ stiction_velocity: 0.5     # Regularization velocity, in m/s.
 mpc : true
 mpc_iters : 1
 controller_frequency : 50
-sim_time : 5
+sim_time : 50
 sim_time_step : 1e-3
 sim_realtime_rate : 0.0
 feed_forward : true
