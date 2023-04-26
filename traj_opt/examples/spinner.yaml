@@ -19,11 +19,11 @@ q_guess : [0.3, 1.5, 0.0]
 
 # Cost Weights. These define diagonal matrices, again with the ordering
 # [finger 1, finger 2, spinner]
-Qq : [10, 10, 1]  # Running cost
+Qq : [1, 1, 1]  # Running cost
 Qv : [0.1, 0.1, 0.1]
 R : [0.1, 0.1, 1e3]
 
-Qfq : [10, 10, 1]  # Terminal cost
+Qfq : [10, 10, 10]  # Terminal cost
 Qfv : [0.1, 0.1, 0.1]
 
 # Problem definition parameters
@@ -84,7 +84,7 @@ friction_coefficient : 0.5  # Coefficient of friction.
 stiction_velocity: 0.05     # Regularization velocity, in m/s.
 
 # MPC parameters
-mpc : false
+mpc : true
 mpc_iters : 1
 controller_frequency : 200.0
 sim_time : 10.0
