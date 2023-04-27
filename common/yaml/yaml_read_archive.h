@@ -41,8 +41,7 @@ class YamlReadArchive final {
       const std::optional<std::string>& child_name);
 
   static internal::Node LoadStringAsNode(
-      const std::string& data,
-      const std::optional<std::string>& child_name);
+      const std::string& data, const std::optional<std::string>& child_name);
 
   // Sets the contents `serializable` based on the YAML file associated this
   // archive.
@@ -118,8 +117,8 @@ class YamlReadArchive final {
 
   // This version applies when Serialize is member method.
   template <typename Serializable>
-  auto DoAccept(Serializable* serializable, int32_t) ->
-      decltype(serializable->Serialize(this)) {
+  auto DoAccept(Serializable* serializable, int32_t)
+      -> decltype(serializable->Serialize(this)) {
     serializable->Serialize(this);
   }
 
@@ -148,16 +147,17 @@ class YamlReadArchive final {
 
   // This version applies when the type has a Serialize member function.
   template <typename NVP, typename T>
-  auto DoVisit(const NVP& nvp, const T&, int32_t) ->
-      decltype(nvp.value()->Serialize(
+  auto DoVisit(const NVP& nvp, const T&, int32_t)
+      -> decltype(nvp.value()->Serialize(
           static_cast<YamlReadArchive*>(nullptr))) {
     this->VisitSerializable(nvp);
   }
 
   // This version applies when the type has an ADL Serialize function.
   template <typename NVP, typename T>
-  auto DoVisit(const NVP& nvp, const T&, int32_t) ->
-      decltype(Serialize(static_cast<YamlReadArchive*>(nullptr), nvp.value())) {
+  auto DoVisit(const NVP& nvp, const T&, int32_t)
+      -> decltype(Serialize(static_cast<YamlReadArchive*>(nullptr),
+                            nvp.value())) {
     this->VisitSerializable(nvp);
   }
 
@@ -198,14 +198,16 @@ class YamlReadArchive final {
   }
 
   // For Eigen::Matrix or Eigen::Vector.
-  template <typename NVP, typename T, int Rows, int Cols,
-      int Options = 0, int MaxRows = Rows, int MaxCols = Cols>
+  template <typename NVP, typename T, int Rows, int Cols, int Options = 0,
+            int MaxRows = Rows, int MaxCols = Cols>
   void DoVisit(const NVP& nvp,
                const Eigen::Matrix<T, Rows, Cols, Options, MaxRows, MaxCols>&,
                int32_t) {
     if constexpr (Cols == 1) {
       if constexpr (Rows >= 0) {
         this->VisitArray(nvp.name(), Rows, nvp.value()->data());
+      } else if constexpr (MaxRows >= 0) {
+        this->VisitVector(nvp, MaxRows);
       } else {
         this->VisitVector(nvp);
       }
@@ -226,7 +228,9 @@ class YamlReadArchive final {
   template <typename NVP>
   void VisitSerializable(const NVP& nvp) {
     const internal::Node* sub_node = GetSubNodeMapping(nvp.name());
-    if (sub_node == nullptr) { return; }
+    if (sub_node == nullptr) {
+      return;
+    }
     YamlReadArchive sub_archive(sub_node, this);
     auto&& value = *nvp.value();
     sub_archive.Accept(&value);
@@ -235,7 +239,9 @@ class YamlReadArchive final {
   template <typename NVP>
   void VisitScalar(const NVP& nvp) {
     const internal::Node* sub_node = GetSubNodeScalar(nvp.name());
-    if (sub_node == nullptr) { return; }
+    if (sub_node == nullptr) {
+      return;
+    }
     ParseScalar(sub_node->GetScalar(), nvp.value());
   }
 
@@ -259,7 +265,9 @@ class YamlReadArchive final {
     // Visit the unpacked optional as if it weren't wrapped in optional<>.
     using T = typename NVP::value_type::value_type;
     std::optional<T>& storage = *nvp.value();
-    if (!storage) { storage = T{}; }
+    if (!storage) {
+      storage = T{};
+    }
     this->Visit(drake::MakeNameValue(nvp.name(), &storage.value()),
                 VisitShouldMemorizeType::kNo);
   }
@@ -274,22 +282,22 @@ class YamlReadArchive final {
       return;
     }
     // Figure out which variant<...> type we have based on the node's tag.
-    const std::string& tag = sub_node->GetTag();
+    const std::string_view tag = sub_node->GetTag();
     VariantHelper(tag, nvp.name(), nvp.value());
   }
 
   // Steps through Types to extract 'size_t I' and 'typename T' for the Impl.
   template <template <typename...> class Variant, typename... Types>
-  void VariantHelper(
-      const std::string& tag, const char* name, Variant<Types...>* storage) {
+  void VariantHelper(std::string_view tag, const char* name,
+                     Variant<Types...>* storage) {
     if (tag == internal::Node::kTagNull) {
-      // Our varaint parsing does not yet support nulls.  When the tag indicates
+      // Our variant parsing does not yet support nulls.  When the tag indicates
       // null, don't try to match it to a variant type; instead, just parse into
       // the first variant type in order to generate a useful error message.
       // TODO(jwnimmer-tri) Allow for std::monostate as one of the Types...,
       // in case the user wants to permit nullable variants.
       using T = std::variant_alternative_t<0, Variant<Types...>>;
-      T& typed_storage =  storage->template emplace<0>();
+      T& typed_storage = storage->template emplace<0>();
       this->Visit(drake::MakeNameValue(name, &typed_storage));
       return;
     }
@@ -299,8 +307,8 @@ class YamlReadArchive final {
   // Recursive case -- checks if `tag` matches `T` (which was the I'th type in
   // the template parameter pack), or else keeps looking.
   template <size_t I, typename Variant, typename T, typename... Remaining>
-  void VariantHelperImpl(
-      const std::string& tag, const char* name, Variant* storage) {
+  void VariantHelperImpl(std::string_view tag, const char* name,
+                         Variant* storage) {
     // For the first type declared in the variant<> (I == 0), the tag can be
     // absent; otherwise, the tag must match one of the variant's types.
     if (((I == 0) && (tag.empty() || (tag == "?"))) ||
@@ -314,14 +322,13 @@ class YamlReadArchive final {
 
   // Base case -- no match.
   template <size_t, typename Variant>
-  void VariantHelperImpl(const std::string& tag, const char*, Variant*) {
+  void VariantHelperImpl(std::string_view tag, const char*, Variant*) {
     ReportError(fmt::format(
-        "has unsupported type tag {} while selecting a variant<>",
-        tag));
+        "has unsupported type tag {} while selecting a variant<>", tag));
   }
 
   // Checks if a NiceTypeName matches the yaml type tag.
-  bool IsTagMatch(const std::string& name, const std::string& tag) const {
+  bool IsTagMatch(std::string_view name, std::string_view tag) const {
     // Check for the "fail safe schema" YAML types and similar.
     if (name == "std::string") {
       return tag == internal::Node::kTagStr;
@@ -337,25 +344,28 @@ class YamlReadArchive final {
     // will match to our variant item's name such as "my_namespace::MyClass"
     // ignoring the namespace and any template parameters.
     const auto start_offset = name.rfind(':');
-    const auto start = name.begin() + (start_offset == std::string::npos ? 0 :
-                                       start_offset + 1);
+    const auto start =
+        name.begin() +
+        (start_offset == std::string::npos ? 0 : start_offset + 1);
     const auto end = std::find(start, name.end(), '<');
-    return (tag[0] == '!') && std::equal(
-        // The `tag` without the leading '!'.
-        tag.begin() + 1, tag.end(),
-        // The `name` without any namespaces or templates.
-        start, end);
+    return (tag[0] == '!') &&
+           std::equal(
+               // The `tag` without the leading '!'.
+               tag.begin() + 1, tag.end(),
+               // The `name` without any namespaces or templates.
+               start, end);
   }
 
   template <typename T>
   void VisitArray(const char* name, size_t size, T* data) {
     const internal::Node* sub_node = GetSubNodeSequence(name);
-    if (sub_node == nullptr) { return; }
+    if (sub_node == nullptr) {
+      return;
+    }
     const std::vector<internal::Node>& elements = sub_node->GetSequence();
     if (elements.size() != size) {
-      ReportError(fmt::format(
-          "has {}-size entry (wanted {}-size)",
-          elements.size(), size));
+      ReportError(fmt::format("has {}-size entry (wanted {}-size)",
+                              elements.size(), size));
     }
     for (size_t i = 0; i < size; ++i) {
       const std::string key = fmt::format("{}[{}]", name, i);
@@ -365,12 +375,23 @@ class YamlReadArchive final {
     }
   }
 
+  // @param max_size an upper bound on how big we can resize() the vector
   template <typename NVP>
-  void VisitVector(const NVP& nvp) {
+  void VisitVector(const NVP& nvp, std::optional<size_t> max_size = {}) {
     const internal::Node* sub_node = GetSubNodeSequence(nvp.name());
-    if (sub_node == nullptr) { return; }
+    if (sub_node == nullptr) {
+      return;
+    }
     const std::vector<internal::Node>& elements = sub_node->GetSequence();
     const size_t size = elements.size();
+    if (max_size.has_value() && size > *max_size) {
+      // This error message snippet looks odd in the source code, but turns
+      // out okay once ReportError tacks on some extra text.
+      ReportError(fmt::format(
+          "has too many array elements ({}); the maximum size is {} in the",
+          size, *max_size));
+      return;
+    }
     auto&& storage = *nvp.value();
     storage.resize(size);
     if (size > 0) {
@@ -378,12 +399,15 @@ class YamlReadArchive final {
     }
   }
 
-  template <typename T, int Rows, int Cols,
-      int Options = 0, int MaxRows = Rows, int MaxCols = Cols>
-  void VisitMatrix(const char* name,
+  template <typename T, int Rows, int Cols, int Options = 0, int MaxRows = Rows,
+            int MaxCols = Cols>
+  void VisitMatrix(
+      const char* name,
       Eigen::Matrix<T, Rows, Cols, Options, MaxRows, MaxCols>* matrix) {
     const internal::Node* sub_node = GetSubNodeSequence(name);
-    if (sub_node == nullptr) { return; }
+    if (sub_node == nullptr) {
+      return;
+    }
     const std::vector<internal::Node>& elements = sub_node->GetSequence();
 
     // Measure the YAML Sequence-of-Sequence dimensions.
@@ -393,9 +417,8 @@ class YamlReadArchive final {
     for (size_t i = 0; i < pending_rows; ++i) {
       const internal::Node& one_row = elements[i];
       if (!one_row.IsSequence()) {
-        ReportError(fmt::format(
-            "is Sequence-of-{} (not Sequence-of-Sequence)",
-            one_row.GetTypeString()));
+        ReportError(fmt::format("is Sequence-of-{} (not Sequence-of-Sequence)",
+                                one_row.GetTypeString()));
         return;
       }
       const size_t one_row_size = one_row.GetSequence().size();
@@ -416,8 +439,8 @@ class YamlReadArchive final {
     // Check the YAML dimensions vs Eigen dimensions, then resize (if dynamic).
     if (((Rows != Eigen::Dynamic) && (static_cast<int>(rows) != Rows)) ||
         ((Cols != Eigen::Dynamic) && (static_cast<int>(cols) != Cols))) {
-      ReportError(fmt::format(
-          "has dimension {}x{} (wanted {}x{})", rows, cols, Rows, Cols));
+      ReportError(fmt::format("has dimension {}x{} (wanted {}x{})", rows, cols,
+                              Rows, Cols));
       return;
     }
     auto&& storage = *matrix;
@@ -444,7 +467,9 @@ class YamlReadArchive final {
     static_assert(std::is_same_v<Key, std::string>,
                   "std::map keys must be strings");
     const internal::Node* sub_node = GetSubNodeMapping(nvp.name());
-    if (sub_node == nullptr) { return; }
+    if (sub_node == nullptr) {
+      return;
+    }
     auto& result = *nvp.value();
     this->VisitMapDirectly<Value>(*sub_node, &result);
   }

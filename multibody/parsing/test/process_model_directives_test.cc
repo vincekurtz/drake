@@ -1,5 +1,6 @@
 #include "drake/multibody/parsing/process_model_directives.h"
 
+#include <filesystem>
 #include <fstream>
 #include <memory>
 #include <sstream>
@@ -7,11 +8,10 @@
 
 #include <gtest/gtest.h>
 
-#include "drake/common/filesystem.h"
 #include "drake/common/find_resource.h"
+#include "drake/common/test_utilities/expect_no_throw.h"
 #include "drake/common/test_utilities/expect_throws_message.h"
 #include "drake/math/rigid_transform.h"
-#include "drake/multibody/parsing/scoped_names.h"
 #include "drake/multibody/plant/multibody_plant.h"
 #include "drake/multibody/tree/revolute_joint.h"
 
@@ -37,7 +37,7 @@ const char* const kTestDir =
 // has it and can resolve package://process_model_directives_test urls.
 std::unique_ptr<Parser> make_parser(MultibodyPlant<double>* plant) {
   auto parser = std::make_unique<Parser>(plant);
-  const drake::filesystem::path abspath_xml = FindResourceOrThrow(
+  const std::filesystem::path abspath_xml = FindResourceOrThrow(
       std::string(kTestDir) + "/package.xml");
   parser->package_map().AddPackageXml(abspath_xml.string());
   return parser;
@@ -312,6 +312,20 @@ GTEST_TEST(ProcessModelDirectivesTest, CollisionFilterGroupSmokeTest) {
 }
 
 // Test collision filter groups in ModelDirectives.
+GTEST_TEST(ProcessModelDirectivesTest, CollisionFilterGroupNoSceneGraph) {
+  ModelDirectives directives = LoadModelDirectives(
+      FindResourceOrThrow(std::string(kTestDir) +
+                          "/collision_filter_group.dmd.yaml"));
+
+
+  MultibodyPlant<double> plant(0.0);
+  ASSERT_FALSE(plant.geometry_source_is_registered());
+  DRAKE_EXPECT_NO_THROW(
+      ProcessModelDirectives(directives, &plant,
+                             nullptr, make_parser(&plant).get()));
+}
+
+// Test collision filter groups in ModelDirectives.
 GTEST_TEST(ProcessModelDirectivesTest, DefaultPositions) {
   ModelDirectives directives = LoadModelDirectives(
       FindResourceOrThrow(std::string(kTestDir) +
@@ -353,7 +367,7 @@ GTEST_TEST(ProcessModelDirectivesTest, ErrorMessages) {
     DRAKE_EXPECT_THROWS_MESSAGE(
         ProcessModelDirectives(directives, &plant, nullptr,
                                make_parser(&plant).get()),
-        ".*unknown package 'nonexistant'.*");
+        ".*unknown package 'nonexistent'.*");
   }
 }
 

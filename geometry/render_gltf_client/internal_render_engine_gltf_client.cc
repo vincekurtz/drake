@@ -2,6 +2,7 @@
 
 #include <atomic>
 #include <cstdio>
+#include <filesystem>
 #include <string_view>
 #include <utility>
 
@@ -10,7 +11,6 @@
 #include <vtkMatrix4x4.h>
 #include <vtkVersionMacros.h>
 
-#include "drake/common/filesystem.h"
 #include "drake/common/never_destroyed.h"
 #include "drake/common/text_logging.h"
 
@@ -19,13 +19,15 @@ namespace geometry {
 namespace render_gltf_client {
 namespace internal {
 
-namespace fs = drake::filesystem;
-using geometry::render::ColorRenderCamera;
-using geometry::render::DepthRenderCamera;
-using geometry::render::RenderCameraCore;
-using geometry::render::RenderEngine;
-using geometry::render::RenderEngineVtk;
-using geometry::render::internal::ImageType;
+namespace fs = std::filesystem;
+
+using render::ColorRenderCamera;
+using render::DepthRenderCamera;
+using render::RenderCameraCore;
+using render::RenderEngine;
+using render_vtk::internal::ImageType;
+using render_vtk::internal::RenderEngineVtk;
+using systems::sensors::ColorI;
 using systems::sensors::ImageDepth32F;
 using systems::sensors::ImageLabel16I;
 using systems::sensors::ImageRgba8U;
@@ -39,7 +41,7 @@ namespace {
  https://github.com/RobotLocomotion/drake/blob/master/common/identifier.h
  */
 int64_t GetNextSceneId() {
-  static drake::never_destroyed<std::atomic<int64_t>> global_scene_id;
+  static never_destroyed<std::atomic<int64_t>> global_scene_id;
   return ++(global_scene_id.access());
 }
 
@@ -116,17 +118,17 @@ std::string_view ImageTypeToString(ImageType image_type) {
 }
 
 void LogFrameStart(ImageType image_type, int64_t scene_id) {
-  drake::log()->debug("RenderEngineGltfClient: rendering {} scene id {}.",
-                      ImageTypeToString(image_type), scene_id);
+  log()->debug("RenderEngineGltfClient: rendering {} scene id {}.",
+               ImageTypeToString(image_type), scene_id);
 }
 
 void LogFrameGltfExportPath(ImageType image_type, const std::string& path) {
-  drake::log()->debug("RenderEngineGltfClient: {} scene exported to '{}'.",
-                      ImageTypeToString(image_type), path);
+  log()->debug("RenderEngineGltfClient: {} scene exported to '{}'.",
+               ImageTypeToString(image_type), path);
 }
 
 void LogFrameServerResponsePath(ImageType image_type, const std::string& path) {
-  drake::log()->debug(
+  log()->debug(
       "RenderEngineGltfClient: {} server response image saved to '{}'.",
       ImageTypeToString(image_type), path);
 }
@@ -138,9 +140,8 @@ void CleanupFrame(const std::string& scene_path, const std::string& image_path,
   fs::remove(scene_path);
   fs::remove(image_path);
   if (verbose) {
-    drake::log()->debug(
-        "RenderEngineGltfClient: deleted unused files {} and {}.", scene_path,
-        image_path);
+    log()->debug("RenderEngineGltfClient: deleted unused files {} and {}.",
+                 scene_path, image_path);
   }
 }
 
@@ -337,7 +338,26 @@ void RenderEngineGltfClient::DoRenderLabelImage(
   }
 
   // Load the returned image back to the drake buffer.
-  render_client_->LoadLabelImage(image_path, label_image_out);
+  /* NOTE: The loaded image from `image_path` is expected to be a colored label
+   image that will then be converted to an actual label image.  The server has
+   no knowledge of the conversion formula, and thus, a colored label image is
+   returned. */
+  const int width = label_image_out->width();
+  const int height = label_image_out->height();
+  ImageRgba8U colored_label_image(width, height);
+  render_client_->LoadColorImage(image_path, &colored_label_image);
+
+  // Convert from RGB to Label.
+  ColorI color;
+  for (int y = 0; y < height; ++y) {
+    for (int x = 0; x < width; ++x) {
+      color.r = colored_label_image.at(x, y)[0];
+      color.g = colored_label_image.at(x, y)[1];
+      color.b = colored_label_image.at(x, y)[2];
+      label_image_out->at(x, y)[0] = RenderEngine::LabelFromColor(color);
+    }
+  }
+
   if (get_params().cleanup) {
     CleanupFrame(scene_path, image_path, get_params().verbose);
   }

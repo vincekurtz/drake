@@ -2,19 +2,21 @@
 
 #include <algorithm>
 #include <cctype>
+#include <filesystem>
 
 #include <fmt/format.h>
+#include <vtkImageCast.h>
 #include <vtkImageData.h>
 #include <vtkImageExport.h>
 #include <vtkNew.h>
 #include <vtkPNGReader.h>
 
 #include "drake/common/drake_assert.h"
-#include "drake/common/filesystem.h"
+#include "drake/common/text_logging.h"
 
 namespace drake {
 namespace geometry {
-namespace render {
+namespace render_gl {
 namespace internal {
 
 TextureLibrary::TextureLibrary(const OpenGlContext* context)
@@ -40,15 +42,28 @@ std::optional<GLuint> TextureLibrary::GetTextureId(
 
   // Exit quickly if the file doesn't exist or is a directory.
   // Otherwise, vtkPNGReader spams stdout.
-  if (!filesystem::exists(file_name) || filesystem::is_directory(file_name)) {
+  if (!std::filesystem::exists(file_name) ||
+      std::filesystem::is_directory(file_name)) {
     return std::nullopt;
   }
 
   vtkNew<vtkPNGReader> png_reader;
   png_reader->SetFileName(file_name.c_str());
   png_reader->Update();
+  if (png_reader->GetOutput()->GetScalarType() != VTK_UNSIGNED_CHAR) {
+    log()->warn(
+        "Texture map '{}' has an unsupported bit depth, casting it to uchar "
+        "channels.",
+        file_name);
+  }
+
+  vtkNew<vtkImageCast> caster;
+  caster->SetOutputScalarType(VTK_UNSIGNED_CHAR);
+  caster->SetInputConnection(png_reader->GetOutputPort());
+  caster->Update();
+
   vtkNew<vtkImageExport> exporter;
-  exporter->SetInputConnection(png_reader->GetOutputPort());
+  exporter->SetInputConnection(caster->GetOutputPort());
   exporter->ImageLowerLeftOff();
   exporter->Update();
   vtkImageData* image = exporter->GetInput();
@@ -63,10 +78,6 @@ std::optional<GLuint> TextureLibrary::GetTextureId(
       num_channels == 4 ? GL_RGBA : (num_channels == 3 ? GL_RGB : 0);
   if (internal_format == 0) {
       return std::nullopt;
-  }
-  // Each channel should be an unsigned byte.
-  if (image->GetScalarType() != VTK_UNSIGNED_CHAR) {
-    return std::nullopt;
   }
 
   GLuint texture_id;
@@ -90,6 +101,6 @@ std::optional<GLuint> TextureLibrary::GetTextureId(
 }
 
 }  // namespace internal
-}  // namespace render
+}  // namespace render_gl
 }  // namespace geometry
 }  // namespace drake

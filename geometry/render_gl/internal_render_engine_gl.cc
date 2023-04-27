@@ -1,18 +1,18 @@
 #include "drake/geometry/render_gl/internal_render_engine_gl.h"
 
 #include <algorithm>
+#include <filesystem>
 #include <optional>
 #include <utility>
 
 #include <fmt/format.h>
 
-#include "drake/common/filesystem.h"
 #include "drake/common/text_logging.h"
 #include "drake/common/unused.h"
 
 namespace drake {
 namespace geometry {
-namespace render {
+namespace render_gl {
 namespace internal {
 
 using Eigen::Vector2d;
@@ -25,6 +25,11 @@ using std::string;
 using std::unique_ptr;
 using std::unordered_map;
 using std::vector;
+using render::ColorRenderCamera;
+using render::DepthRenderCamera;
+using render::RenderCameraCore;
+using render::RenderEngine;
+using render::RenderLabel;
 using systems::sensors::ColorD;
 using systems::sensors::ColorI;
 using systems::sensors::ImageDepth32F;
@@ -75,11 +80,9 @@ class DefaultRgbaColorShader final : public ShaderProgram {
 
   std::optional<ShaderProgramData> DoCreateProgramData(
       const PerceptionProperties& properties) const final {
-    const Rgba rgba =
+    const Rgba diffuse =
         properties.GetPropertyOrDefault("phong", "diffuse", default_diffuse_);
-    Vector4<float> v4{
-        static_cast<float>(rgba.r()), static_cast<float>(rgba.g()),
-        static_cast<float>(rgba.b()), static_cast<float>(rgba.a())};
+    const Vector4<float> v4 = diffuse.rgba().template cast<float>();
     return ShaderProgramData{shader_id(), AbstractValue::Make(v4)};
   }
 
@@ -501,25 +504,6 @@ void RenderEngineGl::UpdateViewpoint(const RigidTransformd& X_WR) {
   X_CW_ = X_WR.inverse();
 }
 
-void RenderEngineGl::ImplementGeometry(const Sphere& sphere, void* user_data) {
-  OpenGlGeometry geometry = GetSphere();
-  const double r = sphere.radius();
-  ImplementGeometry(geometry, user_data, Vector3d(r, r, r));
-}
-
-void RenderEngineGl::ImplementGeometry(const Cylinder& cylinder,
-                                       void* user_data) {
-  OpenGlGeometry geometry = GetCylinder();
-  const double r = cylinder.radius();
-  const double l = cylinder.length();
-  ImplementGeometry(geometry, user_data, Vector3d(r, r, l));
-}
-
-void RenderEngineGl::ImplementGeometry(const HalfSpace&, void* user_data) {
-  OpenGlGeometry geometry = GetHalfSpace();
-  ImplementGeometry(geometry, user_data, Vector3d(1, 1, 1));
-}
-
 void RenderEngineGl::ImplementGeometry(const Box& box, void* user_data) {
   OpenGlGeometry geometry = GetBox();
   ImplementGeometry(geometry, user_data,
@@ -538,11 +522,30 @@ void RenderEngineGl::ImplementGeometry(const Capsule& capsule,
   ImplementGeometry(geometry, user_data, Vector3d::Ones());
 }
 
+void RenderEngineGl::ImplementGeometry(const Convex& convex, void* user_data) {
+  OpenGlGeometry geometry = GetMesh(convex.filename());
+  ImplementMesh(geometry, user_data, Vector3d(1, 1, 1) * convex.scale(),
+                convex.filename());
+}
+
+void RenderEngineGl::ImplementGeometry(const Cylinder& cylinder,
+                                       void* user_data) {
+  OpenGlGeometry geometry = GetCylinder();
+  const double r = cylinder.radius();
+  const double l = cylinder.length();
+  ImplementGeometry(geometry, user_data, Vector3d(r, r, l));
+}
+
 void RenderEngineGl::ImplementGeometry(const Ellipsoid& ellipsoid,
                                        void* user_data) {
   OpenGlGeometry geometry = GetSphere();
   ImplementGeometry(geometry, user_data,
                     Vector3d(ellipsoid.a(), ellipsoid.b(), ellipsoid.c()));
+}
+
+void RenderEngineGl::ImplementGeometry(const HalfSpace&, void* user_data) {
+  OpenGlGeometry geometry = GetHalfSpace();
+  ImplementGeometry(geometry, user_data, Vector3d(1, 1, 1));
 }
 
 void RenderEngineGl::ImplementGeometry(const Mesh& mesh, void* user_data) {
@@ -551,10 +554,10 @@ void RenderEngineGl::ImplementGeometry(const Mesh& mesh, void* user_data) {
                 mesh.filename());
 }
 
-void RenderEngineGl::ImplementGeometry(const Convex& convex, void* user_data) {
-  OpenGlGeometry geometry = GetMesh(convex.filename());
-  ImplementMesh(geometry, user_data, Vector3d(1, 1, 1) * convex.scale(),
-                convex.filename());
+void RenderEngineGl::ImplementGeometry(const Sphere& sphere, void* user_data) {
+  OpenGlGeometry geometry = GetSphere();
+  const double r = sphere.radius();
+  ImplementGeometry(geometry, user_data, Vector3d(r, r, r));
 }
 
 void RenderEngineGl::ImplementMesh(const OpenGlGeometry& geometry,
@@ -576,7 +579,7 @@ void RenderEngineGl::ImplementMesh(const OpenGlGeometry& geometry,
   // can't and don't want to change the underlying properties because they are
   // visible to the user.
   if (!temp_props.HasProperty("phong", "diffuse_map")) {
-    filesystem::path file_path(file_name);
+    std::filesystem::path file_path(file_name);
     const string png_name = file_path.replace_extension(".png").string();
     temp_props.AddProperty("phong", "diffuse_map", png_name);
   }
@@ -649,7 +652,7 @@ void RenderEngineGl::RenderAt(const ShaderProgram& shader_program,
     shader_program.SetInstanceParameters(instance.shader_data[render_type]);
     // TODO(SeanCurtis-TRI): Consider storing the float-valued pose in the
     //  OpenGl instance to avoid the conversion every time it is rendered.
-    //  Generally, this wouldn't exepct much savings; an instance is only
+    //  Generally, this wouldn't expect much savings; an instance is only
     //  rendered once per image type. So, for three image types, I'd cast three
     //  times. Stored, I'd cast once.
     shader_program.SetModelViewMatrix(
@@ -1132,6 +1135,6 @@ ShaderProgramData RenderEngineGl::GetShaderProgram(
 }
 
 }  // namespace internal
-}  // namespace render
+}  // namespace render_gl
 }  // namespace geometry
 }  // namespace drake

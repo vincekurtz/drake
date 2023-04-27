@@ -6,13 +6,11 @@
 
 #include "drake/common/test_utilities/eigen_matrix_compare.h"
 #include "drake/common/test_utilities/expect_throws_message.h"
-#include "drake/multibody/contact_solvers/block_sparse_linear_operator.h"
 #include "drake/multibody/contact_solvers/block_sparse_matrix.h"
 #include "drake/multibody/contact_solvers/contact_solver_utils.h"
 #include "drake/multibody/contact_solvers/sap/sap_friction_cone_constraint.h"
 #include "drake/multibody/contact_solvers/sap/sap_solver_results.h"
 #include "drake/multibody/contact_solvers/supernodal_solver.h"
-#include "drake/multibody/contact_solvers/system_dynamics_data.h"
 #include "drake/systems/framework/context.h"
 
 using drake::systems::Context;
@@ -546,8 +544,7 @@ TEST_P(PizzaSaverTest, Sliding) {
   }
 
   // ls_max_iterations only pertains to backtracking line search.
-  if (params.line_search_type !=
-      SapSolverParameters::LineSearchType::kExact) {
+  if (params.line_search_type != SapSolverParameters::LineSearchType::kExact) {
     // To verify the line search throws when it doesn't converge, we set a low
     // maximum number of iterations and verify the solver fails for the right
     // reasons.

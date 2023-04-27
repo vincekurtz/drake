@@ -1,5 +1,3 @@
-# -*- python -*-
-
 load(
     "@drake//tools/skylark:drake_cc.bzl",
     "drake_cc_binary",
@@ -7,10 +5,6 @@ load(
     "drake_cc_library",
     "drake_cc_package_library",
     "drake_cc_test",
-)
-load(
-    "@drake//tools/skylark:alias.bzl",
-    "drake_cc_hdrs_forwarding_library",
 )
 load(
     "@drake//tools/skylark:drake_py.bzl",
@@ -27,7 +21,6 @@ drake_cc_package_library(
     visibility = ["//visibility:public"],
     deps = [
         ":autodiff",
-        ":autodiffxd_make_coherent",
         ":bit_cast",
         ":cond",
         ":copyable_unique_ptr",
@@ -35,18 +28,21 @@ drake_cc_package_library(
         ":diagnostic_policy",
         ":double",
         ":drake_bool",
+        ":drake_export",
         ":drake_path",
         ":dummy_value",
         ":essential",
         ":extract_double",
         ":find_resource",
         ":find_runfiles",
+        ":fmt",
         ":hash",
         ":identifier",
         ":is_approx_equal_abstol",
         ":is_cloneable",
         ":is_less_than_comparable",
         ":name_value",
+        ":network_policy",
         ":nice_type_name",
         ":pointer_cast",
         ":polynomial",
@@ -57,16 +53,28 @@ drake_cc_package_library(
         ":scope_exit",
         ":scoped_singleton",
         ":sorted_pair",
-        ":symbolic",
-        ":symbolic_decompose",
-        ":symbolic_forwarding",
-        ":symbolic_latex",
-        ":symbolic_trigonometric_polynomial",
         ":temp_directory",
         ":timer",
         ":type_safe_index",
         ":unused",
         ":value",
+    ],
+)
+
+drake_cc_library(
+    name = "fmt",
+    srcs = [
+        "fmt_eigen.cc",
+    ],
+    hdrs = [
+        "fmt.h",
+        "fmt_eigen.h",
+        "fmt_ostream.h",
+    ],
+    visibility = ["//common/test_utilities:__pkg__"],
+    deps = [
+        "@eigen",
+        "@fmt",
     ],
 )
 
@@ -87,9 +95,11 @@ drake_cc_library(
         "drake_throw.h",
         "eigen_types.h",
         "never_destroyed.h",
+        "ssize.h",
         "text_logging.h",
     ],
     deps = [
+        ":fmt",
         "@eigen",
         "@fmt",
         "@spdlog",
@@ -178,15 +188,6 @@ drake_cc_library(
 )
 
 drake_cc_library(
-    name = "autodiffxd_make_coherent",
-    hdrs = ["autodiffxd_make_coherent.h"],
-    deps = [
-        ":autodiff",
-        "//common/symbolic:expression",
-    ],
-)
-
-drake_cc_library(
     name = "polynomial",
     srcs = ["polynomial.cc"],
     hdrs = ["polynomial.h"],
@@ -208,73 +209,6 @@ drake_cc_library(
     ],
 )
 
-# Remove this deprecataion shim on or after 2022-11-01.
-drake_cc_library(
-    name = "symbolic",
-    hdrs = ["symbolic.h"],
-    deps = [":symbolic_forwarding"],
-)
-
-# Remove this deprecataion shim on or after 2022-11-01.
-drake_cc_hdrs_forwarding_library(
-    name = "symbolic_forwarding",
-    actual_subdir = "common/symbolic",
-    add_deprecation_warning = True,
-    relative_labels_map = {
-        ":symbolic_chebyshev_basis_element": ":chebyshev_basis_element",
-        ":symbolic_chebyshev_polynomial": ":chebyshev_polynomial",
-        ":symbolic_codegen": ":codegen",
-        ":symbolic_decompose": ":decompose",
-        ":symbolic_generic_polynomial": ":generic_polynomial",
-        ":symbolic_monomial": ":monomial",
-        ":symbolic_monomial_basis_element": ":monomial_basis_element",
-        ":symbolic_monomial_util": ":monomial_util",
-        ":symbolic_polynomial": ":polynomial",
-        ":symbolic_polynomial_basis": ":polynomial_basis",
-        ":symbolic_polynomial_basis_element": ":polynomial_basis_element",
-        ":symbolic_rational_function": ":rational_function",
-        ":symbolic_simplification": ":simplification",
-    },
-    visibility = ["//visibility:private"],
-    deps = [
-        "//common/symbolic",
-    ],
-)
-
-# Remove this deprecataion shim on or after 2022-11-01.
-drake_cc_library(
-    name = "symbolic_decompose",
-    deps = [
-        ":symbolic",
-    ],
-)
-
-# Remove this deprecataion shim on or after 2022-11-01.
-drake_cc_hdrs_forwarding_library(
-    name = "symbolic_latex",
-    actual_subdir = "common/symbolic",
-    add_deprecation_warning = True,
-    relative_labels_map = {
-        ":symbolic_latex": ":latex",
-    },
-    deps = [
-        "//common/symbolic:latex",
-    ],
-)
-
-# Remove this deprecataion shim on or after 2022-11-01.
-drake_cc_hdrs_forwarding_library(
-    name = "symbolic_trigonometric_polynomial",
-    actual_subdir = "common/symbolic",
-    add_deprecation_warning = True,
-    relative_labels_map = {
-        ":symbolic_trigonometric_polynomial": ":trigonometric_polynomial",
-    },
-    deps = [
-        "//common/symbolic:trigonometric_polynomial",
-    ],
-)
-
 drake_cc_library(
     name = "default_scalars",
     hdrs = ["default_scalars.h"],
@@ -286,6 +220,11 @@ drake_cc_library(
 )
 
 # Miscellaneous utilities.
+
+drake_cc_library(
+    name = "drake_export",
+    hdrs = ["drake_export.h"],
+)
 
 drake_cc_library(
     name = "identifier",
@@ -348,18 +287,15 @@ drake_cc_library(
     visibility = ["//tools/install/libdrake:__pkg__"],
 )
 
-# The drake::filesystem support is intended ONLY for use within Drake's *.cc
-# files -- it is not a public dependency of Drake.  As such, we compile it with
-# hidden visibility and mark it internal.
 drake_cc_library(
-    name = "filesystem",
-    srcs = ["filesystem.cc"],
-    hdrs = ["filesystem.h"],
-    copts = ["-fvisibility=hidden"],
+    name = "find_cache",
+    srcs = ["find_cache.cc"],
+    hdrs = ["find_cache.h"],
     internal = True,
     visibility = ["//:__subpackages__"],
+    interface_deps = [],
     deps = [
-        "@ghc_filesystem",
+        ":essential",
     ],
 )
 
@@ -370,7 +306,6 @@ drake_cc_library(
     interface_deps = [],
     deps = [
         ":essential",
-        ":filesystem",
         "@bazel_tools//tools/cpp/runfiles",
     ],
 )
@@ -398,7 +333,6 @@ drake_cc_library(
     ],
     deps = [
         ":drake_marker_shared_library",
-        ":filesystem",
         ":find_runfiles",
     ],
 )
@@ -413,7 +347,6 @@ drake_cc_library(
     visibility = ["//tools/install/libdrake:__pkg__"],
     interface_deps = [],
     deps = [
-        ":filesystem",
         ":find_resource",
     ],
 )
@@ -429,6 +362,15 @@ drake_cc_library(
 drake_cc_library(
     name = "name_value",
     hdrs = ["name_value.h"],
+    deps = [
+        ":essential",
+    ],
+)
+
+drake_cc_library(
+    name = "network_policy",
+    srcs = ["network_policy.cc"],
+    hdrs = ["network_policy.h"],
     deps = [
         ":essential",
     ],
@@ -514,9 +456,7 @@ drake_cc_library(
     interface_deps = [
         ":essential",
     ],
-    deps = [
-        ":filesystem",
-    ],
+    deps = [],
 )
 
 # This is a Drake-internal utility for use only as a direct dependency
@@ -540,6 +480,7 @@ drake_cc_library(
 
 drake_cc_library(
     name = "type_safe_index",
+    srcs = ["type_safe_index.cc"],
     hdrs = ["type_safe_index.h"],
     deps = [
         ":essential",
@@ -696,13 +637,9 @@ drake_cc_googletest(
 )
 
 drake_cc_googletest(
-    name = "deprecated_symbolic_headers_test",
-    copts = ["-Wno-cpp"],
+    name = "ssize_test",
     deps = [
-        ":symbolic",
-        ":symbolic_decompose",
-        ":symbolic_latex",
-        ":symbolic_trigonometric_polynomial",
+        ":essential",
     ],
 )
 
@@ -938,10 +875,10 @@ drake_cc_googletest(
 )
 
 drake_cc_googletest(
-    name = "filesystem_test",
+    name = "find_cache_test",
     deps = [
-        ":filesystem",
-        "//common/test_utilities:expect_throws_message",
+        ":find_cache",
+        ":temp_directory",
     ],
 )
 
@@ -952,7 +889,6 @@ drake_cc_googletest(
     ],
     deps = [
         ":drake_path",
-        ":filesystem",
         ":find_resource",
         "//common/test_utilities:expect_no_throw",
     ],
@@ -986,7 +922,6 @@ drake_cc_googletest(
         "test/find_resource_test_data.txt",
     ],
     deps = [
-        ":filesystem",
         ":find_runfiles",
         ":temp_directory",
         "//common/test_utilities:expect_throws_message",
@@ -1017,6 +952,27 @@ drake_cc_googletest(
 )
 
 drake_cc_googletest(
+    name = "fmt_test",
+    deps = [
+        ":essential",
+    ],
+)
+
+drake_cc_googletest(
+    name = "fmt_eigen_test",
+    deps = [
+        ":essential",
+    ],
+)
+
+drake_cc_googletest(
+    name = "fmt_ostream_test",
+    deps = [
+        ":essential",
+    ],
+)
+
+drake_cc_googletest(
     name = "is_approx_equal_abstol_test",
     deps = [
         ":essential",
@@ -1032,12 +988,9 @@ drake_cc_googletest(
 )
 
 drake_cc_googletest(
-    name = "autodiffxd_make_coherent_test",
-    copts = ["-Wno-deprecated-declarations"],
+    name = "network_policy_test",
     deps = [
-        ":autodiffxd_make_coherent",
-        "//common/test_utilities:eigen_matrix_compare",
-        "//common/test_utilities:expect_no_throw",
+        ":network_policy",
     ],
 )
 
@@ -1061,14 +1014,7 @@ drake_cc_googletest(
 
 drake_cc_googletest(
     name = "openmp_test",
-    # TODO(jwnimmer-tri) Encapsulate unit test concurrency configuration into
-    # Drake's starlark macros, so that we don't have to repeat ourselves here.
-    env = {
-        "OMP_NUM_THREADS": "2",
-    },
-    tags = [
-        "cpu:2",
-    ],
+    num_threads = 2,
     deps = [
         "//common:essential",
     ],
@@ -1096,7 +1042,6 @@ drake_cc_googletest(
     # changes from one accidentally polluting the others.
     shard_count = 3,
     deps = [
-        ":filesystem",
         ":temp_directory",
     ],
 )
@@ -1114,14 +1059,47 @@ drake_cc_googletest(
     ],
 )
 
+# Likewise (to the above test) for the ostream variation.
+drake_cc_googletest(
+    name = "text_logging_ostream_test",
+    defines = [
+        "TEXT_LOGGING_TEST_SPDLOG=1",
+    ],
+    use_default_main = False,
+    deps = [
+        ":essential",
+    ],
+)
+
 # This version of text_logging_test re-compiles all source files without
 # defining HAVE_SPDLOG, to ensure that the no-op stubs behave as desired.
 drake_cc_googletest(
     name = "text_logging_no_spdlog_test",
     srcs = [
         "drake_copyable.h",
+        "fmt.h",
         "never_destroyed.h",
         "test/text_logging_test.cc",
+        "text_logging.cc",
+        "text_logging.h",
+    ],
+    defines = [
+        "TEXT_LOGGING_TEST_SPDLOG=0",
+    ],
+    use_default_main = False,
+    deps = [
+        "@fmt",
+    ],
+)
+
+# Likewise (to the above test) for the ostream variation.
+drake_cc_googletest(
+    name = "text_logging_ostream_no_spdlog_test",
+    srcs = [
+        "drake_copyable.h",
+        "fmt.h",
+        "never_destroyed.h",
+        "test/text_logging_ostream_test.cc",
         "text_logging.cc",
         "text_logging.h",
     ],
@@ -1204,6 +1182,15 @@ drake_cc_googletest(
         "//common/test_utilities:expect_no_throw",
         "//common/test_utilities:expect_throws_message",
         "//systems/framework/test_utilities:my_vector",
+    ],
+)
+
+drake_cc_googletest(
+    name = "scalar_casting_test",
+    deps = [
+        ":autodiff",
+        ":extract_double",
+        "//common/symbolic:expression",
     ],
 )
 

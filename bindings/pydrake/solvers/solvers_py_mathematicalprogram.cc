@@ -458,14 +458,13 @@ void BindSolverInterfaceAndFlags(py::module m) {
       .value("kLCP", ProgramType::kLCP, doc.ProgramType.kLCP.doc)
       .value("kUnknown", ProgramType::kUnknown, doc.ProgramType.kUnknown.doc);
 
-  py::enum_<SolverType>(m, "SolverType", doc.SolverType.doc)
+  py::enum_<SolverType> solver_type(m, "SolverType", doc.SolverType.doc);
+  solver_type  // BR
       .value("kClp", SolverType::kClp, doc.SolverType.kClp.doc)
       .value("kCsdp", SolverType::kCsdp, doc.SolverType.kCsdp.doc)
-      .value("kDReal", SolverType::kDReal, doc.SolverType.kDReal.doc)
       .value("kEqualityConstrainedQP", SolverType::kEqualityConstrainedQP,
           doc.SolverType.kEqualityConstrainedQP.doc)
       .value("kGurobi", SolverType::kGurobi, doc.SolverType.kGurobi.doc)
-      .value("kIbex", SolverType::kIbex, doc.SolverType.kIbex.doc)
       .value("kIpopt", SolverType::kIpopt, doc.SolverType.kIpopt.doc)
       .value("kLinearSystem", SolverType::kLinearSystem,
           doc.SolverType.kLinearSystem.doc)
@@ -516,7 +515,13 @@ void BindSolverInterfaceAndFlags(py::module m) {
       .def("get_print_file_name", &SolverOptions::get_print_file_name,
           doc.SolverOptions.get_print_file_name.doc)
       .def("get_print_to_console", &SolverOptions::get_print_to_console,
-          doc.SolverOptions.get_print_to_console.doc);
+          doc.SolverOptions.get_print_to_console.doc)
+      .def("__repr__", [](const SolverOptions&) -> std::string {
+        // This is a minimal implementation that serves to avoid displaying
+        // memory addresses in pydrake docs and help strings. In the future,
+        // we should enhance this to provide more details.
+        return "<SolverOptions>";
+      });
 
   py::enum_<CommonSolverOption>(
       m, "CommonSolverOption", doc.CommonSolverOption.doc)
@@ -624,7 +629,7 @@ void BindMathematicalProgram(py::module m) {
           },
           doc.MathematicalProgramResult.GetSuboptimalSolution
               .doc_2args_constEigenMatrixBase_int)
-      .def("num_suboptimal_solution()",
+      .def("num_suboptimal_solution",
           &MathematicalProgramResult::num_suboptimal_solution,
           doc.MathematicalProgramResult.num_suboptimal_solution.doc)
       .def("get_suboptimal_objective",
@@ -782,7 +787,17 @@ void BindMathematicalProgram(py::module m) {
               const std::string&)>(&MathematicalProgram::NewIndeterminates),
           py::arg("rows"), py::arg("cols"), py::arg("name") = "X",
           doc.MathematicalProgram.NewIndeterminates.doc_3args)
-      .def("AddIndeterminates", &MathematicalProgram::AddIndeterminates,
+      .def("AddIndeterminate", &MathematicalProgram::AddIndeterminate,
+          py::arg("new_indeterminate"),
+          doc.MathematicalProgram.AddIndeterminate.doc)
+      .def("AddIndeterminates",
+          py::overload_cast<const Eigen::Ref<const MatrixXIndeterminate>&>(
+              &MathematicalProgram::AddIndeterminates),
+          py::arg("new_indeterminates"),
+          doc.MathematicalProgram.AddIndeterminates.doc)
+      .def("AddIndeterminates",
+          py::overload_cast<const symbolic::Variables&>(
+              &MathematicalProgram::AddIndeterminates),
           py::arg("new_indeterminates"),
           doc.MathematicalProgram.AddIndeterminates.doc)
       .def("AddVisualizationCallback",
@@ -1034,6 +1049,24 @@ void BindMathematicalProgram(py::module m) {
           },
           doc.MathematicalProgram.AddBoundingBoxConstraint
               .doc_3args_double_double_constEigenMatrixBase)
+      .def("AddQuadraticConstraint",
+          static_cast<Binding<QuadraticConstraint> (MathematicalProgram::*)(
+              const Eigen::Ref<const Eigen::MatrixXd>&,
+              const Eigen::Ref<const Eigen::VectorXd>&, double, double,
+              const Eigen::Ref<const VectorXDecisionVariable>&,
+              std::optional<QuadraticConstraint::HessianType>)>(
+              &MathematicalProgram::AddQuadraticConstraint),
+          py::arg("Q"), py::arg("b"), py::arg("lb"), py::arg("ub"),
+          py::arg("vars"), py::arg("hessian_type") = std::nullopt,
+          doc.MathematicalProgram.AddQuadraticConstraint.doc_6args)
+      .def("AddQuadraticConstraint",
+          static_cast<Binding<QuadraticConstraint> (MathematicalProgram::*)(
+              const symbolic::Expression&, double, double,
+              std::optional<QuadraticConstraint::HessianType>)>(
+              &MathematicalProgram::AddQuadraticConstraint),
+          py::arg("e"), py::arg("lb"), py::arg("ub"),
+          py::arg("hessian_type") = std::nullopt,
+          doc.MathematicalProgram.AddQuadraticConstraint.doc_4args)
       .def("AddLorentzConeConstraint",
           static_cast<Binding<LorentzConeConstraint> (MathematicalProgram::*)(
               const Eigen::Ref<const VectorX<drake::symbolic::Expression>>&,
@@ -1361,6 +1394,8 @@ void BindMathematicalProgram(py::module m) {
           doc.MathematicalProgram.l2norm_costs.doc)
       .def("linear_constraints", &MathematicalProgram::linear_constraints,
           doc.MathematicalProgram.linear_constraints.doc)
+      .def("quadratic_constraints", &MathematicalProgram::quadratic_constraints,
+          doc.MathematicalProgram.quadratic_constraints.doc)
       .def("lorentz_cone_constraints",
           &MathematicalProgram::lorentz_cone_constraints,
           doc.MathematicalProgram.lorentz_cone_constraints.doc)
@@ -1773,17 +1808,52 @@ void BindEvaluatorsAndBindings(py::module m) {
           py::arg("lb"), py::arg("ub"), doc.BoundingBoxConstraint.ctor.doc);
 
   py::class_<QuadraticConstraint, Constraint,
-      std::shared_ptr<QuadraticConstraint>>(
-      m, "QuadraticConstraint", doc.QuadraticConstraint.doc)
+      std::shared_ptr<QuadraticConstraint>>
+      quadratic_constraint_cls(
+          m, "QuadraticConstraint", doc.QuadraticConstraint.doc);
+
+  py::enum_<QuadraticConstraint::HessianType>(quadratic_constraint_cls,
+      "HessianType", doc.QuadraticConstraint.HessianType.doc)
+      .value("kPositiveSemidefinite",
+          QuadraticConstraint::HessianType::kPositiveSemidefinite,
+          doc.QuadraticConstraint.HessianType.kPositiveSemidefinite.doc)
+      .value("kNegativeSemidefinite",
+          QuadraticConstraint::HessianType::kNegativeSemidefinite,
+          doc.QuadraticConstraint.HessianType.kNegativeSemidefinite.doc)
+      .value("kIndefinite", QuadraticConstraint::HessianType::kIndefinite,
+          doc.QuadraticConstraint.HessianType.kIndefinite.doc);
+
+  quadratic_constraint_cls
       .def(py::init([](const Eigen::Ref<const Eigen::MatrixXd>& Q0,
                         const Eigen::Ref<const Eigen::VectorXd>& b, double lb,
-                        double ub) {
-        return std::make_unique<QuadraticConstraint>(Q0, b, lb, ub);
+                        double ub,
+                        std::optional<QuadraticConstraint::HessianType>
+                            hessian_type) {
+        return std::make_unique<QuadraticConstraint>(
+            Q0, b, lb, ub, hessian_type);
       }),
           py::arg("Q0"), py::arg("b"), py::arg("lb"), py::arg("ub"),
+          py::arg("hessian_type") = std::nullopt,
           doc.QuadraticConstraint.ctor.doc)
-      .def("Q", &QuadraticConstraint::Q, doc.QuadraticConstraint.Q.doc)
-      .def("b", &QuadraticConstraint::b, doc.QuadraticConstraint.b.doc);
+      .def("Q", &QuadraticConstraint::Q, py_rvp::reference_internal,
+          doc.QuadraticConstraint.Q.doc)
+      .def("b", &QuadraticConstraint::b, py_rvp::reference_internal,
+          doc.QuadraticConstraint.b.doc)
+      .def("is_convex", &QuadraticConstraint::is_convex,
+          doc.QuadraticConstraint.is_convex.doc)
+      .def(
+          "UpdateCoefficients",
+          [](QuadraticConstraint& self,
+              const Eigen::Ref<const Eigen::MatrixXd>& new_Q,
+              const Eigen::Ref<const Eigen::VectorXd>& new_b,
+              std::optional<QuadraticConstraint::HessianType> hessian_type) {
+            self.UpdateCoefficients(new_Q, new_b, hessian_type);
+          },
+          py::arg("new_Q"), py::arg("new_b"),
+          py::arg("hessian_type") = std::nullopt,
+          doc.QuadraticConstraint.UpdateCoefficients.doc)
+      .def("hessian_type", &QuadraticConstraint::hessian_type,
+          doc.QuadraticConstraint.hessian_type.doc);
 
   py::class_<PositiveSemidefiniteConstraint, Constraint,
       std::shared_ptr<PositiveSemidefiniteConstraint>>(m,
@@ -1836,6 +1906,7 @@ void BindEvaluatorsAndBindings(py::module m) {
   auto constraint_binding = RegisterBinding<Constraint>(&m);
   DefBindingCastConstructor<Constraint>(&constraint_binding);
   RegisterBinding<LinearConstraint>(&m);
+  RegisterBinding<QuadraticConstraint>(&m);
   RegisterBinding<LorentzConeConstraint>(&m);
   RegisterBinding<RotatedLorentzConeConstraint>(&m);
   RegisterBinding<LinearEqualityConstraint>(&m);

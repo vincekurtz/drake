@@ -6,8 +6,6 @@ title: Installation via APT (Ubuntu)
 
 Drake publishes pre-compiled binaries as APT packages (``*.deb``) for the
 Ubuntu 20.04 (Focal) and Ubuntu 22.04 (Jammy) operating systems.
-(At the moment, the Ubuntu 22.04 packages are only provided for nightly builds,
-not stable releases.)
 Refer to
 [Supported Configurations](/installation.html#supported-configurations)
 for additional compatibility details.
@@ -15,8 +13,8 @@ for additional compatibility details.
 To learn about other installation methods, refer to
 [Installation and Quickstart](/installation.html).
 
-If you experience any problems or questions with Drake, please
-[ask for help on Stack Overflow](/getting_help.html).
+If you experience any problems with or have questions about Drake, please
+[ask for help](/getting_help.html).
 
 Drake binary releases incorporate a pre-compiled version of
 [SNOPT](https://ccom.ucsd.edu/~optimizers/solvers/snopt/) as part of the
@@ -24,15 +22,10 @@ Drake binary releases incorporate a pre-compiled version of
 Thanks to Philip E. Gill and Elizabeth Wong for their kind support.
 
 Drake's apt packages do not support the Gurobi solver. To use
-Gurobi, you will need to [build Drake from source](/from_source.html).
+Gurobi, you will need to build Drake from source following the instructions
+in [Source Installation](/from_source.html).
 
 ## Stable Releases
-
-<div class="warning" markdown="1">
-Drake does not yet publish stable APT packages for Ubuntu 22.04. See
-[#17736](https://github.com/RobotLocomotion/drake/issues/17736) for updates.
-In the meantime, you could manually install the Nightly Releases (see below).
-</div>
 
 To add the Drake APT repository to your machine and install the `drake-dev` package,
 please do the following in order:
@@ -71,7 +64,6 @@ Most content installs to `/opt/drake`, so setting the following environment
 variables may be useful:
 
   ```bash
-  export LD_LIBRARY_PATH="/opt/drake/lib${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
   export PATH="/opt/drake/bin${PATH:+:${PATH}}"
   export PYTHONPATH="/opt/drake/lib/python$(python3 -c 'import sys; print("{0}.{1}".format(*sys.version_info))')/site-packages${PYTHONPATH:+:${PYTHONPATH}}"
   ```
@@ -99,5 +91,5 @@ directly:
 
   ```bash
   wget https://drake-packages.csail.mit.edu/drake/nightly/drake-dev_latest-1_amd64-focal.deb
-  sudo apt-get install --no-install-recommends ./drake-latest-focal.deb
+  sudo apt-get install --no-install-recommends ./drake-dev_latest-1_amd64-focal.deb
   ```

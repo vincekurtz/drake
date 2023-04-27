@@ -1,5 +1,3 @@
-# -*- python -*-
-
 load(
     "@drake//tools/skylark:drake_cc.bzl",
     "drake_cc_binary",
@@ -21,6 +19,7 @@ drake_cc_package_library(
     visibility = ["//visibility:public"],
     deps = [
         ":drake_lcm",
+        ":drake_lcm_base",
         ":drake_lcm_params",
         ":interface",
         ":lcm_log",
@@ -49,8 +48,17 @@ drake_cc_library(
 )
 
 drake_cc_library(
+    name = "drake_lcm_base",
+    srcs = ["drake_lcm_base.cc"],
+    hdrs = ["drake_lcm_base.h"],
+    deps = [
+        ":interface",
+        "//common:nice_type_name",
+    ],
+)
+
+drake_cc_library(
     name = "drake_lcm_params",
-    srcs = ["drake_lcm_params.cc"],
     hdrs = ["drake_lcm_params.h"],
     deps = [
         "//common:essential",
@@ -68,7 +76,7 @@ drake_cc_library(
         "//common:essential",
     ],
     deps = [
-        "//common:scope_exit",
+        "//common:network_policy",
         "@glib",
         "@lcm",
     ],
@@ -120,13 +128,31 @@ drake_cc_googletest(
 )
 
 drake_cc_googletest(
+    name = "drake_lcm_base_test",
+    deps = [
+        ":drake_lcm_base",
+        "//common/test_utilities:expect_throws_message",
+    ],
+)
+
+drake_cc_googletest(
     name = "drake_lcm_test",
+    allow_network = ["lcm"],
     flaky = True,
     deps = [
         ":drake_lcm",
         ":lcmt_drake_signal_utils",
         "//common/test_utilities:expect_throws_message",
         "@lcm",
+    ],
+)
+
+drake_cc_googletest(
+    name = "drake_lcm_denied_test",
+    allow_network = ["none"],
+    deps = [
+        ":drake_lcm",
+        "//common/test_utilities:expect_throws_message",
     ],
 )
 
@@ -154,6 +180,7 @@ drake_cc_binary(
 
 drake_py_unittest(
     name = "initialization_sequence_test",
+    allow_network = ["lcm"],
     data = [
         ":initialization_sequence_test_stub",
     ],
@@ -184,4 +211,4 @@ drake_py_test(
     deps = ["@lcm//:lcm-python"],
 )
 
-add_lint_tests()
+add_lint_tests(enable_clang_format_lint = True)

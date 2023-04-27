@@ -3,7 +3,7 @@ title: Doxygen Instructions
 ---
 
 This section contains instructions on how to use
-[Doxygen](http://www.stack.nl/~dimitri/doxygen/) with Drake.
+[Doxygen](https://www.doxygen.nl/) with Drake.
 
 # Doxygen Style Guide
 
@@ -52,5 +52,5 @@ ascii-art block diagrams even prettier by replacing ``-``, ``|``, etc. with unic
 
 # Doxygen Website Generation
 
-To generate and view Drake's Doxygen website, see:
-[Documentation Instructions](/documentation_instructions.html).
+To generate and view Drake's Doxygen website, see the
+[Documentation Generation Instructions](/documentation_instructions.html).

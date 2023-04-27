@@ -8,11 +8,12 @@
 
 #include "drake/common/scope_exit.h"
 #include "drake/geometry/geometry_ids.h"
+#include "drake/geometry/query_object.h"
 #include "drake/geometry/query_results/contact_surface.h"
-#include "drake/multibody/contact_solvers/contact_solver.h"
 #include "drake/multibody/contact_solvers/contact_solver_results.h"
 #include "drake/multibody/plant/constraint_specs.h"
 #include "drake/multibody/plant/contact_jacobians.h"
+#include "drake/multibody/plant/contact_results.h"
 #include "drake/multibody/plant/coulomb_friction.h"
 #include "drake/multibody/plant/discrete_contact_pair.h"
 #include "drake/multibody/plant/scalar_convertible_component.h"
@@ -21,10 +22,12 @@
 
 namespace drake {
 namespace multibody {
+
 template <typename T>
 class MultibodyPlant;
 
 namespace internal {
+
 template <typename T>
 class AccelerationKinematicsCache;
 
@@ -51,7 +54,7 @@ class DiscreteUpdateManager : public ScalarConvertibleComponent<T> {
    with the scalar type `ScalarType`. This method is meant to be called only by
    MultibodyPlant. MultibodyPlant guarantees the call to ExtactModelInfo() after
    this object is scalar converted. Therefore this clone method is only
-   resposible for deep copying to a state *before* the call to
+   responsible for deep copying to a state *before* the call to
    ExtactModelInfo().
    @tparam_default_scalar */
   template <typename ScalarType>
@@ -108,6 +111,7 @@ class DiscreteUpdateManager : public ScalarConvertibleComponent<T> {
       const systems::Context<T>& context,
       contact_solvers::internal::ContactSolverResults<T>* results) const {
     DRAKE_DEMAND(results != nullptr);
+    plant().ValidateContext(context);
     DoCalcContactSolverResults(context, results);
   }
 
@@ -131,6 +135,40 @@ class DiscreteUpdateManager : public ScalarConvertibleComponent<T> {
     DRAKE_DEMAND(updates != nullptr);
     DoCalcDiscreteValues(context, updates);
   }
+
+  /* MultibodyPlant invokes this method to report contact results. */
+  void CalcContactResults(const systems::Context<T>& context,
+                          ContactResults<T>* contact_results) const {
+    DRAKE_DEMAND(contact_results != nullptr);
+    plant().ValidateContext(context);
+    DoCalcContactResults(context, contact_results);
+  }
+
+  // TODO(amcastro-tri): Consider replacing with more specific APIs with the
+  // resolution of #16955. E.g., APIs to obtain generalized forces due to
+  // constraints, rather than raw solver results.
+  const contact_solvers::internal::ContactSolverResults<T>&
+  EvalContactSolverResults(const systems::Context<T>& context) const;
+
+  /* Publicly exposed MultibodyPlant private/protected methods.
+   @{ */
+
+  // N.B. Keep the spelling and order of declarations here identical to the
+  // MultibodyPlantDiscreteUpdateManagerAttorney spelling and order of same.
+
+  const MultibodyTree<T>& internal_tree() const;
+
+  systems::CacheEntry& DeclareCacheEntry(std::string description,
+                                         systems::ValueProducer,
+                                         std::set<systems::DependencyTicket>);
+
+  double default_contact_stiffness() const;
+  double default_contact_dissipation() const;
+
+  const std::unordered_map<geometry::GeometryId, BodyIndex>&
+  geometry_id_to_body_index() const;
+
+  /* @} */
 
  protected:
   /* Derived classes that support making a clone that uses double as a scalar
@@ -159,7 +197,7 @@ class DiscreteUpdateManager : public ScalarConvertibleComponent<T> {
 
   /* Derived DiscreteUpdateManager should override this method to declare
    cache entries in the owning MultibodyPlant. */
-  virtual void DeclareCacheEntries() {}
+  virtual void DoDeclareCacheEntries() {}
 
   /* Returns the discrete state index of the rigid position and velocity states
    declared by MultibodyPlant. */
@@ -173,27 +211,8 @@ class DiscreteUpdateManager : public ScalarConvertibleComponent<T> {
   // N.B. Keep the spelling and order of declarations here identical to the
   // MultibodyPlantDiscreteUpdateManagerAttorney spelling and order of same.
 
-  const MultibodyTree<T>& internal_tree() const;
-
-  systems::CacheEntry& DeclareCacheEntry(std::string description,
-                                         systems::ValueProducer,
-                                         std::set<systems::DependencyTicket>);
-
-  const contact_solvers::internal::ContactSolverResults<T>&
-  EvalContactSolverResults(const systems::Context<T>& context) const;
-
-  const internal::ContactJacobians<T>& EvalContactJacobians(
-      const systems::Context<T>& context) const;
-
-  const std::vector<internal::DiscreteContactPair<T>>& EvalDiscreteContactPairs(
-      const systems::Context<T>& context) const;
-
   const std::vector<geometry::ContactSurface<T>>& EvalContactSurfaces(
       const systems::Context<T>& context) const;
-
-  std::vector<CoulombFriction<double>> CalcCombinedFrictionCoefficients(
-      const systems::Context<T>& context,
-      const std::vector<internal::DiscreteContactPair<T>>& contact_pairs) const;
 
   void AddInForcesFromInputPorts(const drake::systems::Context<T>& context,
                                  MultibodyForces<T>* forces) const;
@@ -212,14 +231,19 @@ class DiscreteUpdateManager : public ScalarConvertibleComponent<T> {
   const std::vector<std::vector<geometry::GeometryId>>& collision_geometries()
       const;
 
-  double default_contact_stiffness() const;
-  double default_contact_dissipation() const;
-
-  const std::unordered_map<geometry::GeometryId, BodyIndex>&
-  geometry_id_to_body_index() const;
-
-  const std::vector<internal::CouplerConstraintSpecs<T>>&
+  const std::vector<internal::CouplerConstraintSpecs>&
   coupler_constraints_specs() const;
+
+  const std::vector<int>& EvalJointLockingIndices(
+      const systems::Context<T>& context) const;
+
+  const std::vector<internal::DistanceConstraintSpecs>&
+  distance_constraints_specs() const;
+
+  const std::vector<internal::BallConstraintSpecs>& ball_constraints_specs()
+      const;
+
+  BodyIndex FindBodyByGeometryId(geometry::GeometryId geometry_id) const;
   /* @} */
 
   /* Concrete DiscreteUpdateManagers must override these NVI Calc methods to
@@ -237,11 +261,26 @@ class DiscreteUpdateManager : public ScalarConvertibleComponent<T> {
       const systems::Context<T>& context,
       systems::DiscreteValues<T>* updates) const = 0;
 
+  virtual void DoCalcContactResults(
+      const systems::Context<T>& context,
+      ContactResults<T>* contact_results) const = 0;
+
  private:
+  // Struct used to conglomerate the indexes of cache entries declared by the
+  // manager.
+  struct CacheIndexes {
+    systems::CacheIndex contact_solver_results;
+  };
+
+  // NVI to DoDeclareCacheEntries().
+  void DeclareCacheEntries();
+
+  systems::DiscreteStateIndex multibody_state_index_;
+  CacheIndexes cache_indexes_;
   const MultibodyPlant<T>* plant_{nullptr};
   MultibodyPlant<T>* mutable_plant_{nullptr};
-  systems::DiscreteStateIndex multibody_state_index_;
 };
+
 }  // namespace internal
 }  // namespace multibody
 }  // namespace drake

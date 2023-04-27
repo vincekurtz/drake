@@ -1,15 +1,16 @@
 #include "drake/geometry/proximity_engine.h"
 
 #include <cmath>
+#include <filesystem>
 #include <fstream>
 #include <unordered_map>
 #include <utility>
 #include <vector>
 
-#include <fcl/fcl.h>
+#include <drake_vendor/fcl/fcl.h>
+#include <fmt/ostream.h>
 #include <gtest/gtest.h>
 
-#include "drake/common/filesystem.h"
 #include "drake/common/find_resource.h"
 #include "drake/common/temp_directory.h"
 #include "drake/common/test_utilities/eigen_matrix_compare.h"
@@ -141,7 +142,8 @@ GTEST_TEST(ProximityEngineTests, AddDynamicGeometry) {
 // it's supported or not (note: this test doesn't depend on the choice of
 // rigid/compliant -- for each shape, we pick an arbitrary compliance type,
 // preferring one that is supported over one that is not. Otherwise, the
-// compliance choice is immaterial.)
+// compliance choice is immaterial.) One exception is that the rigid Mesh and
+// the compliant Mesh use two different kinds of files, so we test both of them.
 GTEST_TEST(ProximityEngineTests, ProcessHydroelasticProperties) {
   ProximityEngine<double> engine;
   // All of the geometries will have a scale comparable to edge_length, so that
@@ -217,6 +219,17 @@ GTEST_TEST(ProximityEngineTests, ProcessHydroelasticProperties) {
     engine.AddDynamicGeometry(mesh, {}, mesh_id, rigid_properties);
     EXPECT_EQ(ProximityEngineTester::hydroelastic_type(mesh_id, engine),
               HydroelasticType::kRigid);
+  }
+
+  // Case: compliant mesh.
+  {
+    Mesh mesh{
+        drake::FindResourceOrThrow("drake/geometry/test/non_convex_mesh.vtk"),
+        1.0 /* scale */};
+    const GeometryId mesh_id = GeometryId::get_new_id();
+    engine.AddDynamicGeometry(mesh, {}, mesh_id, soft_properties);
+    EXPECT_EQ(ProximityEngineTester::hydroelastic_type(mesh_id, engine),
+              HydroelasticType::kSoft);
   }
 
   // Case: rigid convex.
@@ -454,6 +467,17 @@ GTEST_TEST(ProximityEngineTests, MeshSupportAsConvex) {
   }
 }
 
+// Tests that passing VTK file in Mesh for Point contact will throw.
+GTEST_TEST(ProximityEngineTests, VtkForPointContactThrow) {
+  ProximityEngine<double> engine;
+  const Mesh vtk_mesh{
+      drake::FindResourceOrThrow("drake/geometry/test/non_convex_mesh.vtk")};
+  DRAKE_EXPECT_THROWS_MESSAGE(
+      engine.AddAnchoredGeometry(vtk_mesh, RigidTransformd::Identity(),
+                                 GeometryId::get_new_id()),
+      "ProximityEngine: expect an Obj file for non-hydroelastics but get.*");
+}
+
 // Tests simple addition of anchored geometry.
 GTEST_TEST(ProximityEngineTests, AddAnchoredGeometry) {
   ProximityEngine<double> engine;
@@ -649,10 +673,10 @@ GTEST_TEST(ProximityEngineTests, FailedParsing) {
         ".*only OBJs with a single object.*");
   }
 
-  const filesystem::path temp_dir = temp_directory();
+  const std::filesystem::path temp_dir = temp_directory();
   // An empty file.
   {
-    const filesystem::path file = temp_dir / "empty.obj";
+    const std::filesystem::path file = temp_dir / "empty.obj";
     std::ofstream f(file.string());
     f.close();
     Convex convex{file.string(), 1.0};
@@ -662,7 +686,7 @@ GTEST_TEST(ProximityEngineTests, FailedParsing) {
   }
 
   // The file is not an OBJ.
-  { const filesystem::path file = temp_dir / "not_an_obj.txt";
+  { const std::filesystem::path file = temp_dir / "not_an_obj.txt";
     std::ofstream f(file.string());
     f << "I'm not a valid obj\n";
     f.close();
@@ -882,7 +906,7 @@ GTEST_TEST(ProximityEngineTests, SignedDistancePairClosestPoint) {
                     "a signed distance query", bad_id));
   }
 
-  // Case: the pair is filtered.
+  // Case: the distance is evaluated even though the pair is filtered.
   {
     // I know the GeometrySet only has id_A and id_B, so I'll construct the
     // extracted set by hand.
@@ -892,10 +916,8 @@ GTEST_TEST(ProximityEngineTests, SignedDistancePairClosestPoint) {
     engine.collision_filter().Apply(
         CollisionFilterDeclaration().ExcludeWithin(GeometrySet{id_A, id_B}),
         extract_ids, false /* is_invariant */);
-    DRAKE_EXPECT_THROWS_MESSAGE(
-        engine.ComputeSignedDistancePairClosestPoints(id_A, id_B, X_WGs),
-        fmt::format("The geometry pair \\({}, {}\\) does not support a signed "
-                    "distance query", id_A, id_B));
+    EXPECT_NO_THROW(
+        engine.ComputeSignedDistancePairClosestPoints(id_A, id_B, X_WGs));
   }
 }
 
@@ -1048,17 +1070,20 @@ struct SignedDistanceToPointTestData {
   // when a test fails.
   friend std::ostream& operator<<(std::ostream& os,
                                   const SignedDistanceToPointTestData& obj) {
-    return os << "{\n"
-              << "  geometry: (not printed)\n"
-              << "  X_WG: (not printed)\n"
-              << "  p_WQ: " << obj.p_WQ.transpose() << "\n"
-              << "  expected_result.p_GN: "
-              << obj.expected_result.p_GN.transpose() << "\n"
-              << "  expected_result.distance: " << obj.expected_result.distance
-              << "\n"
-              << "  expected_result.grad_W: "
-              << obj.expected_result.grad_W.transpose() << "\n"
-              << "}" << std::flush;
+    fmt::print(os,
+               "{{\n"
+               "  geometry: (not printed)\n"
+               "  X_WG: (not printed)\n"
+               "  p_WQ: {}\n"
+               "  expected_result.p_GN: {}\n"
+               "  expected_result.distance: {}\n"
+               "  expected_result.grad_W: {}\n"
+               "}}",
+               fmt_eigen(obj.p_WQ.transpose()),
+               fmt_eigen(obj.expected_result.p_GN.transpose()),
+               obj.expected_result.distance,
+               fmt_eigen(obj.expected_result.grad_W.transpose()));
+    return os;
   }
 
   shared_ptr<Shape> geometry;
@@ -2578,22 +2603,23 @@ class SignedDistancePairTestData {
   // when a test fails.
   friend std::ostream& operator<<(std::ostream& os,
                                   const SignedDistancePairTestData& obj) {
-    return os << "{\n"
-              << " geometry A: (not printed)\n"
-              << " geometry B: (not printed)\n"
-              << " X_WA: (not printed)\n"
-              << " X_WB: (not printed)\n"
-              << " expected_result.id_A: "
-              << obj.expected_result_.id_A << "\n"
-              << " expected_result.id_B: "
-              << obj.expected_result_.id_B << "\n"
-              << " expected_result.distance: "
-              << obj.expected_result_.distance << "\n"
-              << " expected_result.p_ACa: "
-              << obj.expected_result_.p_ACa.transpose() << "\n"
-              << " expected_result.p_BCb: "
-              << obj.expected_result_.p_BCb.transpose() << "\n"
-              << "}" << std::flush;
+    fmt::print(os,
+               "{{\n"
+               " geometry A: (not printed)\n"
+               " geometry B: (not printed)\n"
+               " X_WA: (not printed)\n"
+               " X_WB: (not printed)\n"
+               " expected_result.id_A: {}\n"
+               " expected_result.id_B: {}\n"
+               " expected_result.distance: {}\n"
+               " expected_result.p_ACa: {}\n"
+               " expected_result.p_BCb: {}\n"
+               "}}",
+               obj.expected_result_.id_A, obj.expected_result_.id_B,
+               obj.expected_result_.distance,
+               fmt_eigen(obj.expected_result_.p_ACa.transpose()),
+               fmt_eigen(obj.expected_result_.p_BCb.transpose()));
+    return os;
   }
 
   shared_ptr<const Shape> a_;
@@ -4574,9 +4600,10 @@ TEST_F(ProximityEngineDeformableContactTest, ReplacePropertiesRigid) {
 // Tests that replacing properties for deformable geometries yields expected
 // behaviors.
 TEST_F(ProximityEngineDeformableContactTest, ReplacePropertiesDeformable) {
-  InternalGeometry sphere(
-      SourceId::get_new_id(), make_unique<Sphere>(kSphereRadius),
-      FrameId::get_new_id(), GeometryId::get_new_id(), "sphere", 1.0);
+  InternalGeometry sphere(SourceId::get_new_id(),
+                          make_unique<Sphere>(kSphereRadius),
+                          FrameId::get_new_id(), GeometryId::get_new_id(),
+                          "sphere", RigidTransformd{}, 1.0);
 
   // Case: throws when the id doesn't refer to a valid geometry.
   DRAKE_EXPECT_THROWS_MESSAGE(
@@ -4655,7 +4682,7 @@ TEST_F(ProximityEngineDeformableContactTest, UpdateDeformablePositions) {
 
 // Verify that ProximityEngine is properly invoking the lower-level collision
 // query code by verifying a few necessary conditions.
-TEST_F(ProximityEngineDeformableContactTest, ComputeDeformableRigidContact) {
+TEST_F(ProximityEngineDeformableContactTest, ComputeDeformableContact) {
   const GeometryId deformable_id = AddDeformableSphere();
 
   // Add a rigid sphere partially overlapping the deformable sphere.
@@ -4664,12 +4691,13 @@ TEST_F(ProximityEngineDeformableContactTest, ComputeDeformableRigidContact) {
   engine_.AddDynamicGeometry(Sphere(kSphereRadius), {}, rigid_id, props);
 
   // Verify the two spheres are in contact.
-  std::vector<DeformableRigidContact<double>> contact_data;
-  engine_.ComputeDeformableRigidContact(&contact_data);
-  ASSERT_EQ(contact_data.size(), 1);
-  EXPECT_EQ(contact_data[0].deformable_id(), deformable_id);
-  ASSERT_EQ(contact_data[0].rigid_ids().size(), 1);
-  EXPECT_EQ(contact_data[0].rigid_ids()[0], rigid_id);
+  DeformableContact<double> contact_data;
+  engine_.ComputeDeformableContact(&contact_data);
+  ASSERT_EQ(contact_data.contact_surfaces().size(), 1);
+  DeformableContactSurface<double> contact_surface =
+      contact_data.contact_surfaces()[0];
+  EXPECT_EQ(contact_surface.id_A(), deformable_id);
+  EXPECT_EQ(contact_surface.id_B(), rigid_id);
 
   // Move the deformable geometry away so that the two geometries are no longer
   // in contact.
@@ -4681,9 +4709,8 @@ TEST_F(ProximityEngineDeformableContactTest, ComputeDeformableRigidContact) {
     q_WD.segment<3>(3 * i) = mesh.vertex(i) + offset_W;
   }
   engine_.UpdateDeformableVertexPositions({{deformable_id, q_WD}});
-  engine_.ComputeDeformableRigidContact(&contact_data);
-  ASSERT_EQ(contact_data.size(), 1);
-  EXPECT_EQ(contact_data[0].rigid_ids().size(), 0);
+  engine_.ComputeDeformableContact(&contact_data);
+  ASSERT_EQ(contact_data.contact_surfaces().size(), 0);
 
   // Shift the rigid geometry by the same offset and they are again in
   // contact.
@@ -4691,11 +4718,11 @@ TEST_F(ProximityEngineDeformableContactTest, ComputeDeformableRigidContact) {
       geometry_id_to_world_poses;
   geometry_id_to_world_poses.insert({rigid_id, RigidTransformd(offset_W)});
   engine_.UpdateWorldPoses(geometry_id_to_world_poses);
-  engine_.ComputeDeformableRigidContact(&contact_data);
-  ASSERT_EQ(contact_data.size(), 1);
-  EXPECT_EQ(contact_data[0].deformable_id(), deformable_id);
-  ASSERT_EQ(contact_data[0].rigid_ids().size(), 1);
-  EXPECT_EQ(contact_data[0].rigid_ids()[0], rigid_id);
+  engine_.ComputeDeformableContact(&contact_data);
+  ASSERT_EQ(contact_data.contact_surfaces().size(), 1);
+  contact_surface = contact_data.contact_surfaces()[0];
+  EXPECT_EQ(contact_surface.id_A(), deformable_id);
+  EXPECT_EQ(contact_surface.id_B(), rigid_id);
 }
 
 }  // namespace

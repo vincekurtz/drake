@@ -37,8 +37,8 @@ class MultibodyPlantGeneralizedAppliedForceTest
     plant_ = builder.AddSystem<MultibodyPlant<double>>(dt);
 
     // Add the model twice.
-    auto iiwa1 = Parser(plant_).AddModelFromFile(full_name, "iiwa1");
-    auto iiwa2 = Parser(plant_).AddModelFromFile(full_name, "iiwa2");
+    auto iiwa1 = Parser(plant_, "iiwa1").AddModels(full_name).at(0);
+    auto iiwa2 = Parser(plant_, "iiwa2").AddModels(full_name).at(0);
     plant_->WeldFrames(plant_->world_frame(),
                        plant_->GetFrameByName("iiwa_link_0", iiwa1));
     plant_->WeldFrames(plant_->world_frame(),
@@ -135,7 +135,8 @@ TEST_P(MultibodyPlantGeneralizedAppliedForceTest,
     auto new_discrete_state = diagram().AllocateDiscreteVariables();
     const VectorBase<double>& new_discrete_state_vector =
         new_discrete_state->get_vector();
-    diagram().CalcDiscreteVariableUpdates(context(), new_discrete_state.get());
+    diagram().CalcForcedDiscreteVariableUpdate(context(),
+                                               new_discrete_state.get());
 
     // Velocities start immediately after positions in the discrete state
     // vector.

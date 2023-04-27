@@ -1,5 +1,3 @@
-# -*- python -*-
-
 load("@drake//tools/workspace:github.bzl", "github_archive")
 
 # Note that we do NOT install a LICENSE file as part of the Drake install
@@ -11,11 +9,13 @@ def rules_python_repository(
         mirrors = None):
     github_archive(
         name = name,
-        repository = "bazelbuild/rules_python",  # License: Apache-2.0
-        # The commit (version) and sha256 here should be identical to the
-        # commit listed in
-        # drake/tools/install/bazel/test/drake_bazel_installed_test.py.
-        commit = "0.10.2",
-        sha256 = "a3a6e99f497be089f81ec082882e40246bfd435f52f4e82f37e89449b04573f6",  # noqa
+        repository = "bazelbuild/rules_python",  # License: Apache-2.0,
+        upgrade_advice = """
+        The commit (version) and sha256 here should be identical to the
+        commit listed in
+        drake/tools/install/bazel/test/drake_bazel_installed_test.py.
+        """,
+        commit = "0.20.0",
+        sha256 = "a644da969b6824cc87f8fe7b18101a8a6c57da5db39caa6566ec6109f37d2141",  # noqa
         mirrors = mirrors,
     )

@@ -13,10 +13,10 @@
 #include "drake/geometry/optimization/cartesian_product.h"
 #include "drake/geometry/optimization/convex_set.h"
 #include "drake/geometry/optimization/minkowski_sum.h"
+#include "drake/geometry/optimization/vpolytope.h"
 #include "drake/math/autodiff_gradient.h"
 #include "drake/multibody/plant/multibody_plant.h"
 #include "drake/solvers/choose_best_solver.h"
-#include "drake/solvers/ibex_solver.h"
 #include "drake/solvers/ipopt_solver.h"
 #include "drake/solvers/snopt_solver.h"
 
@@ -142,25 +142,6 @@ class IrisConvexSetMaker final : public ShapeReifier {
 
   using ShapeReifier::ImplementGeometry;
 
-  void ImplementGeometry(const Sphere&, void* data) {
-    DRAKE_DEMAND(geom_id_.is_valid());
-    auto& set = *static_cast<copyable_unique_ptr<ConvexSet>*>(data);
-    set = std::make_unique<Hyperellipsoid>(query_, geom_id_, reference_frame_);
-  }
-
-  void ImplementGeometry(const Cylinder&, void* data) {
-    DRAKE_DEMAND(geom_id_.is_valid());
-    auto& set = *static_cast<copyable_unique_ptr<ConvexSet>*>(data);
-    set =
-        std::make_unique<CartesianProduct>(query_, geom_id_, reference_frame_);
-  }
-
-  void ImplementGeometry(const HalfSpace&, void* data) {
-    DRAKE_DEMAND(geom_id_.is_valid());
-    auto& set = *static_cast<copyable_unique_ptr<ConvexSet>*>(data);
-    set = std::make_unique<HPolyhedron>(query_, geom_id_, reference_frame_);
-  }
-
   void ImplementGeometry(const Box&, void* data) {
     DRAKE_DEMAND(geom_id_.is_valid());
     auto& set = *static_cast<copyable_unique_ptr<ConvexSet>*>(data);
@@ -177,10 +158,35 @@ class IrisConvexSetMaker final : public ShapeReifier {
     set = std::make_unique<MinkowskiSum>(query_, geom_id_, reference_frame_);
   }
 
+  void ImplementGeometry(const Cylinder&, void* data) {
+    DRAKE_DEMAND(geom_id_.is_valid());
+    auto& set = *static_cast<copyable_unique_ptr<ConvexSet>*>(data);
+    set =
+        std::make_unique<CartesianProduct>(query_, geom_id_, reference_frame_);
+  }
+
   void ImplementGeometry(const Ellipsoid&, void* data) {
     DRAKE_DEMAND(geom_id_.is_valid());
     auto& set = *static_cast<copyable_unique_ptr<ConvexSet>*>(data);
     set = std::make_unique<Hyperellipsoid>(query_, geom_id_, reference_frame_);
+  }
+
+  void ImplementGeometry(const HalfSpace&, void* data) {
+    DRAKE_DEMAND(geom_id_.is_valid());
+    auto& set = *static_cast<copyable_unique_ptr<ConvexSet>*>(data);
+    set = std::make_unique<HPolyhedron>(query_, geom_id_, reference_frame_);
+  }
+
+  void ImplementGeometry(const Sphere&, void* data) {
+    DRAKE_DEMAND(geom_id_.is_valid());
+    auto& set = *static_cast<copyable_unique_ptr<ConvexSet>*>(data);
+    set = std::make_unique<Hyperellipsoid>(query_, geom_id_, reference_frame_);
+  }
+
+  void ImplementGeometry(const Convex&, void* data) {
+    DRAKE_DEMAND(geom_id_.is_valid());
+    auto& set = *static_cast<copyable_unique_ptr<ConvexSet>*>(data);
+    set = std::make_unique<VPolytope>(query_, geom_id_, reference_frame_);
   }
 
  private:
@@ -320,77 +326,81 @@ class SamePointConstraint : public Constraint {
   std::unique_ptr<Context<Expression>> symbolic_context_{nullptr};
 };
 
-// Solves the optimization
-// min_q (q-d)*CᵀC(q-d)
+// Defines a MathematicalProgram to solve the problem
+// min_q (q-d) CᵀC (q-d)
 // s.t. setA in frameA and setB in frameB are in collision in q.
 //      Aq ≤ b.
 // where C, d are the matrix and center from the hyperellipsoid E.
-// Returns true iff a collision is found.
-// Sets `closest` to an optimizing solution q*, if a solution is found.
-bool FindClosestCollision(
-    std::shared_ptr<SamePointConstraint> same_point_constraint,
-    const multibody::Frame<double>& frameA,
-    const multibody::Frame<double>& frameB, const ConvexSet& setA,
-    const ConvexSet& setB, const Hyperellipsoid& E,
-    const Eigen::Ref<const Eigen::MatrixXd>& A,
-    const Eigen::Ref<const Eigen::VectorXd>& b,
-    const solvers::SolverInterface& solver,
-    const Eigen::Ref<const Eigen::VectorXd>& q_guess, VectorXd* closest) {
-  MathematicalProgram prog;
-  auto q = prog.NewContinuousVariables(A.cols(), "q");
+//
+// The class design supports repeated solutions of the (nearly) identical
+// problem from different initial guesses.
+class ClosestCollisionProgram {
+ public:
+  ClosestCollisionProgram(
+      std::shared_ptr<SamePointConstraint> same_point_constraint,
+      const multibody::Frame<double>& frameA,
+      const multibody::Frame<double>& frameB, const ConvexSet& setA,
+      const ConvexSet& setB, const Hyperellipsoid& E,
+      const Eigen::Ref<const Eigen::MatrixXd>& A,
+      const Eigen::Ref<const Eigen::VectorXd>& b) {
+    q_ = prog_.NewContinuousVariables(A.cols(), "q");
 
-  prog.AddLinearConstraint(
-      A, VectorXd::Constant(b.size(), -std::numeric_limits<double>::infinity()),
-      b, q);
-  // Scale the objective so the eigenvalues are close to 1, using
-  // scale*lambda_min = 1/scale*lambda_max.
-  const MatrixXd Asq = E.A().transpose() * E.A();
-  Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> es(Asq);
-  const double scale = 1.0 / std::sqrt(es.eigenvalues().maxCoeff() *
-                                       es.eigenvalues().minCoeff());
-  prog.AddQuadraticErrorCost(scale * Asq, E.center(), q);
+    P_constraint_ = prog_.AddLinearConstraint(
+        A,
+        VectorXd::Constant(b.size(), -std::numeric_limits<double>::infinity()),
+        b, q_);
 
-  auto p_AA = prog.NewContinuousVariables<3>("p_AA");
-  auto p_BB = prog.NewContinuousVariables<3>("p_BB");
-  setA.AddPointInSetConstraints(&prog, p_AA);
-  setB.AddPointInSetConstraints(&prog, p_BB);
+    // Scale the objective so the eigenvalues are close to 1, using
+    // scale*lambda_min = 1/scale*lambda_max.
+    const MatrixXd Asq = E.A().transpose() * E.A();
+    Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> es(Asq);
+    const double scale = 1.0 / std::sqrt(es.eigenvalues().maxCoeff() *
+                                         es.eigenvalues().minCoeff());
+    prog_.AddQuadraticErrorCost(scale * Asq, E.center(), q_);
 
-  same_point_constraint->set_frameA(&frameA);
-  same_point_constraint->set_frameB(&frameB);
-  prog.AddConstraint(same_point_constraint, {q, p_AA, p_BB});
+    auto p_AA = prog_.NewContinuousVariables<3>("p_AA");
+    auto p_BB = prog_.NewContinuousVariables<3>("p_BB");
+    setA.AddPointInSetConstraints(&prog_, p_AA);
+    setB.AddPointInSetConstraints(&prog_, p_BB);
 
-  // Help nonlinear optimizers (e.g. SNOPT) avoid trivial local minima at the
-  // origin.
-  prog.SetInitialGuess(q, q_guess);
-  prog.SetInitialGuess(p_AA, Vector3d::Constant(.01));
-  prog.SetInitialGuess(p_BB, Vector3d::Constant(.01));
+    same_point_constraint->set_frameA(&frameA);
+    same_point_constraint->set_frameB(&frameB);
+    prog_.AddConstraint(same_point_constraint, {q_, p_AA, p_BB});
 
-  if (solver.solver_id() == solvers::IbexSolver::id()) {
-    prog.SetSolverOption(solvers::IbexSolver::id(), "rigor", true);
-    // Use kNonconvex instead of the default kConvexSmooth.
-    std::vector<Binding<solvers::LorentzConeConstraint>> to_replace =
-        prog.lorentz_cone_constraints();
-    for (const auto& binding : to_replace) {
-      const auto c = binding.evaluator();
-      prog.AddConstraint(
-          std::make_shared<solvers::LorentzConeConstraint>(
-              c->A_dense(), c->b(),
-              solvers::LorentzConeConstraint::EvalType::kNonconvex),
-          binding.variables());
-    }
-    for (const auto& binding : to_replace) {
-      prog.RemoveConstraint(binding);
-    }
+    // Help nonlinear optimizers (e.g. SNOPT) avoid trivial local minima at the
+    // origin.
+    prog_.SetInitialGuess(p_AA, Vector3d::Constant(.01));
+    prog_.SetInitialGuess(p_BB, Vector3d::Constant(.01));
   }
 
-  solvers::MathematicalProgramResult result;
-  solver.Solve(prog, std::nullopt, std::nullopt, &result);
-  if (result.is_success()) {
-    *closest = result.GetSolution(q);
-    return true;
+  void UpdatePolytope(const Eigen::Ref<const Eigen::MatrixXd>& A,
+                      const Eigen::Ref<const Eigen::VectorXd>& b) {
+    P_constraint_->evaluator()->UpdateCoefficients(
+        A,
+        VectorXd::Constant(b.size(), -std::numeric_limits<double>::infinity()),
+        b);
   }
-  return false;
-}
+
+  // Returns true iff a collision is found.
+  // Sets `closest` to an optimizing solution q*, if a solution is found.
+  bool Solve(const solvers::SolverInterface& solver,
+             const Eigen::Ref<const Eigen::VectorXd>& q_guess,
+             VectorXd* closest) {
+    prog_.SetInitialGuess(q_, q_guess);
+    solvers::MathematicalProgramResult result;
+    solver.Solve(prog_, std::nullopt, std::nullopt, &result);
+    if (result.is_success()) {
+      *closest = result.GetSolution(q_);
+      return true;
+    }
+    return false;
+  }
+
+ private:
+  MathematicalProgram prog_;
+  solvers::VectorXDecisionVariable q_;
+  std::optional<Binding<solvers::LinearConstraint>> P_constraint_{};
+};
 
 // Takes a constraint bound to another mathematical program and defines a new
 // constraint that is the negation of one index and one (lower/upper) bound.
@@ -476,45 +486,65 @@ class CounterExampleConstraint : public Constraint {
   static constexpr double kSolverConstraintTolerance{1e-6};
 };
 
-// Solves the optimization
+// Defines a MathematicalProgram to solve the problem
 // min_q (q-d)*CᵀC(q-d)
 // s.t. counter-example-constraint
 //      Aq ≤ b.
 // where C, d are the matrix and center from the hyperellipsoid E.
-// Returns true iff a counter-example is found.
-// Sets `closest` to an optimizing solution q*, if a solution is found.
-bool FindCounterExample(
-    std::shared_ptr<CounterExampleConstraint> counter_example_constraint,
-    const Hyperellipsoid& E, const Eigen::Ref<const Eigen::MatrixXd>& A,
-    const Eigen::Ref<const Eigen::VectorXd>& b,
-    const solvers::SolverInterface& solver,
-    const Eigen::Ref<const Eigen::VectorXd>& q_guess, VectorXd* closest) {
-  MathematicalProgram prog;
-  auto q = prog.NewContinuousVariables(A.cols(), "q");
+//
+// The class design supports repeated solutions of the (nearly) identical
+// problem from different initial guesses.
+class CounterExampleProgram {
+ public:
+  CounterExampleProgram(
+      std::shared_ptr<CounterExampleConstraint> counter_example_constraint,
+      const Hyperellipsoid& E, const Eigen::Ref<const Eigen::MatrixXd>& A,
+      const Eigen::Ref<const Eigen::VectorXd>& b) {
+    q_ = prog_.NewContinuousVariables(A.cols(), "q");
 
-  prog.AddLinearConstraint(
-      A, VectorXd::Constant(b.size(), -std::numeric_limits<double>::infinity()),
-      b, q);
-  // Scale the objective so the eigenvalues are close to 1, using
-  // scale*lambda_min = 1/scale*lambda_max.
-  const MatrixXd Asq = E.A().transpose() * E.A();
-  Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> es(Asq);
-  const double scale = 1.0 / std::sqrt(es.eigenvalues().maxCoeff() *
-                                       es.eigenvalues().minCoeff());
-  prog.AddQuadraticErrorCost(scale * Asq, E.center(), q);
+    P_constraint_ = prog_.AddLinearConstraint(
+        A,
+        VectorXd::Constant(b.size(), -std::numeric_limits<double>::infinity()),
+        b, q_);
+    // Scale the objective so the eigenvalues are close to 1, using
+    // scale*lambda_min = 1/scale*lambda_max.
+    const MatrixXd Asq = E.A().transpose() * E.A();
+    Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> es(Asq);
+    const double scale = 1.0 / std::sqrt(es.eigenvalues().maxCoeff() *
+                                        es.eigenvalues().minCoeff());
+    prog_.AddQuadraticErrorCost(scale * Asq, E.center(), q_);
 
-  prog.AddConstraint(counter_example_constraint, q);
-
-  prog.SetInitialGuess(q, q_guess);
-
-  solvers::MathematicalProgramResult result;
-  solver.Solve(prog, std::nullopt, std::nullopt, &result);
-  if (result.is_success()) {
-    *closest = result.GetSolution(q);
-    return true;
+    prog_.AddConstraint(counter_example_constraint, q_);
   }
-  return false;
-}
+
+  void UpdatePolytope(const Eigen::Ref<const Eigen::MatrixXd>& A,
+                      const Eigen::Ref<const Eigen::VectorXd>& b) {
+    P_constraint_->evaluator()->UpdateCoefficients(
+        A,
+        VectorXd::Constant(b.size(), -std::numeric_limits<double>::infinity()),
+        b);
+  }
+
+  // Returns true iff a counter-example is found.
+  // Sets `closest` to an optimizing solution q*, if a solution is found.
+  bool Solve(const solvers::SolverInterface& solver,
+             const Eigen::Ref<const Eigen::VectorXd>& q_guess,
+             VectorXd* closest) {
+    prog_.SetInitialGuess(q_, q_guess);
+    solvers::MathematicalProgramResult result;
+    solver.Solve(prog_, std::nullopt, std::nullopt, &result);
+    if (result.is_success()) {
+      *closest = result.GetSolution(q_);
+      return true;
+    }
+    return false;
+  }
+
+ private:
+  MathematicalProgram prog_;
+  solvers::VectorXDecisionVariable q_;
+  std::optional<Binding<solvers::LinearConstraint>> P_constraint_{};
+};
 
 // Add the tangent to the (scaled) ellipsoid at @p point as a
 // constraint.
@@ -544,6 +574,24 @@ void AddTangentToPolytope(
   *num_constraints += 1;
 }
 
+void MakeGuessFeasible(const HPolyhedron& P, const IrisOptions& options,
+                 const VectorXd& closest, Eigen::VectorXd* guess) {
+  const auto& A = P.A();
+  const auto& b = P.b();
+  const int N = A.rows();
+  if (A.row(N - 1) * *guess - b[N - 1] > 0) {
+    // The HPolyhedron uniform sampler wants feasible points.  First
+    // try projecting the closest point back into the set.
+    *guess = closest - options.configuration_space_margin *
+                           A.row(N - 1).normalized().transpose();
+    // If this causes a different constraint to be violated, then just
+    // go back to the "center" of the set.
+    if (!P.PointInSet(*guess)) {
+      *guess = P.ChebyshevCenter();
+    }
+  }
+}
+
 struct GeometryPairWithDistance {
   GeometryId geomA;
   GeometryId geomB;
@@ -566,19 +614,23 @@ HPolyhedron IrisInConfigurationSpace(const MultibodyPlant<double>& plant,
   plant.ValidateContext(context);
   const int nq = plant.num_positions();
   const Eigen::VectorXd sample = plant.GetPositions(context);
+  const int nc = static_cast<int>(options.configuration_obstacles.size());
   // Note: We require finite joint limits to define the bounding box for the
   // IRIS algorithm.
   DRAKE_DEMAND(plant.GetPositionLowerLimits().array().isFinite().all());
   DRAKE_DEMAND(plant.GetPositionUpperLimits().array().isFinite().all());
+  DRAKE_DEMAND(options.num_collision_infeasible_samples >= 0);
+  for (int i = 0; i < nc; ++i) {
+    DRAKE_DEMAND(options.configuration_obstacles[i]->ambient_dimension() == nq);
+    if (options.configuration_obstacles[i]->PointInSet(sample)) {
+      throw std::runtime_error(
+          fmt::format("The seed point is in configuration obstacle {}", i));
+    }
+  }
 
-  // We don't yet support Ibex when the user has defined additional constraints.
-  // It wouldn't be hard to support this, but it would require that all
-  // constraints passed in support symbolic, and most kinematic constraints do
-  // not (yet).
-  DRAKE_DEMAND(options.prog_with_additional_constraints == nullptr ||
-               options.enable_ibex == false);
   if (options.prog_with_additional_constraints) {
     DRAKE_DEMAND(options.prog_with_additional_constraints->num_vars() == nq);
+    DRAKE_DEMAND(options.num_additional_constraint_infeasible_samples >= 0);
   }
 
   // Make the polytope and ellipsoid.
@@ -609,20 +661,25 @@ HPolyhedron IrisInConfigurationSpace(const MultibodyPlant<double>& plant,
   }
 
   auto pairs = inspector.GetCollisionCandidates();
-  const int N = static_cast<int>(pairs.size());
+  const int n = static_cast<int>(pairs.size());
   auto same_point_constraint =
       std::make_shared<SamePointConstraint>(&plant, context);
 
   // As a surrogate for the true objective, the pairs are sorted by the distance
   // between each collision pair from the sample point configuration. This could
-  // improve computation times in Ibex here and produce regions with fewer
-  // faces.
+  // improve computation times and produce regions with fewer faces.
   std::vector<GeometryPairWithDistance> sorted_pairs;
   for (const auto& [geomA, geomB] : pairs) {
-    sorted_pairs.emplace_back(
-        geomA, geomB,
+    const double distance =
         query_object.ComputeSignedDistancePairClosestPoints(geomA, geomB)
-            .distance);
+            .distance;
+    if (distance < 0.0) {
+      throw std::runtime_error(
+          fmt::format("The seed point is in collision; geometry {} is in "
+                      "collision with geometry {}",
+                      inspector.GetName(geomA), inspector.GetName(geomB)));
+    }
+    sorted_pairs.emplace_back(geomA, geomB, distance);
   }
   std::sort(sorted_pairs.begin(), sorted_pairs.end());
 
@@ -630,19 +687,29 @@ HPolyhedron IrisInConfigurationSpace(const MultibodyPlant<double>& plant,
   // {x | A * x <= b}.  Here we pre-allocate matrices with a generous maximum
   // size.
   Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> A(
-      P.A().rows() + 2 * N, nq);
-  VectorXd b(P.A().rows() + 2 * N);
+      P.A().rows() + 2 * n + nc, nq);
+  VectorXd b(P.A().rows() + 2 * n + nc);
   A.topRows(P.A().rows()) = P.A();
   b.head(P.A().rows()) = P.b();
   int num_initial_constraints = P.A().rows();
 
   std::shared_ptr<CounterExampleConstraint> counter_example_constraint{};
+  std::unique_ptr<CounterExampleProgram> counter_example_prog{};
   std::vector<Binding<Constraint>> additional_constraint_bindings{};
   if (options.prog_with_additional_constraints) {
     counter_example_constraint = std::make_shared<CounterExampleConstraint>(
                 options.prog_with_additional_constraints);
     additional_constraint_bindings =
         options.prog_with_additional_constraints->GetAllConstraints();
+    // Fail fast if the seed point is infeasible.
+    {
+      if (!options.prog_with_additional_constraints->CheckSatisfied(
+              additional_constraint_bindings, sample)) {
+        throw std::runtime_error(
+            "options.prog_with_additional_constraints is infeasible at the "
+            "sample point. The seed point must be feasible.");
+      }
+    }
     // Handle bounding box and linear constraints as a special case (extracting
     // them from the additional_constraint_bindings).
     auto AddConstraint = [&](const Eigen::MatrixXd& new_A,
@@ -684,50 +751,103 @@ HPolyhedron IrisInConfigurationSpace(const MultibodyPlant<double>& plant,
         options.prog_with_additional_constraints->bounding_box_constraints());
     HandleLinearConstraints(
         options.prog_with_additional_constraints->linear_constraints());
+    counter_example_prog = std::make_unique<CounterExampleProgram>(
+        counter_example_constraint, E, A.topRows(num_initial_constraints),
+        b.head(num_initial_constraints));
+
+    P = HPolyhedron(A.topRows(num_initial_constraints),
+                    b.head(num_initial_constraints));
   }
+
+  DRAKE_THROW_UNLESS(P.PointInSet(sample, 1e-12));
 
   double best_volume = E.Volume();
   int iteration = 0;
   VectorXd closest(nq);
   RandomGenerator generator(options.random_seed);
+  std::vector<std::pair<double, int>> scaling(nc);
+  MatrixXd closest_points(nq, nc);
 
   auto solver = solvers::MakeFirstAvailableSolver(
       {solvers::SnoptSolver::id(), solvers::IpoptSolver::id()});
-  std::unique_ptr<solvers::IbexSolver> ibex;
-  if (options.enable_ibex) {
-    ibex = std::make_unique<solvers::IbexSolver>();
-    DRAKE_DEMAND(ibex->is_available() && ibex->is_enabled());
-    same_point_constraint->EnableSymbolic();
-  }
 
   while (true) {
     int num_constraints = num_initial_constraints;
     bool sample_point_requirement = true;
+    VectorXd guess = sample;
+    HPolyhedron P_candidate = P;
     DRAKE_ASSERT(best_volume > 0);
     // Find separating hyperplanes
 
-    // Always use the fast nonlinear optimizer to add as many constraints as it
-    // can find.  We always pass `sample` in as the initial guess for all
-    // iterations (not E.center()), because with the nonlinear optimizer, it's
-    // possible the E.center() could become infeasible.
-    for (const auto& pair : sorted_pairs) {
-      while (sample_point_requirement &&
-             FindClosestCollision(
-                 same_point_constraint, *frames.at(pair.geomA),
-                 *frames.at(pair.geomB), *sets.at(pair.geomA),
-                 *sets.at(pair.geomB), E, A.topRows(num_constraints),
-                 b.head(num_constraints), *solver, sample, &closest)) {
-        AddTangentToPolytope(E, closest, options.configuration_space_margin, &A,
-                             &b, &num_constraints);
-        if (options.require_sample_point_is_contained) {
-          sample_point_requirement =
-              A.row(num_constraints - 1) * sample <= b(num_constraints - 1);
+    // Add constraints from configuration space obstacles to reduce the domain
+    // for later optimization.
+    if (options.configuration_obstacles.size() > 0) {
+      const ConvexSets& obstacles = options.configuration_obstacles;
+      for (int i = 0; i < nc; ++i) {
+        const auto touch = E.MinimumUniformScalingToTouch(*obstacles[i]);
+        scaling[i].first = touch.first;
+        scaling[i].second = i;
+        closest_points.col(i) = touch.second;
+      }
+      std::sort(scaling.begin(), scaling.end());
+
+      for (int i = 0; i < nc; ++i) {
+        // Only add a constraint if this obstacle still has overlap with the set
+        // that has been constructed so far on this iteration.
+        if (HPolyhedron(A.topRows(num_constraints), b.head(num_constraints))
+                .IntersectsWith(*obstacles[scaling[i].second])) {
+          const VectorXd point = closest_points.col(scaling[i].second);
+          AddTangentToPolytope(E, point, 0.0, &A, &b, &num_constraints);
         }
+      }
+
+      if (options.require_sample_point_is_contained) {
+        sample_point_requirement =
+            ((A.topRows(num_constraints) * sample).array() <=
+             b.head(num_constraints).array())
+                .any();
       }
     }
 
+    if (!sample_point_requirement) break;
+
+    // Use the fast nonlinear optimizer until it fails
+    // num_collision_infeasible_samples consecutive times.
+    for (const auto& pair : sorted_pairs) {
+      int consecutive_failures = 0;
+      ClosestCollisionProgram prog(
+          same_point_constraint, *frames.at(pair.geomA), *frames.at(pair.geomB),
+          *sets.at(pair.geomA), *sets.at(pair.geomB), E,
+          A.topRows(num_constraints), b.head(num_constraints));
+      while (sample_point_requirement &&
+             consecutive_failures <
+                 options.num_collision_infeasible_samples) {
+        if (prog.Solve(*solver, guess, &closest)) {
+          consecutive_failures = 0;
+          AddTangentToPolytope(E, closest, options.configuration_space_margin,
+                               &A, &b, &num_constraints);
+          P_candidate = HPolyhedron(A.topRows(num_constraints),
+                          b.head(num_constraints));
+          MakeGuessFeasible(P_candidate, options, closest, &guess);
+          if (options.require_sample_point_is_contained) {
+            sample_point_requirement =
+                A.row(num_constraints - 1) * sample <= b(num_constraints - 1);
+            if (!sample_point_requirement) break;
+          }
+          prog.UpdatePolytope(A.topRows(num_constraints),
+                              b.head(num_constraints));
+        } else {
+          ++consecutive_failures;
+        }
+        guess = P_candidate.UniformSample(&generator, guess);
+      }
+    }
+
+    if (!sample_point_requirement) break;
+
     if (options.prog_with_additional_constraints) {
-      VectorXd guess = P.UniformSample(&generator);
+      counter_example_prog->UpdatePolytope(A.topRows(num_constraints),
+                                            b.head(num_constraints));
       for (const auto& binding : additional_constraint_bindings) {
         for (int index = 0; index < binding.evaluator()->num_constraints();
              ++index) {
@@ -743,23 +863,24 @@ HPolyhedron IrisInConfigurationSpace(const MultibodyPlant<double>& plant,
             }
             counter_example_constraint->set(&binding, index,
                                             falsify_lower_bound);
-            P = HPolyhedron(A.topRows(num_constraints),
-                            b.head(num_constraints));
             while (consecutive_failures <
                    options.num_additional_constraint_infeasible_samples) {
-              if (FindCounterExample(
-                      counter_example_constraint, E, A.topRows(num_constraints),
-                      b.head(num_constraints), *solver, guess, &closest)) {
+              if (counter_example_prog->Solve(*solver, guess, &closest)) {
+                consecutive_failures = 0;
                 AddTangentToPolytope(E, closest,
                                      options.configuration_space_margin, &A, &b,
                                      &num_constraints);
+                P_candidate = HPolyhedron(A.topRows(num_constraints),
+                                          b.head(num_constraints));
+                MakeGuessFeasible(P_candidate, options, closest, &guess);
                 if (options.require_sample_point_is_contained) {
                   sample_point_requirement =
                       A.row(num_constraints - 1) * sample <=
                       b(num_constraints - 1);
                   if (!sample_point_requirement) break;
                 }
-                consecutive_failures = 0;
+                counter_example_prog->UpdatePolytope(A.topRows(num_constraints),
+                                                     b.head(num_constraints));
               } else {
                 ++consecutive_failures;
               }
@@ -770,31 +891,8 @@ HPolyhedron IrisInConfigurationSpace(const MultibodyPlant<double>& plant,
       }
     }
 
-    if (options.enable_ibex) {
-      // Now loop back through and use Ibex for rigorous certification if
-      // requested.
-      // TODO(russt): Consider (re-)implementing a "feasibility only" version of
-      // the IRIS check + nonlinear optimization to improve.
-      for (const auto& pair : sorted_pairs) {
-        while (sample_point_requirement &&
-               FindClosestCollision(
-                   same_point_constraint, *frames.at(pair.geomA),
-                   *frames.at(pair.geomB), *sets.at(pair.geomA),
-                   *sets.at(pair.geomB), E, A.topRows(num_constraints),
-                   b.head(num_constraints), *ibex, sample, &closest)) {
-          AddTangentToPolytope(E, closest, options.configuration_space_margin,
-                               &A, &b, &num_constraints);
-          if (options.require_sample_point_is_contained) {
-            sample_point_requirement =
-                A.row(num_constraints - 1) * sample <= b(num_constraints - 1);
-          }
-        }
-      }
-    }
+    if (!sample_point_requirement) break;
 
-    if (!sample_point_requirement) {
-      break;
-    }
     P = HPolyhedron(A.topRows(num_constraints), b.head(num_constraints));
 
     iteration++;

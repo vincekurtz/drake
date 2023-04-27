@@ -227,20 +227,27 @@ GTEST_TEST(DiagramBuilderTest, FinalizeWhenEmpty) {
 
 GTEST_TEST(DiagramBuilderTest, SystemsThatAreNotAddedThrow) {
   DiagramBuilder<double> builder;
+  // These integrators should be listed in the error messages when it prints the
+  // lists of registered systems.
+  builder.AddNamedSystem<Integrator>("integrator1", 1 /* size */);
+  builder.AddNamedSystem<Integrator>("integrator2", 1 /* size */);
   Adder<double> adder(1 /* inputs */, 1 /* size */);
   adder.set_name("adder");
   DRAKE_EXPECT_THROWS_MESSAGE(
       builder.Connect(adder, adder),
-      "DiagramBuilder: Cannot operate on ports of System adder "
-      "until it has been registered using AddSystem");
+      "DiagramBuilder: System 'adder' has not been registered to this "
+      "DiagramBuilder using AddSystem nor AddNamedSystem.\n\n.*'integrator1', "
+      "'integrator2'.*\n\n.*");
   DRAKE_EXPECT_THROWS_MESSAGE(
       builder.ExportInput(adder.get_input_port(0)),
-      "DiagramBuilder: Cannot operate on ports of System adder "
-      "until it has been registered using AddSystem");
+      "DiagramBuilder: System 'adder' has not been registered to this "
+      "DiagramBuilder using AddSystem nor AddNamedSystem.\n\n.*'integrator1', "
+      "'integrator2'.*\n\n.*");
   DRAKE_EXPECT_THROWS_MESSAGE(
       builder.ExportOutput(adder.get_output_port()),
-      "DiagramBuilder: Cannot operate on ports of System adder "
-      "until it has been registered using AddSystem");
+      "DiagramBuilder: System 'adder' has not been registered to this "
+      "DiagramBuilder using AddSystem nor AddNamedSystem.\n\n.*'integrator1', "
+      "'integrator2'.*\n\n.*");
 }
 
 GTEST_TEST(DiagramBuilderTest, ConnectVectorToAbstractThrow) {
@@ -702,6 +709,65 @@ GTEST_TEST(DiagramBuilderTest, GetMutableSystems) {
             builder.GetSystems());
   EXPECT_EQ((std::vector<System<double>*>{adder1, adder2}),
             builder.GetMutableSystems());
+}
+
+// Test for the by-name suite of GetSystems functions.
+GTEST_TEST(DiagramBuilderTest, GetByName) {
+  DiagramBuilder<double> builder;
+  auto adder = builder.AddNamedSystem<Adder>("adder", 1, 1);
+  auto pass = builder.AddNamedSystem<PassThrough>("pass", 1);
+  EXPECT_TRUE(builder.HasSubsystemNamed("adder"));
+  EXPECT_TRUE(builder.HasSubsystemNamed("pass"));
+  EXPECT_FALSE(builder.HasSubsystemNamed("no-such-name"));
+
+  // Plain by-name.
+  EXPECT_EQ(&builder.GetSubsystemByName("adder"), adder);
+  EXPECT_EQ(&builder.GetMutableSubsystemByName("pass"), pass);
+
+  // Downcasting by-name.
+  const Adder<double>& adder2 =
+      builder.GetDowncastSubsystemByName<Adder>("adder");
+  const PassThrough<double>& pass2 =
+      builder.GetDowncastSubsystemByName<PassThrough>("pass");
+  EXPECT_EQ(&adder2, adder);
+  EXPECT_EQ(&pass2, pass);
+
+  // Error: no such name.
+  DRAKE_EXPECT_THROWS_MESSAGE(
+      builder.GetSubsystemByName("not_a_subsystem"),
+      ".*not_a_subsystem.*");
+  DRAKE_EXPECT_THROWS_MESSAGE(
+      builder.GetMutableSubsystemByName("not_a_subsystem"),
+      ".*not_a_subsystem.*");
+  DRAKE_EXPECT_THROWS_MESSAGE(
+      builder.GetDowncastSubsystemByName<Adder>("not_a_subsystem"),
+      ".*not_a_subsystem.*");
+  DRAKE_EXPECT_THROWS_MESSAGE(
+      builder.GetMutableDowncastSubsystemByName<Adder>("not_a_subsystem"),
+      ".*not_a_subsystem.*");
+
+  // Error: wrong type.
+  DRAKE_EXPECT_THROWS_MESSAGE(
+      builder.GetDowncastSubsystemByName<Gain>("adder"),
+      ".*cast.*Adder.*Gain.*");
+  DRAKE_EXPECT_THROWS_MESSAGE(
+      builder.GetMutableDowncastSubsystemByName<Gain>("adder"),
+      ".*cast.*Adder.*Gain.*");
+
+  // Add a second system named "pass". We can still look up the "adder" but
+  // not the "pass" anymore
+  auto bonus_pass = builder.AddNamedSystem<PassThrough>("pass", 1);
+  EXPECT_EQ(&builder.GetSubsystemByName("adder"), adder);
+  EXPECT_TRUE(builder.HasSubsystemNamed("pass"));
+  DRAKE_EXPECT_THROWS_MESSAGE(
+      builder.GetMutableSubsystemByName("pass"),
+      ".*multiple subsystems.*pass.*unique.*");
+
+  // Once the system is reset to use unique name, both lookups succeed.
+  bonus_pass->set_name("bonus_pass");
+  EXPECT_TRUE(builder.HasSubsystemNamed("bonus_pass"));
+  EXPECT_EQ(&builder.GetSubsystemByName("pass"), pass);
+  EXPECT_EQ(&builder.GetSubsystemByName("bonus_pass"), bonus_pass);
 }
 
 // Tests that the returned exported input / output port id matches the

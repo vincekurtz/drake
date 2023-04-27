@@ -18,6 +18,13 @@
 namespace drake {
 namespace multibody {
 
+namespace internal {
+// This is a class used by MultibodyTree internals to create the implementation
+// for a particular joint object.
+template <typename T>
+class JointImplementationBuilder;
+}  // namespace internal
+
 /// A %Joint models the kinematical relationship which characterizes the
 /// possible relative motion between two bodies.
 /// The two bodies connected by this %Joint object are referred to as _parent_
@@ -67,7 +74,7 @@ namespace multibody {
 ///
 /// @tparam_default_scalar
 template <typename T>
-class Joint : public MultibodyElement<Joint, T, JointIndex> {
+class Joint : public MultibodyElement<T> {
  public:
   DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(Joint)
 
@@ -119,7 +126,7 @@ class Joint : public MultibodyElement<Joint, T, JointIndex> {
         const VectorX<double>& vel_upper_limits,
         const VectorX<double>& acc_lower_limits,
         const VectorX<double>& acc_upper_limits)
-      : MultibodyElement<Joint, T, JointIndex>(frame_on_child.model_instance()),
+      : MultibodyElement<T>(frame_on_child.model_instance()),
         name_(name),
         frame_on_parent_(frame_on_parent),
         frame_on_child_(frame_on_child),
@@ -147,7 +154,7 @@ class Joint : public MultibodyElement<Joint, T, JointIndex> {
     // N.B. We cannot use `num_positions()` here because it is virtual.
     const int num_positions = pos_lower_limits.size();
 
-    // intialize the default positions.
+    // initialize the default positions.
     default_positions_ = VectorX<double>::Zero(num_positions);
   }
 
@@ -167,6 +174,9 @@ class Joint : public MultibodyElement<Joint, T, JointIndex> {
               acc_lower_limits, acc_upper_limits) {}
 
   virtual ~Joint() {}
+
+  /// Returns this element's unique index.
+  JointIndex index() const { return this->template index_impl<JointIndex>(); }
 
   /// Returns the name of this joint.
   const std::string& name() const { return name_; }
@@ -335,11 +345,9 @@ class Joint : public MultibodyElement<Joint, T, JointIndex> {
     // Joint locking is only supported for discrete mode.
     // TODO(sherm1): extend the design to support continuous-mode systems.
     DRAKE_THROW_UNLESS(this->get_parent_tree().is_state_discrete());
-    context->get_mutable_abstract_parameter(is_locked_parameter_index_)
-        .set_value(true);
-    this->get_parent_tree().GetMutableVelocities(context).segment(
-        this->velocity_start(),
-        this->num_velocities()).setZero();
+    for (internal::Mobilizer<T>* mobilizer : implementation_->mobilizers_) {
+      mobilizer->Lock(context);
+    }
   }
 
   /// Unlock the joint. Unlocking is not yet supported for continuous-mode
@@ -349,14 +357,18 @@ class Joint : public MultibodyElement<Joint, T, JointIndex> {
     // Joint locking is only supported for discrete mode.
     // TODO(sherm1): extend the design to support continuous-mode systems.
     DRAKE_THROW_UNLESS(this->get_parent_tree().is_state_discrete());
-    context->get_mutable_abstract_parameter(is_locked_parameter_index_)
-        .set_value(false);
+    for (internal::Mobilizer<T>* mobilizer : implementation_->mobilizers_) {
+      mobilizer->Unlock(context);
+    }
   }
 
   /// @return true if the joint is locked, false otherwise.
   bool is_locked(const systems::Context<T>& context) const {
-    return context.get_parameters().template get_abstract_parameter<bool>(
-        is_locked_parameter_index_);
+    bool locked = false;
+    for (internal::Mobilizer<T>* mobilizer : implementation_->mobilizers_) {
+      locked |= mobilizer->is_locked(context);
+    }
+    return locked;
   }
 
   /// @name Methods to get and set the limits of `this` joint. For position
@@ -694,16 +706,6 @@ class Joint : public MultibodyElement<Joint, T, JointIndex> {
   /// If the MultibodyTree has been finalized, this will return true.
   bool has_implementation() const { return implementation_ != nullptr; }
 
-  // Implementation for MultibodyElement::DoDeclareParameters().
-  void DoDeclareParameters(
-      internal::MultibodyTreeSystem<T>* tree_system) override {
-    // Declare parent class's parameters
-    MultibodyElement<Joint, T, JointIndex>::DoDeclareParameters(tree_system);
-
-    is_locked_parameter_index_ =
-        this->DeclareAbstractParameter(tree_system, Value<bool>(false));
-  }
-
  private:
   // Make all other Joint<U> objects a friend of Joint<T> so they can make
   // Joint<ToScalar>::JointImplementation from CloneToScalar<ToScalar>().
@@ -744,9 +746,6 @@ class Joint : public MultibodyElement<Joint, T, JointIndex> {
 
   // Joint default position. This vector has zero size for joints with no state.
   VectorX<double> default_positions_;
-
-  // System parameter index for `this` joint's lock state stored in a context.
-  systems::AbstractParameterIndex is_locked_parameter_index_;
 
   // The Joint<T> implementation:
   std::unique_ptr<JointImplementation> implementation_;

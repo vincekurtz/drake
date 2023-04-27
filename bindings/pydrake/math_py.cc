@@ -8,23 +8,25 @@
 #include "drake/bindings/pydrake/autodiff_types_pybind.h"
 #include "drake/bindings/pydrake/common/cpp_template_pybind.h"
 #include "drake/bindings/pydrake/common/default_scalars_pybind.h"
-#include "drake/bindings/pydrake/common/deprecation_pybind.h"
 #include "drake/bindings/pydrake/common/eigen_pybind.h"
 #include "drake/bindings/pydrake/common/type_pack.h"
 #include "drake/bindings/pydrake/common/value_pybind.h"
 #include "drake/bindings/pydrake/documentation_pybind.h"
+#include "drake/bindings/pydrake/math_operators_pybind.h"
 #include "drake/bindings/pydrake/pydrake_pybind.h"
 #include "drake/bindings/pydrake/symbolic_types_pybind.h"
-#include "drake/common/drake_deprecated.h"
+#include "drake/common/fmt_ostream.h"
 #include "drake/math/barycentric.h"
 #include "drake/math/bspline_basis.h"
 #include "drake/math/compute_numerical_gradient.h"
 #include "drake/math/continuous_algebraic_riccati_equation.h"
 #include "drake/math/continuous_lyapunov_equation.h"
+#include "drake/math/cross_product.h"
 #include "drake/math/discrete_algebraic_riccati_equation.h"
 #include "drake/math/discrete_lyapunov_equation.h"
 #include "drake/math/matrix_util.h"
 #include "drake/math/quadratic_form.h"
+#include "drake/math/quaternion.h"
 #include "drake/math/random_rotation.h"
 #include "drake/math/rigid_transform.h"
 #include "drake/math/roll_pitch_yaw.h"
@@ -34,7 +36,6 @@
 namespace drake {
 namespace pydrake {
 
-using std::pow;
 using symbolic::Expression;
 using symbolic::Variable;
 
@@ -46,6 +47,8 @@ void DoScalarDependentDefinitions(py::module m, T) {
   // NOLINTNEXTLINE(build/namespaces): Emulate placement in namespace.
   using namespace drake::math;
   constexpr auto& doc = pydrake_doc.drake.math;
+
+  // N.B. Some classes define `__repr__` in `_math_extra.py`.
 
   {
     using Class = RigidTransform<T>;
@@ -106,11 +109,19 @@ void DoScalarDependentDefinitions(py::module m, T) {
             cls_doc.IsExactlyIdentity.doc)
         .def("IsNearlyIdentity", &Class::IsNearlyIdentity,
             py::arg("translation_tolerance"), cls_doc.IsNearlyIdentity.doc)
+        .def("IsExactlyEqualTo", &Class::IsExactlyEqualTo, py::arg("other"),
+            cls_doc.IsExactlyEqualTo.doc)
         .def("IsNearlyEqualTo", &Class::IsNearlyEqualTo, py::arg("other"),
             py::arg("tolerance"), cls_doc.IsNearlyEqualTo.doc)
         .def("inverse", &Class::inverse, cls_doc.inverse.doc)
         .def("InvertAndCompose", &Class::InvertAndCompose, py::arg("other"),
             cls_doc.InvertAndCompose.doc)
+        .def("GetMaximumAbsoluteDifference",
+            &Class::GetMaximumAbsoluteDifference, py::arg("other"),
+            cls_doc.GetMaximumAbsoluteDifference.doc)
+        .def("GetMaximumAbsoluteTranslationDifference",
+            &Class::GetMaximumAbsoluteTranslationDifference, py::arg("other"),
+            cls_doc.GetMaximumAbsoluteTranslationDifference.doc)
         .def(
             "multiply",
             [](const Class* self, const Class& other) { return *self * other; },
@@ -121,6 +132,12 @@ void DoScalarDependentDefinitions(py::module m, T) {
               return *self * p_BoQ_B;
             },
             py::arg("p_BoQ_B"), cls_doc.operator_mul.doc_1args_p_BoQ_B)
+        .def(
+            "multiply",
+            [](const Class* self, const Vector4<T>& vec_B) {
+              return *self * vec_B;
+            },
+            py::arg("vec_B"), cls_doc.operator_mul.doc_1args_vec_B)
         .def(
             "multiply",
             [](const Class* self, const Matrix3X<T>& p_BoQ_B) {
@@ -136,8 +153,6 @@ void DoScalarDependentDefinitions(py::module m, T) {
     cls.attr("__matmul__") = cls.attr("multiply");
     DefCopyAndDeepCopy(&cls);
     DefCast<T>(&cls, cls_doc.cast.doc);
-    // .def("IsNearlyEqualTo", ...)
-    // .def("IsExactlyEqualTo", ...)
     AddValueInstantiation<Class>(m);
     // Some ports need `Value<std::vector<Class>>`.
     AddValueInstantiation<std::vector<Class>>(m);
@@ -207,6 +222,8 @@ void DoScalarDependentDefinitions(py::module m, T) {
               return RotationMatrix<T>::ProjectToRotationMatrix(M);
             },
             py::arg("M"), cls_doc.ProjectToRotationMatrix.doc)
+        .def("ToRollPitchYaw", &Class::ToRollPitchYaw,
+            cls_doc.ToRollPitchYaw.doc)
         .def("ToQuaternion",
             overload_cast_explicit<Eigen::Quaternion<T>>(&Class::ToQuaternion),
             cls_doc.ToQuaternion.doc_0args)
@@ -262,6 +279,9 @@ void DoScalarDependentDefinitions(py::module m, T) {
         .def("CalcRpyDtFromAngularVelocityInParent",
             &Class::CalcRpyDtFromAngularVelocityInParent, py::arg("w_AD_A"),
             cls_doc.CalcRpyDtFromAngularVelocityInParent.doc)
+        .def("CalcRpyDtFromAngularVelocityInChild",
+            &Class::CalcRpyDtFromAngularVelocityInChild, py::arg("w_AD_D"),
+            cls_doc.CalcRpyDtFromAngularVelocityInChild.doc)
         .def("CalcRpyDDtFromRpyDtAndAngularAccelInParent",
             &Class::CalcRpyDDtFromRpyDtAndAngularAccelInParent,
             py::arg("rpyDt"), py::arg("alpha_AD_A"),
@@ -335,6 +355,51 @@ void DoScalarDependentDefinitions(py::module m, T) {
 
   m.def("wrap_to", &wrap_to<T, T>, py::arg("value"), py::arg("low"),
       py::arg("high"), doc.wrap_to.doc);
+
+  // Cross product
+  m.def(
+      "VectorToSkewSymmetric",
+      [](const Eigen::Ref<const Vector3<T>>& p) {
+        return VectorToSkewSymmetric(p);
+      },
+      py::arg("p"), doc.VectorToSkewSymmetric.doc);
+
+  // Quaternion.
+  m  // BR
+      .def("ClosestQuaternion", &ClosestQuaternion<T>, py::arg("quat1"),
+          py::arg("quat2"), doc.ClosestQuaternion.doc)
+      // TODO(russt): Bind quatConjugate, quatProduct, quatRotateVec, quatDiff,
+      // quatDiffAxisInvar once they've been switched to Eigen::Quaternion<T>.
+      .def("is_quaternion_in_canonical_form",
+          &is_quaternion_in_canonical_form<T>, py::arg("quat"),
+          doc.is_quaternion_in_canonical_form.doc)
+      .def("QuaternionToCanonicalForm", &QuaternionToCanonicalForm<T>,
+          py::arg("quat"), doc.QuaternionToCanonicalForm.doc)
+      .def("AreQuaternionsEqualForOrientation",
+          &AreQuaternionsEqualForOrientation<T>, py::arg("quat1"),
+          py::arg("quat2"), py::arg("tolerance"),
+          doc.AreQuaternionsEqualForOrientation.doc)
+      .def("CalculateQuaternionDtFromAngularVelocityExpressedInB",
+          &CalculateQuaternionDtFromAngularVelocityExpressedInB<T>,
+          py::arg("quat_AB"), py::arg("w_AB_B"),
+          doc.CalculateQuaternionDtFromAngularVelocityExpressedInB.doc)
+      .def("CalculateAngularVelocityExpressedInBFromQuaternionDt",
+          &CalculateAngularVelocityExpressedInBFromQuaternionDt<T>,
+          py::arg("quat_AB"), py::arg("quatDt"),
+          doc.CalculateAngularVelocityExpressedInBFromQuaternionDt.doc)
+      .def("CalculateQuaternionDtConstraintViolation",
+          &CalculateQuaternionDtConstraintViolation<T>, py::arg("quat"),
+          py::arg("quatDt"), doc.CalculateQuaternionDtConstraintViolation.doc)
+      .def("IsQuaternionValid", &IsQuaternionValid<T>, py::arg("quat"),
+          py::arg("tolerance"), doc.IsQuaternionValid.doc)
+      .def("IsBothQuaternionAndQuaternionDtOK",
+          &IsBothQuaternionAndQuaternionDtOK<T>, py::arg("quat"),
+          py::arg("quatDt"), py::arg("tolerance"),
+          doc.IsBothQuaternionAndQuaternionDtOK.doc);
+  // TODO(russt): Bind
+  // IsQuaternionAndQuaternionDtEqualAngularVelocityExpressedInB, but this
+  // requires additional support for T=Expression (e.g. if_then_else(Formula,
+  // Formula, Formula)) or an exclusion.
 }
 
 void DoScalarIndependentDefinitions(py::module m) {
@@ -484,41 +549,6 @@ void DoScalarIndependentDefinitions(py::module m) {
       .def("RealDiscreteLyapunovEquation", &RealDiscreteLyapunovEquation,
           py::arg("A"), py::arg("Q"), doc.RealDiscreteLyapunovEquation.doc);
 
-  // General scalar math overloads.
-  // N.B. Additional overloads will be added for autodiff, symbolic, etc, by
-  // those respective modules.
-  // TODO(eric.cousineau): If possible, delegate these to NumPy UFuncs,
-  // either using __array_ufunc__ or user dtypes.
-  // TODO(m-chaturvedi) Add Pybind11 documentation.
-  m  // BR
-      .def("log", [](double x) { return log(x); })
-      .def("abs", [](double x) { return fabs(x); })
-      .def("exp", [](double x) { return exp(x); })
-      .def("sqrt", [](double x) { return sqrt(x); })
-      .def("pow", [](double x, double y) { return pow(x, y); })
-      .def("sin", [](double x) { return sin(x); })
-      .def("cos", [](double x) { return cos(x); })
-      .def("tan", [](double x) { return tan(x); })
-      .def("asin", [](double x) { return asin(x); })
-      .def("acos", [](double x) { return acos(x); })
-      .def("atan", [](double x) { return atan(x); })
-      .def(
-          "atan2", [](double y, double x) { return atan2(y, x); }, py::arg("y"),
-          py::arg("x"))
-      .def("sinh", [](double x) { return sinh(x); })
-      .def("cosh", [](double x) { return cosh(x); })
-      .def("tanh", [](double x) { return tanh(x); })
-      .def("min", [](double x, double y) { return fmin(x, y); })
-      .def("max", [](double x, double y) { return fmax(x, y); })
-      .def("ceil", [](double x) { return ceil(x); })
-      .def("floor", [](double x) { return floor(x); });
-
-  // General vectorized / matrix overloads.
-  m  // BR
-      .def("inv", [](const Eigen::MatrixXd& X) -> Eigen::MatrixXd {
-        return X.inverse();
-      });
-
   {
     using Class = NumericalGradientMethod;
     constexpr auto& cls_doc = doc.NumericalGradientMethod;
@@ -536,7 +566,17 @@ void DoScalarIndependentDefinitions(py::module m) {
             py::arg("function_accuracy") = 1E-15, cls_doc.ctor.doc)
         .def("NumericalGradientMethod", &Class::method, cls_doc.method.doc)
         .def("perturbation_size", &Class::perturbation_size,
-            cls_doc.perturbation_size.doc);
+            cls_doc.perturbation_size.doc)
+        .def(
+            "__repr__", [](const NumericalGradientOption& self) -> std::string {
+              py::object method = py::cast(self.method());
+              // This is a minimal implementation that serves to avoid
+              // displaying memory addresses in pydrake docs and help strings.
+              // In the future, we should enhance this to display all of the
+              // information.
+              return fmt::format("<NumericalGradientOption({})>",
+                  fmt_streamed(py::repr(method)));
+            });
   }
 
   m.def(
@@ -554,10 +594,6 @@ void DoScalarIndependentDefinitions(py::module m) {
       py::arg("option") =
           NumericalGradientOption(NumericalGradientMethod::kForward),
       doc.ComputeNumericalGradient.doc);
-
-  // See TODO in corresponding header file - these should be removed soon!
-  pydrake::internal::BindAutoDiffMathOverloads(&m);
-  pydrake::internal::BindSymbolicMathOverloads<Expression>(&m);
 }
 }  // namespace
 
@@ -568,6 +604,12 @@ PYBIND11_MODULE(math, m) {
   py::module::import("pydrake.autodiffutils");
   py::module::import("pydrake.common.eigen_geometry");
   py::module::import("pydrake.symbolic");
+
+  // Define math operations for all three scalar types.
+  // See TODO in corresponding header file - these should be removed soon!
+  pydrake::internal::BindMathOperators<double>(&m);
+  pydrake::internal::BindMathOperators<AutoDiffXd>(&m);
+  pydrake::internal::BindMathOperators<Expression>(&m);
 
   DoScalarIndependentDefinitions(m);
   type_visit([m](auto dummy) { DoScalarDependentDefinitions(m, dummy); },

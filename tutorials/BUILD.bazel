@@ -1,6 +1,3 @@
-# -*- mode: python -*-
-# vi: set ft=python :
-
 load("//tools/skylark:drake_py.bzl", "drake_py_test")
 load("//tools/jupyter:jupyter_py.bzl", "drake_jupyter_py_binary")
 load("@drake//tools/install:install.bzl", "install", "install_files")
@@ -79,9 +76,24 @@ drake_jupyter_py_binary(
 )
 
 drake_jupyter_py_binary(
+    name = "authoring_leaf_systems",
+    add_test_rule = 1,
+    deps = [
+        "//bindings/pydrake",
+    ],
+)
+
+drake_jupyter_py_binary(
+    name = "working_with_diagrams",
+    add_test_rule = 1,
+    deps = [
+        "//bindings/pydrake",
+    ],
+)
+
+drake_jupyter_py_binary(
     name = "authoring_multibody_simulation",
     add_test_rule = 1,
-    test_timeout = "moderate",
     deps = [
         "//bindings/pydrake",
     ],

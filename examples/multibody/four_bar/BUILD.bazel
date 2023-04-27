@@ -1,6 +1,3 @@
-# -*- python -*-
-# This file contains rules for Bazel; see drake/doc/bazel.rst.
-
 load(
     "@drake//tools/skylark:drake_cc.bzl",
     "drake_cc_binary",
@@ -12,6 +9,7 @@ filegroup(
     srcs = glob([
         "**/*.sdf",
     ]),
+    visibility = ["//:__pkg__"],
 )
 
 drake_cc_binary(
@@ -23,8 +21,6 @@ drake_cc_binary(
         "--simulation_time=0.1",
     ],
     deps = [
-        "//common:find_resource",
-        "//geometry:drake_visualizer",
         "//multibody/parsing",
         "//multibody/plant",
         "//multibody/tree",
@@ -32,6 +28,7 @@ drake_cc_binary(
         "//systems/analysis:simulator_gflags",
         "//systems/analysis:simulator_print_stats",
         "//systems/framework:diagram",
+        "//visualization:visualization_config_functions",
         "@gflags",
     ],
 )

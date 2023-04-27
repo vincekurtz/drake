@@ -55,10 +55,14 @@ enum class JacobianWrtVariable {
 /// @cond
 // Helper macro to throw an exception within methods that should not be called
 // post-finalize.
+// This macro is constant-time and, per Drake's style guide, we allow to call
+// it from within snake_case functions.
 #define DRAKE_MBT_THROW_IF_FINALIZED() ThrowIfFinalized(__func__)
 
 // Helper macro to throw an exception within methods that should not be called
 // pre-finalize.
+// This macro is constant-time and, per Drake's style guide, we allow to call
+// it from within snake_case functions.
 #define DRAKE_MBT_THROW_IF_NOT_FINALIZED() ThrowIfNotFinalized(__func__)
 /// @endcond
 
@@ -569,6 +573,7 @@ class MultibodyTree {
 
   // Returns the number of generalized positions of the model.
   int num_positions() const {
+    DRAKE_MBT_THROW_IF_NOT_FINALIZED();
     return topology_.num_positions();
   }
 
@@ -580,6 +585,7 @@ class MultibodyTree {
 
   // Returns the number of generalized velocities of the model.
   int num_velocities() const {
+    DRAKE_MBT_THROW_IF_NOT_FINALIZED();
     return topology_.num_velocities();
   }
 
@@ -591,6 +597,7 @@ class MultibodyTree {
 
   // Returns the total size of the state vector in the model.
   int num_states() const {
+    DRAKE_MBT_THROW_IF_NOT_FINALIZED();
     return topology_.num_states();
   }
 
@@ -604,6 +611,12 @@ class MultibodyTree {
   // See MultibodyPlant method.
   int num_actuated_dofs() const {
     return topology_.num_actuated_dofs();
+  }
+
+  // See MultibodyPlant method.
+  int num_actuators(ModelInstanceIndex model_instance) const {
+    DRAKE_MBT_THROW_IF_NOT_FINALIZED();
+    return model_instances_.at(model_instance)->num_actuators();
   }
 
   // See MultibodyPlant method.
@@ -686,6 +699,11 @@ class MultibodyTree {
 
   // See MultibodyPlant method.
   const Mobilizer<T>& get_mobilizer(MobilizerIndex mobilizer_index) const {
+    DRAKE_THROW_UNLESS(mobilizer_index < num_mobilizers());
+    return *owned_mobilizers_[mobilizer_index];
+  }
+
+  Mobilizer<T>& get_mutable_mobilizer(MobilizerIndex mobilizer_index) {
     DRAKE_THROW_UNLESS(mobilizer_index < num_mobilizers());
     return *owned_mobilizers_[mobilizer_index];
   }
@@ -813,6 +831,14 @@ class MultibodyTree {
   std::vector<JointIndex> GetJointIndices(ModelInstanceIndex model_instance)
   const;
 
+  // See MultibodyPlant method.
+  std::vector<JointActuatorIndex> GetJointActuatorIndices(
+      ModelInstanceIndex model_instance) const;
+
+  // See MultibodyPlant method.
+  std::vector<JointIndex> GetActuatedJointIndices(
+      ModelInstanceIndex model_instance) const;
+
   // Returns a list of frame indices associated with `model_instance`
   std::vector<FrameIndex> GetFrameIndices(ModelInstanceIndex model_instance)
   const;
@@ -886,6 +912,10 @@ class MultibodyTree {
   // bookkeeping detail. Used at Finalize() stage by multibody elements to
   // retrieve a local copy of their topology.
   const MultibodyTreeTopology& get_topology() const { return topology_; }
+
+  // See MultibodyPlant method.
+  std::vector<BodyIndex> GetBodiesKinematicallyAffectedBy(
+      const std::vector<JointIndex>& joint_indexes) const;
 
   // Returns the mobilizer model for joint with index `joint_index`. The index
   // is invalid if the joint is not modeled with a mobilizer.
@@ -2492,11 +2522,21 @@ class MultibodyTree {
   // @retval Total mass of all bodies in body_indexes or 0 if there is no mass.
   double CalcTotalDefaultMass(const std::set<BodyIndex>& body_indexes) const;
 
-  // (Internal use only) Returns true if all the default rotational inertia of
-  // bodies in a set of BodyIndex are zero or NaN.
+  // In the set of bodies associated with BodyIndex, returns true if any of
+  // the bodies have a NaN default rotational inertia.
   // @param[in] body_indexes A set of BodyIndex.
-  bool IsAllDefaultRotationalInertiaZeroOrNaN(
+  bool IsAnyDefaultRotationalInertiaNaN(
       const std::set<BodyIndex>& body_indexes) const;
+
+  // In the set of bodies associated with BodyIndex, returns true if all the
+  // bodies have a zero default rotational inertia.
+  // @param[in] body_indexes A set of BodyIndex.
+  bool AreAllDefaultRotationalInertiaZero(
+      const std::set<BodyIndex>& body_indexes) const;
+
+  // Throw an exception if there are bodies whose default mass or inertia
+  // properties will cause subsequent numerical problems.
+  void ThrowDefaultMassInertiaError() const;
 
  private:
   // Make MultibodyTree templated on every other scalar type a friend of
@@ -2594,7 +2634,7 @@ class MultibodyTree {
   // called at Finalize().
   // The world body is special in that it is the only body in the model with no
   // mobilizer, even after Finalize().
-  void AddQuaternionFreeMobilizerToAllBodiesWithNoMobilizer();
+  void CreateJointImplementations();
 
   // For a frame Fp that is fixed/welded to a frame_F, this method computes
   // A_AFp_E, Fp's spatial acceleration in a body_A, expressed in a frame_E.

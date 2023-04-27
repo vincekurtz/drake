@@ -99,6 +99,11 @@ class PetscSymmetricBlockSparseMatrix {
   void AddToBlock(const VectorX<int>& block_indices,
                   const MatrixX<double>& block);
 
+  /* Operation equivalent to
+    A.block(ib * b, jb * b, b, b) = block;
+  */
+  void AddToBlock(int ib, int jb, const MatrixX<double>& block);
+
   /* Solves for A*x = b using the given type of solver, where A is this matrix.
    @warn The compatibility of the solver and preconditioner type with the
    problem at hand is not checked. Callers need to be careful to choose the
@@ -143,7 +148,7 @@ class PetscSymmetricBlockSparseMatrix {
    https://petsc.org/main/docs/manualpages/KSP/KSPSetTolerances.html. All the
    other tolerance parameters (e.g. absolute tolerance, maximum number of
    iterations, etc) are set to the default value specified in the PETSc
-   documentaion. */
+   documentation. */
   void set_relative_tolerance(double tolerance);
 
   /* Given a linear system of equations Mz = c that can be written in block form

@@ -236,6 +236,14 @@ def install_numpy_warning_filters(force=False):
         "error", category=DeprecationWarning,
         message="elementwise comparison failed")
 
+    # TODO(#17898): This is not a deprecation per se, nor is it promoting the
+    # deprecation to warning. However, this warning currently does not incur
+    # a functional penalty, so we suppress the warning to minimize
+    # distractions. Root-cause investigation pending.
+    warnings.filterwarnings(
+        "ignore", category=RuntimeWarning,
+        message="invalid value encountered in")
+
 
 def deprecated_callable(message, *, date=None):
     """
@@ -249,17 +257,18 @@ def deprecated_callable(message, *, date=None):
     However, if you are dealing with a C++ module (and are writing code inside
     of `_{module}_extra.py`), you should use this approach.
 
-    Example as decorator:
+    Example:
+        ::
 
-        @deprecated_callable("Please use `func_y` instead", date="2038-01-19")
-        def func_x():
-            ...
+            # As decorator
+            @deprecated_callable("Please use `func_y` instead", date="2038-01-19")  # noqa
+            def func_x():
+                ...
 
-    Example for alias:
-
-        my_alias = deprecated_callable(
-            "Please use `my_original` instead", date="2038-01-19"
-        )(my_original)
+            # As alias
+            deprecated_alias = deprecated_callable(
+                "Please use `real_callable` instead", date="2038-01-19"
+            )(real_callable)
     """
 
     def decorator(original):

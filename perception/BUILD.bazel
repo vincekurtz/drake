@@ -1,5 +1,3 @@
-# -*- python -*-
-
 load(
     "@drake//tools/skylark:drake_cc.bzl",
     "drake_cc_binary",
@@ -35,9 +33,14 @@ drake_cc_library(
     name = "point_cloud",
     srcs = ["point_cloud.cc"],
     hdrs = ["point_cloud.h"],
-    deps = [
+    interface_deps = [
         ":point_cloud_flags",
         "//common:essential",
+    ],
+    deps = [
+        "//common:unused",
+        "@common_robotics_utilities",
+        "@nanoflann_internal//:nanoflann",
     ],
 )
 
@@ -84,11 +87,30 @@ drake_cc_googletest(
 )
 
 drake_cc_googletest(
-    name = "point_cloud_test",
+    name = "point_cloud_test_serial",
+    srcs = ["test/point_cloud_test.cc"],
+    defines = ["ENABLE_PARALLEL_OPS=false"],
+    num_threads = 1,
     deps = [
         ":point_cloud",
+        "//common:random",
         "//common/test_utilities:eigen_matrix_compare",
         "//common/test_utilities:expect_no_throw",
+        "@common_robotics_utilities",
+    ],
+)
+
+drake_cc_googletest(
+    name = "point_cloud_test_parallel",
+    srcs = ["test/point_cloud_test.cc"],
+    defines = ["ENABLE_PARALLEL_OPS=true"],
+    num_threads = 2,
+    deps = [
+        ":point_cloud",
+        "//common:random",
+        "//common/test_utilities:eigen_matrix_compare",
+        "//common/test_utilities:expect_no_throw",
+        "@common_robotics_utilities",
     ],
 )
 

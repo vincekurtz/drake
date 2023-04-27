@@ -11,7 +11,7 @@
 
 namespace drake {
 namespace geometry {
-namespace render {
+namespace render_gl {
 namespace internal {
 
 // TODO(SeanCurtis-TRI): Consider moving this up to RenderEngine; it's useful
@@ -117,7 +117,7 @@ struct OpenGlInstance {
     DRAKE_DEMAND(geometry.is_defined());
   }
 
-  // TODO(SeanCurtis-TRI) Chanage these quantities to be float-valued so they
+  // TODO(SeanCurtis-TRI) Change these quantities to be float-valued so they
   //  can go directly into the shader without casting.
   OpenGlGeometry geometry;
   math::RigidTransformd X_WG;
@@ -126,6 +126,6 @@ struct OpenGlInstance {
 };
 
 }  // namespace internal
-}  // namespace render
+}  // namespace render_gl
 }  // namespace geometry
 }  // namespace drake

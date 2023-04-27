@@ -15,7 +15,9 @@ namespace drake {
 namespace trajectories {
 /** Represents a B-spline curve using a given `basis` with ordered
 `control_points` such that each control point is a matrix in ℝʳᵒʷˢ ˣ ᶜᵒˡˢ.
-@see math::BsplineBasis */
+@see math::BsplineBasis
+@tparam_default_scalar
+*/
 template <typename T>
 class BsplineTrajectory final : public trajectories::Trajectory<T> {
  public:
@@ -103,8 +105,8 @@ class BsplineTrajectory final : public trajectories::Trajectory<T> {
   whose control points are the result of calling
   `point.block(start_row, start_col, block_rows, block_cols)` on each `point`
   in `this->control_points()`.*/
-  BsplineTrajectory<T> CopyBlock(int start_row, int start_col,
-                                       int block_rows, int block_cols) const;
+  BsplineTrajectory<T> CopyBlock(int start_row, int start_col, int block_rows,
+                                 int block_cols) const;
 
   /** Returns a new BsplineTrajectory that uses the same basis as `this`, and
   whose control points are the result of calling `point.head(n)` on each `point`
@@ -129,7 +131,7 @@ class BsplineTrajectory final : public trajectories::Trajectory<T> {
   Serialize(Archive* a) {
     a->Visit(MakeNameValue("basis", &basis_));
     a->Visit(MakeNameValue("control_points", &control_points_));
-    DRAKE_THROW_UNLESS(CheckInvariants());
+    CheckInvariants();
   }
 
  private:
@@ -140,10 +142,14 @@ class BsplineTrajectory final : public trajectories::Trajectory<T> {
   std::unique_ptr<trajectories::Trajectory<T>> DoMakeDerivative(
       int derivative_order) const override;
 
-  bool CheckInvariants() const;
+  void CheckInvariants() const;
 
   math::BsplineBasis<T> basis_;
   std::vector<MatrixX<T>> control_points_;
 };
+
 }  // namespace trajectories
 }  // namespace drake
+
+DRAKE_DECLARE_CLASS_TEMPLATE_INSTANTIATIONS_ON_DEFAULT_SCALARS(
+    class drake::trajectories::BsplineTrajectory)

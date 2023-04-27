@@ -1,3 +1,6 @@
+// This file is licensed under the MIT-0 License.
+// See LICENSE-MIT-0.txt in the current directory.
+
 #pragma once
 
 #include <cstdint>
@@ -9,18 +12,22 @@
 
 #include "drake/common/name_value.h"
 #include "drake/lcm/drake_lcm_params.h"
+#include "drake/manipulation/kuka_iiwa/iiwa_driver.h"
 #include "drake/manipulation/schunk_wsg/schunk_wsg_driver.h"
 #include "drake/manipulation/util/zero_force_driver.h"
 #include "drake/multibody/parsing/model_directives.h"
 #include "drake/multibody/plant/multibody_plant_config.h"
 #include "drake/systems/analysis/simulator_config.h"
+#include "drake/systems/sensors/camera_config.h"
 #include "drake/visualization/visualization_config.h"
 
 namespace drake {
 namespace internal {
 
 /* Defines the YAML format for a (possibly stochastic) scenario to be
-simulated. */
+simulated.
+
+Drake maintainers should keep this file in sync with hardware_sim.py. */
 struct Scenario {
   template <typename Archive>
   void Serialize(Archive* a) {
@@ -31,6 +38,7 @@ struct Scenario {
     a->Visit(DRAKE_NVP(directives));
     a->Visit(DRAKE_NVP(lcm_buses));
     a->Visit(DRAKE_NVP(model_drivers));
+    a->Visit(DRAKE_NVP(cameras));
     a->Visit(DRAKE_NVP(visualization));
   }
 
@@ -63,10 +71,16 @@ struct Scenario {
   /* For actuated models, specifies where each model's actuation inputs come
   from, keyed on the ModelInstance name. */
   using DriverVariant = std::variant<
-      // TODO(jwnimmer-tri) Add more types of robot drivers here.
+      manipulation::kuka_iiwa::IiwaDriver,
       manipulation::schunk_wsg::SchunkWsgDriver,
       manipulation::ZeroForceDriver>;
   std::map<std::string, DriverVariant> model_drivers;
+
+  /* Cameras to add to the scene (and broadcast over LCM). The key for each
+   camera is a helpful mnemonic, but does not serve a technical role. The
+   CameraConfig::name field is still the name that will appear in the Diagram
+   artifacts. */
+  std::map<std::string, systems::sensors::CameraConfig> cameras;
 
   visualization::VisualizationConfig visualization;
 };

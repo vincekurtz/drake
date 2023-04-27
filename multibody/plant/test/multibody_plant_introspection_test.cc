@@ -29,8 +29,8 @@ namespace {
 // The mathematical model of this system, after Finalize(), should contain
 // three floating bodies, one for each Atlas robot and one for the mug.
 GTEST_TEST(MultibodyPlantIntrospection, FloatingBodies) {
-  const std::string atlas_path =
-      FindResourceOrThrow("drake/examples/atlas/urdf/atlas_convex_hull.urdf");
+  const std::string atlas_url =
+      "package://drake_models/atlas/atlas_convex_hull.urdf";
 
   const std::string table_sdf_path = FindResourceOrThrow(
       "drake/examples/kuka_iiwa_arm/models/table/"
@@ -44,21 +44,21 @@ GTEST_TEST(MultibodyPlantIntrospection, FloatingBodies) {
   // Load a model of a table for the environment around the robot.
   Parser parser(&plant);
   const ModelInstanceIndex robot_table_model =
-      parser.AddModelFromFile(table_sdf_path, "robot_table");
+      parser.AddModels(table_sdf_path).at(0);
   plant.WeldFrames(plant.world_frame(),
                    plant.GetFrameByName("link", robot_table_model));
 
   // Load two Atlas robots.
   const ModelInstanceIndex atlas_model1 =
-      parser.AddModelFromFile(atlas_path, "Atlas1");
+      Parser(&plant, "atlas1").AddModelsFromUrl(atlas_url).at(0);
   const ModelInstanceIndex atlas_model2 =
-      parser.AddModelFromFile(atlas_path, "Atlas2");
+      Parser(&plant, "atlas2").AddModelsFromUrl(atlas_url).at(0);
   const Body<double>& pelvis1 = plant.GetBodyByName("pelvis", atlas_model1);
   const Body<double>& pelvis2 = plant.GetBodyByName("pelvis", atlas_model2);
 
   // Add a floating mug.
-  const ModelInstanceIndex mug_model = parser.AddModelFromFile(mug_sdf_path);
-  const Body<double>& mug = plant.GetBodyByName("main_body", mug_model);
+  const ModelInstanceIndex mug_model = parser.AddModels(mug_sdf_path).at(0);
+  const Body<double>& mug = plant.GetBodyByName("simple_mug", mug_model);
 
   // Introspection of the underlying mathematical model is not available until
   // we call Finalize().
@@ -77,6 +77,18 @@ GTEST_TEST(MultibodyPlantIntrospection, FloatingBodies) {
       "allowed.*");
 
   plant.Finalize();
+
+  // Sanity check model sizes.
+  EXPECT_EQ(plant.num_velocities(atlas_model1), 36);
+  EXPECT_EQ(plant.num_positions(atlas_model1), 37);
+  EXPECT_EQ(plant.num_actuators(atlas_model1), 30);
+
+  EXPECT_EQ(plant.num_velocities(atlas_model2), 36);
+  EXPECT_EQ(plant.num_positions(atlas_model2), 37);
+
+  EXPECT_EQ(plant.num_velocities(mug_model), 6);
+  EXPECT_EQ(plant.num_positions(mug_model), 7);
+  EXPECT_EQ(plant.num_actuators(mug_model), 0);
 
   // Assert that the mug and the two Atlas robot pelvises are floating and
   // modeled with quaternions.

@@ -1,5 +1,3 @@
-# -*- python -*-
-
 load("@drake//tools/workspace:github.bzl", "github_archive")
 
 def tinyobjloader_repository(
@@ -8,8 +6,8 @@ def tinyobjloader_repository(
     github_archive(
         name = name,
         repository = "tinyobjloader/tinyobjloader",
-        commit = "a1e8bad32e1ccd26a7936c5354ecf856aec2cf59",
-        sha256 = "1b23bb6feb24cc3faac8a31c8470d268a679be89f7761d6fb488897b2606ca33",  # noqa
+        commit = "bca2719a11e688b85ce9af21dcb156f3d8b918bc",
+        sha256 = "bd0a1df736b129d65841e910f3dd2350b122fdadaddeb3a123a768c58e45464c",  # noqa
         build_file = ":package.BUILD.bazel",
         mirrors = mirrors,
         patches = [

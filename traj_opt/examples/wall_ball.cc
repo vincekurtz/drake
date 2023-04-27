@@ -18,7 +18,7 @@ using multibody::Parser;
 class WallBallExample : public TrajOptExample {
   void CreatePlantModel(MultibodyPlant<double>* plant) const {
     const std::string urdf_file =
-        FindResourceOrThrow("drake/traj_opt/examples/wall_ball.urdf");
+        FindResourceOrThrow("drake/traj_opt/examples/models/wall_ball.urdf");
     Parser(plant).AddAllModelsFromFile(urdf_file);
   }
 };
@@ -30,7 +30,7 @@ class WallBallExample : public TrajOptExample {
 
 int main() {
   drake::traj_opt::examples::wall_ball::WallBallExample wall_ball_example;
-  wall_ball_example.SolveTrajectoryOptimization(
+  wall_ball_example.RunExample(
       "drake/traj_opt/examples/wall_ball.yaml");
   return 0;
 }

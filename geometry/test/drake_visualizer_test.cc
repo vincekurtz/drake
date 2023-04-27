@@ -219,7 +219,7 @@ class DrakeVisualizerTest : public ::testing::Test {
                             {proximity_frame_id_, RigidTransform<T>{}}});
   }
 
-  /* Processes the message queue, reporting the number of load and draw messges
+  /* Processes the message queue, reporting the number of load and draw messages
    and, if that number is non-zero, the last message of each type received.  */
   MessageResults ProcessMessages(std::optional<Role> role = std::nullopt) {
     lcm_.HandleSubscriptions(0);
@@ -308,6 +308,9 @@ class DrakeVisualizerTest : public ::testing::Test {
           visualizer.query_object_input_port().template Eval<QueryObject<T>>(
               viz_context);
 
+      /* Confirm correct name.  */
+      EXPECT_EQ(visualizer.get_name(), "drake_visualizer(illustration)");
+
       /* Confirm correct connection.  */
       EXPECT_TRUE(sg_query_object.inspector().geometry_version().IsSameAs(
           viz_query_object.inspector().geometry_version(),
@@ -345,6 +348,7 @@ class DrakeVisualizerTest : public ::testing::Test {
                                          Rgba{0.1, 0.2, 0.3, 0.4}};
       const auto& visualizer =
           add_to_builder(&builder, port_source(scene_graph), &lcm_, params);
+      EXPECT_EQ(visualizer.get_name(), "drake_visualizer(perception)");
       const DrakeVisualizerParams& vis_params = Tester::get_params(visualizer);
       EXPECT_EQ(vis_params.publish_period, params.publish_period);
       EXPECT_EQ(vis_params.role, params.role);
@@ -674,7 +678,7 @@ TYPED_TEST(DrakeVisualizerTest, ForcePublish) {
   this->PopulateScene();
   auto context = this->diagram_->CreateDefaultContext();
   const auto& vis_context = this->visualizer_->GetMyContextFromRoot(*context);
-  this->visualizer_->Publish(vis_context);
+  this->visualizer_->ForcedPublish(vis_context);
 
   /* Confirm that messages were sent.  */
   MessageResults results = this->ProcessMessages();
@@ -875,7 +879,7 @@ TYPED_TEST(DrakeVisualizerTest, VisualizeDeformableGeometry) {
   /* Dispatch a load message. */
   auto context = this->diagram_->CreateDefaultContext();
   const auto& vis_context = this->visualizer_->GetMyContextFromRoot(*context);
-  this->visualizer_->Publish(vis_context);
+  this->visualizer_->ForcedPublish(vis_context);
 
   /* Confirm that messages were sent.  */
   MessageResults results = this->ProcessMessages();
@@ -985,7 +989,7 @@ TYPED_TEST(DrakeVisualizerTest, VisualizeHydroGeometry) {
   /* Dispatch a load message. */
   auto context = this->diagram_->CreateDefaultContext();
   const auto& vis_context = this->visualizer_->GetMyContextFromRoot(*context);
-  this->visualizer_->Publish(vis_context);
+  this->visualizer_->ForcedPublish(vis_context);
 
   /* Confirm that messages were sent.  */
   MessageResults results = this->ProcessMessages(params.role);

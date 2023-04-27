@@ -15,10 +15,7 @@ from pydrake.multibody.parsing import Parser
 from pydrake.multibody.plant import (
     MultibodyPlant, AddMultibodyPlantSceneGraph)
 from pydrake.multibody.tree import BodyIndex
-from pydrake.solvers.gurobi import GurobiSolver
-import pydrake.solvers.mathematicalprogram as mp
-import pydrake.solvers.mixed_integer_optimization_util as mip_util
-import pydrake.solvers.mixed_integer_rotation_constraint as mip_rot
+import pydrake.solvers as mp
 from pydrake.systems.framework import DiagramBuilder
 
 # TODO(eric.cousineau): Replace manual coordinate indexing with more semantic
@@ -33,7 +30,7 @@ class TestInverseKinematics(unittest.TestCase):
         builder = DiagramBuilder()
         self.plant, self.scene_graph = AddMultibodyPlantSceneGraph(
             builder, MultibodyPlant(time_step=0.01))
-        Parser(self.plant).AddModelFromFile(FindResourceOrThrow(
+        Parser(self.plant).AddModels(FindResourceOrThrow(
                 "drake/bindings/pydrake/multibody/test/two_bodies.sdf"))
         self.plant.Finalize()
         diagram = builder.Build()
@@ -291,6 +288,15 @@ class TestInverseKinematics(unittest.TestCase):
         self.assertTrue(result.is_success())
         self.assertTrue(np.allclose(result.GetSolution(self.q), q_val))
 
+    def test_AddAngleBetweenVectorsCost(self):
+        na_A = np.array([0.2, -0.4, 0.9])
+        nb_B = np.array([1.4, -0.1, 1.8])
+
+        self.ik_two_bodies.AddAngleBetweenVectorsCost(
+            frameA=self.body1_frame, na_A=na_A,
+            frameB=self.body2_frame, nb_B=nb_B,
+            c=10.)
+
     def test_AddPointToPointDistanceConstraint(self):
         p_B1P1 = np.array([0.2, -0.4, 0.9])
         p_B2P2 = np.array([1.4, -0.1, 1.8])
@@ -317,6 +323,42 @@ class TestInverseKinematics(unittest.TestCase):
 
         self.assertLess(distance, distance_upper + 3e-6)
         self.assertGreater(distance, distance_lower - 3e-6)
+
+        result = mp.Solve(self.prog)
+        self.assertTrue(result.is_success())
+        self.assertTrue(np.allclose(result.GetSolution(self.q), q_val))
+
+    def test_AddPointToLineDistanceConstraint(self):
+        p_B1P = np.array([0.2, -0.4, 0.9])
+        p_B2Q = np.array([1.4, -0.1, 1.8])
+        n_B2 = np.array([0.1, 0.3, 0.2])
+
+        distance_lower = 0.1
+        distance_upper = 0.2
+
+        self.ik_two_bodies.AddPointToLineDistanceConstraint(
+            frame_point=self.body1_frame, p_B1P=p_B1P,
+            frame_line=self.body2_frame, p_B2Q=p_B2Q, n_B2=n_B2,
+            distance_lower=distance_lower, distance_upper=distance_upper)
+        result = mp.Solve(self.prog)
+        self.assertTrue(result.is_success())
+
+        q_val = result.GetSolution(self.q)
+        body1_quat = self._body1_quat(q_val)
+        body2_quat = self._body2_quat(q_val)
+        body1_rotmat = Quaternion(body1_quat).rotation()
+        body2_rotmat = Quaternion(body2_quat).rotation()
+
+        p_WP = self._body1_xyz(q_val) + body1_rotmat.dot(p_B1P)
+        p_WQ = self._body2_xyz(q_val) + body2_rotmat.dot(p_B2Q)
+        n_W = body2_rotmat @ n_B2
+        n_W_normalized = n_W / np.linalg.norm(n_W)
+        distance = np.linalg.norm(
+            p_WQ + n_W_normalized.dot(p_WP - p_WQ) * n_W_normalized
+            - p_WP)
+
+        self.assertLess(distance, distance_upper + 1e-5)
+        self.assertGreater(distance, distance_lower - 1e-5)
 
         result = mp.Solve(self.prog)
         self.assertTrue(result.is_success())
@@ -437,7 +479,7 @@ class TestConstraints(unittest.TestCase):
         builder_f = DiagramBuilder()
         self.plant_f, self.scene_graph_f = AddMultibodyPlantSceneGraph(
             builder_f, MultibodyPlant(time_step=0.01))
-        Parser(self.plant_f).AddModelFromFile(FindResourceOrThrow(
+        Parser(self.plant_f).AddModels(FindResourceOrThrow(
                 "drake/bindings/pydrake/multibody/test/two_bodies.sdf"))
         self.plant_f.Finalize()
         diagram_f = builder_f.Build()
@@ -481,6 +523,18 @@ class TestConstraints(unittest.TestCase):
             angle_upper=0.2 * math.pi,
             plant_context=variables.plant_context)
         self.assertIsInstance(constraint, mp.Constraint)
+
+    @check_type_variables
+    def test_angle_between_vectors_cost(self, variables):
+        cost = ik.AngleBetweenVectorsCost(
+            plant=variables.plant,
+            frameA=variables.body1_frame,
+            a_A=[0.2, -0.4, 0.9],
+            frameB=variables.body2_frame,
+            b_B=[1.4, -0.1, 1.8],
+            c=10.,
+            plant_context=variables.plant_context)
+        self.assertIsInstance(cost, mp.Cost)
 
     @check_type_variables
     def test_distance_constraint(self, variables):
@@ -608,6 +662,17 @@ class TestConstraints(unittest.TestCase):
         self.assertIsInstance(constraint, mp.Constraint)
 
     @check_type_variables
+    def test_point_to_line_distance_constraint(self, variables):
+        constraint = ik.PointToLineDistanceConstraint(
+            plant=variables.plant,
+            frame_point=variables.body1_frame, p_B1P=[0.1, 0.2, 0.3],
+            frame_line=variables.body2_frame, p_B2Q=[0.3, 0.4, 0.5],
+            n_B2=[0.2, 0.3, 0.4],
+            distance_lower=0.1, distance_upper=0.2,
+            plant_context=variables.plant_context)
+        self.assertIsInstance(constraint, mp.Constraint)
+
+    @check_type_variables
     def test_polyhedron_constraint(self, variables):
         constraint = ik.PolyhedronConstraint(
             plant=variables.plant,
@@ -653,16 +718,16 @@ class TestGlobalInverseKinematics(unittest.TestCase):
             "linear_constraint_only=False)"]))
         self.assertEqual(options.num_intervals_per_half_axis, 2)
         self.assertEqual(
-            options.approach, mip_rot.MixedIntegerRotationConstraintGenerator.
+            options.approach, mp.MixedIntegerRotationConstraintGenerator.
             Approach.kBilinearMcCormick)
         self.assertEqual(options.interval_binning,
-                         mip_util.IntervalBinning.kLogarithmic)
+                         mp.IntervalBinning.kLogarithmic)
         self.assertFalse(options.linear_constraint_only)
 
     def test_api(self):
         plant = MultibodyPlant(time_step=0.01)
-        model_instance = Parser(plant).AddModelFromFile(FindResourceOrThrow(
-                "drake/bindings/pydrake/multibody/test/two_bodies.sdf"))
+        model_instance, = Parser(plant).AddModels(FindResourceOrThrow(
+            "drake/bindings/pydrake/multibody/test/two_bodies.sdf"))
         plant.Finalize()
         context = plant.CreateDefaultContext()
         options = ik.GlobalInverseKinematics.Options()
@@ -699,7 +764,7 @@ class TestGlobalInverseKinematics(unittest.TestCase):
             q_desired=plant.GetPositions(context),
             body_position_cost=[1] * plant.num_bodies(),
             body_orientation_cost=[1] * plant.num_bodies())
-        gurobi_solver = GurobiSolver()
+        gurobi_solver = mp.GurobiSolver()
         if gurobi_solver.available():
             global_ik.SetInitialGuess(q=plant.GetPositions(context))
             result = gurobi_solver.Solve(global_ik.prog())

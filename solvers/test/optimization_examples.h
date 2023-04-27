@@ -48,9 +48,9 @@ class OptimizationProgram {
 
   virtual ~OptimizationProgram() {}
 
-  CostForm cost_form() const {return cost_form_;}
+  CostForm cost_form() const { return cost_form_; }
 
-  ConstraintForm constraint_form() const {return constraint_form_;}
+  ConstraintForm constraint_form() const { return constraint_form_; }
 
   MathematicalProgram* prog() const { return prog_.get(); }
 
@@ -142,7 +142,6 @@ class LinearSystemExample3 : public LinearSystemExample2 {
 
   void CheckSolution(const MathematicalProgramResult& result) const override;
 };
-
 
 /**
  * For a stable linear system ẋ = A x, find its Lyapunov function by solving
@@ -575,7 +574,7 @@ class ConvexCubicProgramExample : public MathematicalProgram {
 
   ConvexCubicProgramExample();
 
-  ~ConvexCubicProgramExample() override {};
+  ~ConvexCubicProgramExample() override = default;
 
   void CheckSolution(const MathematicalProgramResult& result) const;
 
@@ -596,7 +595,7 @@ class UnitLengthProgramExample : public MathematicalProgram {
 
   UnitLengthProgramExample();
 
-  ~UnitLengthProgramExample() override {};
+  ~UnitLengthProgramExample() override = default;
 
   void CheckSolution(const MathematicalProgramResult& result,
                      double tolerance) const;
@@ -947,11 +946,50 @@ class EmptyGradientProblem {
   Vector2<symbolic::Variable> x_;
 };
 
+void TestL2NormCost(const SolverInterface& solver, double tol);
+
 std::set<CostForm> linear_cost_form();
 
 std::set<CostForm> quadratic_cost_form();
 
 std::set<ConstraintForm> linear_constraint_form();
+
+// Test a nonlinear program whose costs and constraints are intentionally
+// imposed using duplicated variables.
+class DuplicatedVariableNonlinearProgram1 : public ::testing::Test {
+  // max x0² + 4x0x1 + 4x1²
+  // s.t x0² + x1² = 1
+  //     x0 >= 0
+  // The optimal solution is x0 = 1/sqrt(5), x1 = 2/sqrt(5).
+ public:
+  DuplicatedVariableNonlinearProgram1();
+
+  void CheckSolution(
+      const SolverInterface& solver, const Eigen::Vector2d& x_init,
+      const std::optional<SolverOptions>& solver_options = std::nullopt,
+      double tol = 1E-7) const;
+
+ protected:
+  std::unique_ptr<MathematicalProgram> prog_;
+  Vector2<symbolic::Variable> x_;
+};
+
+// Test a nonlinear program with quadratic constraints.
+// max x + 2*y
+// s.t x² + y² = 1
+class QuadraticEqualityConstrainedProgram1 : public ::testing::Test {
+ public:
+  QuadraticEqualityConstrainedProgram1();
+
+  void CheckSolution(
+      const SolverInterface& solver, const Eigen::Vector2d& x_init,
+      const std::optional<SolverOptions>& solver_options = std::nullopt,
+      double tol = 1E-7, bool check_dual = true) const;
+
+ protected:
+  std::unique_ptr<MathematicalProgram> prog_;
+  Vector2<symbolic::Variable> x_;
+};
 }  // namespace test
 }  // namespace solvers
 }  // namespace drake

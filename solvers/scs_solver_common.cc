@@ -10,7 +10,7 @@ namespace drake {
 namespace solvers {
 
 ScsSolver::ScsSolver()
-    : SolverBase(&id, &is_available, &is_enabled, &ProgramAttributesSatisfied,
+    : SolverBase(id(), &is_available, &is_enabled, &ProgramAttributesSatisfied,
                  &UnsatisfiedProgramAttributes) {}
 
 ScsSolver::~ScsSolver() = default;
@@ -20,7 +20,9 @@ SolverId ScsSolver::id() {
   return singleton.access();
 }
 
-bool ScsSolver::is_enabled() { return true; }
+bool ScsSolver::is_enabled() {
+  return true;
+}
 
 namespace {
 // If the program is compatible with this solver, returns true and clears the

@@ -1,5 +1,3 @@
-# -*- python -*-
-
 # This file governs the contents of libdrake.so.
 
 # Do not update this list by hand; instead, from the drake workspace run
@@ -44,11 +42,12 @@ LIBDRAKE_COMPONENTS = [
     "//geometry/query_results",
     "//geometry/render/shaders",
     "//geometry/render_gl",
+    "//geometry/render_gltf_client",
     "//geometry/render_vtk",
     "//lcm",
     "//manipulation/kinova_jaco",
     "//manipulation/kuka_iiwa",
-    "//manipulation/planner",
+    "//manipulation/planner",  # 2023-06-01 Remove this with completed deprecation  # noqa
     "//manipulation/schunk_wsg",
     "//manipulation/util",
     "//math",
@@ -70,14 +69,14 @@ LIBDRAKE_COMPONENTS = [
     "//multibody/parsing",
     "//multibody/plant",
     "//multibody/plant:contact_results_to_lcm",  # unpackaged
+    "//multibody/rational",
     "//multibody/topology:multibody_graph",  # unpackaged
     "//multibody/tree",
     "//multibody/triangle_quadrature",
     "//perception",
     "//planning",
+    "//planning/trajectory_optimization",
     "//solvers",
-    "//solvers/fbstab",
-    "//solvers/fbstab/components",
     "//systems/analysis",
     "//systems/controllers",
     "//systems/estimators",

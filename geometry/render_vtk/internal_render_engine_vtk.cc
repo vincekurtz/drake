@@ -8,6 +8,7 @@
 
 #include <vtkCamera.h>
 #include <vtkCylinderSource.h>
+#include <vtkImageCast.h>
 #include <vtkOBJReader.h>
 #include <vtkOpenGLPolyDataMapper.h>
 #include <vtkOpenGLShaderProperty.h>
@@ -27,13 +28,18 @@
 
 namespace drake {
 namespace geometry {
-namespace render {
+namespace render_vtk {
+namespace internal {
 
 using Eigen::Vector2d;
 using Eigen::Vector4d;
 using math::RigidTransformd;
+using render::ColorRenderCamera;
+using render::DepthRenderCamera;
+using render::RenderCameraCore;
+using render::RenderEngine;
+using render::RenderLabel;
 using std::make_unique;
-using internal::ImageType;
 using systems::sensors::CameraInfo;
 using systems::sensors::ColorD;
 using systems::sensors::ColorI;
@@ -42,9 +48,6 @@ using systems::sensors::ImageLabel16I;
 using systems::sensors::ImageRgba8U;
 using systems::sensors::ImageTraits;
 using systems::sensors::PixelType;
-using vtk_util::ConvertToVtkTransform;
-using vtk_util::CreateSquarePlane;
-using vtk_util::MakeVtkPointerArray;
 
 namespace {
 
@@ -94,20 +97,15 @@ std::string RemoveFileExtension(const std::string& filepath) {
 
 }  // namespace
 
-namespace internal {
-
 ShaderCallback::ShaderCallback() :
     // These values are arbitrary "reasonable" values, but we expect them to
     // *both* be overwritten upon every usage.
     z_near_(0.01),
     z_far_(100.0) {}
 
-}  // namespace internal
+vtkNew<ShaderCallback> RenderEngineVtk::uniform_setting_callback_;
 
-vtkNew<internal::ShaderCallback> RenderEngineVtk::uniform_setting_callback_;
-
-RenderEngineVtk::RenderEngineVtk(
-    const geometry::RenderEngineVtkParams& parameters)
+RenderEngineVtk::RenderEngineVtk(const RenderEngineVtkParams& parameters)
     : RenderEngine(parameters.default_label ? *parameters.default_label
                                             : RenderLabel::kUnspecified),
       pipelines_{{make_unique<RenderingPipeline>(),
@@ -132,10 +130,19 @@ void RenderEngineVtk::UpdateViewpoint(const RigidTransformd& X_WC) {
   }
 }
 
-void RenderEngineVtk::ImplementGeometry(const Sphere& sphere, void* user_data) {
-  vtkNew<vtkTexturedSphereSource> vtk_sphere;
-  SetSphereOptions(vtk_sphere.GetPointer(), sphere.radius());
-  ImplementGeometry(vtk_sphere.GetPointer(), user_data);
+void RenderEngineVtk::ImplementGeometry(const Box& box, void* user_data) {
+  const RegistrationData* data = static_cast<RegistrationData*>(user_data);
+  ImplementGeometry(CreateVtkBox(box, data->properties).GetPointer(),
+                    user_data);
+}
+
+void RenderEngineVtk::ImplementGeometry(const Capsule& capsule,
+                                        void* user_data) {
+  ImplementGeometry(CreateVtkCapsule(capsule).GetPointer(), user_data);
+}
+
+void RenderEngineVtk::ImplementGeometry(const Convex& convex, void* user_data) {
+  ImplementObj(convex.filename(), convex.scale(), user_data);
 }
 
 void RenderEngineVtk::ImplementGeometry(const Cylinder& cylinder,
@@ -152,6 +159,11 @@ void RenderEngineVtk::ImplementGeometry(const Cylinder& cylinder,
   ImplementGeometry(transform_filter.GetPointer(), user_data);
 }
 
+void RenderEngineVtk::ImplementGeometry(const Ellipsoid& ellipsoid,
+                                        void* user_data) {
+  ImplementGeometry(CreateVtkEllipsoid(ellipsoid).GetPointer(), user_data);
+}
+
 void RenderEngineVtk::ImplementGeometry(const HalfSpace&,
                                         void* user_data) {
   vtkSmartPointer<vtkPlaneSource> vtk_plane = CreateSquarePlane(kTerrainSize);
@@ -159,28 +171,14 @@ void RenderEngineVtk::ImplementGeometry(const HalfSpace&,
   ImplementGeometry(vtk_plane.GetPointer(), user_data);
 }
 
-void RenderEngineVtk::ImplementGeometry(const Box& box, void* user_data) {
-  const RegistrationData* data = static_cast<RegistrationData*>(user_data);
-  ImplementGeometry(CreateVtkBox(box, data->properties).GetPointer(),
-                    user_data);
-}
-
-void RenderEngineVtk::ImplementGeometry(const Capsule& capsule,
-                                        void* user_data) {
-  ImplementGeometry(CreateVtkCapsule(capsule).GetPointer(), user_data);
-}
-
-void RenderEngineVtk::ImplementGeometry(const Ellipsoid& ellipsoid,
-                                        void* user_data) {
-  ImplementGeometry(CreateVtkEllipsoid(ellipsoid).GetPointer(), user_data);
-}
-
 void RenderEngineVtk::ImplementGeometry(const Mesh& mesh, void* user_data) {
   ImplementObj(mesh.filename(), mesh.scale(), user_data);
 }
 
-void RenderEngineVtk::ImplementGeometry(const Convex& convex, void* user_data) {
-  ImplementObj(convex.filename(), convex.scale(), user_data);
+void RenderEngineVtk::ImplementGeometry(const Sphere& sphere, void* user_data) {
+  vtkNew<vtkTexturedSphereSource> vtk_sphere;
+  SetSphereOptions(vtk_sphere.GetPointer(), sphere.radius());
+  ImplementGeometry(vtk_sphere.GetPointer(), user_data);
 }
 
 bool RenderEngineVtk::DoRegisterVisual(
@@ -477,8 +475,8 @@ void RenderEngineVtk::ImplementGeometry(vtkPolyDataAlgorithm* source,
   vtkOpenGLShaderProperty* shader_prop = vtkOpenGLShaderProperty::SafeDownCast(
       actors[ImageType::kDepth]->GetShaderProperty());
   DRAKE_DEMAND(shader_prop != nullptr);
-  shader_prop->SetVertexShaderCode(shaders::kDepthVS);
-  shader_prop->SetFragmentShaderCode(shaders::kDepthFS);
+  shader_prop->SetVertexShaderCode(render::shaders::kDepthVS);
+  shader_prop->SetFragmentShaderCode(render::shaders::kDepthFS);
   mappers[ImageType::kDepth]->AddObserver(
       vtkCommand::UpdateShaderEvent, uniform_setting_callback_.Get());
 
@@ -545,8 +543,21 @@ void RenderEngineVtk::ImplementGeometry(vtkPolyDataAlgorithm* source,
     vtkNew<vtkPNGReader> texture_reader;
     texture_reader->SetFileName(texture_name.c_str());
     texture_reader->Update();
+    if (texture_reader->GetOutput()->GetScalarType() != VTK_UNSIGNED_CHAR) {
+      log()->warn(
+          "Texture map '{}' has an unsupported bit depth, casting it to uchar "
+          "channels.",
+          texture_name);
+    }
+
+    vtkNew<vtkImageCast> caster;
+    caster->SetOutputScalarType(VTK_UNSIGNED_CHAR);
+    caster->SetInputConnection(texture_reader->GetOutputPort());
+    caster->Update();
+    DRAKE_DEMAND(caster->GetOutput() != nullptr);
+
     vtkNew<vtkOpenGLTexture> texture;
-    texture->SetInputConnection(texture_reader->GetOutputPort());
+    texture->SetInputConnection(caster->GetOutputPort());
     const bool need_repeat = uv_scale[0] > 1 || uv_scale[1] > 1;
     texture->SetRepeat(need_repeat);
     texture->InterpolateOn();
@@ -626,6 +637,7 @@ void RenderEngineVtk::UpdateWindow(const DepthRenderCamera& camera,
   UpdateWindow(camera.core(), false, p, "");
 }
 
-}  // namespace render
+}  // namespace internal
+}  // namespace render_vtk
 }  // namespace geometry
 }  // namespace drake

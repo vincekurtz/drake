@@ -12,6 +12,7 @@ from pydrake.common.test_utilities.pickle_compare import assert_pickle
 
 import copy
 import math
+import pickle
 import textwrap
 import unittest
 
@@ -80,6 +81,7 @@ class TestMath(unittest.TestCase):
             (mut.tanh, math.tanh),
             (mut.ceil, math.ceil),
             (mut.floor, math.floor),
+            (mut.isnan, math.isnan),
         ]
         binary = [
             (mut.min, min),
@@ -162,19 +164,25 @@ class TestMath(unittest.TestCase):
             X.multiply(other=RigidTransform()), RigidTransform)
         self.assertIsInstance(
             X.InvertAndCompose(other=RigidTransform()), RigidTransform)
+        self.assertIsInstance(
+            X.GetMaximumAbsoluteDifference(other=RigidTransform()), T)
+        self.assertIsInstance(
+            X.GetMaximumAbsoluteTranslationDifference(
+                other=RigidTransform()), T)
         self.assertIsInstance(X @ RigidTransform(), RigidTransform)
         self.assertIsInstance(X @ [0, 0, 0], np.ndarray)
         if T != Expression:
             self.assertTrue(X.IsExactlyIdentity())
             self.assertTrue(X.IsNearlyIdentity(translation_tolerance=0))
             self.assertTrue(X.IsNearlyEqualTo(other=X, tolerance=0))
+            self.assertTrue(X.IsExactlyEqualTo(other=X))
         # - Test shaping (#13885).
         v = np.array([0., 0., 0.])
         vs = np.array([[1., 2., 3.], [4., 5., 6.]]).T
         self.assertEqual((X @ v).shape, (3,))
         self.assertEqual((X @ v.reshape((3, 1))).shape, (3, 1))
         self.assertEqual((X @ vs).shape, (3, 2))
-        # - Test vector multiplication.
+        # - Test 3-element vector multiplication.
         R_AB = RotationMatrix([
             [0., 1, 0],
             [-1, 0, 0],
@@ -184,6 +192,11 @@ class TestMath(unittest.TestCase):
         p_BQ = [10, 20, 30]
         p_AQ = [21., -8, 33]
         numpy_compare.assert_float_equal(X_AB.multiply(p_BoQ_B=p_BQ), p_AQ)
+        # - Test 4-element vector multiplication.
+        p_BQ_vec4 = np.array([10, 20, 30, 1])
+        p_AQ_vec4 = np.array([21., -8, 33, 1])
+        numpy_compare.assert_float_equal(
+            X_AB.multiply(vec_B=p_BQ_vec4), p_AQ_vec4)
         # N.B. Remember that this takes ndarray[3, n], NOT ndarray[n, 3]!
         p_BQlist = np.array([p_BQ, p_BQ]).T
         p_AQlist = np.array([p_AQ, p_AQ]).T
@@ -215,6 +228,23 @@ class TestMath(unittest.TestCase):
             self.assertIsInstance(roundtrip, RigidTransform)
         # Test pickling.
         assert_pickle(self, X_AB, RigidTransform.GetAsMatrix4, T=T)
+
+    def test_legacy_unpickle(self):
+        """Checks that data pickled as RotationMatrix_[float] in Drake v1.12.0
+        can be unpickled as RotationMatrix_𝓣float𝓤 in newer versions of Drake.
+
+        Since the unpickling shim lives at the module level, testing one class
+        is sufficient even though our module has several pickle-able classes.
+        """
+        legacy_data = b"\x80\x04\x95\x18\x01\x00\x00\x00\x00\x00\x00\x8c\x0cpydrake.math\x94\x8c\x16RigidTransform_[float]\x94\x93\x94)\x81\x94\x8c\x15numpy.core.multiarray\x94\x8c\x0c_reconstruct\x94\x93\x94\x8c\x05numpy\x94\x8c\x07ndarray\x94\x93\x94K\x00\x85\x94C\x01b\x94\x87\x94R\x94(K\x01K\x03K\x04\x86\x94h\x07\x8c\x05dtype\x94\x93\x94\x8c\x02f8\x94\x89\x88\x87\x94R\x94(K\x03\x8c\x01<\x94NNNJ\xff\xff\xff\xffJ\xff\xff\xff\xffK\x00t\x94b\x88C`\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xf0\xbf\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xf0?\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xf0?\x00\x00\x00\x00\x00\x00\xf0?\x00\x00\x00\x00\x00\x00\x00@\x00\x00\x00\x00\x00\x00\x08@\x94t\x94bb."  # noqa
+        obj = pickle.loads(legacy_data)
+        self.assertIsInstance(obj, mut.RigidTransform_[float])
+        expected = np.array([
+            [0.0,  1.0, 0.0, 1.0],
+            [-1.0, 0.0, 0.0, 2.0],
+            [0.0,  0.0, 1.0, 3.0],
+        ])
+        numpy_compare.assert_float_equal(obj.GetAsMatrix34(), expected)
 
     @numpy_compare.check_all_types
     def test_rotation_matrix(self, T):
@@ -256,6 +286,9 @@ class TestMath(unittest.TestCase):
         numpy_compare.assert_float_equal(R.matrix(), np.eye(3))
         # - Cast.
         self.check_cast(mut.RotationMatrix_, T)
+        # - Conversion to RollPitchYaw
+        roll_pitch_yaw = R.ToRollPitchYaw()
+        self.assertIsInstance(roll_pitch_yaw, RollPitchYaw)
         # - Nontrivial quaternion.
         q = Quaternion(wxyz=[0.5, 0.5, 0.5, 0.5])
         R = RotationMatrix(quaternion=q)
@@ -304,8 +337,9 @@ class TestMath(unittest.TestCase):
         numpy_compare.assert_equal(R.IsNearlyIdentity(0.0), True)
         numpy_compare.assert_equal(R.IsNearlyIdentity(tolerance=1E-15), True)
         # - Repr.
-        z = repr(T(0.0))
-        i = repr(T(1.0))
+        z = repr(T(0.0))  # "z" for zero
+        i = repr(T(1.0))  # "i" for identity (one)
+        t = repr(T(2.0))  # "t" for two
         type_suffix = {
             float: "",
             AutoDiffXd: "_[AutoDiffXd]",
@@ -317,11 +351,18 @@ class TestMath(unittest.TestCase):
           [{z}, {i}, {z}],
           [{z}, {z}, {i}],
         ])"""))
+        self.assertEqual(repr(RollPitchYaw(rpy=[2, 1, 0])),
+                         f"RollPitchYaw{type_suffix}("
+                         f"roll={t}, pitch={i}, yaw={z})")
         if T == float:
             # TODO(jwnimmer-tri) Once AutoDiffXd and Expression implement an
             # eval-able repr, then we can test more than just T=float here.
             roundtrip = eval(repr(RotationMatrix()))
             self.assertTrue(roundtrip.IsExactlyIdentity())
+            roundtrip = eval(repr(RollPitchYaw(rpy=[2, 1, 0])))
+            self.assertAlmostEqual(roundtrip.roll_angle(), 2)
+            self.assertAlmostEqual(roundtrip.pitch_angle(), 1)
+            self.assertAlmostEqual(roundtrip.yaw_angle(), 0)
         # Test pickling.
         assert_pickle(self, R_AB, RotationMatrix.matrix, T=T)
 
@@ -363,6 +404,9 @@ class TestMath(unittest.TestCase):
             [0., 0., 0.])
         numpy_compare.assert_float_equal(
             rpy.CalcRpyDtFromAngularVelocityInParent(w_AD_A=[0, 0, 0]),
+            [0., 0., 0.])
+        numpy_compare.assert_float_equal(
+            rpy.CalcRpyDtFromAngularVelocityInChild(w_AD_D=[0, 0, 0]),
             [0., 0., 0.])
         numpy_compare.assert_float_equal(
             rpy.CalcRpyDDtFromRpyDtAndAngularAccelInParent(
@@ -413,6 +457,44 @@ class TestMath(unittest.TestCase):
         value = wrap_to(T(1.5), T(0.), T(1.))
         if T != Expression:
             self.assertEqual(value, T(.5))
+
+    @numpy_compare.check_all_types
+    def test_cross_product(self, T):
+        p = np.array([T(1), T(2), T(3)])
+        p_cross = mut.VectorToSkewSymmetric(p)
+        self.assertEqual(p_cross.shape, (3, 3))
+
+    @numpy_compare.check_all_types
+    def test_quaternion(self, T):
+        q1 = Quaternion_[T]()
+        q2 = Quaternion_[T]()
+        w = np.zeros(3)
+        tolerance = 1e-4
+        quat = mut.ClosestQuaternion(quat1=q1, quat2=q2)
+        self.assertIsInstance(quat, Quaternion_[T])
+        b = mut.is_quaternion_in_canonical_form(quat=q1)
+        numpy_compare.assert_equal(b, True)
+        quat = mut.QuaternionToCanonicalForm(quat=q1)
+        self.assertIsInstance(quat, Quaternion_[T])
+        b = mut.AreQuaternionsEqualForOrientation(quat1=q1,
+                                                  quat2=q2,
+                                                  tolerance=tolerance)
+        numpy_compare.assert_equal(b, True)
+        quatDt = mut.CalculateQuaternionDtFromAngularVelocityExpressedInB(
+            quat_AB=q1, w_AB_B=w)
+        numpy_compare.assert_float_equal(quatDt, np.zeros(4))
+        w2 = mut.CalculateAngularVelocityExpressedInBFromQuaternionDt(
+            quat_AB=q1, quatDt=quatDt)
+        self.assertEqual(len(w2), 3)
+        v = mut.CalculateQuaternionDtConstraintViolation(quat=q1,
+                                                         quatDt=quatDt)
+        self.assertIsInstance(v, T)
+        b = mut.IsQuaternionValid(quat=q1, tolerance=tolerance)
+        numpy_compare.assert_equal(b, True)
+        b = mut.IsBothQuaternionAndQuaternionDtOK(quat=q1,
+                                                  quatDt=quatDt,
+                                                  tolerance=tolerance)
+        numpy_compare.assert_equal(b, True)
 
     def test_random_rotations(self):
         g = RandomGenerator()
@@ -476,6 +558,8 @@ class TestMath(unittest.TestCase):
         option = mut.NumericalGradientOption(
             method=mut.NumericalGradientMethod.kCentral,
             function_accuracy=1E-15)
+
+        self.assertIn("kCentral", repr(option))
 
         def foo(x):
             return np.array([x[0] ** 2, x[0] * x[1]])

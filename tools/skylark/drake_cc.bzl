@@ -1,11 +1,15 @@
-# -*- python -*-
-
 load("@cc//:compiler.bzl", "COMPILER_ID", "COMPILER_VERSION_MAJOR")
+load(
+    "//tools/skylark:kwargs.bzl",
+    "incorporate_allow_network",
+    "incorporate_num_threads",
+)
 
 # The CXX_FLAGS will be enabled for all C++ rules in the project
 # building with any compiler.
 CXX_FLAGS = [
     "-Werror=all",
+    "-Werror=attributes",
     "-Werror=cpp",
     "-Werror=deprecated",
     "-Werror=deprecated-declarations",
@@ -14,6 +18,9 @@ CXX_FLAGS = [
     "-Werror=overloaded-virtual",
     "-Werror=shadow",
     "-Werror=unused-result",
+    # We eschew Eigen::IO in lieu of drake::fmt_eigen.
+    # See drake/common/fmt_eigen.h for details.
+    "-DEIGEN_NO_IO=1",
 ]
 
 # The CLANG_FLAGS will be enabled for all C++ rules in the project when
@@ -490,6 +497,7 @@ def _maybe_add_pruned_private_hdrs_dep(
     new_srcs, private_hdrs = _prune_private_hdrs(srcs)
     if private_hdrs:
         name = "_" + base_name + "_private_headers_cc_impl"
+        kwargs.pop("env", "")
         kwargs.pop("linkshared", "")
         kwargs.pop("linkstatic", "")
         kwargs.pop("visibility", "")
@@ -579,12 +587,12 @@ def drake_cc_library(
         if kwargs.get("testonly", False):
             fail("Using internal = True is already implied under testonly = 1")
         if len(kwargs.get("visibility") or []) == 0:
-            fail("When using internal = True, you must set visiblity. " +
+            fail("When using internal = True, you must set visibility. " +
                  "In most cases, visibility = [\"//visibility:private\"] " +
                  "or visibility = [\"//:__subpackages__\"] are suitable.")
         for item in kwargs["visibility"]:
             if item == "//visibility:public":
-                fail("When using internal = True, visiblity can't be public")
+                fail("When using internal = True, visibility can't be public")
         install_hdrs_exclude = hdrs
         new_tags = new_tags + [
             "exclude_from_libdrake",
@@ -724,6 +732,11 @@ def drake_cc_binary(
         linkshared = linkshared,
         linkstatic = linkstatic,
         linkopts = linkopts,
+        features = [
+            # We should deduplicate symbols while linking (for a ~6% reduction
+            # in disk use), to conserve space in CI; see #18545 for details.
+            "-no_deduplicate",
+        ],
         **kwargs
     )
 
@@ -765,11 +778,12 @@ def drake_cc_test(
         size = None,
         srcs = [],
         args = [],
-        tags = [],
         deps = [],
         copts = [],
         gcc_copts = [],
         clang_copts = [],
+        allow_network = None,
+        num_threads = None,
         **kwargs):
     """Creates a rule to declare a C++ unit test.  Note that for almost all
     cases, drake_cc_googletest should be used, instead of this rule.
@@ -777,12 +791,20 @@ def drake_cc_test(
     By default, sets size="small" because that indicates a unit test.
     By default, sets name="test/${name}.cc" per Drake's filename convention.
     Unconditionally forces testonly=1.
+
+    @param allow_network (optional, default is ["meshcat"])
+        See drake/tools/skylark/README.md for details.
+
+    @param num_threads (optional, default is 1)
+        See drake/tools/skylark/README.md for details.
     """
     if size == None:
         size = "small"
     if not srcs:
         srcs = ["test/%s.cc" % name]
     kwargs["testonly"] = 1
+    kwargs = incorporate_allow_network(kwargs, allow_network = allow_network)
+    kwargs = incorporate_num_threads(kwargs, num_threads = num_threads)
     new_copts = _platform_copts(copts, gcc_copts, clang_copts, cc_test = 1)
     new_srcs, add_deps = _maybe_add_pruned_private_hdrs_dep(
         base_name = name,
@@ -796,9 +818,13 @@ def drake_cc_test(
         size = size,
         srcs = new_srcs,
         args = args,
-        tags = tags,
         deps = deps + add_deps,
         copts = new_copts,
+        features = [
+            # We should deduplicate symbols while linking (for a ~6% reduction
+            # in disk use), to conserve space in CI; see #18545 for details.
+            "-no_deduplicate",
+        ],
         **kwargs
     )
 

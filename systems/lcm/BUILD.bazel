@@ -1,5 +1,3 @@
-# -*- python -*-
-
 load(
     "@drake//tools/skylark:drake_cc.bzl",
     "drake_cc_googletest",
@@ -147,11 +145,14 @@ drake_cc_googletest(
     name = "lcm_config_functions_test",
     deps = [
         ":lcm_config_functions",
+        "//common/test_utilities:expect_throws_message",
+        "//lcm:drake_lcm",
     ],
 )
 
 drake_cc_googletest(
     name = "lcm_interface_system_test",
+    flaky = True,
     deps = [
         ":lcm_interface_system",
         ":lcm_subscriber_system",

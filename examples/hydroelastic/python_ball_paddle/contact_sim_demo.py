@@ -7,13 +7,10 @@ The ball is dropped on an edge of the paddle and bounces off.
 import argparse
 import numpy as np
 
-from pydrake.common import FindResourceOrThrow
-from pydrake.geometry import DrakeVisualizer
 from pydrake.math import RigidTransform
 from pydrake.math import RollPitchYaw
 from pydrake.multibody.parsing import Parser
 from pydrake.multibody.plant import AddMultibodyPlant
-from pydrake.multibody.plant import ConnectContactResultsToDrakeVisualizer
 from pydrake.multibody.plant import MultibodyPlantConfig
 from pydrake.systems.analysis import ApplySimulatorConfig
 from pydrake.systems.analysis import Simulator
@@ -21,6 +18,7 @@ from pydrake.systems.analysis import SimulatorConfig
 from pydrake.systems.analysis import PrintSimulatorStatistics
 from pydrake.systems.framework import DiagramBuilder
 from pydrake.systems.primitives import VectorLogSink
+from pydrake.visualization import AddDefaultVisualization
 
 
 def make_ball_paddle(contact_model, contact_surface_representation,
@@ -38,27 +36,23 @@ def make_ball_paddle(contact_model, contact_surface_representation,
     plant, scene_graph = AddMultibodyPlant(multibody_plant_config, builder)
 
     parser = Parser(plant)
-    paddle_sdf_file_name = \
-        FindResourceOrThrow("drake/examples/hydroelastic/python_ball_paddle"
-                            "/paddle.sdf")
-    paddle = parser.AddModelFromFile(paddle_sdf_file_name, model_name="paddle")
+    paddle_sdf_url = \
+        "package://drake/examples/hydroelastic/python_ball_paddle/paddle.sdf"
+    (paddle,) = parser.AddModels(url=paddle_sdf_url)
     plant.WeldFrames(
         frame_on_parent_F=plant.world_frame(),
         frame_on_child_M=plant.GetFrameByName("paddle", paddle),
         X_FM=p_WPaddle_fixed
     )
-    ball_sdf_file_name = \
-        FindResourceOrThrow("drake/examples/hydroelastic/python_ball_paddle"
-                            "/ball.sdf")
-    parser.AddModelFromFile(ball_sdf_file_name)
+    ball_sdf_url = \
+        "package://drake/examples/hydroelastic/python_ball_paddle/ball.sdf"
+    parser.AddModels(url=ball_sdf_url)
     # TODO(DamrongGuoy): Let users override hydroelastic modulus, dissipation,
     #  and resolution hint from the two SDF files above.
 
     plant.Finalize()
 
-    DrakeVisualizer.AddToBuilder(builder=builder, scene_graph=scene_graph)
-    ConnectContactResultsToDrakeVisualizer(builder=builder, plant=plant,
-                                           scene_graph=scene_graph)
+    AddDefaultVisualization(builder=builder)
 
     nx = plant.num_positions() + plant.num_velocities()
     state_logger = builder.AddSystem(VectorLogSink(nx))

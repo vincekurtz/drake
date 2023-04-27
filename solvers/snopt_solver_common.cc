@@ -9,18 +9,19 @@ namespace drake {
 namespace solvers {
 
 SnoptSolver::SnoptSolver()
-    : SolverBase(&id, &is_available, &is_enabled,
+    : SolverBase(id(), &is_available, &is_enabled,
                  &ProgramAttributesSatisfied) {}
 
 SnoptSolver::~SnoptSolver() = default;
 
 SolverId SnoptSolver::id() {
-  static const never_destroyed<SolverId> singleton{
-      SnoptSolver::is_available() ? "SNOPT/fortran" : "SNOPT/unavailable"};
+  static const never_destroyed<SolverId> singleton{"SNOPT"};
   return singleton.access();
 }
 
-bool SnoptSolver::is_enabled() { return true; }
+bool SnoptSolver::is_enabled() {
+  return true;
+}
 
 bool SnoptSolver::ProgramAttributesSatisfied(const MathematicalProgram& prog) {
   static const never_destroyed<ProgramAttributes> solver_capabilities(
@@ -33,7 +34,8 @@ bool SnoptSolver::ProgramAttributesSatisfied(const MathematicalProgram& prog) {
           ProgramAttribute::kRotatedLorentzConeConstraint,
           ProgramAttribute::kLinearComplementarityConstraint,
           ProgramAttribute::kGenericCost, ProgramAttribute::kLinearCost,
-          ProgramAttribute::kQuadraticCost, ProgramAttribute::kCallback});
+          ProgramAttribute::kL2NormCost, ProgramAttribute::kQuadraticCost,
+          ProgramAttribute::kCallback});
   return AreRequiredAttributesSupported(prog.required_capabilities(),
                                         solver_capabilities.access());
 }

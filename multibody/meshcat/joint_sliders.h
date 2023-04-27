@@ -6,6 +6,7 @@
 #include <optional>
 #include <string>
 #include <variant>
+#include <vector>
 
 #include "drake/geometry/meshcat.h"
 #include "drake/multibody/plant/multibody_plant.h"
@@ -30,9 +31,8 @@ output_ports:
 The output port is of size `plant.num_positions()`, and the order of its
 elements matches `plant.GetPositions()`.
 
-At the moment, any positions that are not associated with joints (e.g.,
-floating-base "mobilizers") are held fixed at a nominal value.  In the future,
-this class might add in sliders for a floating base as well.
+Only positions associated with joints get sliders. All other positions are fixed
+at nominal values.
 
 Beware that the output port of this system always provides the sliders' current
 values, even if evaluated by multiple different downstream input ports during a
@@ -51,27 +51,35 @@ class JointSliders final : public systems::LeafSystem<T> {
 
   @param meshcat The Meshcat instance where the sliders will be added.
 
-  @param plant The MultibodyPlant to create sliders for.
-  The plant pointer is aliased for the lifetime of this %JointSliders object.
+  @param plant The MultibodyPlant to create sliders for. The plant pointer is
+  aliased for the lifetime of this %JointSliders object.
 
-  @param initial_value (Optional) If provided, the sliders' initial values
-  will be as given; otherwise, the plant's default values will be used.
+  @param initial_value (Optional) If provided, the sliders' initial values will
+  be as given; otherwise, the plant's default values will be used.
 
   @param lower_limit (Optional) The lower limit of the slider will be the
-  maximum value of this number and any limit specified in the Joint.
-  May be a single value or else a vector of length plant.num_positions().
-  If no value is provided, a sensible default will be used.
+  maximum value of this number and any limit specified in the Joint. May be a
+  single value or else a vector of length plant.num_positions(). If no value is
+  provided, a sensible default will be used.
 
   @param upper_limit (Optional) The upper limit of the slider will be the
-  minimum value of this number and any limit specified in the Joint.
-  May be a single value or else a vector of length plant.num_positions().
-  If no value is provided, a sensible default will be used.
+  minimum value of this number and any limit specified in the Joint. May be a
+  single value or else a vector of length plant.num_positions(). If no value is
+  provided, a sensible default will be used.
 
-  @param step (Optional) The step argument of the slider, which is the
-  smallest increment by which the slider can change values (and therefore
-  update our output port's value).
-  May be a single value or else a vector of length plant.num_positions().
-  If no value is provided, a sensible default will be used.
+  @param step (Optional) The step argument of the slider, which is the smallest
+  increment by which the slider can change values (and therefore update our
+  output port's value). May be a single value or else a vector of length
+  plant.num_positions(). If no value is provided, a sensible default will be
+  used.
+
+  @param decrement_keycodes (Optional) A vector of length plant.num_positions()
+  with keycodes to assign to decrement the value of each individual joint
+  slider. See Meshcat::AddSlider for more details.
+
+  @param increment_keycodes (Optional) A vector of length plant.num_positions()
+  with keycodes to assign to increment the value of each individual joint
+  slider. See Meshcat::AddSlider for more details.
   */
   JointSliders(
       std::shared_ptr<geometry::Meshcat> meshcat,
@@ -79,7 +87,9 @@ class JointSliders final : public systems::LeafSystem<T> {
       std::optional<Eigen::VectorXd> initial_value = {},
       std::variant<std::monostate, double, Eigen::VectorXd> lower_limit = {},
       std::variant<std::monostate, double, Eigen::VectorXd> upper_limit = {},
-      std::variant<std::monostate, double, Eigen::VectorXd> step = {});
+      std::variant<std::monostate, double, Eigen::VectorXd> step = {},
+      std::vector<std::string> decrement_keycodes = {},
+      std::vector<std::string> increment_keycodes = {});
 
   /** Removes our sliders from the associated meshcat instance.
 
@@ -102,14 +112,21 @@ class JointSliders final : public systems::LeafSystem<T> {
   will return promptly, without waiting for the timeout. When no timeout is
   given, this function will block indefinitely.
 
+  @param stop_button_keycode a keycode that will be assigned to the "Stop"
+  button.  Setting this to the empty string means no keycode. See
+  Meshcat::AddButton for details. @default "Escape".
+
+  @returns the output of plant.GetPositions() given the most recently published
+  value of the plant Context.
+
   @pre `diagram` must be a top-level (i.e., "root") diagram.
   @pre `diagram` must contain this JointSliders system.
-  @pre `diagarm` must contain the `plant` that was passed into this
+  @pre `diagram` must contain the `plant` that was passed into this
   JointSliders system's constructor.
   */
-  void Run(
-      const systems::Diagram<T>& diagram,
-      std::optional<double> timeout = std::nullopt) const;
+  Eigen::VectorXd Run(const systems::Diagram<T>& diagram,
+                      std::optional<double> timeout = std::nullopt,
+                      std::string stop_button_keycode = "Escape") const;
 
   /** Sets all robot positions (corresponding to joint positions and potentially
   positions not associated with any joint) to the values in `q`.  The meshcat
@@ -129,7 +146,9 @@ class JointSliders final : public systems::LeafSystem<T> {
   std::shared_ptr<geometry::Meshcat> meshcat_;
   const MultibodyPlant<T>* const plant_;
   const std::map<int, std::string> position_names_;
-  Eigen::VectorXd initial_value_;
+  /* The nominal values for all positions; positions with sliders will not use
+   their nominal value except for defining the slider's initial value. */
+  Eigen::VectorXd nominal_value_;
   std::atomic<bool> is_registered_;
 };
 

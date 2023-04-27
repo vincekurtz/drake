@@ -40,11 +40,11 @@ class RenderClient {
   //@{
 
   /* Uploads the scene file from `scene_path` to the render server, downloads
-   the image file response, and returns the path to the image file.
-   The returned file path may be used directly with any one of the helper
-   methods LoadColorImage(), LoadDepthImage(), or LoadLabelImage().  The file
-   path returned will be in temp_directory(), users do not need to delete the
-   file manually after they are finished.
+   the image file response, and returns the path to the image file.  The
+   returned file path may be used directly with any one of the helper methods
+   LoadColorImage() or LoadDepthImage().  The file path returned will be in
+   temp_directory(), users do not need to delete the file manually after they
+   are finished.
 
    @sa get_params().cleanup
    @param camera_core
@@ -78,10 +78,10 @@ class RenderClient {
      `depth_range` was not provided for a depth render, or `depth_range` was
      provided but `image_type` is color or label. */
   std::string RenderOnServer(
-      const drake::geometry::render::RenderCameraCore& camera_core,
-      RenderImageType image_type, const std::string& scene_path,
+      const render::RenderCameraCore& camera_core, RenderImageType image_type,
+      const std::string& scene_path,
       const std::optional<std::string>& mime_type = std::nullopt,
-      const std::optional<drake::geometry::render::DepthRange>& depth_range =
+      const std::optional<render::DepthRange>& depth_range =
           std::nullopt) const;
 
   //@}
@@ -152,20 +152,17 @@ class RenderClient {
      If the specified `path` cannot be loaded as an unsigned char RGB or RGBA
      PNG file, or the image denoted by `path` does not have the same width and
      height as the specified `color_image_out`. */
-  static void LoadColorImage(
-      const std::string& path,
-      drake::systems::sensors::ImageRgba8U* color_image_out);
+  static void LoadColorImage(const std::string& path,
+                             systems::sensors::ImageRgba8U* color_image_out);
 
   /* Loads the specified image file to a drake output buffer.
 
    This method supports loading:
 
-   - Single channel 16 bit or 32 bit TIFF images.  The depth channel of the TIFF
-     images are assumed to be encoded in units of meters.
-   - TODO(svenevs): Support single channel 16 bit unsigned short PNG images as
-     the input.  The depth channel of the PNG images are assumed to be encoded
-     in units of millimeters and will be converted to meters when copying to the
-     output buffer.
+   - Single channel 16-bit or 32-bit float TIFF images.  The depth channel of
+     the TIFF images are assumed to be encoded in units of meters.
+   - Single channel 16-bit unsigned integer TIFF or PNG images.  The depth
+     channel of the images are assumed to be encoded in units of millimeters.
 
    @param path
      The path to the file to try and load as a depth image.  The path returned
@@ -173,29 +170,11 @@ class RenderClient {
    @param depth_image_out
      The already allocated drake image buffer to load `path` into.
    @throws std::exception
-     If the specified `path` cannot be loaded as a single channel 16-bit or
-     32-bit TIFF image, or the image denoted by `path` does not have the same
-     width and height as the specified `depth_image_out`. */
-  static void LoadDepthImage(
-      const std::string& path,
-      drake::systems::sensors::ImageDepth32F* depth_image_out);
-
-  /* Loads the specified image file to a drake output buffer.
-
-   This method only supports loading single channel unsigned short PNG images.
-
-   @param path
-     The path to the file to try and load as a label image.  The path returned
-     by RetrieveRender() can be used directly for this parameter.
-   @param label_image_out
-     The already allocated drake image buffer to load `path` into.
-   @throws std::exception
-     If the specified `path` cannot be loaded as a single channel unsigned short
-     PNG image, or the image denoted by `path` does not have the same width and
-     height as the specified `label_image_out`. */
-  static void LoadLabelImage(
-      const std::string& path,
-      drake::systems::sensors::ImageLabel16I* label_image_out);
+     If the specified `path` has an unsupported extension or channel type, or
+     the image denoted by `path` does not have the same width and height as the
+     specified `depth_image_out`. */
+  static void LoadDepthImage(const std::string& path,
+                             systems::sensors::ImageDepth32F* depth_image_out);
 
   //@}
 

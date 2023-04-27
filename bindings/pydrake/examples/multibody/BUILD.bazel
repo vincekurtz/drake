@@ -1,5 +1,3 @@
-# -*- python -*-
-
 load("@drake//tools/install:install.bzl", "install")
 load(
     "@drake//tools/skylark:pybind.bzl",
@@ -41,6 +39,7 @@ drake_py_library(
         "//bindings/pydrake/multibody:parsing_py",
         "//bindings/pydrake/multibody:plant_py",
         "//bindings/pydrake/systems:analysis_py",
+        "//bindings/pydrake/visualization",
     ],
 )
 

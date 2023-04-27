@@ -1,12 +1,12 @@
 #include "drake/solvers/sdpa_free_format.h"
 
+#include <filesystem>
 #include <fstream>
 #include <limits>
 #include <utility>
 
 #include <gtest/gtest.h>
 
-#include "drake/common/filesystem.h"
 #include "drake/common/temp_directory.h"
 #include "drake/common/test_utilities/eigen_matrix_compare.h"
 #include "drake/common/test_utilities/expect_throws_message.h"
@@ -847,10 +847,9 @@ TEST_F(LinearProgramBoundingBox1, RemoveFreeVariableByNullspaceApproach) {
   double pobj{0};
   double dobj{0};
   const int ret = csdp::cpp_easy_sdp(
-      nullptr,
-      dut.num_X_rows(), rhs_hat.rows(), C_csdp, rhs_csdp, constraints_csdp,
-      -dut.constant_min_cost_term() + dut.g().dot(y_hat), &X_csdp, &y, &Z,
-      &pobj, &dobj);
+      nullptr, dut.num_X_rows(), rhs_hat.rows(), C_csdp, rhs_csdp,
+      constraints_csdp, -dut.constant_min_cost_term() + dut.g().dot(y_hat),
+      &X_csdp, &y, &Z, &pobj, &dobj);
   EXPECT_EQ(ret, 0 /* 0 is for success */);
   Eigen::SparseMatrix<double> X_hat(dut.num_X_rows(), dut.num_X_rows());
   ConvertCsdpBlockMatrixtoEigen(X_csdp, &X_hat);
@@ -1088,7 +1087,7 @@ GTEST_TEST(SdpaFreeFormatTest, GenerateSDPA1) {
 
   const std::string file_name = temp_directory() + "/sdpa";
   EXPECT_TRUE(GenerateSDPA(prog, file_name));
-  EXPECT_TRUE(filesystem::exists({file_name + ".dat-s"}));
+  EXPECT_TRUE(std::filesystem::exists({file_name + ".dat-s"}));
 
   std::ifstream infile(file_name + ".dat-s");
   ASSERT_TRUE(infile.is_open());
@@ -1100,27 +1099,27 @@ GTEST_TEST(SdpaFreeFormatTest, GenerateSDPA1) {
   std::getline(infile, line);
   EXPECT_EQ(line, "2 -2 ");
   std::getline(infile, line);
-  EXPECT_EQ(line, "10 20");
+  EXPECT_EQ(line, "10.0 20.0");
   std::getline(infile, line);
-  EXPECT_EQ(line, "0 1 1 1 3");
+  EXPECT_EQ(line, "0 1 1 1 3.0");
   std::getline(infile, line);
-  EXPECT_EQ(line, "0 1 2 2 4");
+  EXPECT_EQ(line, "0 1 2 2 4.0");
   std::getline(infile, line);
-  EXPECT_EQ(line, "0 2 1 1 1");
+  EXPECT_EQ(line, "0 2 1 1 1.0");
   std::getline(infile, line);
-  EXPECT_EQ(line, "0 2 2 2 2");
+  EXPECT_EQ(line, "0 2 2 2 2.0");
   std::getline(infile, line);
-  EXPECT_EQ(line, "1 2 1 1 1");
+  EXPECT_EQ(line, "1 2 1 1 1.0");
   std::getline(infile, line);
-  EXPECT_EQ(line, "1 2 2 2 1");
+  EXPECT_EQ(line, "1 2 2 2 1.0");
   std::getline(infile, line);
-  EXPECT_EQ(line, "2 1 1 1 5");
+  EXPECT_EQ(line, "2 1 1 1 5.0");
   std::getline(infile, line);
-  EXPECT_EQ(line, "2 1 1 2 2");
+  EXPECT_EQ(line, "2 1 1 2 2.0");
   std::getline(infile, line);
-  EXPECT_EQ(line, "2 1 2 2 6");
+  EXPECT_EQ(line, "2 1 2 2 6.0");
   std::getline(infile, line);
-  EXPECT_EQ(line, "2 2 2 2 1");
+  EXPECT_EQ(line, "2 2 2 2 1.0");
   EXPECT_FALSE(std::getline(infile, line));
 
   infile.close();
@@ -1147,7 +1146,7 @@ GTEST_TEST(SdpaFreeFormatTest, GenerateSDPA_remove_free_variables_two_slack) {
   const std::string file_name = temp_directory() + "/sdpa_free1";
   EXPECT_TRUE(GenerateSDPA(prog, file_name,
                            RemoveFreeVariableMethod::kTwoSlackVariables));
-  EXPECT_TRUE(filesystem::exists({file_name + ".dat-s"}));
+  EXPECT_TRUE(std::filesystem::exists({file_name + ".dat-s"}));
 
   std::ifstream infile(file_name + ".dat-s");
   ASSERT_TRUE(infile.is_open());
@@ -1159,23 +1158,23 @@ GTEST_TEST(SdpaFreeFormatTest, GenerateSDPA_remove_free_variables_two_slack) {
   std::getline(infile, line);
   EXPECT_EQ(line, "2 -4 ");
   std::getline(infile, line);
-  EXPECT_EQ(line, "1");
+  EXPECT_EQ(line, "1.0");
   std::getline(infile, line);
   EXPECT_EQ(line, "0 1 1 2 -0.5");
   std::getline(infile, line);
-  EXPECT_EQ(line, "0 2 2 2 -2");
+  EXPECT_EQ(line, "0 2 2 2 -2.0");
   std::getline(infile, line);
-  EXPECT_EQ(line, "0 2 4 4 2");
+  EXPECT_EQ(line, "0 2 4 4 2.0");
   std::getline(infile, line);
-  EXPECT_EQ(line, "1 1 1 1 1");
+  EXPECT_EQ(line, "1 1 1 1 1.0");
   std::getline(infile, line);
-  EXPECT_EQ(line, "1 2 1 1 1");
+  EXPECT_EQ(line, "1 2 1 1 1.0");
   std::getline(infile, line);
-  EXPECT_EQ(line, "1 2 2 2 1");
+  EXPECT_EQ(line, "1 2 2 2 1.0");
   std::getline(infile, line);
-  EXPECT_EQ(line, "1 2 3 3 -1");
+  EXPECT_EQ(line, "1 2 3 3 -1.0");
   std::getline(infile, line);
-  EXPECT_EQ(line, "1 2 4 4 -1");
+  EXPECT_EQ(line, "1 2 4 4 -1.0");
   EXPECT_FALSE(std::getline(infile, line));
 
   infile.close();
@@ -1192,9 +1191,9 @@ GTEST_TEST(SdpaFreeFormatTest, GenerateSDPA_remove_free_variables_null_space) {
   internal::SdpaFreeFormat dut(prog);
   EXPECT_GT(dut.num_free_variables(), 0);
   const std::string file_name = temp_directory() + "/sdpa_free2";
-  EXPECT_TRUE(GenerateSDPA(prog, file_name,
-                           RemoveFreeVariableMethod::kNullspace));
-  EXPECT_TRUE(filesystem::exists({file_name + ".dat-s"}));
+  EXPECT_TRUE(
+      GenerateSDPA(prog, file_name, RemoveFreeVariableMethod::kNullspace));
+  EXPECT_TRUE(std::filesystem::exists({file_name + ".dat-s"}));
   std::ifstream infile(file_name + ".dat-s");
   ASSERT_TRUE(infile.is_open());
   std::string line;
@@ -1227,7 +1226,7 @@ GTEST_TEST(SdpaFreeFormatTest,
   const std::string file_name = temp_directory() + "/sdpa_free3";
   EXPECT_TRUE(GenerateSDPA(prog, file_name,
                            RemoveFreeVariableMethod::kLorentzConeSlack));
-  EXPECT_TRUE(filesystem::exists({file_name + ".dat-s"}));
+  EXPECT_TRUE(std::filesystem::exists({file_name + ".dat-s"}));
 
   std::ifstream infile(file_name + ".dat-s");
   ASSERT_TRUE(infile.is_open());
@@ -1243,29 +1242,29 @@ GTEST_TEST(SdpaFreeFormatTest,
   EXPECT_EQ(line, "2 3 ");
   std::getline(infile, line);
   // constraint rhs
-  EXPECT_EQ(line, "1 0 0 0");
+  EXPECT_EQ(line, "1.0 0.0 0.0 0.0");
   // Each non-zero entry in C
   std::getline(infile, line);
   EXPECT_EQ(line, "0 1 1 2 -0.5");
   std::getline(infile, line);
-  EXPECT_EQ(line, "0 2 1 3 -1");
+  EXPECT_EQ(line, "0 2 1 3 -1.0");
   // Each non-zero entry in Ai
   std::getline(infile, line);
-  EXPECT_EQ(line, "1 1 1 1 1");
+  EXPECT_EQ(line, "1 1 1 1 1.0");
   std::getline(infile, line);
   EXPECT_EQ(line, "1 2 1 2 0.5");
   std::getline(infile, line);
   EXPECT_EQ(line, "1 2 1 3 0.5");
   std::getline(infile, line);
-  EXPECT_EQ(line, "2 2 1 1 -1");
+  EXPECT_EQ(line, "2 2 1 1 -1.0");
   std::getline(infile, line);
-  EXPECT_EQ(line, "2 2 2 2 1");
+  EXPECT_EQ(line, "2 2 2 2 1.0");
   std::getline(infile, line);
   EXPECT_EQ(line, "3 2 2 3 0.5");
   std::getline(infile, line);
-  EXPECT_EQ(line, "4 2 1 1 -1");
+  EXPECT_EQ(line, "4 2 1 1 -1.0");
   std::getline(infile, line);
-  EXPECT_EQ(line, "4 2 3 3 1");
+  EXPECT_EQ(line, "4 2 3 3 1.0");
   EXPECT_FALSE(std::getline(infile, line));
 
   infile.close();

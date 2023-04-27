@@ -1,5 +1,6 @@
 import unittest
 
+import bazel_tools.tools.python.runfiles.runfiles
 import numpy as np
 import os
 
@@ -24,7 +25,7 @@ class TestPlanarSceneGraphVisualizer(unittest.TestCase):
             "drake/examples/multibody/cart_pole/cart_pole.sdf")
         builder = DiagramBuilder()
         cart_pole, scene_graph = AddMultibodyPlantSceneGraph(builder, 0.0)
-        Parser(plant=cart_pole).AddModelFromFile(file_name)
+        Parser(plant=cart_pole).AddModels(file_name)
         cart_pole.Finalize()
         self.assertTrue(cart_pole.geometry_source_is_registered())
 
@@ -61,7 +62,7 @@ class TestPlanarSceneGraphVisualizer(unittest.TestCase):
             "iiwa14_no_collision.sdf")
         builder = DiagramBuilder()
         kuka, scene_graph = AddMultibodyPlantSceneGraph(builder, 0.0)
-        Parser(plant=kuka).AddModelFromFile(file_name)
+        Parser(plant=kuka).AddModels(file_name)
         kuka.Finalize()
 
         # Make sure that the frames to visualize exist.
@@ -159,8 +160,9 @@ class TestPlanarSceneGraphVisualizer(unittest.TestCase):
             return scene_graph
 
         # This mesh should load correctly.
-        mesh_name = FindResourceOrThrow(
-            "drake/manipulation/models/iiwa_description/meshes/visual/"
+        runfiles = bazel_tools.tools.python.runfiles.runfiles.Create()
+        mesh_name = runfiles.Rlocation(
+            "drake_models/iiwa_description/meshes/iiwa14/visual/"
             "link_0.obj")
         scene_graph = scene_graph_with_mesh(mesh_name)
         PlanarSceneGraphVisualizer(scene_graph)
@@ -199,7 +201,7 @@ class TestPlanarSceneGraphVisualizer(unittest.TestCase):
             "drake/examples/multibody/cart_pole/cart_pole.sdf")
         builder = DiagramBuilder()
         cart_pole, scene_graph = AddMultibodyPlantSceneGraph(builder, 0.0)
-        Parser(plant=cart_pole).AddModelFromFile(file_name)
+        Parser(plant=cart_pole).AddModels(file_name)
         cart_pole.Finalize()
 
         # The function auto connects to the scene graph query object port.

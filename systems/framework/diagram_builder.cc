@@ -41,6 +41,49 @@ std::vector<System<T>*> DiagramBuilder<T>::GetMutableSystems() {
 }
 
 template <typename T>
+bool DiagramBuilder<T>::HasSubsystemNamed(std::string_view name) const {
+  for (const auto& child : registered_systems_) {
+    if (child->get_name() == name) {
+      return true;
+    }
+  }
+  return false;
+}
+
+template <typename T>
+const System<T>& DiagramBuilder<T>::GetSubsystemByName(
+    std::string_view name) const {
+  ThrowIfAlreadyBuilt();
+  const System<T>* result = nullptr;
+  for (const auto& child : registered_systems_) {
+    if (child->get_name() == name) {
+      if (result != nullptr) {
+        throw std::logic_error(fmt::format(
+            "DiagramBuilder contains multiple subsystems named {} so cannot "
+            "provide a unique answer to a lookup by name",
+            name));
+      }
+      result = child.get();
+      // We can't return early here because we need to check the whole list
+      // for duplicate names.
+    }
+  }
+  if (result != nullptr) {
+    return *result;
+  }
+  throw std::logic_error(fmt::format(
+      "DiagramBuilder does not contain a subsystem named {}",
+      name));
+}
+
+template <typename T>
+System<T>& DiagramBuilder<T>::GetMutableSubsystemByName(
+    std::string_view name) {
+  ThrowIfAlreadyBuilt();
+  return const_cast<System<T>&>(GetSubsystemByName(name));
+}
+
+template <typename T>
 const std::map<typename DiagramBuilder<T>::InputPortLocator,
                typename DiagramBuilder<T>::OutputPortLocator>&
 DiagramBuilder<T>::connection_map() const {
@@ -310,10 +353,25 @@ void DiagramBuilder<T>::ThrowIfSystemNotRegistered(
     const System<T>* system) const {
   DRAKE_DEMAND(system != nullptr);
   if (systems_.count(system) == 0) {
+    std::string registered_system_names{};
+    for (const auto& sys : registered_systems_) {
+      if (!registered_system_names.empty()) {
+        registered_system_names += ", ";
+      }
+      registered_system_names += '\'' + sys->get_name() + '\'';
+    }
+    if (registered_system_names.empty()) {
+      registered_system_names = "NONE";
+    }
+
     throw std::logic_error(fmt::format(
-        "DiagramBuilder: Cannot operate on ports of System {} "
-        "until it has been registered using AddSystem",
-        system->get_name()));
+        "DiagramBuilder: System '{}' has not been registered to this "
+        "DiagramBuilder using AddSystem nor AddNamedSystem.\n\nThe systems "
+        "currently registered to this builder are: {}.\n\nIf '{}' was "
+        "registered as a subsystem to one of these, you must export the input "
+        "or output port using ExportInput/ExportOutput and then connect to the "
+        "exported port.",
+        system->get_name(), registered_system_names, system->get_name()));
   }
 }
 

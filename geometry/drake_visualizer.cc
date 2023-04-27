@@ -88,10 +88,8 @@ lcmt_viewer_geometry_data MakeHydroMesh(GeometryId geometry_id,
   geometry_data.quaternion[2] = q.y();
   geometry_data.quaternion[3] = q.z();
 
-  Eigen::Map<Eigen::Vector4f> color(geometry_data.color);
-  Eigen::Vector4d color_vec(in_color.r(), in_color.g(), in_color.b(),
-                            in_color.a());
-  color = color_vec.cast<float>();
+  Eigen::Map<Eigen::Vector4f>(geometry_data.color) =
+      in_color.rgba().cast<float>();
 
   // There are *two* ways to use the MESH geometry type. One is to set the
   // string value with a path to a parseable mesh file (see
@@ -177,10 +175,8 @@ lcmt_viewer_geometry_data MakeDeformableSurfaceMesh(
 
   geometry_data.string_data = deformable_data.name;
 
-  Eigen::Map<Eigen::Vector4f> color(geometry_data.color);
-  Eigen::Vector4d color_vec(in_color.r(), in_color.g(), in_color.b(),
-                            in_color.a());
-  color = color_vec.cast<float>();
+  Eigen::Map<Eigen::Vector4f>(geometry_data.color) =
+      in_color.rgba().cast<float>();
 
   // We can define the mesh in the float data as:
   // V | T | v0 | v1 | ... vN | t0 | t1 | ... | tM
@@ -374,19 +370,44 @@ class ShapeToLcm : public ShapeReifier {
     geometry_data_.quaternion[2] = q.y();
     geometry_data_.quaternion[3] = q.z();
 
-    Eigen::Map<Eigen::Vector4f> color(geometry_data_.color);
-    Eigen::Vector4d color_vec(in_color.r(), in_color.g(), in_color.b(),
-                              in_color.a());
-    color = color_vec.cast<float>();
+    Eigen::Map<Eigen::Vector4f>(geometry_data_.color) =
+        in_color.rgba().cast<float>();
     return geometry_data_;
   }
 
   using ShapeReifier::ImplementGeometry;
 
-  void ImplementGeometry(const Sphere& sphere, void*) override {
-    geometry_data_.type = geometry_data_.SPHERE;
-    geometry_data_.num_float_data = 1;
-    geometry_data_.float_data.push_back(static_cast<float>(sphere.radius()));
+  void ImplementGeometry(const Box& box, void*) override {
+    geometry_data_.type = geometry_data_.BOX;
+    geometry_data_.num_float_data = 3;
+    // Box width, depth, and height.
+    geometry_data_.float_data.push_back(static_cast<float>(box.width()));
+    geometry_data_.float_data.push_back(static_cast<float>(box.depth()));
+    geometry_data_.float_data.push_back(static_cast<float>(box.height()));
+  }
+
+  void ImplementGeometry(const Capsule& capsule, void*) override {
+    geometry_data_.type = geometry_data_.CAPSULE;
+    geometry_data_.num_float_data = 2;
+    geometry_data_.float_data.push_back(static_cast<float>(capsule.radius()));
+    geometry_data_.float_data.push_back(static_cast<float>(capsule.length()));
+  }
+
+  // For visualization, Convex is the same as Mesh.
+  void ImplementGeometry(const Convex& mesh, void*) override {
+    geometry_data_.type = geometry_data_.MESH;
+    geometry_data_.num_float_data = 3;
+    geometry_data_.float_data.push_back(static_cast<float>(mesh.scale()));
+    geometry_data_.float_data.push_back(static_cast<float>(mesh.scale()));
+    geometry_data_.float_data.push_back(static_cast<float>(mesh.scale()));
+    geometry_data_.string_data = mesh.filename();
+  }
+
+  void ImplementGeometry(const Cylinder& cylinder, void*) override {
+    geometry_data_.type = geometry_data_.CYLINDER;
+    geometry_data_.num_float_data = 2;
+    geometry_data_.float_data.push_back(static_cast<float>(cylinder.radius()));
+    geometry_data_.float_data.push_back(static_cast<float>(cylinder.length()));
   }
 
   void ImplementGeometry(const Ellipsoid& ellipsoid, void*) override {
@@ -395,13 +416,6 @@ class ShapeToLcm : public ShapeReifier {
     geometry_data_.float_data.push_back(static_cast<float>(ellipsoid.a()));
     geometry_data_.float_data.push_back(static_cast<float>(ellipsoid.b()));
     geometry_data_.float_data.push_back(static_cast<float>(ellipsoid.c()));
-  }
-
-  void ImplementGeometry(const Cylinder& cylinder, void*) override {
-    geometry_data_.type = geometry_data_.CYLINDER;
-    geometry_data_.num_float_data = 2;
-    geometry_data_.float_data.push_back(static_cast<float>(cylinder.radius()));
-    geometry_data_.float_data.push_back(static_cast<float>(cylinder.length()));
   }
 
   void ImplementGeometry(const HalfSpace&, void*) override {
@@ -423,22 +437,6 @@ class ShapeToLcm : public ShapeReifier {
     X_PG_ = X_PG_ * box_xform;
   }
 
-  void ImplementGeometry(const Box& box, void*) override {
-    geometry_data_.type = geometry_data_.BOX;
-    geometry_data_.num_float_data = 3;
-    // Box width, depth, and height.
-    geometry_data_.float_data.push_back(static_cast<float>(box.width()));
-    geometry_data_.float_data.push_back(static_cast<float>(box.depth()));
-    geometry_data_.float_data.push_back(static_cast<float>(box.height()));
-  }
-
-  void ImplementGeometry(const Capsule& capsule, void*) override {
-    geometry_data_.type = geometry_data_.CAPSULE;
-    geometry_data_.num_float_data = 2;
-    geometry_data_.float_data.push_back(static_cast<float>(capsule.radius()));
-    geometry_data_.float_data.push_back(static_cast<float>(capsule.length()));
-  }
-
   void ImplementGeometry(const Mesh& mesh, void*) override {
     geometry_data_.type = geometry_data_.MESH;
     geometry_data_.num_float_data = 3;
@@ -448,14 +446,10 @@ class ShapeToLcm : public ShapeReifier {
     geometry_data_.string_data = mesh.filename();
   }
 
-  // For visualization, Convex is the same as Mesh.
-  void ImplementGeometry(const Convex& mesh, void*) override {
-    geometry_data_.type = geometry_data_.MESH;
-    geometry_data_.num_float_data = 3;
-    geometry_data_.float_data.push_back(static_cast<float>(mesh.scale()));
-    geometry_data_.float_data.push_back(static_cast<float>(mesh.scale()));
-    geometry_data_.float_data.push_back(static_cast<float>(mesh.scale()));
-    geometry_data_.string_data = mesh.filename();
+  void ImplementGeometry(const Sphere& sphere, void*) override {
+    geometry_data_.type = geometry_data_.SPHERE;
+    geometry_data_.num_float_data = 1;
+    geometry_data_.float_data.push_back(static_cast<float>(sphere.radius()));
   }
 
  private:
@@ -526,8 +520,13 @@ const DrakeVisualizer<T>& DrakeVisualizer<T>::AddToBuilder(
     systems::DiagramBuilder<T>* builder,
     const systems::OutputPort<T>& query_object_port,
     lcm::DrakeLcmInterface* lcm, DrakeVisualizerParams params) {
+  const std::string aspirational_name =
+      fmt::format("drake_visualizer({})", params.role);
   auto& visualizer =
       *builder->template AddSystem<DrakeVisualizer<T>>(lcm, std::move(params));
+  if (!builder->HasSubsystemNamed(aspirational_name)) {
+    visualizer.set_name(aspirational_name);
+  }
   builder->Connect(query_object_port, visualizer.query_object_input_port());
   return visualizer;
 }

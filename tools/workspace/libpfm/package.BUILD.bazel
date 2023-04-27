@@ -1,0 +1,9 @@
+# -*- bazel -*-
+
+package(default_visibility = ["//visibility:public"])
+
+# No targets should depend on @libpfm.
+cc_library(
+    name = "libpfm",
+    srcs = ["missing-libpfm.cc"],
+)

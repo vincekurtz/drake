@@ -233,10 +233,9 @@ GTEST_TEST(DiscreteAffineSystemTest, DiscreteTime) {
   double u0 = 29;
   system.get_input_port().FixValue(context.get(), u0);
 
-  auto update = system.AllocateDiscreteVariables();
-  system.CalcDiscreteVariableUpdates(*context, update.get());
+  auto& update = system.EvalUniquePeriodicDiscreteUpdate(*context);
 
-  EXPECT_TRUE(CompareMatrices(update->get_vector(0).CopyToVector(),
+  EXPECT_TRUE(CompareMatrices(update.get_vector(0).CopyToVector(),
                               A * x0 + B * u0 + f0));
 
   // Test TimeVaryingAffineSystem accessor methods.
@@ -370,7 +369,8 @@ GTEST_TEST(SimpleTimeVaryingAffineSystemTest,
   sys.get_input_port().FixValue(context.get(), 42.0);
 
   auto updates = sys.AllocateDiscreteVariables();
-  EXPECT_NO_THROW(sys.CalcDiscreteVariableUpdates(*context, updates.get()));
+  EXPECT_NO_THROW(
+      sys.CalcForcedDiscreteVariableUpdate(*context, updates.get()));
 }
 
 GTEST_TEST(SimpleTimeVaryingAffineSystemTest, DiscreteEvalTest) {
@@ -383,10 +383,9 @@ GTEST_TEST(SimpleTimeVaryingAffineSystemTest, DiscreteEvalTest) {
   context->get_mutable_discrete_state().get_mutable_vector().SetFromVector(x);
   sys.get_input_port().FixValue(context.get(), 42.0);
 
-  auto updates = sys.AllocateDiscreteVariables();
-  sys.CalcDiscreteVariableUpdates(*context, updates.get());
+  auto& updates = sys.EvalUniquePeriodicDiscreteUpdate(*context);
   EXPECT_TRUE(CompareMatrices(sys.A(t) * x + 42.0 * sys.B(t),
-                              updates->get_vector().CopyToVector()));
+                              updates.get_vector().CopyToVector()));
 
   EXPECT_TRUE(CompareMatrices(x + sys.y0(t) + 42.0 * sys.D(t),
                               sys.get_output_port().Eval(*context)));
@@ -531,6 +530,75 @@ TEST_F(AffineSystemSymbolicTest, MakeAffineSystemException3) {
                    C_ * x_ + D_ * u_ + y0_, x_, u_, 10.0),
                std::runtime_error);
 }
+
+void CheckSizes(const AffineSystem<double>& sys, int num_states, int num_inputs,
+                int num_outputs) {
+  EXPECT_EQ(sys.A().rows(), num_states);
+  EXPECT_EQ(sys.A().cols(), num_states);
+  EXPECT_EQ(sys.B().rows(), num_states);
+  EXPECT_EQ(sys.B().cols(), num_inputs);
+  EXPECT_EQ(sys.C().rows(), num_outputs);
+  EXPECT_EQ(sys.C().cols(), num_states);
+  EXPECT_EQ(sys.D().rows(), num_outputs);
+  EXPECT_EQ(sys.D().cols(), num_inputs);
+  EXPECT_EQ(sys.f0().size(), num_states);
+  EXPECT_EQ(sys.y0().size(), num_outputs);
+}
+
+// Confirm that empty matrices passed to the constructor are treated as zeros
+// of the correct size.
+GTEST_TEST(AffineSystemExtraTest, EmptyMatrices) {
+  const int kNumStates = 3;
+  const int kNumInputs = 2;
+  const int kNumOutputs = 1;
+  // Default matrices (uninitialized; only their size matters).
+  Eigen::Matrix<double, kNumStates, kNumStates> A;
+  A.setConstant(1);
+  Eigen::Matrix<double, kNumStates, kNumInputs> B;
+  B.setConstant(2);
+  Vector<double, kNumStates> f0;
+  f0.setConstant(3);
+  Eigen::Matrix<double, kNumOutputs, kNumStates> C;
+  C.setConstant(4);
+  Eigen::Matrix<double, kNumOutputs, kNumInputs> D;
+  D.setConstant(5);
+  Vector<double, kNumOutputs> y0;
+  y0.setConstant(6);
+  Eigen::MatrixXd empty{};
+  Eigen::VectorXd empty_vec{};
+
+  auto sys = std::make_unique<AffineSystem<double>>(A, B, f0, C, D, y0);
+  CheckSizes(*sys, kNumStates, kNumInputs, kNumOutputs);
+  // Default A.
+  sys = std::make_unique<AffineSystem<double>>(empty, B, f0, C, D, y0);
+  CheckSizes(*sys, kNumStates, kNumInputs, kNumOutputs);
+  EXPECT_TRUE(sys->A().isZero());
+  // Default B.
+  sys = std::make_unique<AffineSystem<double>>(A, empty, f0, C, D, y0);
+  CheckSizes(*sys, kNumStates, kNumInputs, kNumOutputs);
+  EXPECT_TRUE(sys->B().isZero());
+  // Default f0.
+  sys = std::make_unique<AffineSystem<double>>(A, B, empty_vec, C, D, y0);
+  CheckSizes(*sys, kNumStates, kNumInputs, kNumOutputs);
+  EXPECT_TRUE(sys->f0().isZero());
+  // Default C.
+  sys = std::make_unique<AffineSystem<double>>(A, B, f0, empty, D, y0);
+  CheckSizes(*sys, kNumStates, kNumInputs, kNumOutputs);
+  EXPECT_TRUE(sys->C().isZero());
+  // Default D.
+  sys = std::make_unique<AffineSystem<double>>(A, B, f0, C, empty, y0);
+  CheckSizes(*sys, kNumStates, kNumInputs, kNumOutputs);
+  EXPECT_TRUE(sys->D().isZero());
+  // Default y0.
+  sys = std::make_unique<AffineSystem<double>>(A, B, f0, C, D, empty_vec);
+  CheckSizes(*sys, kNumStates, kNumInputs, kNumOutputs);
+  EXPECT_TRUE(sys->y0().isZero());
+
+  // All default.
+  sys = std::make_unique<AffineSystem<double>>();
+  CheckSizes(*sys, 0, 0, 0);
+}
+
 }  // namespace
 }  // namespace systems
 }  // namespace drake

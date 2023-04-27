@@ -1,5 +1,6 @@
 #include "drake/geometry/render_gltf_client/internal_render_engine_gltf_client.h"
 
+#include <filesystem>
 #include <fstream>
 #include <set>
 #include <vector>
@@ -8,8 +9,8 @@
 #include <vtkCamera.h>
 #include <vtkMatrix4x4.h>
 
-#include "drake/common/filesystem.h"
 #include "drake/common/find_resource.h"
+#include "drake/common/fmt_eigen.h"
 #include "drake/common/temp_directory.h"
 #include "drake/common/test_utilities/expect_no_throw.h"
 #include "drake/geometry/render_gltf_client/internal_http_service.h"
@@ -21,19 +22,19 @@ namespace geometry {
 namespace render_gltf_client {
 namespace internal {
 
-namespace fs = drake::filesystem;
+namespace fs = std::filesystem;
 
 using Eigen::Matrix3d;
 using Eigen::Matrix4d;
 using Eigen::Vector3d;
 using Eigen::Vector4d;
 
-using geometry::render::ColorRenderCamera;
-using geometry::render::DepthRenderCamera;
-using geometry::render::RenderEngine;
-using geometry::render::internal::ImageType;
 using math::RigidTransformd;
 using math::RollPitchYawd;
+using render::ColorRenderCamera;
+using render::DepthRenderCamera;
+using render::RenderEngine;
+using render_vtk::internal::ImageType;
 using systems::sensors::ImageDepth32F;
 using systems::sensors::ImageLabel16I;
 using systems::sensors::ImageRgba8U;
@@ -156,18 +157,18 @@ TEST_F(RenderEngineGltfClientTest, UpdateViewpoint) {
     const Matrix4d vtk_inv = transform_inverse(vtk);
     const Matrix3d R_vtk_inv = vtk_inv.topLeftCorner<3, 3>();
     const Matrix3d R_gltf = gltf.topLeftCorner<3, 3>();
-    EXPECT_TRUE(R_vtk_inv.isApprox(R_gltf, tolerance))
-        << "Rotation matrices not similar enough:\nR_vtk_inv:\n"
-        << R_vtk_inv << "\nR_gltf:\n"
-        << R_gltf << '\n';
+    EXPECT_TRUE(R_vtk_inv.isApprox(R_gltf, tolerance)) << fmt::format(
+        "Rotation matrices not similar enough:\n"
+        "R_vtk_inv:\n{}\nR_gltf:\n{}\n",
+        fmt_eigen(R_vtk_inv), fmt_eigen(R_gltf));
 
     // Compare the translations.
     const Vector3d t_vtk_inv = vtk_inv.topRightCorner<3, 1>();
     const Vector3d t_gltf = gltf.topRightCorner<3, 1>();
-    EXPECT_TRUE(t_vtk_inv.isApprox(t_gltf, tolerance))
-        << "Translation vectors not similar enough:\nt_vtk_inv:\n"
-        << t_vtk_inv << "\nt_gltf:\n"
-        << t_gltf << '\n';
+    EXPECT_TRUE(t_vtk_inv.isApprox(t_gltf, tolerance)) << fmt::format(
+        "Translation vectors not similar enough:\n"
+        "t_vtk_inv:\n{}\nt_gltf:\n{}\n",
+        fmt_eigen(t_vtk_inv), fmt_eigen(t_gltf));
 
     // For posterity, compare the homogeneous row.
     const Vector4d gltf_homogeneous = gltf.bottomRightCorner<1, 4>();
@@ -199,7 +200,8 @@ class FakeServer : public HttpService {
           "drake/geometry/render_gltf_client/test/test_depth_32F.tiff");
     } else {  // image_type := "label"
       test_image_path = FindResourceOrThrow(
-          "drake/geometry/render_gltf_client/test/test_label_16I.png");
+          "drake/geometry/render_gltf_client/test/"
+          "test_colored_label_rgba_8U.png");
     }
     fs::copy_file(test_image_path, data_path);
     return HttpResponse{.http_code = 200, .data_path = data_path};

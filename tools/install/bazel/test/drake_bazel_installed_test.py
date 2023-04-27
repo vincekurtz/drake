@@ -18,9 +18,12 @@ def main():
 
     # The commit (version) here should be identical to the commit listed in
     # drake/tools/workspace/rules_python/repository.bzl.
-    rules_python_commit = "0.10.2"
-    rules_python_url = f"https://github.com/bazelbuild/rules_python/archive/{rules_python_commit}.tar.gz"  # noqa
-    rules_python_sha256 = "a3a6e99f497be089f81ec082882e40246bfd435f52f4e82f37e89449b04573f6"  # noqa
+    rules_python_commit = "0.19.0"
+    rules_python_urls = [
+        f"https://github.com/bazelbuild/rules_python/archive/{rules_python_commit}.tar.gz",  # noqa
+        f"https://drake-mirror.csail.mit.edu/github/bazelbuild/rules_python/{rules_python_commit}.tar.gz",  # noqa
+    ]
+    rules_python_sha256 = "ffc7b877c95413c82bfd5482c017edcf759a6250d8b24e82f41f3c8b8d9e287e"  # noqa
 
     with open(join(scratch_dir, "WORKSPACE"), "w") as f:
         f.write(f"""
@@ -34,7 +37,7 @@ http_archive(
     name = "rules_python",
     sha256 = "{rules_python_sha256}",
     strip_prefix = "rules_python-{rules_python_commit}",
-    url = "{rules_python_url}",
+    urls = {rules_python_urls!r},
 )
 
 new_local_repository(
@@ -57,6 +60,7 @@ load("@drake//:.os.bzl", OS_NAME = "NAME")
 cc_test(
     name = "text_logging_test",
     srcs = ["text_logging_test.cc"],
+    copts = ["--std=c++17"],
     # TODO(jwnimmer-tri) On macOS, we need to pkg-config fmt for this to pass.
     # For the moment, we'll say that :drake_shared_library is Ubuntu-only.
     tags = ["manual"] if OS_NAME == "mac os x" else [],
@@ -66,6 +70,13 @@ cc_test(
 py_test(
     name = "find_resource_test",
     srcs = ["find_resource_test.py"],
+    size = "small",
+    deps = ["@drake//bindings/pydrake"],
+)
+
+py_test(
+    name = "package_map_test",
+    srcs = ["package_map_test.py"],
     size = "small",
     deps = ["@drake//bindings/pydrake"],
 )
@@ -97,6 +108,15 @@ _set_log_level("trace")
 FindResourceOrThrow("drake/examples/pendulum/Pendulum.urdf")
 """)
 
+    # This test case confirms that package://drake_models still works.
+    with open(join(scratch_dir, "package_map_test.py"), "w") as f:
+        f.write("""
+from pydrake.common import _set_log_level
+from pydrake.multibody.parsing import PackageMap
+_set_log_level("trace")
+PackageMap().GetPath("drake_models")
+""")
+
     with open(join(scratch_dir, "import_all_test.py"), "w") as f:
         f.write("""
 import pydrake.all
@@ -118,6 +138,8 @@ import pydrake.all
         "--max_idle_secs=1",
         # Run all of the tests from the BUILD.bazel generated above.
         command, "//...", "--jobs=1",
+        # Deny networking.
+        "--test_env=DRAKE_ALLOW_NETWORK=none",
         # Enable verbosity.
         "--announce_rc",
         "--test_output=streamed",

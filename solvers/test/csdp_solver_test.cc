@@ -11,7 +11,7 @@
 
 namespace drake {
 namespace solvers {
-namespace {
+namespace test {
 GTEST_TEST(TestSemidefiniteProgram, SolveSDPwithOverlappingVariables) {
   CsdpSolver solver;
   if (solver.available()) {
@@ -94,7 +94,7 @@ TEST_F(LinearProgramBoundingBox1, Solve) {
       solver.Solve(*prog_, {}, solver_options, &result);
       EXPECT_TRUE(result.is_success());
       const double tol = 2E-7;
-      EXPECT_NEAR(result.get_optimal_cost(), -43, 2*tol);
+      EXPECT_NEAR(result.get_optimal_cost(), -43, 2 * tol);
       Eigen::Matrix<double, 7, 1> x_expected;
       x_expected << 0, 5, -1, 10, 5, 0, 1;
       EXPECT_TRUE(
@@ -137,6 +137,18 @@ TEST_F(CsdpLinearProgram3, Solve) {
       EXPECT_TRUE(CompareMatrices(result.GetSolution(x_),
                                   Eigen::Vector3d(10, -2.0 / 3, -17.0 / 9),
                                   tol));
+    }
+  }
+}
+
+TEST_F(DuplicatedVariableLinearProgramTest1, Test) {
+  for (auto method : GetRemoveFreeVariableMethods()) {
+    CsdpSolver solver;
+    if (solver.is_available()) {
+      SolverOptions solver_options;
+      solver_options.SetOption(solver.id(), "drake::RemoveFreeVariableMethod",
+                               static_cast<int>(method));
+      CheckSolution(solver, solver_options);
     }
   }
 }
@@ -216,7 +228,31 @@ TEST_F(TrivialSOCP3, Solve) {
     }
   }
 }
-}  // namespace
+
+GTEST_TEST(TestSOCP, TestSocpDuplicatedVariable1) {
+  for (auto method : GetRemoveFreeVariableMethods()) {
+    CsdpSolver solver;
+    if (solver.available()) {
+      SolverOptions solver_options;
+      solver_options.SetOption(solver.id(), "drake::RemoveFreeVariableMethod",
+                               static_cast<int>(method));
+      TestSocpDuplicatedVariable1(solver, solver_options, 1E-6);
+    }
+  }
+}
+
+GTEST_TEST(TestSOCP, TestSocpDuplicatedVariable2) {
+  for (auto method : GetRemoveFreeVariableMethods()) {
+    CsdpSolver solver;
+    if (solver.available()) {
+      SolverOptions solver_options;
+      solver_options.SetOption(solver.id(), "drake::RemoveFreeVariableMethod",
+                               static_cast<int>(method));
+      TestSocpDuplicatedVariable2(solver, solver_options, 1E-5);
+    }
+  }
+}
+}  // namespace test
 
 namespace test {
 TEST_F(InfeasibleLinearProgramTest0, TestInfeasible) {
@@ -296,8 +332,9 @@ TEST_P(TestEllipsoidsSeparation, TestSOCP) {
   }
 }
 
-INSTANTIATE_TEST_SUITE_P(CsdpTest, TestEllipsoidsSeparation,
-                        ::testing::ValuesIn(GetEllipsoidsSeparationProblems()));
+INSTANTIATE_TEST_SUITE_P(
+    CsdpTest, TestEllipsoidsSeparation,
+    ::testing::ValuesIn(GetEllipsoidsSeparationProblems()));
 
 TEST_P(TestFindSpringEquilibrium, TestSOCP) {
   for (auto method : GetRemoveFreeVariableMethods()) {

@@ -1,6 +1,3 @@
-# -*- python -*-
-# This file contains rules for Bazel; see drake/doc/bazel.rst.
-
 load(
     "@drake//tools/skylark:drake_cc.bzl",
     "drake_cc_binary",
@@ -13,9 +10,21 @@ load(
     "drake_py_library",
 )
 load("@drake//tools/skylark:test_tags.bzl", "vtk_test_tags")
+load("//tools/skylark:drake_data.bzl", "models_filegroup")
 load("//tools/install:install_data.bzl", "install_data")
 load("//tools/lint:lint.bzl", "add_lint_tests")
 load("//tools/skylark:test_tags.bzl", "vtk_test_tags")
+
+models_filegroup(
+    name = "models",
+    visibility = ["//visibility:public"],
+)
+
+install_data(
+    name = "install_data",
+    data = [":models"],
+    visibility = ["//visibility:public"],
+)
 
 drake_cc_library(
     name = "manipulation_station",
@@ -65,7 +74,6 @@ drake_cc_library(
     ],
     visibility = ["//visibility:public"],
     deps = [
-        "//common:find_resource",
         "//lcm",
         "//manipulation/kuka_iiwa:iiwa_command_sender",
         "//manipulation/kuka_iiwa:iiwa_status_receiver",
@@ -155,15 +163,6 @@ drake_cc_googletest(
 # Python examples
 
 drake_py_library(
-    name = "differential_ik",
-    srcs = ["differential_ik.py"],
-    visibility = ["//visibility:private"],
-    deps = [
-        "//bindings/pydrake",
-    ],
-)
-
-drake_py_library(
     name = "schunk_wsg_buttons",
     srcs = ["schunk_wsg_buttons.py"],
     visibility = ["//visibility:private"],
@@ -203,7 +202,6 @@ drake_py_binary(
     test_rule_tags = vtk_test_tags() + ["manual"],
     test_rule_timeout = "moderate",  # Frequently exceeds short timeout in dbg.
     deps = [
-        ":differential_ik",
         "//bindings/pydrake",
     ],
 )
@@ -220,7 +218,6 @@ drake_py_binary(
     test_rule_tags = vtk_test_tags(),
     test_rule_timeout = "moderate",  # Frequently exceeds short timeout in dbg.
     deps = [
-        ":differential_ik",
         "//bindings/pydrake",
     ],
 )
@@ -237,7 +234,6 @@ drake_py_binary(
     test_rule_tags = vtk_test_tags(),
     test_rule_timeout = "moderate",  # Frequently exceeds short timeout in dbg.
     deps = [
-        ":differential_ik",
         ":schunk_wsg_buttons",
         "//bindings/pydrake",
     ],
@@ -251,7 +247,5 @@ drake_py_binary(
         "//bindings/pydrake",
     ],
 )
-
-install_data()
 
 add_lint_tests()

@@ -1,4 +1,4 @@
-# -*- python -*-
+# -*- bazel -*-
 
 licenses(["notice"])  # BSD-3-Clause
 
@@ -45,6 +45,9 @@ cc_library(
         "@//conditions:default": [],
     }),
     linkstatic = 1,
+    deps = [
+        "@drake//common/test_utilities:gtest_printers",
+    ],
     visibility = ["//visibility:public"],
 )
 

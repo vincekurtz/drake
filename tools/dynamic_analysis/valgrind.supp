@@ -14,6 +14,15 @@
     fun:checkout_from_flexlm
 }
 
+
+{
+    MOSEK invalid memory access #3
+    Memcheck:Leak
+    match-leak-kinds: possible
+    ...
+    fun:moseklicense_checkout
+}
+
 {
    MOSEK use of uninitialized CPU condition code #1
    Memcheck:Cond
@@ -43,6 +52,16 @@
    match-leak-kinds: possible
    fun:malloc
    obj:*/libmosek64.so.*
+}
+
+{
+   MOSEK memory leak #2 
+   Memcheck:Leak
+   match-leak-kinds: possible
+   fun:calloc
+   fun:allocate_dtv
+   ...
+   obj:*/libmosek64.so.10.0
 }
 
 # Started happening when Gurobi got updated to 7.0.2. PR 6332.
@@ -230,4 +249,12 @@
    fun:_ZN10ClpSimplex7startupEii
    fun:_ZN19ClpSimplexNonlinear6primalEv
    fun:_ZN10ClpSimplex6primalEii
+}
+
+{
+   VTK: file reader compare header line vs garbage
+   Memcheck:Cond
+   fun:_ZN13vtkDataReader10ReadHeaderEPKc
+   ...
+   fun:_ZN5drake8geometry8internal19ReadVtkToVolumeMeshERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEEd
 }

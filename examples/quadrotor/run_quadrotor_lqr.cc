@@ -2,12 +2,14 @@
 ///
 /// This demo sets up a controlled Quadrotor that uses a Linear Quadratic
 /// Regulator to (locally) stabilize a nominal hover.
+///
+/// Use meldis to view the visualization:
+///   bazel run //tools:meldis -- -w
 
 #include <memory>
 
 #include <gflags/gflags.h>
 
-#include "drake/common/find_resource.h"
 #include "drake/common/is_approx_equal_abstol.h"
 #include "drake/examples/quadrotor/quadrotor_geometry.h"
 #include "drake/examples/quadrotor/quadrotor_plant.h"

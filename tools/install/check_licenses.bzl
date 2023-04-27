@@ -1,10 +1,8 @@
-# -*- python -*-
-
 load("@drake//tools/install:install.bzl", "InstallInfo")
 
 # List of exact file names of license files
 LICENSE_LITERALS = [
-    "BSD-LICENSE",  # @ccd
+    "BSD-LICENSE",  # @ccd_internal
     "COPYING",
     "Copyright.txt",  # @vtk
     "EULA.pdf",  # @gurobi
@@ -16,6 +14,7 @@ LICENSE_LITERALS = [
 LICENSE_PREFIXES = [
     "COPYING.",
     "LICENSE.",
+    "License.",
 ]
 
 #------------------------------------------------------------------------------

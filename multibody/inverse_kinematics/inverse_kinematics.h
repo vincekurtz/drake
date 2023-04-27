@@ -15,7 +15,7 @@ namespace multibody {
  * postures of the robot satisfying certain constraints.
  * The decision variables include the generalized position of the robot.
  *
- * @ingroup planning
+ * @ingroup planning_kinematics
  */
 class InverseKinematics {
  public:
@@ -56,7 +56,7 @@ class InverseKinematics {
    * systems::DiagramBuilder<double> builder;
    * auto items = AddMultibodyPlantSceneGraph(&builder, 0.0);
    * // 2. Add collision geometries to the plant
-   * Parser(&(items.plant)).AddModelFromFile("model.sdf");
+   * Parser(&(items.plant)).AddModels("model.sdf");
    * // 3. Construct the diagram
    * auto diagram = builder.Build();
    * // 4. Create diagram context.
@@ -256,6 +256,26 @@ class InverseKinematics {
       const Eigen::Ref<const Eigen::Vector3d>& nb_B, double angle_lower,
       double angle_upper);
 
+  /**
+   * Add a cost c * (1-cosθ) where θ is the angle between the vector `na` and
+   * `nb`. na is fixed to a frame A, while nb is fixed to a frame B.
+   * @param frameA The frame to which na is fixed.
+   * @param na_A The vector na fixed to frame A, expressed in frame A.
+   * @pre na_A should be a non-zero vector.
+   * @throws std::exception if na_A is close to zero.
+   * @param frameB The frame to which nb is fixed.
+   * @param nb_B The vector nb fixed to frame B, expressed in frame B.
+   * @pre nb_B should be a non-zero vector.
+   * @throws std::exception if nb_B is close to zero.
+   * @param c The cost is c * (1-cosθ).
+   */
+  solvers::Binding<solvers::Cost> AddAngleBetweenVectorsCost(
+      const Frame<double>& frameA,
+      const Eigen::Ref<const Eigen::Vector3d>& na_A,
+      const Frame<double>& frameB,
+      const Eigen::Ref<const Eigen::Vector3d>& nb_B,
+      double c);
+
   // TODO(hongkai.dai): remove this documentation.
   /**
    * Adds the constraint that the pairwise distance between objects should be no
@@ -314,6 +334,29 @@ class InverseKinematics {
       double distance_upper);
 
   /**
+   * Add a constraint that the distance between point P attached to frame_point
+   * (denoted as B1) and a line attached to frame_line (denoted as B2) is within
+   * the range [distance_lower, distance_upper]. The line passes through a point
+   * Q with a directional vector n.
+   * @param frame_point The frame to which P is attached.
+   * @param p_B1P The position of P measured and expressed in frame_point.
+   * @param frame_line The frame to which the line is attached.
+   * @param p_B2Q The position of Q measured and expressed in frame_line, the
+   * line passes through Q.
+   * @param n_B2 The direction vector of the line measured and expressed in
+   * frame_line.
+   * @param distance_lower The lower bound on the distance.
+   * @param distance_upper The upper bound on the distance.
+   */
+  solvers::Binding<solvers::Constraint> AddPointToLineDistanceConstraint(
+      const Frame<double>& frame_point,
+      const Eigen::Ref<const Eigen::Vector3d>& p_B1P,
+      const Frame<double>& frame_line,
+      const Eigen::Ref<const Eigen::Vector3d>& p_B2Q,
+      const Eigen::Ref<const Eigen::Vector3d>& n_B2, double distance_lower,
+      double distance_upper);
+
+  /**
    * Adds the constraint that the position of P1, ..., Pn satisfy A *
    * [p_FP1; p_FP2; ...; p_FPn] <= b.
    * @param frameF The frame in which the position P is measured and expressed
@@ -321,8 +364,8 @@ class InverseKinematics {
    * @param p_GP p_GP.col(i) is the position of the i'th point Pi measured and
    * expressed in frame G.
    * @param A We impose the constraint A * [p_FP1; p_FP2; ...; p_FPn] <= b. @pre
-   * A.cols() = 3 * p_GP.cols();
-   * @param b We impose the constraint A * [p_FP1; p_FP2; ...; p_FPn] <= b
+   * A.cols() = 3 * p_GP.cols().
+   * @param b We impose the constraint A * [p_FP1; p_FP2; ...; p_FPn] <= b.
    */
   solvers::Binding<solvers::Constraint> AddPolyhedronConstraint(
       const Frame<double>& frameF, const Frame<double>& frameG,
@@ -338,7 +381,7 @@ class InverseKinematics {
   const solvers::MathematicalProgram& prog() const { return *prog_; }
 
   /** Getter for the optimization program constructed by InverseKinematics. */
-  solvers::MathematicalProgram* get_mutable_prog() const { return prog_.get(); }
+  solvers::MathematicalProgram* get_mutable_prog() { return prog_.get(); }
 
   /** Getter for the plant context. */
   const systems::Context<double>& context() const { return *context_; }

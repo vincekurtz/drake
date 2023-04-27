@@ -3,10 +3,8 @@
 #include "drake/common/drake_assert.h"
 #include "drake/solvers/clp_solver.h"
 #include "drake/solvers/csdp_solver.h"
-#include "drake/solvers/dreal_solver.h"
 #include "drake/solvers/equality_constrained_qp_solver.h"
 #include "drake/solvers/gurobi_solver.h"
-#include "drake/solvers/ibex_solver.h"
 #include "drake/solvers/ipopt_solver.h"
 #include "drake/solvers/linear_system_solver.h"
 #include "drake/solvers/moby_lcp_solver.h"
@@ -26,14 +24,10 @@ SolverId SolverTypeConverter::TypeToId(SolverType solver_type) {
       return ClpSolver::id();
     case SolverType::kCsdp:
       return CsdpSolver::id();
-    case SolverType::kDReal:
-      return DrealSolver::id();
     case SolverType::kEqualityConstrainedQP:
       return EqualityConstrainedQPSolver::id();
     case SolverType::kGurobi:
       return GurobiSolver::id();
-    case SolverType::kIbex:
-      return IbexSolver::id();
     case SolverType::kIpopt:
       return IpoptSolver::id();
     case SolverType::kLinearSystem:
@@ -61,14 +55,10 @@ std::optional<SolverType> SolverTypeConverter::IdToType(SolverId solver_id) {
     return SolverType::kClp;
   } else if (solver_id == CsdpSolver::id()) {
     return SolverType::kCsdp;
-  } else if (solver_id == DrealSolver::id()) {
-    return SolverType::kDReal;
   } else if (solver_id == EqualityConstrainedQPSolver::id()) {
     return SolverType::kEqualityConstrainedQP;
   } else if (solver_id == GurobiSolver::id()) {
     return SolverType::kGurobi;
-  } else if (solver_id == IbexSolver::id()) {
-    return SolverType::kIbex;
   } else if (solver_id == IpoptSolver::id()) {
     return SolverType::kIpopt;
   } else if (solver_id == LinearSystemSolver::id()) {

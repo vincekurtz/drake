@@ -1,5 +1,3 @@
-# -*- python -*-
-
 load(
     "@drake//tools/skylark:drake_cc.bzl",
     "drake_cc_binary",
@@ -13,6 +11,7 @@ load(
     "drake_py_test",
     "drake_py_unittest",
 )
+load("//tools/skylark:drake_data.bzl", "models_filegroup")
 load("//tools/install:install_data.bzl", "install_data")
 load(
     "@drake//tools/vector_gen:vector_gen.bzl",
@@ -20,7 +19,18 @@ load(
 )
 load("//tools/lint:lint.bzl", "add_lint_tests")
 
-package(default_visibility = ["//visibility:private"])
+package(default_visibility = ["//visibility:public"])
+
+models_filegroup(
+    name = "models",
+    visibility = ["//visibility:public"],
+)
+
+install_data(
+    name = "install_data",
+    data = [":models"],
+    visibility = ["//visibility:public"],
+)
 
 drake_cc_vector_gen_library(
     name = "acrobot_input",
@@ -278,12 +288,12 @@ drake_cc_binary(
         ":acrobot_plant",
         "//common:is_approx_equal_abstol",
         "//geometry:drake_visualizer",
+        "//planning/trajectory_optimization:direct_collocation",
         "//solvers:snopt_solver",
         "//solvers:solve",
         "//systems/analysis:simulator",
         "//systems/controllers:finite_horizon_linear_quadratic_regulator",
         "//systems/primitives:trajectory_source",
-        "//systems/trajectory_optimization:direct_collocation",
         "@gflags",
     ],
 )
@@ -369,7 +379,6 @@ drake_cc_googletest(
     data = [":models"],
     deps = [
         ":acrobot_plant",
-        "//common:find_resource",
         "//common/test_utilities:eigen_matrix_compare",
         "//multibody/parsing",
     ],
@@ -424,7 +433,5 @@ drake_py_test(
         "//bindings/pydrake",
     ],
 )
-
-install_data()
 
 add_lint_tests()

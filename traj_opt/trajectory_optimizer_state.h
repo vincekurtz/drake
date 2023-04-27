@@ -37,23 +37,46 @@ template <typename T>
 struct TrajectoryOptimizerCache {
   DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(TrajectoryOptimizerCache);
 
-  TrajectoryOptimizerCache(const int num_steps, const int nv, const int nq)
+  /**
+   * Construct a cache for the trajectory optimizer. This is stored inside a
+   * TrajectoryOptimizerState, and stores just about anything that you could
+   * compute from the decision variables q. That includes the cost, the
+   * gradient, the Hessian, derivatives, etc.
+   *
+   * @param num_steps number of time steps in the optimization problem
+   * @param nv number of velocities for the plant
+   * @param nq number of positions for the plant
+   * @param num_eq_constraints number of equality constraints
+   */
+  TrajectoryOptimizerCache(const int num_steps, const int nv, const int nq,
+                           const int num_eq_constraints)
       : derivatives_data(num_steps, nv, nq),
         gradient((num_steps + 1) * nq),
-        hessian(num_steps + 1, nq) {
+        hessian(num_steps + 1, nq),
+        scaled_hessian(num_steps + 1, nq),
+        scaled_gradient((num_steps + 1) * nq),
+        scale_factors((num_steps + 1) * nq),
+        constraint_violation(num_eq_constraints),
+        constraint_jacobian(num_eq_constraints, (num_steps + 1) * nq),
+        lagrange_multipliers(num_eq_constraints),
+        merit_gradient((num_steps + 1) * nq) {
     trajectory_data.v.assign(num_steps + 1, VectorX<T>(nv));
     trajectory_data.a.assign(num_steps, VectorX<T>(nv));
     inverse_dynamics_cache.tau.assign(num_steps, VectorX<T>(nv));
-    N_plus.assign(num_steps+1, MatrixX<T>::Zero(nv, nq));
+    N_plus.assign(num_steps + 1, MatrixX<T>::Zero(nv, nq));
+    scale_factors.setConstant(1.0);
+    constraint_jacobian.setZero();
+    lagrange_multipliers.setZero();
     // TODO(amcastro-tri): We could allocate contact_jacobian_data here if we
     // knew the number of contacts. For now, we'll defer the allocation to a
     // later stage when the number of contacts is available.
   }
 
   TrajectoryOptimizerCache(const int num_steps, const Diagram<T>& diagram,
-                           const MultibodyPlant<T>& plant)
+                           const MultibodyPlant<T>& plant,
+                           const int num_eq_constraints)
       : TrajectoryOptimizerCache(num_steps, plant.num_velocities(),
-                                 plant.num_positions()) {
+                                 plant.num_positions(), num_eq_constraints) {
     context_cache = std::make_unique<ContextCache>(num_steps, diagram, plant);
   }
 
@@ -159,6 +182,38 @@ struct TrajectoryOptimizerCache {
   // Our Hessian approximation of the unconstrained cost ∇²L
   PentaDiagonalMatrix<T> hessian;
   bool hessian_up_to_date{false};
+
+  // The scaled version of the Hessian, H̃ = DHD
+  PentaDiagonalMatrix<T> scaled_hessian;
+  bool scaled_hessian_up_to_date{false};
+
+  // The scaled version of the gradient, g̃ = Dg
+  VectorX<T> scaled_gradient;
+  bool scaled_gradient_up_to_date{false};
+
+  // Vector of scaling factors D = 1/sqrt(diag(D))
+  VectorX<T> scale_factors;
+  bool scale_factors_up_to_date{false};
+
+  // Vector of equality constraint violations for the constraint h(q) = 0
+  VectorX<T> constraint_violation;
+  bool constraint_violation_up_to_date{false};
+
+  // Jacobian of equality constraints J = ∂h(q)/∂q
+  MatrixX<T> constraint_jacobian;
+  bool constraint_jacobian_up_to_date{false};
+
+  // Lagrange multipliers λ for the equality constraints h(q) = 0
+  VectorX<T> lagrange_multipliers;
+  bool lagrange_multipliers_up_to_date{false};
+
+  // Merit function ϕ = L + hᵀλ
+  T merit;
+  bool merit_up_to_date{false};
+
+  // Gradient of the merit function g̃ = g + Jᵀλ
+  VectorX<T> merit_gradient;
+  bool merit_gradient_up_to_date{false};
 };
 
 template <typename T>
@@ -204,39 +259,37 @@ class TrajectoryOptimizerState {
    * Constructor which allocates things of the proper sizes.
    *
    * @param num_steps number of timesteps in the optimization problem
-   * @param nv number of multibody velocities
-   * @param nq number of multipody positions
+   * @param diagram system diagram containing the plant (for context allocation)
+   * @param plant multibody plant system model
+   * @param num_eq_constraints number of equality constraints
    */
-  TrajectoryOptimizerState(const int num_steps, const MultibodyPlant<T>& plant)
-      : workspace(num_steps, plant),
-        num_steps_(num_steps),
-        nq_(plant.num_positions()),
-        cache_(num_steps, plant.num_velocities(), plant.num_positions()) {
-    const int nq = plant.num_positions();
-    q_.assign(num_steps + 1, VectorX<T>(nq));
-    proximal_operator_data_.q_last.assign(num_steps + 1, VectorX<T>(nq));
-    proximal_operator_data_.H_diag.assign(num_steps + 1, VectorX<T>::Zero(nq));
-  }
-
-  // TrajectoryOptimizer state for a `plant` model within `diagram`.
   TrajectoryOptimizerState(const int num_steps, const Diagram<T>& diagram,
-                           const MultibodyPlant<T>& plant)
+                           const MultibodyPlant<T>& plant,
+                           const int num_eq_constraints)
       : workspace(num_steps, plant),
         num_steps_(num_steps),
         nq_(plant.num_positions()),
-        cache_(num_steps, diagram, plant) {
+        cache_(num_steps, diagram, plant, num_eq_constraints) {
     const int nq = plant.num_positions();
     q_.assign(num_steps + 1, VectorX<T>(nq));
     proximal_operator_data_.q_last.assign(num_steps + 1, VectorX<T>(nq));
     proximal_operator_data_.H_diag.assign(num_steps + 1, VectorX<T>::Zero(nq));
+    per_timestep_workspace.assign(
+        num_steps + 1, TrajectoryOptimizerWorkspace<T>(num_steps, plant));
   }
 
-  /**
-   * Getter for the sequence of generalized positions.
-   *
-   * @return const std::vector<VectorX<T>>& q
-   */
+  /** Getter for the sequence of generalized positions. */
   const std::vector<VectorX<T>>& q() const { return q_; }
+
+  /** Mutable reference to the sequence of generalized positions.
+   @warning This method invalidates the cache. However be careful about holding
+   onto the returned reference for too long, since updates to the values stored
+   in this state through this reference will not cause cache invalidation.
+   Consider using set_q() whenever possible instead. */
+  std::vector<VectorX<T>>& mutable_q() {
+    invalidate_cache();
+    return q_;
+  }
 
   /**
    * Setter for the sequence of generalized positions. Invalidates the cache.
@@ -296,6 +349,12 @@ class TrajectoryOptimizerState {
    * allocations.
    */
   mutable TrajectoryOptimizerWorkspace<T> workspace;
+
+  /**
+   * Scratch space for intermediate computations, one per timestep to enable
+   * parallelization.
+   */
+  mutable std::vector<TrajectoryOptimizerWorkspace<T>> per_timestep_workspace;
 
   /**
    * Getter for the decision variables and Hessian diagonal at the previous
@@ -359,6 +418,14 @@ class TrajectoryOptimizerState {
     if (cache_.context_cache) cache_.context_cache->up_to_date = false;
     cache_.sdf_data.up_to_date = false;
     cache_.n_plus_up_to_date = false;
+    cache_.scaled_hessian_up_to_date = false;
+    cache_.scaled_gradient_up_to_date = false;
+    cache_.scale_factors_up_to_date = false;
+    cache_.constraint_violation_up_to_date = false;
+    cache_.constraint_jacobian_up_to_date = false;
+    cache_.lagrange_multipliers_up_to_date = false;
+    cache_.merit_up_to_date = false;
+    cache_.merit_gradient_up_to_date = false;
   }
 };
 

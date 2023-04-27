@@ -335,14 +335,14 @@ class Geometries final : public ShapeReifier {
 
   using ShapeReifier::ImplementGeometry;
 
-  void ImplementGeometry(const Sphere& sphere, void* user_data) override;
-  void ImplementGeometry(const Cylinder& cylinder, void* user_data) override;
-  void ImplementGeometry(const HalfSpace&, void* user_data) override;
   void ImplementGeometry(const Box& box, void* user_data) override;
   void ImplementGeometry(const Capsule& capsule, void* user_data) override;
-  void ImplementGeometry(const Ellipsoid& ellipsoid, void* user_data) override;
-  void ImplementGeometry(const Mesh&, void*) override;
   void ImplementGeometry(const Convex& convex, void* user_data) override;
+  void ImplementGeometry(const Cylinder& cylinder, void* user_data) override;
+  void ImplementGeometry(const Ellipsoid& ellipsoid, void* user_data) override;
+  void ImplementGeometry(const HalfSpace&, void* user_data) override;
+  void ImplementGeometry(const Mesh&, void*) override;
+  void ImplementGeometry(const Sphere& sphere, void* user_data) override;
 
   template <typename ShapeType>
   void MakeShape(const ShapeType& shape, const ReifyData& data);
@@ -482,6 +482,12 @@ have sufficient information). Requires the
 ('hydroelastic','hydroelastic_modulus') property. */
 std::optional<SoftGeometry> MakeSoftRepresentation(
     const Convex& convex_spec, const ProximityProperties& props);
+
+/* Creates a compliant (generally) non-convex mesh (assuming the proximity
+ properties have sufficient information). Requires the ('hydroelastic',
+ 'hydroelastic_modulus') properties. */
+std::optional<SoftGeometry> MakeSoftRepresentation(
+    const Mesh& mesh_specification, const ProximityProperties& props);
 
 //@}
 

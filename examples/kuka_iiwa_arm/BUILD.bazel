@@ -1,5 +1,3 @@
-# -*- python -*-
-
 load(
     "@drake//tools/skylark:drake_cc.bzl",
     "drake_cc_binary",
@@ -51,7 +49,7 @@ drake_cc_library(
     deps = [
         ":iiwa_common",
         ":iiwa_lcm",
-        "//manipulation/planner:robot_plan_interpolator",
+        "//manipulation/util:robot_plan_interpolator",
         "//systems/framework:diagram_builder",
         "//systems/primitives:demultiplexer",
     ],
@@ -128,7 +126,6 @@ drake_cc_binary(
         "//manipulation/models/iiwa_description:models",
     ],
     deps = [
-        "//common:find_resource",
         "//common/trajectories:piecewise_polynomial",
         "//lcmtypes:iiwa",
         "//lcmtypes:robot_plan",
@@ -158,12 +155,6 @@ drake_cc_binary(
 alias(
     name = "models",
     actual = "//examples/kuka_iiwa_arm/models:models",
-    visibility = ["//visibility:public"],
-)
-
-alias(
-    name = "prod_models",
-    actual = "//examples/kuka_iiwa_arm/models:prod_models",
     visibility = ["//visibility:public"],
 )
 

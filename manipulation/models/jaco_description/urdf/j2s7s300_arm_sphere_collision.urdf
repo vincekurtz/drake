@@ -25,10 +25,10 @@
   <link name="j2s7s300_link_base">
     <visual>
       <geometry>
-        <mesh filename="package://drake/manipulation/models/jaco_description/meshes/base.obj"/>
+        <mesh filename="package://drake_models/jaco_description/meshes/base.obj"/>
       </geometry>
-      <material name="carbon_fiber">
-        <color rgba="0.792156862745098 0.819607843137255 0.933333333333333 1"/>
+      <material>
+        <color rgba="0.1788232 0.1788232 0.1788232 1"/>
       </material>
     </visual>
     <collision>
@@ -78,16 +78,19 @@
   <link name="j2s7s300_link_1">
     <visual>
       <geometry>
-        <mesh filename="package://drake/manipulation/models/jaco_description/meshes/shoulder.obj"/>
+        <mesh filename="package://drake_models/jaco_description/meshes/shoulder.obj"/>
       </geometry>
-      <material name="carbon_fiber">
-        <color rgba="0.792156862745098 0.819607843137255 0.933333333333333 1"/>
+      <material>
+        <color rgba="0.1788232 0.1788232 0.1788232 1"/>
       </material>
     </visual>
     <visual>
       <geometry>
-        <mesh filename="package://drake/manipulation/models/jaco_description/meshes/ring_big.obj"/>
+        <mesh filename="package://drake_models/jaco_description/meshes/ring_big.obj"/>
       </geometry>
+      <material>
+        <color rgba="0.627451 0.627451 0.627451 1"/>
+      </material>
     </visual>
     <collision>
       <origin rpy="0 0 0" xyz="0.0 -0.025 -0.14"/>
@@ -161,16 +164,19 @@
   <link name="j2s7s300_link_2">
     <visual>
       <geometry>
-        <mesh filename="package://drake/manipulation/models/jaco_description/meshes/arm_half_1.obj"/>
+        <mesh filename="package://drake_models/jaco_description/meshes/arm_half_1.obj"/>
       </geometry>
-      <material name="carbon_fiber">
-        <color rgba="0.792156862745098 0.819607843137255 0.933333333333333 1"/>
+      <material>
+        <color rgba="0.1788232 0.1788232 0.1788232 1"/>
       </material>
     </visual>
     <visual>
       <geometry>
-        <mesh filename="package://drake/manipulation/models/jaco_description/meshes/ring_big.obj"/>
+        <mesh filename="package://drake_models/jaco_description/meshes/ring_big.obj"/>
       </geometry>
+      <material>
+        <color rgba="0.627451 0.627451 0.627451 1"/>
+      </material>
     </visual>
     <collision>
       <origin rpy="0 0 0" xyz="0.025 -0.00 -0.025"/>
@@ -258,16 +264,19 @@
   <link name="j2s7s300_link_3">
     <visual>
       <geometry>
-        <mesh filename="package://drake/manipulation/models/jaco_description/meshes/arm_half_2.obj"/>
+        <mesh filename="package://drake_models/jaco_description/meshes/arm_half_2.obj"/>
       </geometry>
-      <material name="carbon_fiber">
-        <color rgba="0.792156862745098 0.819607843137255 0.933333333333333 1"/>
+      <material>
+        <color rgba="0.1788232 0.1788232 0.1788232 1"/>
       </material>
     </visual>
     <visual>
       <geometry>
-        <mesh filename="package://drake/manipulation/models/jaco_description/meshes/ring_big.obj"/>
+        <mesh filename="package://drake_models/jaco_description/meshes/ring_big.obj"/>
       </geometry>
+      <material>
+        <color rgba="0.627451 0.627451 0.627451 1"/>
+      </material>
     </visual>
     <collision>
       <origin rpy="0 0 0" xyz="0.0 0.028 -0.232"/>
@@ -361,16 +370,19 @@
   <link name="j2s7s300_link_4">
     <visual>
       <geometry>
-        <mesh filename="package://drake/manipulation/models/jaco_description/meshes/forearm.obj"/>
+        <mesh filename="package://drake_models/jaco_description/meshes/forearm.obj"/>
       </geometry>
-      <material name="carbon_fiber">
-        <color rgba="0.792156862745098 0.819607843137255 0.933333333333333 1"/>
+      <material>
+        <color rgba="0.1788232 0.1788232 0.1788232 1"/>
       </material>
     </visual>
     <visual>
       <geometry>
-        <mesh filename="package://drake/manipulation/models/jaco_description/meshes/ring_small.obj"/>
+        <mesh filename="package://drake_models/jaco_description/meshes/ring_small.obj"/>
       </geometry>
+      <material>
+        <color rgba="0.627451 0.627451 0.627451 1"/>
+      </material>
     </visual>
     <collision>
       <origin rpy="0 0 0" xyz="0 0.0 -0.0"/>
@@ -470,16 +482,19 @@
   <link name="j2s7s300_link_5">
     <visual>
       <geometry>
-        <mesh filename="package://drake/manipulation/models/jaco_description/meshes/wrist_spherical_1.obj"/>
+        <mesh filename="package://drake_models/jaco_description/meshes/wrist_spherical_1.obj"/>
       </geometry>
-      <material name="carbon_fiber">
-        <color rgba="0.792156862745098 0.819607843137255 0.933333333333333 1"/>
+      <material>
+        <color rgba="0.1788232 0.1788232 0.1788232 1"/>
       </material>
     </visual>
     <visual>
       <geometry>
-        <mesh filename="package://drake/manipulation/models/jaco_description/meshes/ring_small.obj"/>
+        <mesh filename="package://drake_models/jaco_description/meshes/ring_small.obj"/>
       </geometry>
+      <material>
+        <color rgba="0.627451 0.627451 0.627451 1"/>
+      </material>
     </visual>
     <collision>
       <origin rpy="0 0 0" xyz="0 0.0 -0.00"/>
@@ -525,16 +540,19 @@
   <link name="j2s7s300_link_6">
     <visual>
       <geometry>
-        <mesh filename="package://drake/manipulation/models/jaco_description/meshes/wrist_spherical_2.obj"/>
+        <mesh filename="package://drake_models/jaco_description/meshes/wrist_spherical_2.obj"/>
       </geometry>
-      <material name="carbon_fiber">
-        <color rgba="0.792156862745098 0.819607843137255 0.933333333333333 1"/>
+      <material>
+        <color rgba="0.1788232 0.1788232 0.1788232 1"/>
       </material>
     </visual>
     <visual>
       <geometry>
-        <mesh filename="package://drake/manipulation/models/jaco_description/meshes/ring_small.obj"/>
+        <mesh filename="package://drake_models/jaco_description/meshes/ring_small.obj"/>
       </geometry>
+      <material>
+        <color rgba="0.627451 0.627451 0.627451 1"/>
+      </material>
     </visual>
     <collision>
       <origin rpy="0 0 0" xyz="0 0.0 -0.02"/>
@@ -544,12 +562,6 @@
     </collision>
     <collision>
       <origin rpy="0 0 0" xyz="0 0.085 -0.0"/>
-      <geometry>
-        <sphere radius="0.035"/>
-      </geometry>
-    </collision>
-    <collision>
-      <origin rpy="0 0 0" xyz="0 0.1 -0.0"/>
       <geometry>
         <sphere radius="0.035"/>
       </geometry>
@@ -578,6 +590,12 @@
     </actuator>
   </transmission>
   <link name="j2s7s300_link_7">
+    <collision>
+      <origin rpy="0 0 0" xyz="0 0 0.00375"/>
+      <geometry>
+        <sphere radius="0.035"/>
+      </geometry>
+    </collision>
     <inertial>
       <!-- TODO(sammy-tri) This inertial is bogus with the hand removed. -->
       <mass value="0.001"/>

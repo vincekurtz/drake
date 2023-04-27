@@ -78,7 +78,7 @@ class SapContactProblem {
      is A[c].rows() (or A[c].cols() since each block is square). The total
      number of generalized velocities of the system is nv = ∑A[c].rows().
      This class does not check for the positive definiteness of each block in
-     A, it is the responsability of the calling code to enforce this
+     A, it is the responsibility of the calling code to enforce this
      invariant. Ultimately, the SAP solver can fail to converge if this
      requirement is not satisfied.
    @param[in] v_star
@@ -86,7 +86,7 @@ class SapContactProblem {
      ordering implicitly induced by A.
 
    @throws exception if time_step is not strictly positive.
-   @throws exception if the blocks in A are not square or have zero size.
+   @throws exception if the blocks in A are not square.
    @throws exception if the size of v_star is not nv = ∑A[c].rows(). */
   SapContactProblem(const T& time_step, std::vector<MatrixX<T>> A,
                     VectorX<T> v_star);
@@ -103,14 +103,14 @@ class SapContactProblem {
      is A[c].rows() (or A[c].cols() since each block is square). The total
      number of generalized velocities of the system is nv = ∑A[c].rows().
      This class does not check for the positive definiteness of each block in
-     A, it is the responsability of the calling code to enforce this
+     A, it is the responsibility of the calling code to enforce this
      invariant. Ultimately, the SAP solver can fail to converge if this
      requirement is not satisfied.
    @param[in] v_star
      Free-motion velocities, of size nv. DOFs in v_star must match the
      ordering implicitly induced by A.
 
-   @throws exception if the blocks in A are not square or have zero size.
+   @throws exception if the blocks in A are not square.
    @throws exception if the size of v_star is not nv = ∑A[c].rows(). */
   void Reset(std::vector<MatrixX<T>> A, VectorX<T> v_star);
 
@@ -125,7 +125,7 @@ class SapContactProblem {
    the range [0, num_cliques()).
    @throws exception if the number of columns of the Jacobian matrices in
    `constraint` is not consistent with the number of velocities for the cliques
-   in this problem referenced by `constraint`.
+   in this problem referenced by `constraint` or if they are both zero.
    @returns the index to the newly added constraint. */
   int AddConstraint(std::unique_ptr<SapConstraint<T>> constraint);
 
@@ -172,11 +172,11 @@ class SapContactProblem {
   const ContactProblemGraph& graph() const { return graph_; }
 
  private:
-  int nv_{0};                    // Total number of generalized velocities.
-  T time_step_{0.0};             // Discrete time step.
-  std::vector<MatrixX<T>> A_;    // Linear dynamics matrix.
-  VectorX<T> v_star_;            // Free-motion velocities.
-  ContactProblemGraph graph_;    // Contact graph for this problem.
+  int nv_{0};                  // Total number of generalized velocities.
+  T time_step_{0.0};           // Discrete time step.
+  std::vector<MatrixX<T>> A_;  // Linear dynamics matrix.
+  VectorX<T> v_star_;          // Free-motion velocities.
+  ContactProblemGraph graph_;  // Contact graph for this problem.
   // Constraints owned by this problem.
   std::vector<std::unique_ptr<SapConstraint<T>>> constraints_;
 };

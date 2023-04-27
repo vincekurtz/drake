@@ -105,9 +105,9 @@ GTEST_TEST(ForcedDispatchOverrideSystemTest, Dispatchers) {
   auto discrete_values = system.AllocateDiscreteVariables();
   EXPECT_EQ(discrete_values->get_system_id(), context->get_system_id());
   auto state = context->CloneState();
-  system.Publish(*context);
-  system.CalcDiscreteVariableUpdates(*context, discrete_values.get());
-  system.CalcUnrestrictedUpdate(*context, state.get());
+  system.ForcedPublish(*context);
+  system.CalcForcedDiscreteVariableUpdate(*context, discrete_values.get());
+  system.CalcForcedUnrestrictedUpdate(*context, state.get());
   ASSERT_TRUE(system.got_publish_event());
   ASSERT_TRUE(system.got_discrete_update_event());
   ASSERT_TRUE(system.got_unrestricted_update_event());
@@ -142,11 +142,12 @@ class TestSystem : public LeafSystem<T> {
   using LeafSystem<T>::DeclareVectorOutputPort;
   using LeafSystem<T>::DeclareAbstractOutputPort;
   using LeafSystem<T>::DeclarePerStepEvent;
+  using LeafSystem<T>::DeclarePeriodicEvent;
 
   void AddPeriodicUpdate() {
     const double period = 10.0;
     const double offset = 5.0;
-    this->DeclarePeriodicDiscreteUpdate(period, offset);
+    this->DeclarePeriodicDiscreteUpdateNoHandler(period, offset);
     std::optional<PeriodicEventData> periodic_attr =
         this->GetUniquePeriodicDiscreteUpdateAttribute();
     ASSERT_TRUE(periodic_attr);
@@ -156,7 +157,7 @@ class TestSystem : public LeafSystem<T> {
 
   void AddPeriodicUpdate(double period) {
     const double offset = 0.0;
-    this->DeclarePeriodicDiscreteUpdate(period, offset);
+    this->DeclarePeriodicDiscreteUpdateNoHandler(period, offset);
     std::optional<PeriodicEventData> periodic_attr =
        this->GetUniquePeriodicDiscreteUpdateAttribute();
     ASSERT_TRUE(periodic_attr);
@@ -165,14 +166,16 @@ class TestSystem : public LeafSystem<T> {
   }
 
   void AddPeriodicUpdate(double period, double offset) {
-    this->DeclarePeriodicDiscreteUpdate(period, offset);
+    this->DeclarePeriodicDiscreteUpdateNoHandler(period, offset);
   }
 
   void AddPeriodicUnrestrictedUpdate(double period, double offset) {
-    this->DeclarePeriodicUnrestrictedUpdate(period, offset);
+    this->DeclarePeriodicUnrestrictedUpdateNoHandler(period, offset);
   }
 
-  void AddPublish(double period) { this->DeclarePeriodicPublish(period); }
+  void AddPublish(double period) {
+    this->DeclarePeriodicPublishNoHandler(period);
+  }
 
   void DoCalcTimeDerivatives(const Context<T>& context,
                              ContinuousState<T>* derivatives) const override {}
@@ -367,7 +370,7 @@ class LeafSystemTest : public ::testing::Test {
   }
 
   double CalcNextUpdateTime() const {
-    // Unless there are an extrene number of concurrent events, calculating the
+    // Unless there are an extreme number of concurrent events, calculating the
     // next update time should not allocate.
     test::LimitMalloc guard;
     return system_.CalcNextUpdateTime(context_, event_info_.get());
@@ -558,7 +561,7 @@ TEST_F(LeafSystemTest, MultipleUniquePeriods) {
   system_.AddPeriodicUpdate();
 
   // Verify the size of the periodic events mapping.
-  auto mapping = system_.GetPeriodicEvents();
+  auto mapping = system_.MapPeriodicEventsByTiming();
   ASSERT_EQ(mapping.size(), 1);
   EXPECT_EQ(mapping.begin()->second.size(), 2);
   EXPECT_TRUE(system_.GetUniquePeriodicDiscreteUpdateAttribute());
@@ -571,7 +574,7 @@ TEST_F(LeafSystemTest, MultipleNonUniquePeriods) {
   system_.AddPeriodicUpdate(2.0, 3.0);
 
   // Verify the size of the periodic events mapping.
-  auto mapping = system_.GetPeriodicEvents();
+  auto mapping = system_.MapPeriodicEventsByTiming();
   ASSERT_EQ(mapping.size(), 2);
   EXPECT_FALSE(system_.GetUniquePeriodicDiscreteUpdateAttribute());
   EXPECT_FALSE(system_.IsDifferenceEquationSystem());
@@ -937,6 +940,33 @@ TEST_F(LeafSystemTest, DeclarePerStepEvents) {
         leaf_info_->get_unrestricted_update_events().get_events();
     EXPECT_EQ(events.size(), 1);
     EXPECT_EQ(events.front()->get_trigger_type(), TriggerType::kPerStep);
+  }
+}
+
+TEST_F(LeafSystemTest, DeclarePeriodicEvents) {
+  std::unique_ptr<Context<double>> context = system_.CreateDefaultContext();
+
+  system_.DeclarePeriodicEvent(0.1, 0.0, PublishEvent<double>());
+  system_.DeclarePeriodicEvent(0.1, 0.0, DiscreteUpdateEvent<double>());
+  system_.DeclarePeriodicEvent(0.1, 0.0, UnrestrictedUpdateEvent<double>());
+
+  system_.GetPeriodicEvents(*context, event_info_.get());
+
+  {
+    const auto& events = leaf_info_->get_publish_events().get_events();
+    EXPECT_EQ(events.size(), 1);
+    EXPECT_EQ(events.front()->get_trigger_type(), TriggerType::kPeriodic);
+  }
+  {
+    const auto& events = leaf_info_->get_discrete_update_events().get_events();
+    EXPECT_EQ(events.size(), 1);
+    EXPECT_EQ(events.front()->get_trigger_type(), TriggerType::kPeriodic);
+  }
+  {
+    const auto& events =
+        leaf_info_->get_unrestricted_update_events().get_events();
+    EXPECT_EQ(events.size(), 1);
+    EXPECT_EQ(events.front()->get_trigger_type(), TriggerType::kPeriodic);
   }
 }
 
@@ -2225,6 +2255,84 @@ GTEST_TEST(LeafSystemScalarConverterTest, SymbolicNo) {
   EXPECT_EQ(dut.ToScalarTypeMaybe<symbolic::Expression>(), nullptr);
 }
 
+// Check all scenarios of Clone() passing. The SymbolicSparsitySystem supports
+// all scalar type conversions, so Clone() should always succeed.
+GTEST_TEST(LeafSystemCloneTest, Supported) {
+  auto dut_double = std::make_unique<SymbolicSparsitySystem<double>>();
+  dut_double->set_name("dut_double");
+  auto context_double = dut_double->CreateDefaultContext();
+
+  auto copy_double = dut_double->Clone();
+  ASSERT_NE(copy_double, nullptr);
+  EXPECT_EQ(copy_double->get_name(), "dut_double");
+  DRAKE_EXPECT_THROWS_MESSAGE(copy_double->ValidateContext(*context_double),
+                              "[^]*Context-System mismatch[^]*");
+
+  auto dut_autodiff = std::make_unique<SymbolicSparsitySystem<AutoDiffXd>>();
+  dut_autodiff->set_name("dut_autodiff");
+  auto context_autodiff = dut_autodiff->CreateDefaultContext();
+
+  auto copy_autodiff = dut_autodiff->Clone();
+  ASSERT_NE(copy_autodiff, nullptr);
+  EXPECT_EQ(copy_autodiff->get_name(), "dut_autodiff");
+  DRAKE_EXPECT_THROWS_MESSAGE(copy_autodiff->ValidateContext(*context_autodiff),
+                              "[^]*Context-System mismatch[^]*");
+
+  auto dut_symbolic =
+      std::make_unique<SymbolicSparsitySystem<symbolic::Expression>>();
+  dut_symbolic->set_name("dut_symbolic");
+  auto context_symbolic = dut_symbolic->CreateDefaultContext();
+
+  auto copy_symbolic = dut_symbolic->Clone();
+  ASSERT_NE(copy_symbolic, nullptr);
+  EXPECT_EQ(copy_symbolic->get_name(), "dut_symbolic");
+  DRAKE_EXPECT_THROWS_MESSAGE(copy_symbolic->ValidateContext(*context_symbolic),
+                              "[^]*Context-System mismatch[^]*");
+}
+
+// Check that the static Clone(foo) preserves the subtype.
+GTEST_TEST(LeafSystemCloneTest, SupportedStatic) {
+  SymbolicSparsitySystem<double> dut;
+  std::unique_ptr<SymbolicSparsitySystem<double>> copy =
+      System<double>::Clone(dut);
+  ASSERT_NE(copy, nullptr);
+}
+
+// This system can only convert from a scalar type of double.
+template <typename T>
+class FromDoubleSystem final : public LeafSystem<T> {
+ public:
+  DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(FromDoubleSystem);
+
+  // Default constructor declares support for scalar conversion.
+  FromDoubleSystem() : LeafSystem<T>(SystemTypeTag<FromDoubleSystem>{}) {}
+
+  // Scalar-conversion constructor (with a dummy arg to avoid ambiguity).
+  explicit FromDoubleSystem(const FromDoubleSystem<double>& other,
+                            int dummy = 0)
+      : FromDoubleSystem() {}
+};
+
+}  // namespace
+namespace scalar_conversion {
+template <> struct Traits<FromDoubleSystem> : public FromDoubleTraits {};
+}  // namespace scalar_conversion
+namespace {
+
+// Check the message from a Clone() failing. These particular tests excercise
+// the current set of conditions that prevent cloning. If we enhance Clone()
+// to be more capable they might start passing, in which case we should update
+// the test to cover whatever remaining circumstances don't support cloning.
+GTEST_TEST(LeafSystemCloneTest, Unsupported) {
+  // The TestSystem does not support scalar conversion, so it cannot be cloned.
+  DRAKE_EXPECT_THROWS_MESSAGE(TestSystem<double>{}.Clone(),
+                              ".*does not support Clon.*");
+
+  // Systems that allow double -> autodiff but not vice versa cannot be cloned.
+  DRAKE_EXPECT_THROWS_MESSAGE(FromDoubleSystem<double>{}.Clone(),
+                              ".*does not support Clon.*");
+}
+
 GTEST_TEST(GraphvizTest, Attributes) {
   DefaultFeedthroughSystem system;
   // Check that the ID is the memory address.
@@ -2336,7 +2444,7 @@ GTEST_TEST(DoPublishOverrideTest, ConfirmOverride) {
   ASSERT_EQ(system.do_publish_count(), 0);
   ASSERT_EQ(system.event_handle_count(), 0);
 
-  system.Publish(*context);
+  system.ForcedPublish(*context);
   EXPECT_EQ(system.do_publish_count(), 1);
   EXPECT_EQ(system.event_handle_count(), 1);
   system.Publish(*context, events);
@@ -2348,7 +2456,7 @@ GTEST_TEST(DoPublishOverrideTest, ConfirmOverride) {
   system.set_ignore_events(true);
   ASSERT_TRUE(system.ignore_events());
 
-  system.Publish(*context);
+  system.ForcedPublish(*context);
   EXPECT_EQ(system.do_publish_count(), 3);
   EXPECT_EQ(system.event_handle_count(), 2);
   system.Publish(*context, events);
@@ -2763,9 +2871,9 @@ GTEST_TEST(InitializationTest, InitializationTest) {
   dut.GetInitializationEvents(*context, init_events.get());
 
   dut.Publish(*context, init_events->get_publish_events());
-  dut.CalcDiscreteVariableUpdates(*context,
-                                  init_events->get_discrete_update_events(),
-                                  discrete_updates.get());
+  dut.CalcDiscreteVariableUpdate(*context,
+                                 init_events->get_discrete_update_events(),
+                                 discrete_updates.get());
   dut.CalcUnrestrictedUpdate(
       *context, init_events->get_unrestricted_update_events(), state.get());
 
@@ -2918,6 +3026,12 @@ GTEST_TEST(EventSugarTest, EventsAreRegistered) {
   EXPECT_TRUE(per_step_events->HasDiscreteUpdateEvents());
   EXPECT_TRUE(per_step_events->HasUnrestrictedUpdateEvents());
 
+  auto periodic_events = dut.AllocateCompositeEventCollection();
+  dut.GetPeriodicEvents(*context, &*periodic_events);
+  EXPECT_TRUE(periodic_events->HasPublishEvents());
+  EXPECT_TRUE(periodic_events->HasDiscreteUpdateEvents());
+  EXPECT_TRUE(periodic_events->HasUnrestrictedUpdateEvents());
+
   auto timed_events = dut.AllocateCompositeEventCollection();
   double next_event_time = dut.CalcNextUpdateTime(*context, &*timed_events);
   EXPECT_EQ(next_event_time, 0.25);
@@ -2939,18 +3053,18 @@ GTEST_TEST(EventSugarTest, HandlersGetCalled) {
   dut.GetPerStepEvents(*context, &*per_step_events);
   all_events->AddToEnd(*per_step_events);
 
-  auto timed_events = dut.AllocateCompositeEventCollection();
-  dut.CalcNextUpdateTime(*context, &*timed_events);
-  all_events->AddToEnd(*timed_events);
+  auto periodic_events = dut.AllocateCompositeEventCollection();
+  dut.GetPeriodicEvents(*context, &*periodic_events);
+  all_events->AddToEnd(*periodic_events);
 
   dut.CalcUnrestrictedUpdate(
       *context, all_events->get_unrestricted_update_events(), &*state);
-  dut.CalcUnrestrictedUpdate(*context, &*state);
-  dut.CalcDiscreteVariableUpdates(
+  dut.CalcForcedUnrestrictedUpdate(*context, &*state);
+  dut.CalcDiscreteVariableUpdate(
       *context, all_events->get_discrete_update_events(), &*discrete_state);
-  dut.CalcDiscreteVariableUpdates(*context, &*discrete_state);
+  dut.CalcForcedDiscreteVariableUpdate(*context, &*discrete_state);
   dut.Publish(*context, all_events->get_publish_events());
-  dut.Publish(*context);
+  dut.ForcedPublish(*context);
 
   EXPECT_EQ(dut.num_publish(), 5);
   EXPECT_EQ(dut.num_second_publish_handler_publishes(), 1);

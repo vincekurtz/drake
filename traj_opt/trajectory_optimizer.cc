@@ -7,11 +7,20 @@
 #include <limits>
 #include <string>
 
+#if defined(_OPENMP)
+#include <omp.h>
+#endif
+
 #include "drake/common/profiler.h"
 #include "drake/geometry/scene_graph_inspector.h"
 #include "drake/multibody/math/spatial_algebra.h"
 #include "drake/systems/framework/diagram.h"
 #include "drake/traj_opt/penta_diagonal_solver.h"
+#include "drake/traj_opt/penta_diagonal_to_petsc_matrix.h"
+
+using drake::multibody::fem::internal::PetscSolverStatus;
+using drake::multibody::fem::internal::PetscSymmetricBlockSparseMatrix;
+
 #define PRINT_VAR(a) std::cout << #a ": " << a << std::endl;
 #define PRINT_VARn(a) std::cout << #a ":\n" << a << std::endl;
 
@@ -34,33 +43,6 @@ using multibody::SpatialVelocity;
 using systems::System;
 
 template <typename T>
-TrajectoryOptimizer<T>::TrajectoryOptimizer(const MultibodyPlant<T>* plant,
-                                            Context<T>* context,
-                                            const ProblemDefinition& prob,
-                                            const SolverParameters& params)
-    : plant_(plant), context_(context), prob_(prob), params_(params) {
-  // Define joint damping coefficients.
-  joint_damping_ = VectorX<T>::Zero(plant_->num_velocities());
-
-  for (JointIndex j(0); j < plant_->num_joints(); ++j) {
-    const Joint<T>& joint = plant_->get_joint(j);
-    const int velocity_start = joint.velocity_start();
-    const int nv = joint.num_velocities();
-    joint_damping_.segment(velocity_start, nv) = joint.damping_vector();
-  }
-
-  // Must have a target position and velocity specified for each time step
-  DRAKE_DEMAND(static_cast<int>(prob.q_nom.size()) == (num_steps() + 1));
-  DRAKE_DEMAND(static_cast<int>(prob.v_nom.size()) == (num_steps() + 1));
-
-  if (params_.gradients_method == GradientsMethod::kAutoDiff) {
-    throw std::runtime_error(
-        "It is not possible to use automatic differentiation when only the "
-        "plant is provided. Use the constructor providing the full Diagram.");
-  }
-}
-
-template <typename T>
 TrajectoryOptimizer<T>::TrajectoryOptimizer(const Diagram<T>* diagram,
                                             const MultibodyPlant<T>* plant,
                                             const ProblemDefinition& prob,
@@ -74,12 +56,22 @@ TrajectoryOptimizer<T>::TrajectoryOptimizer(const Diagram<T>* diagram,
 
   // Define joint damping coefficients.
   joint_damping_ = VectorX<T>::Zero(plant_->num_velocities());
-
   for (JointIndex j(0); j < plant_->num_joints(); ++j) {
     const Joint<T>& joint = plant_->get_joint(j);
     const int velocity_start = joint.velocity_start();
     const int nv = joint.num_velocities();
     joint_damping_.segment(velocity_start, nv) = joint.damping_vector();
+  }
+
+  // Define unactuated degrees of freedom
+  const MatrixX<T> B = plant_->MakeActuationMatrix();
+  if (B.size() > 0) {
+    // if B is of size zero, assume the system is fully actuated
+    for (int i = 0; i < plant_->num_velocities(); ++i) {
+      if (B.row(i).sum() == 0) {
+        unactuated_dofs_.push_back(i);
+      }
+    }
   }
 
   // Must have a target position and velocity specified for each time step
@@ -88,23 +80,28 @@ TrajectoryOptimizer<T>::TrajectoryOptimizer(const Diagram<T>* diagram,
 
   // Create an autodiff optimizer if we need exact gradients
   if constexpr (std::is_same_v<T, double>) {
-    if (params_.gradients_method == GradientsMethod::kAutoDiff) {
+    if ((params_.gradients_method == GradientsMethod::kAutoDiff) ||
+        params_.exact_hessian) {
       diagram_ad_ = systems::System<double>::ToAutoDiffXd(*diagram);
       plant_ad_ = dynamic_cast<const MultibodyPlant<AutoDiffXd>*>(
           &diagram_ad_->GetSubsystemByName(plant->get_name()));
       DRAKE_DEMAND(plant_ad_ != nullptr);
       SolverParameters params_ad(params);
-      // N.B. We'll only use optimizer_ad_ to compute inverse dynamics with
-      // AutoDiffXd, not gradients. We state this explicitly so that we don't
-      // get the exception below at construction.
-      params_ad.gradients_method = GradientsMethod::kNoGradients;
+      if (params_.gradients_method == GradientsMethod::kAutoDiff) {
+        // If we're using autodiff to compute gradients, then the autodiff copy
+        // of the plant should not be able to compute its own gradients
+        params_ad.gradients_method = GradientsMethod::kNoGradients;
+      } else {
+        params_ad.gradients_method = GradientsMethod::kCentralDifferences;
+      }
       optimizer_ad_ = std::make_unique<TrajectoryOptimizer<AutoDiffXd>>(
           diagram_ad_.get(), plant_ad_, prob, params_ad);
       // TODO(vincekurtz): move state's destructor and possible other
       // implementation to the source?
       state_ad_ = std::unique_ptr<TrajectoryOptimizerState<AutoDiffXd>>(
           new TrajectoryOptimizerState<AutoDiffXd>(num_steps(), *diagram_ad_,
-                                                   *plant_ad_));
+                                                   *plant_ad_,
+                                                   num_equality_constraints()));
     }
   } else {
     if (params_.gradients_method == GradientsMethod::kAutoDiff) {
@@ -112,6 +109,14 @@ TrajectoryOptimizer<T>::TrajectoryOptimizer(const Diagram<T>* diagram,
           "Analytical gradients not supported for "
           "TrajectoryOptimizer<AutoDiffXd>.");
     }
+  }
+
+  // Print warning if parallelization is requested with a slower gradient method
+  if ((params_.gradients_method != GradientsMethod::kForwardDifferences) &&
+      (params_.num_threads != 1)) {
+    drake::log()->warn(
+        "Parallel derivatives are currently supported only for forward "
+        "differences, not for central differences or autodiff.");
   }
 }
 
@@ -209,7 +214,6 @@ void TrajectoryOptimizer<T>::CalcAccelerations(
 template <typename T>
 void TrajectoryOptimizer<T>::CalcInverseDynamics(
     const TrajectoryOptimizerState<T>& state, const std::vector<VectorX<T>>& a,
-    TrajectoryOptimizerWorkspace<T>* workspace,
     std::vector<VectorX<T>>* tau) const {
   // Generalized forces aren't defined for the last timestep
   // TODO(vincekurtz): additional checks that q_t, v_t, tau_t are the right size
@@ -217,11 +221,17 @@ void TrajectoryOptimizer<T>::CalcInverseDynamics(
   DRAKE_DEMAND(static_cast<int>(a.size()) == num_steps());
   DRAKE_DEMAND(static_cast<int>(tau->size()) == num_steps());
 
+#if defined(_OPENMP)
+#pragma omp parallel for num_threads(params_.num_threads)
+#endif
   for (int t = 0; t < num_steps(); ++t) {
+    TrajectoryOptimizerWorkspace<T>& workspace =
+        state.per_timestep_workspace[t];
     const Context<T>& context_tp = EvalPlantContext(state, t + 1);
     // All dynamics terms are treated implicitly, i.e.,
     // tau[t] = M(q[t+1]) * a[t] - k(q[t+1],v[t+1]) - f_ext[t+1]
-    CalcInverseDynamicsSingleTimeStep(context_tp, a[t], workspace, &tau->at(t));
+    CalcInverseDynamicsSingleTimeStep(context_tp, a[t], &workspace,
+                                      &tau->at(t));
   }
 }
 
@@ -229,8 +239,6 @@ template <typename T>
 void TrajectoryOptimizer<T>::CalcInverseDynamicsSingleTimeStep(
     const Context<T>& context, const VectorX<T>& a,
     TrajectoryOptimizerWorkspace<T>* workspace, VectorX<T>* tau) const {
-  INSTRUMENT_FUNCTION("Computes inverse dynamics.");
-
   plant().CalcForceElementsContribution(context, &workspace->f_ext);
 
   // Add in contact force contribution to f_ext
@@ -249,41 +257,41 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsSingleTimeStep(
 template <typename T>
 void TrajectoryOptimizer<T>::CalcContactForceContribution(
     const Context<T>& context, MultibodyForces<T>* forces) const {
-  INSTRUMENT_FUNCTION("Computes contact forces.");
-
   using std::abs;
+  using std::exp;
+  using std::log;
   using std::max;
   using std::pow;
   using std::sqrt;
-  using std::log;
-  using std::exp;
 
-  // Compliant contact parameters. stiffness_exponent = 3/2 corresponds to Hertz
-  // model for spherical contact. stiffness_exponent = 1.0 corresponds to a
-  // linear spring force with stiffness F/delta.
+  // Compliant contact parameters
   const double F = params_.F;
   const double delta = params_.delta;
-  const double stiffness_exponent = params_.stiffness_exponent;
-  const double smoothing_factor = params_.smoothing_factor;
-
-  // (Normal) Dissipation. dissipation_exponent = 1.0 corresponds to the Hunt &
-  // Crossley model of dissipation.
-  const double dissipation_exponent = params_.dissipation_exponent;
+  const double sigma = params_.smoothing_factor;
   const double dissipation_velocity = params_.dissipation_velocity;
 
   // Friction parameters.
   const double vs = params_.stiction_velocity;     // Regularization.
   const double mu = params_.friction_coefficient;  // Coefficient of friction.
 
+  // Compute the distance at which contact forces are zero: we don't need to do
+  // any geometry queries beyond this distance
+  double threshold = 0.0;
+  if (params_.force_at_a_distance) {
+    const double k = F / delta;
+    const double eps = sqrt(std::numeric_limits<double>::epsilon());
+    threshold = -sigma / k * log(exp(eps / sigma) - 1.0);
+  }
+
   // Get signed distance pairs
   const geometry::QueryObject<T>& query_object =
       plant()
           .get_geometry_query_input_port()
           .template Eval<geometry::QueryObject<T>>(context);
-  const std::vector<SignedDistancePair<T>>& signed_distance_pairs =
-      query_object.ComputeSignedDistancePairwiseClosestPoints();
   const drake::geometry::SceneGraphInspector<T>& inspector =
       query_object.inspector();
+  const std::vector<SignedDistancePair<T>>& signed_distance_pairs =
+      query_object.ComputeSignedDistancePairwiseClosestPoints(threshold);
 
   for (const SignedDistancePair<T>& pair : signed_distance_pairs) {
     // Don't do any contact force computations if we're not in contact, unless
@@ -311,9 +319,9 @@ void TrajectoryOptimizer<T>::CalcContactForceContribution(
 
       // Geometry poses in body frames.
       const math::RigidTransform<T> X_AGa =
-          inspector.GetPoseInParent(geometryA_id).template cast<T>();
+          inspector.GetPoseInFrame(geometryA_id).template cast<T>();
       const math::RigidTransform<T> X_BGb =
-          inspector.GetPoseInParent(geometryB_id).template cast<T>();
+          inspector.GetPoseInFrame(geometryB_id).template cast<T>();
 
       // Position of the witness points in the world frame.
       const auto& p_GaCa_Ga = pair.p_ACa;
@@ -346,24 +354,38 @@ void TrajectoryOptimizer<T>::CalcContactForceContribution(
       const T vn = nhat.dot(v_AcBc_W);
       const Vector3<T> vt = v_AcBc_W - vn * nhat;
 
-      // Normal (compliant) component.
-      const T sign_vn = vn > 0 ? 1.0 : -1.0;
-      const T dissipation_factor = max(
-          0.0, 1.0 - pow(abs(vn / dissipation_velocity), dissipation_exponent) *
-                         sign_vn);
+      // Normal dissipation follows a smoothed Hunt and Crossley model
+      T dissipation_factor = 0.0;
+      const T s = vn / dissipation_velocity;
+      if (s < 0) {
+        dissipation_factor = 1 - s;
+      } else if (s < 2) {
+        dissipation_factor = (s - 2) * (s - 2) / 4;
+      }
 
+      // (Compliant) force in the normal direction increases linearly at a rate
+      // of 2F/delta Newtons per meter, with some smoothing that may or may not
+      // allow for force at a distance.
       T compliant_fn;
+      const T x = -pair.distance / delta;
       if (params_.force_at_a_distance) {
-        if (smoothing_factor * pair.distance < -100) {
+        if (2 * F * x / sigma >= 37) {
           // If the exponent is going to be very large, replace with the
-          // functional limit as smoothing_factor goes to infinity.
-          compliant_fn = -F / delta * pair.distance;
+          // functional limit.
+          // N.B. x = 37 is the first integer such that exp(x)+1 = exp(x) in
+          // double precision.
+          compliant_fn = 2 * F * x;
         } else {
-          compliant_fn = F / delta / smoothing_factor *
-                        log(1 + exp(-smoothing_factor * pair.distance));
+          compliant_fn = sigma * log(1 + exp(2 * F * x / sigma));
         }
       } else {
-        compliant_fn = F * pow(-pair.distance / delta, stiffness_exponent);
+        if (x < 0) {
+          compliant_fn = 0;
+        } else if (x < 1) {
+          compliant_fn = F * x * x;
+        } else {
+          compliant_fn = F * (2 * x - 1);
+        }
       }
       const T fn = compliant_fn * dissipation_factor;
 
@@ -372,7 +394,7 @@ void TrajectoryOptimizer<T>::CalcContactForceContribution(
       //  ft = -mu*fn*sigmoid(||vt||/vs)*vt/||vt||.
       // with the algebraic sigmoid function defined as sigmoid(x) =
       // x/sqrt(1+x^2). The algebraic simplification is performed to avoid
-      // division by zero when vt = 0 (or lost of precision when close to zero).
+      // division by zero when vt = 0 (or loss of precision when close to zero).
       const Vector3<T> that_regularized =
           -vt / sqrt(vs * vs + vt.squaredNorm());
       const Vector3<T> ft_BC_W = that_regularized * mu * fn;
@@ -472,9 +494,9 @@ void TrajectoryOptimizer<T>::CalcContactJacobian(
 
     // Geometry poses in body frames.
     const math::RigidTransform<T> X_AGa =
-        inspector.GetPoseInParent(geometryA_id).template cast<T>();
+        inspector.GetPoseInFrame(geometryA_id).template cast<T>();
     const math::RigidTransform<T> X_BGb =
-        inspector.GetPoseInParent(geometryB_id).template cast<T>();
+        inspector.GetPoseInFrame(geometryB_id).template cast<T>();
 
     // Position of the witness points in the world frame.
     const auto& p_GaCa_Ga = pair.p_ACa;
@@ -610,29 +632,42 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsFiniteDiff(
   // Get kinematic mapping matrices for each time step
   const std::vector<MatrixX<T>>& Nplus = EvalNplus(state);
 
-  // Get references to perturbed versions of q, v, tau, and a, at (t-1, t, t).
-  // These are all of the quantities that change when we perturb q_t.
-  TrajectoryOptimizerWorkspace<T>& workspace = state.workspace;
-  VectorX<T>& q_eps_t = workspace.q_size_tmp1;
-  VectorX<T>& v_eps_t = workspace.v_size_tmp1;
-  VectorX<T>& v_eps_tp = workspace.v_size_tmp2;
-  VectorX<T>& a_eps_tm = workspace.a_size_tmp1;
-  VectorX<T>& a_eps_t = workspace.a_size_tmp2;
-  VectorX<T>& a_eps_tp = workspace.a_size_tmp3;
-  VectorX<T>& tau_eps_tm = workspace.tau_size_tmp1;
-  VectorX<T>& tau_eps_t = workspace.tau_size_tmp2;
-  VectorX<T>& tau_eps_tp = workspace.tau_size_tmp3;
-
-  // Store small perturbations
+  // Allocate small perturbations to q, v, and a at each time step
   const double eps = sqrt(std::numeric_limits<double>::epsilon());
-  T dq_i;
-  T dv_i;
-  T da_i;
-  for (int t = 0; t <= num_steps(); ++t) {
+  std::vector<T> dq_is(num_steps() + 1);
+  std::vector<T> dv_is(num_steps() + 1);
+  std::vector<T> da_is(num_steps() + 1);
+
+#if defined(_OPENMP)
+#pragma omp parallel for num_threads(params_.num_threads)
+#endif
+  for (int t = 1; t <= num_steps(); ++t) {
     // N.B. A perturbation of qt propagates to tau[t-1], tau[t] and tau[t+1].
     // Therefore we compute one column of grad_tau at a time. That is, once the
     // loop on position indices i is over, we effectively computed the t-th
     // column of grad_tau.
+
+    // N.B. we need a separate workspace for each timestep, otherwise threads
+    // will fight over the same workspace
+    TrajectoryOptimizerWorkspace<T>& workspace =
+        state.per_timestep_workspace[t];
+
+    // Get references to perturbed versions of q, v, tau, and a, at (t-1, t, t).
+    // These are all of the quantities that change when we perturb q_t.
+    VectorX<T>& q_eps_t = workspace.q_size_tmp1;
+    VectorX<T>& v_eps_t = workspace.v_size_tmp1;
+    VectorX<T>& v_eps_tp = workspace.v_size_tmp2;
+    VectorX<T>& a_eps_tm = workspace.a_size_tmp1;
+    VectorX<T>& a_eps_t = workspace.a_size_tmp2;
+    VectorX<T>& a_eps_tp = workspace.a_size_tmp3;
+    VectorX<T>& tau_eps_tm = workspace.tau_size_tmp1;
+    VectorX<T>& tau_eps_t = workspace.tau_size_tmp2;
+    VectorX<T>& tau_eps_tp = workspace.tau_size_tmp3;
+
+    // Small perturbations
+    T& dq_i = dq_is[t];
+    T& dv_i = dv_is[t];
+    T& da_i = da_is[t];
 
     // Set perturbed versions of variables
     q_eps_t = q[t];
@@ -647,10 +682,7 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsFiniteDiff(
       // a[num_steps + 1] is not defined
       a_eps_tp = a[t + 1];
     }
-    if (t > 0) {
-      // a[-1] is undefined
-      a_eps_tm = a[t - 1];
-    }
+    a_eps_tm = a[t - 1];
 
     for (int i = 0; i < plant().num_positions(); ++i) {
       // Determine perturbation sizes to avoid losing precision to floating
@@ -667,10 +699,8 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsFiniteDiff(
       // Perturb q_t[i], v_t[i], and a_t[i]
       q_eps_t(i) += dq_i;
 
-      if (t > 0) {
-        v_eps_t += dv_i * Nplus[t].col(i);
-        a_eps_tm += da_i * Nplus[t].col(i);
-      }
+      v_eps_t += dv_i * Nplus[t].col(i);
+      a_eps_tm += da_i * Nplus[t].col(i);
       if (t < num_steps()) {
         v_eps_tp -= dv_i * Nplus[t + 1].col(i);
         a_eps_t -= da_i * (Nplus[t + 1].col(i) + Nplus[t].col(i));
@@ -681,37 +711,39 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsFiniteDiff(
 
       // Compute perturbed tau(q) and calculate the nonzero entries of dtau/dq
       // via finite differencing
-      if (t > 0) {
-        // tau[t-1] = ID(q[t], v[t], a[t-1])
-        plant().SetPositions(context_, q_eps_t);
-        plant().SetVelocities(context_, v_eps_t);
-        CalcInverseDynamicsSingleTimeStep(*context_, a_eps_tm, &workspace,
-                                          &tau_eps_tm);
-        dtau_dqp[t - 1].col(i) = (tau_eps_tm - tau[t - 1]) / dq_i;
-      }
+
+      // Get a context for this time step
+      Context<T>& context_t = GetMutablePlantContext(state, t);
+
+      // tau[t-1] = ID(q[t], v[t], a[t-1])
+      plant().SetPositions(&context_t, q_eps_t);
+      plant().SetVelocities(&context_t, v_eps_t);
+      CalcInverseDynamicsSingleTimeStep(context_t, a_eps_tm, &workspace,
+                                        &tau_eps_tm);
+      dtau_dqp[t - 1].col(i) = (tau_eps_tm - tau[t - 1]) / dq_i;
+
+      // tau[t] = ID(q[t+1], v[t+1], a[t])
       if (t < num_steps()) {
-        // tau[t] = ID(q[t+1], v[t+1], a[t])
-        plant().SetPositions(context_, q[t + 1]);
-        plant().SetVelocities(context_, v_eps_tp);
-        CalcInverseDynamicsSingleTimeStep(*context_, a_eps_t, &workspace,
+        plant().SetPositions(&context_t, q[t + 1]);
+        plant().SetVelocities(&context_t, v_eps_tp);
+        CalcInverseDynamicsSingleTimeStep(context_t, a_eps_t, &workspace,
                                           &tau_eps_t);
         dtau_dqt[t].col(i) = (tau_eps_t - tau[t]) / dq_i;
       }
+
+      // tau[t+1] = ID(q[t+2], v[t+2], a[t+1])
       if (t < num_steps() - 1) {
-        // tau[t+1] = ID(q[t+2], v[t+2], a[t+1])
-        plant().SetPositions(context_, q[t + 2]);
-        plant().SetVelocities(context_, v[t + 2]);
-        CalcInverseDynamicsSingleTimeStep(*context_, a_eps_tp, &workspace,
+        plant().SetPositions(&context_t, q[t + 2]);
+        plant().SetVelocities(&context_t, v[t + 2]);
+        CalcInverseDynamicsSingleTimeStep(context_t, a_eps_tp, &workspace,
                                           &tau_eps_tp);
         dtau_dqm[t + 1].col(i) = (tau_eps_tp - tau[t + 1]) / dq_i;
       }
 
       // Unperturb q_t[i], v_t[i], and a_t[i]
       q_eps_t = q[t];
-      if (t > 0) {
-        v_eps_t = v[t];
-        a_eps_tm = a[t - 1];
-      }
+      v_eps_t = v[t];
+      a_eps_tm = a[t - 1];
       if (t < num_steps()) {
         v_eps_tp = v[t + 1];
         a_eps_t = a[t];
@@ -735,7 +767,7 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsCentralDiff(
   std::vector<MatrixX<T>>& dtau_dqt = id_partials->dtau_dqt;
   std::vector<MatrixX<T>>& dtau_dqp = id_partials->dtau_dqp;
 
-  for (int t = 0; t <= num_steps(); ++t) {
+  for (int t = 1; t <= num_steps(); ++t) {
     // N.B. A perturbation of qt propagates to tau[t-1], tau[t] and tau[t+1].
     // Therefore we compute one column of grad_tau at a time. That is, once the
     // loop on position indices i is over, we effectively computed the t-th
@@ -1076,7 +1108,7 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsAutoDiff(
 
   // At each t we will compute derivatives of tau[t-1], tau[t] and tau[t+1 with
   // respect to q[t].
-  for (int t = 0; t <= num_steps(); ++t) {
+  for (int t = 1; t <= num_steps(); ++t) {
     // Set derivatives with respect to q[t].
     // q[t] will propagate directly to v[t], v[t+1], a[t-1], a[t] and a[t+1].
     q_ad[t] = math::InitializeAutoDiff(q[t]);
@@ -1270,6 +1302,7 @@ const VectorX<T>& TrajectoryOptimizer<T>::EvalGradient(
     const TrajectoryOptimizerState<T>& state) const {
   if (!state.cache().gradient_up_to_date) {
     CalcGradient(state, &state.mutable_cache().gradient);
+    state.mutable_cache().gradient_up_to_date = true;
   }
   return state.cache().gradient;
 }
@@ -1360,10 +1393,318 @@ template <typename T>
 const PentaDiagonalMatrix<T>& TrajectoryOptimizer<T>::EvalHessian(
     const TrajectoryOptimizerState<T>& state) const {
   if (!state.cache().hessian_up_to_date) {
-    CalcHessian(state, &state.mutable_cache().hessian);
+    if (params_.exact_hessian) {
+      CalcExactHessian(state, &state.mutable_cache().hessian);
+    } else {
+      CalcHessian(state, &state.mutable_cache().hessian);
+    }
     state.mutable_cache().hessian_up_to_date = true;
   }
   return state.cache().hessian;
+}
+
+template <typename T>
+void TrajectoryOptimizer<T>::CalcScaledHessian(
+    const TrajectoryOptimizerState<T>& state,
+    PentaDiagonalMatrix<T>* Htilde) const {
+  const PentaDiagonalMatrix<T>& H = EvalHessian(state);
+  const VectorX<T>& D = EvalScaleFactors(state);
+  *Htilde = PentaDiagonalMatrix<T>(H);
+  Htilde->ScaleByDiagonal(D);
+}
+
+template <typename T>
+const PentaDiagonalMatrix<T>& TrajectoryOptimizer<T>::EvalScaledHessian(
+    const TrajectoryOptimizerState<T>& state) const {
+  // Early exit if we're not using scaling
+  if (!params_.scaling) return EvalHessian(state);
+
+  if (!state.cache().scaled_hessian_up_to_date) {
+    CalcScaledHessian(state, &state.mutable_cache().scaled_hessian);
+    state.mutable_cache().scaled_hessian_up_to_date = true;
+  }
+  return state.cache().scaled_hessian;
+}
+
+template <typename T>
+void TrajectoryOptimizer<T>::CalcScaledGradient(
+    const TrajectoryOptimizerState<T>& state, VectorX<T>* gtilde) const {
+  const VectorX<T>& g = EvalGradient(state);
+  const VectorX<T>& D = EvalScaleFactors(state);
+  *gtilde = D.asDiagonal() * g;
+}
+
+template <typename T>
+const VectorX<T>& TrajectoryOptimizer<T>::EvalScaledGradient(
+    const TrajectoryOptimizerState<T>& state) const {
+  // Early exit if we're not using scaling
+  if (!params_.scaling) return EvalGradient(state);
+
+  if (!state.cache().scaled_gradient_up_to_date) {
+    CalcScaledGradient(state, &state.mutable_cache().scaled_gradient);
+    state.mutable_cache().scaled_gradient_up_to_date = true;
+  }
+  return state.cache().scaled_gradient;
+}
+
+template <typename T>
+void TrajectoryOptimizer<T>::CalcScaleFactors(
+    const TrajectoryOptimizerState<T>& state, VectorX<T>* D) const {
+  using std::min;
+  using std::sqrt;
+
+  const PentaDiagonalMatrix<T>& H = EvalHessian(state);
+  VectorX<T>& hessian_diag = state.workspace.num_vars_size_tmp1;
+  H.ExtractDiagonal(&hessian_diag);
+
+  for (int i = 0; i < D->size(); ++i) {
+    switch (params_.scaling_method) {
+      case ScalingMethod::kSqrt: {
+        (*D)[i] = min(1.0, 1 / sqrt(hessian_diag[i]));
+        break;
+      }
+      case ScalingMethod::kAdaptiveSqrt: {
+        (*D)[i] = min((*D)[i], 1 / sqrt(hessian_diag[i]));
+        break;
+      }
+      case ScalingMethod::kDoubleSqrt: {
+        (*D)[i] = min(1.0, 1 / sqrt(sqrt(hessian_diag[i])));
+        break;
+      }
+      case ScalingMethod::kAdaptiveDoubleSqrt: {
+        (*D)[i] = min((*D)[i], 1 / sqrt(sqrt(hessian_diag[i])));
+        break;
+      }
+    }
+  }
+}
+
+template <typename T>
+const VectorX<T>& TrajectoryOptimizer<T>::EvalScaleFactors(
+    const TrajectoryOptimizerState<T>& state) const {
+  if (!state.cache().scale_factors_up_to_date) {
+    CalcScaleFactors(state, &state.mutable_cache().scale_factors);
+    state.mutable_cache().scale_factors_up_to_date = true;
+  }
+  return state.cache().scale_factors;
+}
+
+template <typename T>
+void TrajectoryOptimizer<T>::CalcEqualityConstraintViolations(
+    const TrajectoryOptimizerState<T>& state, VectorX<T>* violations) const {
+  INSTRUMENT_FUNCTION("Assemble torques on unactuated dofs.");
+  const std::vector<VectorX<T>>& tau = EvalTau(state);
+  const int num_unactuated_dofs = unactuated_dofs().size();
+
+  for (int t = 0; t < num_steps(); ++t) {
+    for (int j = 0; j < num_unactuated_dofs; ++j) {
+      (*violations)(t * num_unactuated_dofs + j) = tau[t][unactuated_dofs()[j]];
+    }
+  }
+}
+
+template <typename T>
+const VectorX<T>& TrajectoryOptimizer<T>::EvalEqualityConstraintViolations(
+    const TrajectoryOptimizerState<T>& state) const {
+  if (!state.cache().constraint_violation_up_to_date) {
+    CalcEqualityConstraintViolations(
+        state, &state.mutable_cache().constraint_violation);
+    state.mutable_cache().constraint_violation_up_to_date = true;
+  }
+  return state.cache().constraint_violation;
+}
+
+template <typename T>
+void TrajectoryOptimizer<T>::CalcEqualityConstraintJacobian(
+    const TrajectoryOptimizerState<T>& state, MatrixX<T>* J) const {
+  INSTRUMENT_FUNCTION("Assemble equality constraint Jacobian.");
+  DRAKE_DEMAND(J->cols() == (num_steps() + 1) * plant().num_positions());
+  DRAKE_DEMAND(J->rows() == num_equality_constraints());
+
+  const InverseDynamicsPartials<T>& id_partials =
+      EvalInverseDynamicsPartials(state);
+
+  const int nq = plant().num_positions();
+  const int n_steps = num_steps();
+  const int n_unactuated = unactuated_dofs().size();
+
+  for (int t = 0; t < n_steps; ++t) {
+    for (int i = 0; i < n_unactuated; ++i) {
+      // ∂hₜⁱ/∂qₜ₊₁
+      J->block(t * n_unactuated + i, (t + 1) * nq, 1, nq) =
+          id_partials.dtau_dqp[t].row(unactuated_dofs()[i]);
+
+      // ∂hₜⁱ/∂qₜ
+      if (t > 0) {
+        J->block(t * n_unactuated + i, t * nq, 1, nq) =
+            id_partials.dtau_dqt[t].row(unactuated_dofs()[i]);
+      }
+
+      // ∂hₜⁱ/∂qₜ₋₁
+      if (t > 1) {
+        J->block(t * n_unactuated + i, (t - 1) * nq, 1, nq) =
+            id_partials.dtau_dqm[t].row(unactuated_dofs()[i]);
+      }
+    }
+  }
+
+  // With scaling enabled, the KKT conditions become
+  //   [ DHD  DJ'][Δq] = [-g]
+  //   [ JD    0 ][ λ]   [-h]
+  // so we'll return the scaled version of the constraint Jacobian J̃ = JD
+  if (params_.scaling) {
+    const VectorX<T>& D = EvalScaleFactors(state);
+    *J = (*J) * D.asDiagonal();
+  }
+}
+
+template <typename T>
+const MatrixX<T>& TrajectoryOptimizer<T>::EvalEqualityConstraintJacobian(
+    const TrajectoryOptimizerState<T>& state) const {
+  if (!state.cache().constraint_jacobian_up_to_date) {
+    CalcEqualityConstraintJacobian(state,
+                                   &state.mutable_cache().constraint_jacobian);
+    state.mutable_cache().constraint_jacobian_up_to_date = true;
+  }
+  return state.cache().constraint_jacobian;
+}
+
+template <typename T>
+void TrajectoryOptimizer<T>::CalcLagrangeMultipliers(
+    const TrajectoryOptimizerState<T>&, VectorX<T>*) const {
+  // We need to perform linear system solves to compute the lagrange
+  // multipliers, so we don't support autodiff here.
+  throw std::runtime_error("CalcLagrangeMultipliers() only supports T=double");
+}
+
+template <>
+void TrajectoryOptimizer<double>::CalcLagrangeMultipliers(
+    const TrajectoryOptimizerState<double>& state, VectorXd* lambda) const {
+  INSTRUMENT_FUNCTION("Compute lagrange multipliers.");
+  // λ = (J H⁻¹ Jᵀ)⁻¹ (h − J H⁻¹ g)
+  const PentaDiagonalMatrix<double>& H = EvalScaledHessian(state);
+  const VectorXd& g = EvalScaledGradient(state);
+  const VectorXd& h = EvalEqualityConstraintViolations(state);
+  const MatrixXd& J = EvalEqualityConstraintJacobian(state);
+
+  // compute H⁻¹ Jᵀ
+  // TODO(vincekurtz): add options for other linear systems solvers
+  MatrixXd& Hinv_JT = state.workspace.num_vars_by_num_eq_cons_tmp;
+  Hinv_JT = J.transpose();
+  PentaDiagonalFactorization Hlu(H);
+  DRAKE_DEMAND(Hlu.status() == PentaDiagonalFactorizationStatus::kSuccess);
+  for (int i = 0; i < Hinv_JT.cols(); ++i) {
+    // We need this variable to avoid taking the address of a temporary object
+    auto ith_column = Hinv_JT.col(i);
+    Hlu.SolveInPlace(&ith_column);
+  }
+
+  // TODO(vincekurtz): it may be possible to exploit the structure of JH⁻¹Jᵀ to
+  // perform this step more efficiently.
+  *lambda = (J * Hinv_JT).ldlt().solve(h - Hinv_JT.transpose() * g);
+}
+
+template <typename T>
+const VectorX<T>& TrajectoryOptimizer<T>::EvalLagrangeMultipliers(
+    const TrajectoryOptimizerState<T>& state) const {
+  // We shouldn't be calling this unless equality constraints are enabled
+  DRAKE_ASSERT(params_.equality_constraints);
+
+  if (!state.cache().lagrange_multipliers_up_to_date) {
+    CalcLagrangeMultipliers(state, &state.mutable_cache().lagrange_multipliers);
+    state.mutable_cache().lagrange_multipliers_up_to_date = true;
+  }
+  return state.cache().lagrange_multipliers;
+}
+
+template <typename T>
+void TrajectoryOptimizer<T>::CalcMeritFunction(
+    const TrajectoryOptimizerState<T>& state, T* merit) const {
+  const T& L = EvalCost(state);
+  const VectorX<T>& h = EvalEqualityConstraintViolations(state);
+  const VectorX<T>& lambda = EvalLagrangeMultipliers(state);
+
+  *merit = L + h.dot(lambda);
+}
+
+template <typename T>
+const T TrajectoryOptimizer<T>::EvalMeritFunction(
+    const TrajectoryOptimizerState<T>& state) const {
+  // If we're not using equality constraints, the merit function is simply the
+  // unconstrained cost.
+  if (!params_.equality_constraints) return EvalCost(state);
+
+  if (!state.cache().merit_up_to_date) {
+    CalcMeritFunction(state, &state.mutable_cache().merit);
+    state.mutable_cache().merit_up_to_date = true;
+  }
+  return state.cache().merit;
+}
+
+template <typename T>
+void TrajectoryOptimizer<T>::CalcMeritFunctionGradient(
+    const TrajectoryOptimizerState<T>& state, VectorX<T>* g_tilde) const {
+  const VectorX<T>& g = EvalScaledGradient(state);
+  const VectorX<T>& lambda = EvalLagrangeMultipliers(state);
+  const MatrixX<T>& J = EvalEqualityConstraintJacobian(state);
+
+  *g_tilde = g + J.transpose() * lambda;
+}
+
+template <typename T>
+const VectorX<T>& TrajectoryOptimizer<T>::EvalMeritFunctionGradient(
+    const TrajectoryOptimizerState<T>& state) const {
+  // If we're not using equality constraints, just return the regular gradient.
+  if (!params_.equality_constraints) return EvalScaledGradient(state);
+
+  if (!state.cache().merit_gradient_up_to_date) {
+    CalcMeritFunctionGradient(state, &state.mutable_cache().merit_gradient);
+    state.mutable_cache().merit_gradient_up_to_date = true;
+  }
+  return state.cache().merit_gradient;
+}
+
+template <typename T>
+void TrajectoryOptimizer<T>::CalcExactHessian(
+    const TrajectoryOptimizerState<T>&, PentaDiagonalMatrix<T>*) const {
+  throw std::runtime_error(
+      "TrajectoryOptimizer::CalcExactHessian only supports T=double");
+}
+
+template <>
+void TrajectoryOptimizer<double>::CalcExactHessian(
+    const TrajectoryOptimizerState<double>& state,
+    PentaDiagonalMatrix<double>* H) const {
+  const int nq = plant().num_positions();
+  const int num_vars = (num_steps() + 1) * nq;
+  DRAKE_DEMAND(H->is_symmetric());
+  DRAKE_DEMAND(H->block_rows() == num_steps() + 1);
+  DRAKE_DEMAND(H->block_size() == nq);
+
+  const std::vector<VectorX<double>>& q = state.q();
+  std::vector<VectorX<AutoDiffXd>> q_ad(num_steps() + 1,
+                                        VectorX<AutoDiffXd>(nq));
+
+  // Initialize q_ad
+  int ad_idx = 0;
+  for (int t = 0; t <= num_steps(); ++t) {
+    for (int i = 0; i < nq; ++i) {
+      q_ad[t].segment<1>(i) =
+          math::InitializeAutoDiff(q[t].segment<1>(i), num_vars, ad_idx);
+      ++ad_idx;
+    }
+  }
+  state_ad_->set_q(q_ad);
+
+  // Compute the autodiff gradient with finite differences
+  const VectorX<AutoDiffXd>& g_ad = optimizer_ad_->EvalGradient(*state_ad_);
+
+  // Extract the Hessian via autodiff
+  MatrixXd H_dense = math::ExtractGradient(g_ad);
+  H_dense.leftCols(nq).setZero();
+  H_dense.block(0, 0, nq, nq).setIdentity();
+
+  *H = H->MakeSymmetricFromLowerDense(H_dense, num_steps() + 1, nq);
 }
 
 template <typename T>
@@ -1391,11 +1732,9 @@ template <typename T>
 void TrajectoryOptimizer<T>::CalcInverseDynamicsCache(
     const TrajectoryOptimizerState<T>& state,
     typename TrajectoryOptimizerCache<T>::InverseDynamicsCache* cache) const {
-  TrajectoryOptimizerWorkspace<T>& workspace = state.workspace;
-
   // Compute corresponding generalized torques
   const std::vector<VectorX<T>>& a = EvalA(state);
-  CalcInverseDynamics(state, a, &workspace, &cache->tau);
+  CalcInverseDynamics(state, a, &cache->tau);
 
   // Set cache invalidation flag
   cache->up_to_date = true;
@@ -1405,12 +1744,6 @@ template <typename T>
 void TrajectoryOptimizer<T>::CalcContextCache(
     const TrajectoryOptimizerState<T>& state,
     typename TrajectoryOptimizerCache<T>::ContextCache* cache) const {
-  if (diagram_ == nullptr) {
-    throw std::runtime_error(
-        "No Diagram was provided at construction of the TrajectoryOptimizer. "
-        "Use the constructor that takes a Diagram to enable the caching of "
-        "contexts.");
-  }
   const std::vector<VectorX<T>>& q = state.q();
   const std::vector<VectorX<T>>& v = EvalV(state);
   auto& plant_contexts = cache->plant_contexts;
@@ -1424,16 +1757,17 @@ void TrajectoryOptimizer<T>::CalcContextCache(
 template <typename T>
 const Context<T>& TrajectoryOptimizer<T>::EvalPlantContext(
     const TrajectoryOptimizerState<T>& state, int t) const {
-  if (diagram_ == nullptr) {
-    throw std::runtime_error(
-        "No Diagram was provided at construction of the TrajectoryOptimizer. "
-        "Use the constructor that takes a Diagram to enable the caching of "
-        "contexts.");
-  }
   if (!state.cache().context_cache->up_to_date) {
     CalcContextCache(state, state.mutable_cache().context_cache.get());
   }
   return *state.cache().context_cache->plant_contexts[t];
+}
+
+template <typename T>
+Context<T>& TrajectoryOptimizer<T>::GetMutablePlantContext(
+    const TrajectoryOptimizerState<T>& state, int t) const {
+  state.mutable_cache().context_cache->up_to_date = false;
+  return *state.mutable_cache().context_cache->plant_contexts[t];
 }
 
 template <typename T>
@@ -1691,6 +2025,7 @@ void TrajectoryOptimizer<T>::SaveLinesearchResidual(
     // phi(alpha) = L(q + alpha * dq) - L
     scratch_state->set_q(state.q());
     scratch_state->AddToQ(alpha * dq);
+    if (params_.normalize_quaternions) NormalizeQuaternions(scratch_state);
     data_file << EvalCost(*scratch_state) - EvalCost(state) << ", ";
 
     // Record the norm of the gradient
@@ -1730,7 +2065,15 @@ std::tuple<double, int> TrajectoryOptimizer<T>::BacktrackingLinesearch(
   using std::abs;
 
   // Compute the cost and gradient
-  const T L = EvalCost(state);
+  double mu = 0.0;
+  if (params_.equality_constraints) {
+    // Use an exact l1 penalty function as the merit function if equality
+    // constraints are enforced exactly.
+    // TODO(vincekurtz): add equality constraints to Armijo linesearch
+    mu = 1e3;
+  }
+  const VectorX<T>& h = EvalEqualityConstraintViolations(state);
+  const T L = EvalCost(state) + mu * h.cwiseAbs().sum();
   const VectorX<T>& g = EvalGradient(state);
 
   // Linesearch parameters
@@ -1738,14 +2081,15 @@ std::tuple<double, int> TrajectoryOptimizer<T>::BacktrackingLinesearch(
   const double rho = 0.8;
 
   double alpha = 1.0;
-  T L_prime = g.transpose() * dq;  // gradient of L w.r.t. alpha
+  T L_prime = g.transpose() * dq -
+              mu * h.cwiseAbs().sum();  // gradient of L w.r.t. alpha
 
   // Make sure this is a descent direction
   DRAKE_DEMAND(L_prime <= 0);
 
   // Exit early with alpha = 1 when we are close to convergence
   const double convergence_threshold =
-      10 * std::numeric_limits<double>::epsilon() / time_step() / time_step();
+      std::sqrt(std::numeric_limits<double>::epsilon());
   if (abs(L_prime) / abs(L) <= convergence_threshold) {
     return {1.0, 0};
   }
@@ -1753,7 +2097,10 @@ std::tuple<double, int> TrajectoryOptimizer<T>::BacktrackingLinesearch(
   // Try with alpha = 1
   scratch_state->set_q(state.q());
   scratch_state->AddToQ(alpha * dq);
-  T L_old = EvalCost(*scratch_state);
+  if (params_.normalize_quaternions) NormalizeQuaternions(scratch_state);
+  T L_old =
+      EvalCost(*scratch_state) +
+      mu * EvalEqualityConstraintViolations(*scratch_state).cwiseAbs().sum();
 
   // L_new stores cost at iteration i:   L(q + alpha_i * dq)
   // L_old stores cost at iteration i-1: L(q + alpha_{i-1} * dq)
@@ -1774,7 +2121,10 @@ std::tuple<double, int> TrajectoryOptimizer<T>::BacktrackingLinesearch(
     // Compute L_new = L(q + alpha_i * dq)
     scratch_state->set_q(state.q());
     scratch_state->AddToQ(alpha * dq);
-    L_new = EvalCost(*scratch_state);
+    if (params_.normalize_quaternions) NormalizeQuaternions(scratch_state);
+    L_new =
+        EvalCost(*scratch_state) +
+        mu * EvalEqualityConstraintViolations(*scratch_state).cwiseAbs().sum();
 
     // Check the Armijo conditions
     if (L_new <= L + c * alpha * L_prime) {
@@ -1825,6 +2175,7 @@ std::tuple<double, int> TrajectoryOptimizer<T>::ArmijoLinesearch(
     // Compute L_ls = L(q + alpha * dq)
     scratch_state->set_q(state.q());
     scratch_state->AddToQ(alpha * dq);
+    if (params_.normalize_quaternions) NormalizeQuaternions(scratch_state);
     L_new = EvalCost(*scratch_state);
 
     ++i;
@@ -1838,21 +2189,44 @@ template <typename T>
 T TrajectoryOptimizer<T>::CalcTrustRatio(
     const TrajectoryOptimizerState<T>& state, const VectorX<T>& dq,
     TrajectoryOptimizerState<T>* scratch_state) const {
-  // Compute predicted reduction in cost
-  const VectorX<T>& g = EvalGradient(state);
-  const PentaDiagonalMatrix<T>& H = EvalHessian(state);
-  const T gradient_term = g.dot(dq);
-  VectorX<T>& Hdq = state.workspace.q_times_num_steps_size_tmp;
-  H.MultiplyBy(dq, &Hdq);
-  const T hessian_term = 0.5 * dq.transpose() * Hdq;
-  const T predicted_reduction = -gradient_term - hessian_term;
+  // Quantities at the current iteration (k)
+  const T merit_k = EvalMeritFunction(state);
+  const VectorX<T>& g_tilde_k = EvalMeritFunctionGradient(state);
+  const PentaDiagonalMatrix<T>& H_k = EvalScaledHessian(state);
 
-  // Compute actual reduction in cost
+  // Quantities at the next iteration if we accept the step (kp = k+1)
+  // TODO(vincekurtz): if we do end up accepting the step, it would be nice to
+  // somehow reuse these cached quantities, which we're currently trashing
   scratch_state->set_q(state.q());
   scratch_state->AddToQ(dq);
-  const T L_old = EvalCost(state);           // L(q)
-  const T L_new = EvalCost(*scratch_state);  // L(q + dq)
-  const T actual_reduction = L_old - L_new;
+  if (params_.normalize_quaternions) NormalizeQuaternions(scratch_state);
+  T merit_kp = EvalCost(*scratch_state);
+  if (params_.equality_constraints) {
+    // N.B. We use λₖ rather than λₖ₊₁ to compute the merit function
+    // ϕₖ₊₁ = L(qₖ₊₁) + h(qₖ₊₁)ᵀλₖ here because we are assuming that λ is
+    // constant.
+    const VectorX<T>& lambda_k = EvalLagrangeMultipliers(state);
+    const VectorX<T>& h_kp = EvalEqualityConstraintViolations(*scratch_state);
+    merit_kp += h_kp.dot(lambda_k);
+  }
+
+  // Compute predicted reduction in the merit function, −gᵀΔq − 1/2 ΔqᵀHΔq
+  VectorX<T>& dq_scaled = state.workspace.num_vars_size_tmp1;
+  if (params_.scaling) {
+    const VectorX<T>& D = EvalScaleFactors(state);
+    // TODO(vincekurtz): consider caching D^{-1}
+    dq_scaled = D.cwiseInverse().asDiagonal() * dq;
+  } else {
+    dq_scaled = dq;
+  }
+  VectorX<T>& Hdq = state.workspace.num_vars_size_tmp2;
+  H_k.MultiplyBy(dq_scaled, &Hdq);  // Hdq = H_k * dq
+  const T hessian_term = 0.5 * dq_scaled.transpose() * Hdq;
+  T gradient_term = g_tilde_k.dot(dq_scaled);
+  const T predicted_reduction = -gradient_term - hessian_term;
+
+  // Compute actual reduction in the merit function
+  const T actual_reduction = merit_k - merit_kp;
 
   // Threshold for determining when the actual and predicted reduction in cost
   // are essentially zero. This is determined by the approximate level of
@@ -1901,6 +2275,45 @@ T TrajectoryOptimizer<T>::SolveDoglegQuadratic(const T& a, const T& b,
 }
 
 template <typename T>
+void TrajectoryOptimizer<T>::SolveLinearSystemInPlace(
+    const PentaDiagonalMatrix<T>&, EigenPtr<VectorX<T>>) const {
+  // Only T=double is supported here, since most of our solvers only support
+  // double.
+  throw std::runtime_error(
+      "TrajectoryOptimizer::SolveLinearSystemInPlace() only supports T=double");
+}
+
+template <>
+void TrajectoryOptimizer<double>::SolveLinearSystemInPlace(
+    const PentaDiagonalMatrix<double>& H, EigenPtr<VectorX<double>> b) const {
+  switch (params_.linear_solver) {
+    case SolverParameters::LinearSolverType::kPentaDiagonalLu: {
+      PentaDiagonalFactorization Hlu(H);
+      DRAKE_DEMAND(Hlu.status() == PentaDiagonalFactorizationStatus::kSuccess);
+      Hlu.SolveInPlace(b);
+      break;
+    }
+    case SolverParameters::LinearSolverType::kDenseLdlt: {
+      const MatrixX<double> Hdense = H.MakeDense();
+      const auto& Hldlt = Hdense.ldlt();
+      *b = Hldlt.solve(*b);
+      DRAKE_DEMAND(Hldlt.info() == Eigen::Success);
+      break;
+    }
+    case SolverParameters::LinearSolverType::kPetsc: {
+      auto Hpetsc = internal::PentaDiagonalToPetscMatrix(H);
+      Hpetsc->set_relative_tolerance(
+          params_.petsc_parameters.relative_tolerance);
+      PetscSolverStatus status =
+          Hpetsc->SolveInPlace(params_.petsc_parameters.solver_type,
+                               params_.petsc_parameters.preconditioner_type, b);
+      DRAKE_DEMAND(status == PetscSolverStatus::kSuccess);
+      break;
+    }
+  }
+}
+
+template <typename T>
 bool TrajectoryOptimizer<T>::CalcDoglegPoint(const TrajectoryOptimizerState<T>&,
                                              const double, VectorX<T>*,
                                              VectorX<T>*) const {
@@ -1916,10 +2329,19 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
     VectorXd* dq, VectorXd* dqH) const {
   INSTRUMENT_FUNCTION("Find search direction with dogleg method.");
 
-  // N.B. We'll rescale pU and pH by Δ to avoid roundoff error
-  const VectorXd& g = EvalGradient(state);
-  const PentaDiagonalMatrix<double>& H = EvalHessian(state);
-  VectorXd& Hg = state.workspace.q_times_num_steps_size_tmp;
+  // If params_.scaling = false, this returns the regular Hessian.
+  const PentaDiagonalMatrix<double>& H = EvalScaledHessian(state);
+
+  // If equality constraints are active, we'll use the gradient of the merit
+  // function, g̃ = g + J'λ. This means the full step pH satisfies the KKT
+  // conditions
+  //     [H  J']*[pH] = [-g]
+  //     [J  0 ] [ λ]   [-h]
+  // while the shortened step pU minimizes the quadratic approximation in the
+  // direction of -g - J'λ.
+  const VectorXd& g = EvalMeritFunctionGradient(state);
+
+  VectorXd& Hg = state.workspace.num_vars_size_tmp1;
   H.MultiplyBy(g, &Hg);
   const double gHg = g.transpose() * Hg;
 
@@ -1930,21 +2352,26 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
   // of gradients of the inverse dynamics.)
   // TODO(amcastro-tri): move this to after pU whenever we make the cost of
   // gradients computation negligible.
-  VectorXd& pH = state.workspace.q_size_tmp2;
+  VectorXd& pH = state.workspace.num_vars_size_tmp2;
 
-  // Use dense algebra rather than our pentadiagonal solver to avoid a bug that
-  // results in dq'g > 0 (search direction is not descent direction.)
-  // TODO(vincekurtz): debug the sparse solver and use sparse algebra again.
-  pH = H.MakeDense().ldlt().solve(-g / Delta);
-  // pH = -g / Delta;  // normalize by Δ
-  // PentaDiagonalFactorization Hchol(H);
-  // DRAKE_DEMAND(Hchol.status() == PentaDiagonalFactorizationStatus::kSuccess);
-  // Hchol.SolveInPlace(&pH);
+  pH = -g / Delta;  // normalize by Δ
+  SolveLinearSystemInPlace(H, &pH);
+
+  if (params_.debug_compare_against_dense) {
+    // From experiments in penta_diagonal_solver_test.cc
+    // (PentaDiagonalMatrixTest.SolvePentaDiagonal), LDLT is the most stable
+    // solver to round-off errors. We therefore use it as a reference solution
+    // for debugging.
+    const VectorXd pH_dense = H.MakeDense().ldlt().solve(-g / Delta);
+    std::cout << fmt::format("Sparse vs. Dense error: {}\n",
+                             (pH - pH_dense).norm() / pH_dense.norm());
+  }
+
   *dqH = pH * Delta;
 
   // Compute the unconstrained minimizer of m(δq) = L(q) + g(q)'*δq + 1/2
   // δq'*H(q)*δq along -g
-  VectorXd& pU = state.workspace.q_size_tmp1;
+  VectorXd& pU = state.workspace.num_vars_size_tmp3;
   pU = -(g.dot(g) / gHg) * g / Delta;  // normalize by Δ
 
   // Check if the trust region is smaller than this unconstrained minimizer
@@ -1952,12 +2379,19 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
     // If so, δq is where the first leg of the dogleg path intersects the trust
     // region.
     *dq = (Delta / pU.norm()) * pU;
+    if (params_.scaling) {
+      *dq = EvalScaleFactors(state).asDiagonal() * (*dq);
+    }
     return true;  // the trust region constraint is active
   }
 
   // Check if the trust region is large enough to just take the full Newton step
   if (1.0 >= pH.norm()) {
     *dq = pH * Delta;
+    if (params_.scaling) {
+      // TODO(vincekurtz): consider adding a MultiplyByScaleFactors method
+      *dq = EvalScaleFactors(state).asDiagonal() * (*dq);
+    }
     return false;  // the trust region constraint is not active
   }
 
@@ -1979,7 +2413,9 @@ bool TrajectoryOptimizer<double>::CalcDoglegPoint(
   const double s = SolveDoglegQuadratic(a, b, c);
 
   *dq = (pU + s * (pH - pU)) * Delta;
-
+  if (params_.scaling) {
+    *dq = EvalScaleFactors(state).asDiagonal() * (*dq);
+  }
   return true;  // the trust region constraint is active
 }
 
@@ -2051,13 +2487,13 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithLinesearch(
   if (params_.verbose) {
     // Define printout data
     std::cout << "-------------------------------------------------------------"
-                 "---------"
+                 "----------------------"
               << std::endl;
     std::cout << "|  iter  |   cost   |  alpha  |  LS_iters  |  time (s)  |  "
-                 "|g|/cost  |"
+                 "|g|/cost  |    |h|     |"
               << std::endl;
     std::cout << "-------------------------------------------------------------"
-                 "---------"
+                 "----------------------"
               << std::endl;
   }
 
@@ -2076,17 +2512,21 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithLinesearch(
     // Compute the total cost
     cost = EvalCost(state);
 
+    // Evaluate constraint violations (for logging)
+    const VectorXd& h = EvalEqualityConstraintViolations(state);
+
     // Compute gradient and Hessian
-    const VectorXd& g = EvalGradient(state);
+    const VectorXd& g = EvalMeritFunctionGradient(state);
     const PentaDiagonalMatrix<double>& H = EvalHessian(state);
 
-    // Solve for search direction H*dq = -g
+    // Compute the search direction. If equality constraints are active, this
+    // solves the KKT conditions
+    //    [H  J']*[dq] = [-g]
+    //    [J  0 ] [ λ]   [-h]
+    // for the search direction (since we've defined g as g + J'λ). Otherwise,
+    // we solve H*dq = -g.
     dq = -g;
-    PentaDiagonalFactorization Hchol(H);
-    if (Hchol.status() != PentaDiagonalFactorizationStatus::kSuccess) {
-      return SolverFlag::kFactorizationFailed;
-    }
-    Hchol.SolveInPlace(&dq);
+    SolveLinearSystemInPlace(H, &dq);
 
     // Solve the linsearch
     // N.B. we use a separate state variable since we will need to compute
@@ -2117,6 +2557,7 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithLinesearch(
 
     // Update the decision variables
     state.AddToQ(alpha * dq);
+    if (params_.normalize_quaternions) NormalizeQuaternions(&state);
 
     // Update the stored decision variables for the proximal operator cost
     if (params_.proximal_operator) {
@@ -2133,7 +2574,8 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithLinesearch(
       printf("| %7.4f ", alpha);
       printf("| %6d     ", ls_iters);
       printf("| %8.8f ", iter_time.count());
-      printf("| %10.3e |\n", g.norm() / cost);
+      printf("| %10.3e ", g.norm() / cost);
+      printf("| %10.3e |\n", h.norm());
     }
 
     // Print additional debuging information
@@ -2167,8 +2609,9 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithLinesearch(
                      dq.norm(),          // step size
                      trust_ratio,        // trust ratio
                      g.norm(),           // gradient size
-                     dL_dq,              // gradient along dqH (dqH = dq)
-                     dL_dq);             // Gradient along dq
+                     dL_dq,              // gradient along dq
+                     h.norm(),           // equality constraint violation
+                     cost);              // merit function
 
     ++k;
   } while (k < params_.max_iterations && !linesearch_failed);
@@ -2176,7 +2619,7 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithLinesearch(
   // End the problem data printout
   if (params_.verbose) {
     std::cout << "-------------------------------------------------------------"
-                 "---------"
+                 "----------------------"
               << std::endl;
   }
 
@@ -2211,19 +2654,8 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
     TrajectoryOptimizerStats<double>* stats,
     ConvergenceReason* reason_out) const {
   INSTRUMENT_FUNCTION("Trust region solver.");
-  using std::min;
-  // Allocate a state variable to store q and everything that is computed from q
-  TrajectoryOptimizerState<double> state = CreateState();
-  state.set_q(q_guess);
 
-  // Allocate a separate state variable for computations like L(q + dq)
-  TrajectoryOptimizerState<double> scratch_state = CreateState();
-
-  // Allocate the update vector q_{k+1} = q_k + dq
-  VectorXd dq(plant().num_positions() * (num_steps() + 1));
-  VectorXd dqH(dq.size());
-
-  // Set up a file to record iteration data for a contour plot
+  // Set up a file to record iteration data for a contour plot, if requested
   if (params_.save_contour_data) {
     SetupQuadraticDataFile();
   }
@@ -2231,42 +2663,113 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
     SetupIterationDataFile();
   }
 
+  // Allocate a warm start, which includes the initial guess along with state
+  // variables and the trust region radius.
+  WarmStart warm_start(num_steps(), diagram(), plant(),
+                       num_equality_constraints(), q_guess, params_.Delta0);
+
+  return SolveFromWarmStart(&warm_start, solution, stats, reason_out);
+  return SolverFlag::kSuccess;
+}
+
+template <typename T>
+SolverFlag TrajectoryOptimizer<T>::SolveFromWarmStart(
+    WarmStart*, TrajectoryOptimizerSolution<T>*, TrajectoryOptimizerStats<T>*,
+    ConvergenceReason*) const {
+  throw std::runtime_error(
+      "TrajectoryOptimizer::SolveFromWarmStart only supports T=double.");
+}
+
+template <>
+SolverFlag TrajectoryOptimizer<double>::SolveFromWarmStart(
+    WarmStart* warm_start, TrajectoryOptimizerSolution<double>* solution,
+    TrajectoryOptimizerStats<double>* stats,
+    ConvergenceReason* reason_out) const {
+  using std::min;
+  INSTRUMENT_FUNCTION("Solve with warm start.");
+
   // Allocate timing variables
   auto start_time = std::chrono::high_resolution_clock::now();
   auto iter_start_time = std::chrono::high_resolution_clock::now();
   std::chrono::duration<double> iter_time;
   std::chrono::duration<double> solve_time;
 
+  // Warm-starting doesn't support the linesearch method
+  DRAKE_DEMAND(params_.method == SolverMethod::kTrustRegion);
+
+  // State variable stores q and everything that is computed from q
+  TrajectoryOptimizerState<double>& state = warm_start->state;
+  TrajectoryOptimizerState<double>& scratch_state = warm_start->scratch_state;
+
+  // The update vector q_{k+1} = q_k + dq and full Newton step (for logging)
+  VectorXd& dq = warm_start->dq;
+  VectorXd& dqH = warm_start->dqH;
+
   // Trust region parameters
-  const double Delta_max = 1.0;  // Maximum trust region size
-  const double Delta0 = 1e0;     // Initial trust region size
-  const double eta = 0.0;        // Trust ratio threshold - we accept steps if
-                                 // the trust ratio is above this threshold
+  const double Delta_max = params_.Delta_max;  // Maximum trust region size
+  const double eta = 0.0;  // Trust ratio threshold - we accept steps if
+                           // the trust ratio is above this threshold
 
   // Variables that we'll update throughout the main loop
-  int k = 0;                  // iteration counter
-  double Delta = Delta0;      // trust region size
-  double rho;                 // trust region ratio
-  bool tr_constraint_active;  // flag for whether the trust region constraint is
-                              // active
+  int k = 0;                          // iteration counter
+  double& Delta = warm_start->Delta;  // trust region size
+  double rho;                         // trust region ratio
+  bool tr_constraint_active;          // flag for whether the trust region
+                                      // constraint is active
 
-  // Define printout data
+  // Define printout strings
   const std::string separator_bar =
-      "-------------------------------------------------------------------";
+      "------------------------------------------------------------------------"
+      "---------------------";
   const std::string printout_labels =
-      "|  iter  |   cost   |    Δ    |    ρ    |  time (s)  |  |g|/cost  |";
+      "|  iter  |   cost   |    Δ    |    ρ    |  time (s)  |  |g|/cost  | "
+      "dL_dq/cost |    |h|     |";
 
   double previous_cost = EvalCost(state);
   while (k < params_.max_iterations) {
     // Obtain the candiate update dq
     tr_constraint_active = CalcDoglegPoint(state, Delta, &dq, &dqH);
 
-    // Verify that dq is a descent direction
-    const VectorXd& g = EvalGradient(state);
-    DRAKE_DEMAND(dq.transpose() * g < 0);
+    if (params_.print_debug_data) {
+      // Print some info about the Hessian
+      const MatrixXd H = EvalHessian(state).MakeDense();
+      const MatrixXd H_scaled = EvalScaledHessian(state).MakeDense();
+      const double condition_number = 1 / H.ldlt().rcond();
+      const double condition_number_scaled = 1 / H_scaled.ldlt().rcond();
+      PRINT_VAR(condition_number);
+      PRINT_VAR(condition_number_scaled);
+    }
+
+    // Compute some quantities for logging.
+    // N.B. These should be computed before q is updated.
+    const VectorXd& g = EvalMeritFunctionGradient(state);
+    const VectorXd& h = EvalEqualityConstraintViolations(state);
+
+    const double cost = EvalCost(state);
+    const double merit = EvalMeritFunction(state);
+    const double q_norm = state.norm();
+    double dL_dq;
+    if (params_.scaling) {
+      const VectorXd& D = EvalScaleFactors(state);
+      dL_dq = g.dot(D.cwiseInverse().asDiagonal() * dq) / cost;
+    } else {
+      dL_dq = g.dot(dq) / cost;
+    }
 
     // Compute the trust region ratio
     rho = CalcTrustRatio(state, dq, &scratch_state);
+
+    // With a positive definite Hessian, steps should not oppose the descent
+    // direction
+    if (!params_.exact_hessian) {
+      DRAKE_DEMAND(dL_dq < std::numeric_limits<double>::epsilon());
+    } else {
+      // Reduce the trust region and reject the step if this is not a descent
+      // direction
+      if (dq.transpose() * g >= 0) {
+        rho = -1.0;
+      }
+    }
 
     // Save data related to our quadratic approximation (for the first two
     // variables)
@@ -2286,6 +2789,7 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
       }
 
       state.AddToQ(dq);  // q += dq
+      if (params_.normalize_quaternions) NormalizeQuaternions(&state);
     }
     // Else (rho <= eta), the trust region ratio is too small to accept dq, so
     // we'll need to so keep reducing the trust region. Note that the trust
@@ -2312,33 +2816,31 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
         std::cout << separator_bar << std::endl;
       }
       std::cout << fmt::format(
-          "| {:>6} | {:>8.3g} | {:>7.2} | {:>7.1} | {:>10.5} | {:>10.5} |\n", k,
-          EvalCost(state), Delta, rho, iter_time.count(),
-          EvalGradient(state).norm() / EvalCost(state));
+          "| {:>6} | {:>8.3g} | {:>7.2} | {:>7.3} | {:>10.5} | {:>10.5} | "
+          "{:>10.4} | {:>10.4} |\n",
+          k, cost, Delta, rho, iter_time.count(), g.norm() / cost, dL_dq,
+          h.norm());
     }
-
-    const double cost = EvalCost(state);
-    const double dL_dqH = g.dot(dqH) / cost;
-    const double dL_dq = g.dot(dq) / cost;
 
     // Record statistics from this iteration
     stats->push_data(iter_time.count(),  // iteration time
-                     EvalCost(state),    // cost
+                     cost,               // cost
                      0,                  // linesearch iterations
                      NAN,                // linesearch parameter
                      Delta,              // trust region size
-                     state.norm(),       // q norm
+                     q_norm,             // q norm
                      dq.norm(),          // step size
                      dqH.norm(),         // Unconstrained step size
                      rho,                // trust region ratio
                      g.norm(),           // gradient size
-                     dL_dqH,             // Gradient along dqH
-                     dL_dq);             // Gradient along dq
+                     dL_dq,              // gradient along dq
+                     h.norm(),           // equality constraint violation
+                     merit);             // merit function
 
     // Only check convergence criteria for valid steps.
     ConvergenceReason reason{
         ConvergenceReason::kNoConvergenceCriteriaSatisfied};
-    if (rho > eta) {
+    if (params_.check_convergence && (rho > eta)) {
       reason = VerifyConvergenceCriteria(state, previous_cost, dq);
       previous_cost = EvalCost(state);
       if (reason_out) *reason_out = reason;
@@ -2408,7 +2910,7 @@ ConvergenceReason TrajectoryOptimizer<T>::VerifyConvergenceCriteria(
 
   // Gradient criterion:
   //   g⋅Δq < εₐ + εᵣ Lᵏ
-  const VectorX<T>& g = EvalGradient(state);
+  const VectorX<T>& g = EvalMeritFunctionGradient(state);
   if (abs(g.dot(dq)) < tolerances.abs_gradient_along_dq +
                            tolerances.rel_gradient_along_dq * cost) {
     reason |= ConvergenceReason::kGradientCriterionSatisfied;
@@ -2424,6 +2926,24 @@ ConvergenceReason TrajectoryOptimizer<T>::VerifyConvergenceCriteria(
   }
 
   return ConvergenceReason(reason);
+}
+
+template <typename T>
+void TrajectoryOptimizer<T>::NormalizeQuaternions(
+    TrajectoryOptimizerState<T>* state) const {
+  std::vector<VectorX<T>>& q = state->mutable_q();
+  DRAKE_DEMAND(static_cast<int>(q.size()) == (num_steps() + 1));
+  // TODO(amcastro-tri): Store floating body indexes and avoid calling
+  // GetFloatingBaseBodies().
+  for (const BodyIndex& index : plant().GetFloatingBaseBodies()) {
+    const Body<T>& body = plant().get_body(index);
+    const int q_start = body.floating_positions_start();
+    DRAKE_DEMAND(body.has_quaternion_dofs());
+    for (int t = 0; t <= num_steps(); ++t) {
+      auto body_qs = q[t].template segment<4>(q_start);
+      body_qs.normalize();
+    }
+  }
 }
 
 }  // namespace traj_opt

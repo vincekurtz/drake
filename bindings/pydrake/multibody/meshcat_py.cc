@@ -63,7 +63,7 @@ void DoScalarIndependentDefinitions(py::module m) {
         .def(py::init<std::shared_ptr<geometry::Meshcat>,
                  ContactVisualizerParams>(),
             py::arg("meshcat"), py::arg("params"), doc_internal)
-        .def("Update", &Class::Update, py::arg("items"));
+        .def("Update", &Class::Update, py::arg("time"), py::arg("items"));
   }
 
   // HydroelasticContactVisualizerItem (internal)
@@ -97,7 +97,7 @@ void DoScalarIndependentDefinitions(py::module m) {
         .def(py::init<std::shared_ptr<geometry::Meshcat>,
                  ContactVisualizerParams>(),
             py::arg("meshcat"), py::arg("params"), doc_internal)
-        .def("Update", &Class::Update, py::arg("items"))
+        .def("Update", &Class::Update, py::arg("time"), py::arg("items"))
         .def("Delete", &Class::Delete);
   }
 }
@@ -177,17 +177,21 @@ void DoScalarDependentDefinitions(py::module m, T) {
                  const MultibodyPlant<T>*, std::optional<Eigen::VectorXd>,
                  std::variant<std::monostate, double, Eigen::VectorXd>,
                  std::variant<std::monostate, double, Eigen::VectorXd>,
-                 std::variant<std::monostate, double, Eigen::VectorXd>>(),
+                 std::variant<std::monostate, double, Eigen::VectorXd>,
+                 std::vector<std::string>, std::vector<std::string>>(),
             py::arg("meshcat"), py::arg("plant"),
             py::arg("initial_value") = py::none(),
             py::arg("lower_limit") = py::none(),
             py::arg("upper_limit") = py::none(), py::arg("step") = py::none(),
+            py::arg("decrement_keycodes") = std::vector<std::string>(),
+            py::arg("increment_keycodes") = std::vector<std::string>(),
             // Keep alive, reference: `self` keeps `plant` alive.
             py::keep_alive<1, 3>(),  // BR
             cls_doc.ctor.doc)
         .def("Delete", &Class::Delete, cls_doc.Delete.doc)
         .def("Run", &Class::Run, py::arg("diagram"),
-            py::arg("timeout") = py::none(), cls_doc.Run.doc)
+            py::arg("timeout") = py::none(),
+            py::arg("stop_button_keycode") = "Escape", cls_doc.Run.doc)
         .def("SetPositions", &Class::SetPositions, py::arg("q"),
             cls_doc.SetPositions.doc);
   }

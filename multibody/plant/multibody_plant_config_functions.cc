@@ -22,9 +22,12 @@ AddResult AddMultibodyPlant(
   result.plant.set_discrete_contact_solver(
       internal::GetDiscreteContactSolverFromString(
           config.discrete_contact_solver));
+  result.plant.set_sap_near_rigid_threshold(config.sap_near_rigid_threshold);
   result.plant.set_contact_surface_representation(
       internal::GetContactSurfaceRepresentationFromString(
           config.contact_surface_representation));
+  result.plant.set_adjacent_bodies_collision_filters(
+      config.adjacent_bodies_collision_filters);
   return result;
 }
 

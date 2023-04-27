@@ -1,17 +1,13 @@
-# -*- python -*-
-# This file contains rules for Bazel; see drake/doc/bazel.rst.
-
 load(
     "@drake//tools/skylark:drake_cc.bzl",
     "drake_cc_binary",
     "drake_cc_googletest",
     "drake_cc_library",
 )
-load("//tools/install:install_data.bzl", "install_data")
 load("//tools/lint:lint.bzl", "add_lint_tests")
 
 # Place model files for this example within their own group.
-# We can use these models in other bazel projects by adding the depencency
+# We can use these models in other bazel projects by adding the dependency
 # "//examples/simple_gripper:simple_gripper_models".
 filegroup(
     name = "simple_gripper_models",
@@ -37,18 +33,16 @@ drake_cc_binary(
     test_rule_timeout = "moderate",
     deps = [
         "//common:add_text_logging_gflags",
-        "//common:find_resource",
-        "//geometry:drake_visualizer",
         "//math:geometric_transform",
         "//multibody/parsing",
         "//multibody/plant",
-        "//multibody/plant:contact_results_to_lcm",
         "//systems/analysis:simulator",
         "//systems/analysis:simulator_gflags",
         "//systems/analysis:simulator_print_stats",
         "//systems/framework:diagram",
         "//systems/lcm:lcm_pubsub_system",
         "//systems/primitives:sine",
+        "//visualization:visualization_config_functions",
         "@gflags",
     ],
 )

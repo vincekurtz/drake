@@ -36,15 +36,14 @@ class ContactVisualizerTest : public ::testing::Test {
         multibody::AddMultibodyPlantSceneGraph(&builder, 0.001);
 
     // Add the point contact spheres and joints.
-    multibody::Parser parser(&plant);
     const std::string sdf = FindResourceOrThrow(
         "drake/examples/manipulation_station/models/sphere.sdf");
-    auto sphere1_model = parser.AddModelFromFile(sdf, "sphere1");
+    auto sphere1_model = Parser(&plant, "sphere1").AddModels(sdf).at(0);
     const auto& sphere1 = plant.GetBodyByName("base_link", sphere1_model);
     plant.AddJoint<multibody::PrismaticJoint>(
         "sphere1_x", plant.world_body(), std::nullopt, sphere1, std::nullopt,
         Eigen::Vector3d::UnitX());
-    auto sphere2_model = parser.AddModelFromFile(sdf, "sphere2");
+    auto sphere2_model = Parser(&plant, "sphere2").AddModels(sdf).at(0);
     const auto& sphere2 = plant.GetBodyByName("base_link", sphere2_model);
     plant.AddJoint<multibody::PrismaticJoint>(
         "sphere2_x", plant.world_body(), std::nullopt, sphere2, std::nullopt,
@@ -59,7 +58,8 @@ class ContactVisualizerTest : public ::testing::Test {
     // Add the hydroelastic spheres and joints between them.
     const std::string hydro_sdf = FindResourceOrThrow(
         "drake/multibody/meshcat/test/hydroelastic.sdf");
-    parser.AddModelFromFile(hydro_sdf);
+    multibody::Parser parser(&plant);
+    parser.AddModels(hydro_sdf);
     const auto& body1 = plant.GetBodyByName("body1");
     plant.AddJoint<multibody::PrismaticJoint>(
         "body1", plant.world_body(), std::nullopt, body1, std::nullopt,
@@ -109,13 +109,16 @@ class ContactVisualizerTest : public ::testing::Test {
 
   void PublishAndCheck(
       bool expect_geometry_names = false) {
-    diagram_->Publish(*context_);
+    EXPECT_EQ(visualizer_->get_name(), "meshcat_contact_visualizer");
+    diagram_->ForcedPublish(*context_);
     if (expect_geometry_names) {
       EXPECT_TRUE(meshcat_->HasPath(
-          "contact_forces/point/sphere1.base_link+sphere2.base_link.bonus"));
+          "contact_forces/point/sphere1::sphere.base_link+"
+          "sphere2::sphere.base_link.bonus"));
     } else {
       EXPECT_TRUE(meshcat_->HasPath(
-          "contact_forces/point/sphere1.base_link+sphere2.base_link"));
+                      "contact_forces/point/sphere1::sphere.base_link+"
+                      "sphere2::sphere.base_link"));
     }
 
     // If the query object port is not connected, the geometry names will
@@ -192,12 +195,12 @@ TEST_F(ContactVisualizerTest, Parameters) {
   // visualization; they are partially covered by meshcat_manual_test.
   SetUpDiagram(0, false, params);
 
-  diagram_->Publish(*context_);
+  diagram_->ForcedPublish(*context_);
   EXPECT_FALSE(meshcat_->HasPath("contact_forces"));
   EXPECT_TRUE(meshcat_->HasPath("test_prefix"));
 
-  auto periodic_events = visualizer_->GetPeriodicEvents();
-  for (const auto& data_and_vector : periodic_events) {
+  auto periodic_events_map = visualizer_->MapPeriodicEventsByTiming();
+  for (const auto& data_and_vector : periodic_events_map) {
     EXPECT_EQ(data_and_vector.second.size(), 1);  // only one periodic event
     EXPECT_EQ(data_and_vector.first.period_sec(), params.publish_period);
     EXPECT_EQ(data_and_vector.first.offset_sec(), 0.0);
@@ -207,13 +210,13 @@ TEST_F(ContactVisualizerTest, Parameters) {
 TEST_F(ContactVisualizerTest, Delete) {
   SetUpDiagram();
 
-  diagram_->Publish(*context_);
+  diagram_->ForcedPublish(*context_);
   EXPECT_TRUE(meshcat_->HasPath("contact_forces"));
 
   visualizer_->Delete();
   EXPECT_FALSE(meshcat_->HasPath("contact_forces"));
 
-  diagram_->Publish(*context_);
+  diagram_->ForcedPublish(*context_);
   EXPECT_TRUE(meshcat_->HasPath("contact_forces"));
 }
 
@@ -240,7 +243,7 @@ TEST_F(ContactVisualizerTest, ScalarConversion) {
 
   // Call publish to provide code coverage for the AutoDiffXd version of
   // UpdateMeshcat.  We simply confirm that the code doesn't blow up.
-  ad_diagram->Publish(*ad_context);
+  ad_diagram->ForcedPublish(*ad_context);
 }
 
 }  // namespace

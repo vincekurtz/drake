@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <map>
 #include <memory>
+#include <optional>
 #include <set>
 #include <unordered_set>
 #include <utility>
@@ -43,6 +44,7 @@ using render::RenderLabel;
 using std::make_unique;
 using std::map;
 using std::move;
+using std::optional;
 using std::pair;
 using std::set;
 using std::string;
@@ -177,6 +179,13 @@ class GeometryStateTester {
       return state_->geometry_version_;
   }
 
+  // Provides acesss to the scalar-converting copy constructor.
+  template <typename U>
+  static std::unique_ptr<GeometryState<T>> CopyGeometryState(
+      const GeometryState<U>& other) {
+    return std::unique_ptr<GeometryState<T>>(new GeometryState<T>(other));
+  }
+
  private:
   GeometryState<T>* state_;
 };
@@ -220,23 +229,6 @@ class ShapeMatcher final : public ShapeReifier {
   // Shape reifier implementations.
   using ShapeReifier::ImplementGeometry;
 
-  void ImplementGeometry(const Sphere& sphere, void*) final {
-    if (IsExpectedType(sphere)) {
-      TestShapeParameters(sphere);
-    }
-  }
-
-  void ImplementGeometry(const Cylinder& cylinder, void*) final {
-    if (IsExpectedType(cylinder)) {
-      TestShapeParameters(cylinder);
-    }
-  }
-
-  void ImplementGeometry(const HalfSpace& half_space, void*) final {
-    // Halfspace has no parameters; so no further testing is necessary.
-    IsExpectedType(half_space);
-  }
-
   void ImplementGeometry(const Box& box, void*) final {
     if (IsExpectedType(box)) {
       TestShapeParameters(box);
@@ -249,15 +241,34 @@ class ShapeMatcher final : public ShapeReifier {
     }
   }
 
+  void ImplementGeometry(const Convex& convex, void*) final {
+    if (IsExpectedType(convex)) {
+      TestShapeParameters(convex);
+    }
+  }
+
+  void ImplementGeometry(const Cylinder& cylinder, void*) final {
+    if (IsExpectedType(cylinder)) {
+      TestShapeParameters(cylinder);
+    }
+  }
+
+  // TODO(SeanCurtis-TRI): Why are we missing ellipsoid and meshcat cone?
+
+  void ImplementGeometry(const HalfSpace& half_space, void*) final {
+    // Halfspace has no parameters; so no further testing is necessary.
+    IsExpectedType(half_space);
+  }
+
   void ImplementGeometry(const Mesh& mesh, void*) final {
     if (IsExpectedType(mesh)) {
       TestShapeParameters(mesh);
     }
   }
 
-  void ImplementGeometry(const Convex& convex, void*) final {
-    if (IsExpectedType(convex)) {
-      TestShapeParameters(convex);
+  void ImplementGeometry(const Sphere& sphere, void*) final {
+    if (IsExpectedType(sphere)) {
+      TestShapeParameters(sphere);
     }
   }
 
@@ -632,6 +643,9 @@ class GeometryStateTestBase {
   void AssignProximityToSingleSourceTree() {
     ASSERT_TRUE(source_id_.is_valid());
     ProximityProperties properties;
+    // Add an arbitrary, meaningless property so we can detect if the properties
+    // get thrown out.
+    properties.AddProperty("test", "value", 17);
     AssignRoleToSingleSourceTree(properties);
   }
 
@@ -642,6 +656,9 @@ class GeometryStateTestBase {
     IllustrationProperties properties;
     properties.AddProperty("phong", "diffuse",
                            Vector4<double>{0.8, 0.8, 0.8, 1.0});
+    // Add an arbitrary, meaningless property so we can detect if the properties
+    // get thrown out.
+    properties.AddProperty("test", "value", 17);
     AssignRoleToSingleSourceTree(properties);
   }
 
@@ -657,6 +674,9 @@ class GeometryStateTestBase {
     properties.AddProperty("phong", "diffuse",
                            Vector4<double>{0.8, 0.8, 0.8, 1.0});
     properties.AddProperty("label", "id", RenderLabel::kDontCare);
+    // Add an arbitrary, meaningless property so we can detect if the properties
+    // get thrown out.
+    properties.AddProperty("test", "value", 17);
     AssignRoleToSingleSourceTree(properties);
   }
 
@@ -1000,6 +1020,46 @@ TEST_F(GeometryStateTest, AssignDoubleToScalarType) {
   ExpectSuccessfulTransmogrification(sym_tester, gs_tester_);
 }
 
+// This tests the ability to copy a GeometryState<AutoDiffXd> to a
+// GeometryState<double>.
+TEST_F(GeometryStateTest, CopyAutoDiffIntoDouble) {
+  // Prepare the non-double copies of the state.
+  SetUpWithRigidAndDeformableGeometries();
+  GeometryState<AutoDiffXd> ad_state;
+  ad_state = geometry_state_;
+  GeometryStateTester<AutoDiffXd> ad_tester;
+  ad_tester.set_state(&ad_state);
+
+  // Convert.
+  std::unique_ptr<GeometryState<double>> dut =
+    GeometryStateTester<double>::CopyGeometryState(ad_state);
+
+  // Check for equality.
+  GeometryStateTester<double> d_tester;
+  d_tester.set_state(dut.get());
+  ExpectSuccessfulTransmogrification(ad_tester, d_tester);
+}
+
+// This tests the ability to copy a GeometryState<Expression> to a
+// GeometryState<double>.
+TEST_F(GeometryStateTest, CopySymbolicIntoDouble) {
+  // Prepare the non-double copies of the state.
+  SetUpWithRigidAndDeformableGeometries();
+  GeometryState<symbolic::Expression> sym_state;
+  sym_state = geometry_state_;
+  GeometryStateTester<symbolic::Expression> sym_tester;
+  sym_tester.set_state(&sym_state);
+
+  // Convert.
+  std::unique_ptr<GeometryState<double>> dut =
+    GeometryStateTester<double>::CopyGeometryState(sym_state);
+
+  // Check for equality.
+  GeometryStateTester<double> d_tester;
+  d_tester.set_state(dut.get());
+  ExpectSuccessfulTransmogrification(sym_tester, d_tester);
+}
+
 // Uses the single source tree to confirm that the data has migrated properly.
 TEST_F(GeometryStateTest, Transmogrify) {
   SetUpWithRigidAndDeformableGeometries();
@@ -1102,25 +1162,34 @@ TEST_F(GeometryStateTest, ValidateSingleSourceTree) {
       const auto& geometry = internal_geometries.at(geometries_[i]);
       EXPECT_EQ(geometry.frame_id(), frames_[i / kGeometryCount]);
       EXPECT_EQ(geometry.id(), geometries_[i]);
-      EXPECT_EQ(geometry.child_geometry_ids().size(), 0);
-      EXPECT_FALSE(geometry.parent_id());
       EXPECT_EQ(geometry.name(), geometry_names_[i]);
-      EXPECT_EQ(geometry.child_geometry_ids().size(), 0);
 
-      // Note: There are no geometries parented to other geometries. The results
-      // of GetPoseInFrame() and GetPoseInParent() must be the identical (as
-      // the documentation for GeometryState::GetPoseInParent() indicates).
       EXPECT_TRUE(CompareMatrices(
           geometry_state_.GetPoseInFrame(geometry.id()).GetAsMatrix34(),
-          X_FGs_[i].GetAsMatrix34()));
-      EXPECT_TRUE(CompareMatrices(
-          geometry_state_.GetPoseInParent(geometry.id()).GetAsMatrix34(),
           X_FGs_[i].GetAsMatrix34()));
     }
   }
   EXPECT_EQ(static_cast<int>(gs_tester_.get_geometry_world_poses().size()),
             single_tree_total_geometry_count());
   EXPECT_EQ(gs_tester_.get_frame_parent_poses().size(), kFrameCount + 1);
+}
+
+// The reported geometry ids should be inclusive and ordered.
+TEST_F(GeometryStateTest, GetAllGeometryIds) {
+  // We want to make sure the list spans sources.
+  const SourceId test_source = NewSource("all_ids");
+  const GeometryId local_anchored_id = geometry_state_.RegisterAnchoredGeometry(
+      test_source, make_unique<GeometryInstance>(
+                       RigidTransformd(), make_unique<Sphere>(1), "anchored"));
+  SetUpSingleSourceTree();
+
+  vector<GeometryId> expected_ids(geometries_);
+  expected_ids.push_back(local_anchored_id);
+  expected_ids.push_back(anchored_geometry_);
+  std::sort(expected_ids.begin(), expected_ids.end());
+
+  const vector<GeometryId> all_ids = geometry_state_.GetAllGeometryIds();
+  EXPECT_EQ(all_ids, expected_ids);
 }
 
 // Confirms that a GeometrySet can be converted into a set of geometry ids.
@@ -1431,7 +1500,6 @@ TEST_F(GeometryStateTest, RegisterGeometryGoodSource) {
   EXPECT_TRUE(gs_tester_.get_frames().at(f_id).has_child(g_id));
   const auto& geometry = gs_tester_.get_geometries().at(g_id);
   EXPECT_TRUE(geometry.is_child_of_frame(f_id));
-  EXPECT_FALSE(geometry.parent_id());
 }
 
 // Confirms that when adding a geometry G, X_WG is up-to-date with the best
@@ -1505,77 +1573,6 @@ TEST_F(GeometryStateTest, RegisterNullGeometry) {
       "Registering null geometry to frame \\d+, on source \\d+.");
 }
 
-// Tests the logic for hanging a geometry on another geometry. This confirms
-// topology and pose values.
-TEST_F(GeometryStateTest, RegisterGeometryonValidGeometry) {
-  const SourceId s_id = SetUpSingleSourceTree();
-  const double x = 3;
-  const double y = 2;
-  const double z = 1;
-  RigidTransformd pose{Translation3d{x, y, z}};
-  const int parent_index = 0;
-  const GeometryId parent_id = geometries_[parent_index];
-  const FrameId frame_id = geometry_state_.GetFrameId(parent_id);
-  auto instance = make_unique<GeometryInstance>(
-      pose, make_unique<Sphere>(1), "sphere");
-  GeometryId expected_g_id = instance->id();
-  GeometryId g_id =
-      geometry_state_.RegisterGeometryWithParent(s_id,
-                                                 parent_id,
-                                                 move(instance));
-  EXPECT_EQ(g_id, expected_g_id);
-
-  // This relies on the gᵗʰ geometry having position [ g+1 0 0 ]ᵀ. The parent
-  // geometry is at [parent_index + 1, 0, 0] and this is at [3, 2, 1]. They
-  // simply sum up. The parent has *no* rotation so the resultant transform is
-  // simply the sum of the translation vectors.
-  const RigidTransformd expected_pose_in_frame{
-      Translation3d{(parent_index + 1) + x, y, z}};
-  EXPECT_EQ(frame_id, geometry_state_.GetFrameId(g_id));
-
-  const RigidTransformd& X_FG = geometry_state_.GetPoseInFrame(g_id);
-  EXPECT_TRUE(CompareMatrices(X_FG.GetAsMatrix34(),
-                              expected_pose_in_frame.GetAsMatrix34(), 1e-14,
-                              MatrixCompareType::absolute));
-  const RigidTransformd& X_PG = geometry_state_.GetPoseInParent(g_id);
-  EXPECT_TRUE(CompareMatrices(X_PG.GetAsMatrix34(), pose.GetAsMatrix34(),
-                  1e-14, MatrixCompareType::absolute));
-
-  EXPECT_TRUE(gs_tester_.get_frames().at(frame_id).has_child(g_id));
-  const auto& geometry = gs_tester_.get_geometries().at(g_id);
-  EXPECT_EQ(geometry.frame_id(), frame_id);
-  EXPECT_TRUE(geometry.is_child_of_geometry(parent_id));
-  EXPECT_TRUE(gs_tester_.get_geometries().at(parent_id).has_child(g_id));
-
-  const InternalGeometry* parent = gs_tester_.GetGeometry(parent_id);
-  const InternalGeometry* child = gs_tester_.GetGeometry(g_id);
-  EXPECT_TRUE(parent->has_child(g_id));
-  EXPECT_TRUE(child->parent_id());  // implicit cast of optional --> bool.
-  EXPECT_EQ(parent_id, *child->parent_id());
-}
-
-// Tests the response to the erroneous action of trying to hang a new geometry
-// on a non-existent geometry id.
-TEST_F(GeometryStateTest, RegisterGeometryonInvalidGeometry) {
-  const SourceId s_id = SetUpSingleSourceTree();
-  auto instance = make_unique<GeometryInstance>(
-      RigidTransformd::Identity(), make_unique<Sphere>(1), "sphere");
-  const GeometryId junk_id = GeometryId::get_new_id();
-  DRAKE_EXPECT_THROWS_MESSAGE(
-      geometry_state_.RegisterGeometryWithParent(s_id, junk_id, move(instance)),
-      "Referenced geometry \\d+ has not been registered.");
-}
-
-// Tests the response to passing a null pointer as a GeometryInstance.
-TEST_F(GeometryStateTest, RegisterNullGeometryonGeometry) {
-  const SourceId s_id = SetUpSingleSourceTree();
-  unique_ptr<GeometryInstance> instance;
-  DRAKE_EXPECT_THROWS_MESSAGE(
-      geometry_state_.RegisterGeometryWithParent(s_id, geometries_[0],
-                                                 move(instance)),
-      "Registering null geometry to geometry \\d+, on source \\d+.");
-}
-
 // Tests the registration of anchored geometry.
 TEST_F(GeometryStateTest, RegisterAnchoredGeometry) {
   const SourceId s_id = NewSource("new source");
@@ -1590,38 +1587,6 @@ TEST_F(GeometryStateTest, RegisterAnchoredGeometry) {
   EXPECT_NE(g, nullptr);
   EXPECT_EQ(InternalFrame::world_frame_id(), g->frame_id());
   EXPECT_EQ(s_id, g->source_id());
-  // Assigned directly to the world frame means the pose in parent and frame
-  // should match.
-  EXPECT_TRUE(
-      CompareMatrices(g->X_FG().GetAsMatrix34(), g->X_PG().GetAsMatrix34()));
-}
-
-// Tests the registration of a new geometry on another geometry.
-TEST_F(GeometryStateTest, RegisterAnchoredOnAnchoredGeometry) {
-  // Add an anchored geometry.
-  const SourceId s_id = NewSource("new source");
-  RigidTransformd pose{Translation3d{1, 2, 3}};
-  auto instance = make_unique<GeometryInstance>(
-      pose, make_unique<Sphere>(1), "sphere1");
-  auto parent_id = geometry_state_.RegisterAnchoredGeometry(s_id,
-                                                            move(instance));
-
-  pose = RigidTransformd::Identity();
-  instance = make_unique<GeometryInstance>(
-      pose, make_unique<Sphere>(1), "sphere2");
-  auto child_id = geometry_state_.RegisterGeometryWithParent(s_id, parent_id,
-                                                             move(instance));
-  const InternalGeometry* parent = gs_tester_.GetGeometry(parent_id);
-  const InternalGeometry* child = gs_tester_.GetGeometry(child_id);
-  EXPECT_TRUE(parent->has_child(child_id));
-  EXPECT_TRUE(static_cast<bool>(child->parent_id()));
-  EXPECT_EQ(parent_id, *child->parent_id());
-  EXPECT_TRUE(
-      CompareMatrices(pose.GetAsMatrix34(), child->X_PG().GetAsMatrix34()));
-  const RigidTransformd& X_FP = parent->X_FG();
-  EXPECT_TRUE(CompareMatrices((X_FP * pose).GetAsMatrix34(),
-                              child->X_FG().GetAsMatrix34()));
-  EXPECT_EQ(InternalFrame::world_frame_id(), parent->frame_id());
 }
 
 // Confirms that registering two geometries with the same id causes failure.
@@ -1675,8 +1640,10 @@ TEST_F(GeometryStateTest, RegisterDeformableGeometry) {
       "Registering deformable geometry.*non-world frame.*");
 
   /* Successful registration of deformable geometry. */
+  const RigidTransformd X_WG(AngleAxis<double>(M_PI_2, Vector3d::UnitX()),
+                             Vector3d{1, 2, 3});
   auto instance2 = make_unique<GeometryInstance>(
-      RigidTransformd::Identity(), make_unique<Sphere>(sphere), "sphere");
+      X_WG, make_unique<Sphere>(sphere), "sphere");
   const GeometryId expected_g_id = instance2->id();
   const auto g_id = geometry_state_.RegisterDeformableGeometry(
       s_id, InternalFrame::world_frame_id(), move(instance2), kRezHint);
@@ -1696,10 +1663,12 @@ TEST_F(GeometryStateTest, RegisterDeformableGeometry) {
   ASSERT_NE(reference_mesh, nullptr);
   EXPECT_TRUE(reference_mesh->Equal(expected_mesh));
 
-  // Verify querying pose on deformable geometry throws. (Deformable geometries
-  // are characterized by vertex positions.)
-  EXPECT_THROW(geometry_state_.GetPoseInFrame(g_id), std::exception);
-  EXPECT_THROW(geometry_state_.GetPoseInParent(g_id), std::exception);
+  // Querying the _reference_ pose is fine.
+  EXPECT_TRUE(geometry_state_.GetPoseInFrame(g_id).IsExactlyEqualTo(X_WG));
+
+  // Querying _current_ pose on deformable geometry throws. (Deformable
+  // geometries are characterized by vertex positions via
+  // get_configurations_in_world.)
   EXPECT_THROW(geometry_state_.get_pose_in_world(g_id), std::exception);
 
   // Verify vertex positions can be retrieved.
@@ -1719,6 +1688,255 @@ TEST_F(GeometryStateTest, RegisterDeformableGeometry) {
       geometry_state_.GetAllDeformableGeometryIds();
   ASSERT_EQ(deformable_ids.size(), 1);
   EXPECT_EQ(deformable_ids[0], g_id);
+}
+
+// GetAllDeformableGeometryIds should pull *only* deformable geometry ids and
+// should get them from all sources. Finally, the list should be ordered.
+TEST_F(GeometryStateTest, GetAllDeformableGeometryIds) {
+  /* Populate the world with some non-deformable geometries to ignore. */
+  SetUpSingleSourceTree();
+  const SourceId s1_id = NewSource("source1");
+  const SourceId s2_id = NewSource("source2");
+  const Sphere sphere(1.0);
+  constexpr double kRezHint = 0.5;
+
+  /* Add one deformable geometry per source. */
+  auto instance1 = make_unique<GeometryInstance>(RigidTransformd::Identity(),
+                                                 sphere.Clone(), "deformable1");
+  auto instance2 = make_unique<GeometryInstance>(RigidTransformd::Identity(),
+                                                 sphere.Clone(), "deformable2");
+
+  /* Our expected outcome. */
+  vector<GeometryId> expected_ids{instance1->id(), instance2->id()};
+  std::sort(expected_ids.begin(), expected_ids.end());
+
+  /* Register in counter-intuitive order. */
+  geometry_state_.RegisterDeformableGeometry(
+      s2_id, InternalFrame::world_frame_id(), move(instance2), kRezHint);
+  geometry_state_.RegisterDeformableGeometry(
+      s1_id, InternalFrame::world_frame_id(), move(instance1), kRezHint);
+
+  /* Confirm that we get the expected ids in the expected order. */
+  const vector<GeometryId> deformable_ids =
+      geometry_state_.GetAllDeformableGeometryIds();
+  ASSERT_EQ(deformable_ids, expected_ids);
+}
+
+/* This test covers the data maintenance *within* GeometryState. It confirms
+ that shape and pose change, but all other InternalGeometry fields remain the
+ same.
+
+ There are per-role tests below that provide coverage for the unchanged
+ role properties and confirm that the shape has changed in the various engines.
+
+ This test makes a simplifying assumption: multiple roles don't interfere in
+ the process. So, we can test a single geometry with all three roles and don't
+ have to test geometries with all possible role configurations. */
+TEST_F(GeometryStateTest, ChangeShapeInternals) {
+  const SourceId s_id = SetUpSingleSourceTree(
+      Assign::kProximity | Assign::kPerception | Assign::kIllustration);
+
+  const GeometryId g_id = geometries_[0];
+  const InternalGeometry* geometry = gs_tester_.GetGeometry(g_id);
+  const InternalGeometry original_geo(*geometry);
+  const RigidTransformd X_GG2(Vector3d(1, 2, 3));
+  const RigidTransformd X_FG2 = X_GG2 * geometry->X_FG();
+
+  // Changing from sphere to box.
+  ASSERT_EQ(ShapeName(geometry->shape()).name(), ShapeName(Sphere(1.0)).name());
+  const Box new_shape(1.0, 2.0, 3.0);
+
+  geometry_state_.ChangeShape(s_id, g_id, new_shape, X_FG2);
+
+  // We've modified it in place; the address hasn't changed.
+  ASSERT_EQ(geometry, gs_tester_.GetGeometry(g_id));
+
+  // Shape and pose have changed.
+  EXPECT_EQ(ShapeName(geometry->shape()).name(),
+            ShapeName(Box(1, 1, 1)).name());
+  EXPECT_TRUE(
+      CompareMatrices(X_FG2.GetAsMatrix34(), geometry->X_FG().GetAsMatrix34()));
+
+  // Nothing else has.
+  EXPECT_EQ(original_geo.id(), geometry->id());
+  EXPECT_EQ(original_geo.name(), geometry->name());
+  EXPECT_EQ(original_geo.source_id(), geometry->source_id());
+  EXPECT_EQ(original_geo.frame_id(), geometry->frame_id());
+  EXPECT_EQ(original_geo.is_deformable(), geometry->is_deformable());
+  EXPECT_EQ(original_geo.is_dynamic(), geometry->is_dynamic());
+}
+
+/* Changes a shape with the illustration role. The only observable indications
+ of a successful change is that the shape and pose have changed *and* that the
+ illustration version has changed. */
+TEST_F(GeometryStateTest, ChangeShapeIllustration) {
+  const SourceId s_id = SetUpSingleSourceTree(Assign::kIllustration);
+
+  const GeometryId g_id = geometries_[0];
+  const InternalGeometry* geometry = gs_tester_.GetGeometry(g_id);
+  const InternalGeometry original_geo(*geometry);
+
+  // Changing from sphere to box.
+  ASSERT_EQ(ShapeName(geometry->shape()).name(), ShapeName(Sphere(1.0)).name());
+  const Box new_shape(1.0, 2.0, 3.0);
+
+  const GeometryVersion pre_version = geometry_state_.geometry_version();
+  geometry_state_.ChangeShape(s_id, g_id, new_shape, geometry->X_FG());
+  const GeometryVersion post_version = geometry_state_.geometry_version();
+
+  // Only illustration version has changed.
+  EXPECT_FALSE(post_version.IsSameAs(pre_version, Role::kIllustration));
+  EXPECT_TRUE(post_version.IsSameAs(pre_version, Role::kPerception));
+  EXPECT_TRUE(post_version.IsSameAs(pre_version, Role::kProximity));
+
+  // IllustrationProperties haven't changed. In this test, every property gets
+  // this arbitrary (test, value) property; we'll confirm that it's still there
+  // as *evidence* that the properties haven't changed.
+  EXPECT_EQ(
+      original_geo.illustration_properties()->GetProperty<int>("test", "value"),
+      geometry->illustration_properties()->GetProperty<int>("test", "value"));
+}
+
+// Engine to test the ChangeShape() API. Change shape registers a new shape,
+// and passes a new pose. This render engine records the last geometry id
+// registered and removed. We'll confirm that both happen in response to a call
+// to ChangeShape().
+class ChangeShapeRenderEngine : public DummyRenderEngine {
+ public:
+  ChangeShapeRenderEngine() : DummyRenderEngine() {}
+
+  optional<GeometryId> get_and_clear_last_registered_id() {
+    optional<GeometryId> last_value = registered_id_;
+    registered_id_ = std::nullopt;
+    return last_value;
+  }
+
+  optional<GeometryId> get_and_clear_last_removed_id() {
+    optional<GeometryId> last_value = removed_id_;
+    removed_id_ = std::nullopt;
+    return last_value;
+  }
+
+ protected:
+  bool DoRegisterVisual(GeometryId id, const Shape&,
+                        const PerceptionProperties&,
+                        const math::RigidTransformd&) override {
+    registered_id_ = id;
+    return true;
+  }
+
+  bool DoRemoveGeometry(GeometryId id) override {
+    removed_id_ = id;
+    return true;
+  }
+
+ private:
+  optional<GeometryId> registered_id_{};
+  optional<GeometryId> removed_id_{};
+};
+
+ChangeShapeRenderEngine* AddRenderer(const char* name,
+                                     GeometryState<double>* state) {
+  state->AddRenderer(name, make_unique<ChangeShapeRenderEngine>());
+  auto* engine =
+      const_cast<render::RenderEngine*>(state->GetRenderEngineByName(name));
+  auto* test_engine = dynamic_cast<ChangeShapeRenderEngine*>(engine);
+  DRAKE_DEMAND(test_engine != nullptr);
+  return test_engine;
+}
+
+/* Changes a shape with the perception role. In this case, we'll confirm that
+ the shape in the render engine has changed by using a custom render engine
+ implementation that will report that its APIs have been called. */
+TEST_F(GeometryStateTest, ChangeShapePerception) {
+  // We'll add to render engines to make sure that all render engines get
+  // processed.
+  ChangeShapeRenderEngine* renderer1 =
+      AddRenderer("renderer1", &geometry_state_);
+  ChangeShapeRenderEngine* renderer2 =
+      AddRenderer("renderer2", &geometry_state_);
+
+  const SourceId s_id = SetUpSingleSourceTree(Assign::kPerception);
+
+  const GeometryId g_id = geometries_[0];
+  const InternalGeometry* geometry = gs_tester_.GetGeometry(g_id);
+  const InternalGeometry original_geo(*geometry);
+
+  // Confirm pre-test conditions; neither reports g_id as last registered or
+  // removed.
+  ASSERT_NE(renderer1->get_and_clear_last_registered_id(), g_id);
+  ASSERT_NE(renderer2->get_and_clear_last_registered_id(), g_id);
+  ASSERT_NE(renderer1->get_and_clear_last_removed_id(), g_id);
+  ASSERT_NE(renderer2->get_and_clear_last_removed_id(), g_id);
+
+  ASSERT_EQ(ShapeName(geometry->shape()).name(), ShapeName(Sphere(1.0)).name());
+  const Box new_shape(0.1, 0.2, 0.3);
+
+  const GeometryVersion pre_version = geometry_state_.geometry_version();
+  geometry_state_.ChangeShape(s_id, g_id, new_shape, geometry->X_FG());
+  const GeometryVersion post_version = geometry_state_.geometry_version();
+
+  // Only illustration version has changed.
+  EXPECT_TRUE(post_version.IsSameAs(pre_version, Role::kIllustration));
+  EXPECT_FALSE(post_version.IsSameAs(pre_version, Role::kPerception));
+  EXPECT_TRUE(post_version.IsSameAs(pre_version, Role::kProximity));
+
+  // PerceptionProperties haven't changed. In this test, every property gets
+  // this arbitrary (test, value) property; we'll confirm that it's still
+  // there as *evidence* that the properties haven't changed.
+  EXPECT_EQ(
+      original_geo.perception_properties()->GetProperty<int>("test", "value"),
+      geometry->perception_properties()->GetProperty<int>("test", "value"));
+
+  // Each render engine now reports that the changed geometry id was both
+  // removed and registered (presumably in the correct order).
+  ASSERT_EQ(renderer1->get_and_clear_last_registered_id(), g_id);
+  ASSERT_EQ(renderer2->get_and_clear_last_registered_id(), g_id);
+  ASSERT_EQ(renderer1->get_and_clear_last_removed_id(), g_id);
+  ASSERT_EQ(renderer2->get_and_clear_last_removed_id(), g_id);
+}
+
+/* Changes a shape with the proximity role. In this case, we'll confirm that the
+ shape in the proximity engine has changed by performing a query before and
+ after, showing that the query result changes as expected. */
+TEST_F(GeometryStateTest, ChangeShapeProximity) {
+  const SourceId s_id = SetUpSingleSourceTree(Assign::kProximity);
+
+  const GeometryId g_id = geometries_[0];
+  const InternalGeometry* geometry = gs_tester_.GetGeometry(g_id);
+  const InternalGeometry original_geo(*geometry);
+
+  // Record the old distance.
+  const SignedDistancePair<double> old_distance =
+      geometry_state_.ComputeSignedDistancePairClosestPoints(g_id,
+                                                             geometries_[2]);
+
+  // Changing from sphere to a *small* box (should be smaller than the sphere).
+  // The distance between the two shapes should get *larger*.
+  ASSERT_EQ(ShapeName(geometry->shape()).name(), ShapeName(Sphere(1.0)).name());
+  const Box new_shape(0.1, 0.2, 0.3);
+
+  const GeometryVersion pre_version = geometry_state_.geometry_version();
+  geometry_state_.ChangeShape(s_id, g_id, new_shape, geometry->X_FG());
+  const GeometryVersion post_version = geometry_state_.geometry_version();
+
+  // Only proximity version has changed.
+  EXPECT_TRUE(post_version.IsSameAs(pre_version, Role::kIllustration));
+  EXPECT_TRUE(post_version.IsSameAs(pre_version, Role::kPerception));
+  EXPECT_FALSE(post_version.IsSameAs(pre_version, Role::kProximity));
+
+  // ProximityProperties haven't changed. In this test, every property gets
+  // this arbitrary (test, value) property; we'll confirm that it's still there
+  // as *evidence* that the properties haven't changed.
+  EXPECT_EQ(
+      original_geo.proximity_properties()->GetProperty<int>("test", "value"),
+      geometry->proximity_properties()->GetProperty<int>("test", "value"));
+
+  // Now confirm an increase in distance.
+  const SignedDistancePair<double> new_distance =
+      geometry_state_.ComputeSignedDistancePairClosestPoints(g_id,
+                                                             geometries_[2]);
+  EXPECT_GT(new_distance.distance, old_distance.distance);
 }
 
 /* This tests for two things:
@@ -1768,17 +1986,15 @@ TEST_F(GeometryStateTest, SetGeometryConfiguration) {
 
   // Verify that the two geometries are still in contact *before"
   // FinalizeConfigurationUpdate() is called.
-  std::vector<internal::DeformableRigidContact<double>> contacts;
-  geometry_state_.ComputeDeformableRigidContact(&contacts);
-  ASSERT_EQ(contacts.size(), 1);
-  EXPECT_EQ(contacts[0].num_rigid_geometries(), 1);
+  internal::DeformableContact<double> contacts;
+  geometry_state_.ComputeDeformableContact(&contacts);
+  ASSERT_EQ(contacts.contact_surfaces().size(), 1);
 
   // Verify that the two geometries are no longer in contact *after"
   // FinalizeConfigurationUpdate() is called.
   gs_tester_.FinalizeConfigurationUpdate();
-  geometry_state_.ComputeDeformableRigidContact(&contacts);
-  ASSERT_EQ(contacts.size(), 1);
-  EXPECT_EQ(contacts[0].num_rigid_geometries(), 0);
+  geometry_state_.ComputeDeformableContact(&contacts);
+  ASSERT_EQ(contacts.contact_surfaces().size(), 0);
 }
 
 // Tests the RemoveGeometry() functionality. This action will have several
@@ -1847,82 +2063,6 @@ TEST_F(GeometryStateTest, RemoveGeometry) {
   DRAKE_EXPECT_NO_THROW(geometry_state_.RemoveGeometry(s_id, added_id));
   // Confirm that, post removal, updating poses still works.
   DRAKE_EXPECT_NO_THROW(gs_tester_.FinalizePoseUpdate());
-}
-
-// Tests the RemoveGeometry functionality in which the geometry removed has
-// geometry children.
-TEST_F(GeometryStateTest, RemoveGeometryTree) {
-  const SourceId s_id = SetUpSingleSourceTree(Assign::kProximity);
-
-  // Pose all of the frames to the specified poses in their parent frame.
-  FramePoseVector<double> poses;
-  for (int f = 0; f < static_cast<int>(frames_.size()); ++f) {
-    poses.set_value(frames_[f], X_PFs_[f]);
-  }
-  gs_tester_.SetFramePoses(s_id, poses, &gs_tester_.mutable_kinematics_data());
-  gs_tester_.FinalizePoseUpdate();
-
-  // The geometry to remove and its parent frame.
-  const GeometryId root_id = geometries_[0];
-  const FrameId f_id = frames_[0];
-
-  // Confirm that the first geometry belongs to the first frame.
-  ASSERT_EQ(geometry_state_.GetFrameId(root_id), f_id);
-  // Hang geometry from the first geometry.
-  const GeometryId g_id = geometry_state_.RegisterGeometryWithParent(
-      s_id, root_id,
-      make_unique<GeometryInstance>(RigidTransformd::Identity(),
-                                    unique_ptr<Shape>(new Sphere(1)), "leaf"));
-  geometry_state_.AssignRole(s_id, g_id, ProximityProperties());
-
-  EXPECT_EQ(geometry_state_.get_num_geometries(),
-            single_tree_total_geometry_count() + 1);
-  EXPECT_EQ(geometry_state_.NumDynamicGeometries(),
-            single_tree_dynamic_geometry_count() + 1);
-  EXPECT_EQ(geometry_state_.GetFrameId(g_id), f_id);
-
-  geometry_state_.RemoveGeometry(s_id, root_id);
-  EXPECT_EQ(geometry_state_.get_num_geometries(),
-            single_tree_total_geometry_count() - 1);
-  EXPECT_EQ(geometry_state_.NumDynamicGeometries(),
-            single_tree_dynamic_geometry_count() - 1);
-
-  const auto& frame = gs_tester_.get_frames().at(f_id);
-  EXPECT_FALSE(frame.has_child(root_id));
-  EXPECT_FALSE(frame.has_child(g_id));
-  EXPECT_EQ(gs_tester_.get_geometries().count(root_id), 0);
-  EXPECT_EQ(gs_tester_.get_geometries().count(g_id), 0);
-}
-
-// Tests the RemoveGeometry functionality in which the geometry is a child of
-// another geometry (and has no child geometries itself).
-TEST_F(GeometryStateTest, RemoveChildLeaf) {
-  const SourceId s_id = SetUpSingleSourceTree(Assign::kProximity);
-
-  // The geometry parent and frame to which it belongs.
-  const GeometryId parent_id = geometries_[0];
-  const FrameId frame_id = frames_[0];
-  // Confirm that the first geometry belongs to the first frame.
-  ASSERT_EQ(geometry_state_.GetFrameId(parent_id), frame_id);
-  // Hang geometry from the first geometry.
-  const GeometryId g_id = geometry_state_.RegisterGeometryWithParent(
-      s_id, parent_id,
-      make_unique<GeometryInstance>(RigidTransformd::Identity(),
-                                    unique_ptr<Shape>(new Sphere(1)), "leaf"));
-  EXPECT_EQ(geometry_state_.get_num_geometries(),
-            single_tree_total_geometry_count() + 1);
-  EXPECT_EQ(geometry_state_.GetFrameId(g_id), frame_id);
-
-  geometry_state_.RemoveGeometry(s_id, g_id);
-
-  EXPECT_EQ(geometry_state_.get_num_geometries(),
-            single_tree_total_geometry_count());
-  EXPECT_EQ(geometry_state_.NumDynamicGeometries(), geometries_.size());
-  EXPECT_EQ(geometry_state_.GetFrameId(parent_id), frame_id);
-
-  EXPECT_FALSE(gs_tester_.get_frames().at(frame_id).has_child(g_id));
-  EXPECT_TRUE(gs_tester_.get_frames().at(frame_id).has_child(parent_id));
-  EXPECT_FALSE(gs_tester_.get_geometries().at(parent_id).has_child(g_id));
 }
 
 // Tests the response to invalid use of RemoveGeometry.
@@ -2031,9 +2171,6 @@ TEST_F(GeometryStateTest, RemoveGeometryWithCollisionFilters) {
 TEST_F(GeometryStateTest, GetPoseForBadGeometryId) {
   DRAKE_EXPECT_THROWS_MESSAGE(
       geometry_state_.GetPoseInFrame(GeometryId::get_new_id()),
-      "Referenced geometry \\d+ has not been registered.");
-  DRAKE_EXPECT_THROWS_MESSAGE(
-      geometry_state_.GetPoseInParent(GeometryId::get_new_id()),
       "Referenced geometry \\d+ has not been registered.");
 }
 
@@ -3744,15 +3881,10 @@ TEST_F(GeometryStateTest, GeometryVersionUpdate) {
                          new_source, new_frame_0, GeometryFrame("new_f1"));
 
   // Registering geometries with no roles assigned does not change the versions.
-  GeometryId new_geometry_0 = VerifyVersionUnchanged(
+  VerifyVersionUnchanged(
       &GeometryState<double>::RegisterGeometry, new_source, new_frame_0,
       std::make_unique<GeometryInstance>(
           RigidTransformd(), make_unique<Sphere>(1), "new_geometry_0"));
-  VerifyVersionUnchanged(
-      &GeometryState<double>::RegisterGeometryWithParent, new_source,
-      new_geometry_0,
-      std::make_unique<GeometryInstance>(
-          RigidTransformd(), make_unique<Sphere>(1), "new_geometry_1"));
   VerifyVersionUnchanged(
       &GeometryState<double>::RegisterAnchoredGeometry, new_source,
       std::make_unique<GeometryInstance>(
@@ -3905,6 +4037,63 @@ TEST_F(GeometryStateTest, GeometryVersionUpdate) {
   // modify version.
   VerifyVersionUnchanged(&GeometryState<double>::AddRenderer, "third",
                          make_unique<DummyRenderEngine>());
+}
+
+// The ComputeSignedDistancePairClosestPoints() API requires the user to provide
+// GeometryIds, increasing the odds that they pick and pass the *wrong* ids.
+// Rather than simply declaring "wrong", we attempt to give them additional
+// guidance about what way it is wrong -- users have been confused about why
+// an apparently valid GeometryId is rejected. The answer: it has the wrong
+// role. Let's confirm we're getting the messages we expect.
+TEST_F(GeometryStateTest, ComputeSignedDistancePairClosestPointsError) {
+  SetUpSingleSourceTree();
+  // GeometryIds 0 & 1 get proximity properties.
+  const GeometryId proximity1 = geometries_[0];
+  geometry_state_.AssignRole(source_id_, proximity1, ProximityProperties());
+  const GeometryId proximity2 = geometries_[1];
+  geometry_state_.AssignRole(source_id_, proximity2, ProximityProperties());
+  // GeometryId 2 gets illustration.
+  const GeometryId illus = geometries_[2];
+  geometry_state_.AssignRole(source_id_, illus, IllustrationProperties());
+  // GeometryId 3 gets perception.
+  const GeometryId percep = geometries_[3];
+  PerceptionProperties p = render_engine_->accepting_properties();
+  p.AddProperty("label", "id", RenderLabel(10));
+  geometry_state_.AssignRole(source_id_, percep, p);
+  // Geometry 4 has no role.
+  const GeometryId no_role = geometries_[4];
+  const GeometryId bad_id = GeometryId::get_new_id();
+
+  DRAKE_EXPECT_THROWS_MESSAGE(
+      geometry_state_.ComputeSignedDistancePairClosestPoints(proximity1,
+                                                             bad_id),
+      ".*has not been registered.");
+  DRAKE_EXPECT_THROWS_MESSAGE(
+      geometry_state_.ComputeSignedDistancePairClosestPoints(bad_id,
+                                                             proximity1),
+      ".*has not been registered.");
+  DRAKE_EXPECT_THROWS_MESSAGE(
+      geometry_state_.ComputeSignedDistancePairClosestPoints(no_role,
+                                                             proximity1),
+      ".*has no role.");
+  DRAKE_EXPECT_THROWS_MESSAGE(
+      geometry_state_.ComputeSignedDistancePairClosestPoints(proximity1,
+                                                             no_role),
+      ".*has no role.");
+  DRAKE_EXPECT_THROWS_MESSAGE(
+      geometry_state_.ComputeSignedDistancePairClosestPoints(proximity1, illus),
+      ".*has the illustration role.");
+  DRAKE_EXPECT_THROWS_MESSAGE(
+      geometry_state_.ComputeSignedDistancePairClosestPoints(illus, proximity1),
+      ".*has the illustration role.");
+  DRAKE_EXPECT_THROWS_MESSAGE(
+      geometry_state_.ComputeSignedDistancePairClosestPoints(proximity1,
+                                                             percep),
+      ".*has the perception role.");
+  DRAKE_EXPECT_THROWS_MESSAGE(
+      geometry_state_.ComputeSignedDistancePairClosestPoints(percep,
+                                                             proximity1),
+      ".*has the perception role.");
 }
 
 // Test the ability of GeometryState to successfully report geometries with

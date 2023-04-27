@@ -29,9 +29,8 @@ TEST_P(ParseTest, Quantities) {
   MultibodyPlant<double> plant(0.0);
   Parser parser(&plant);
   const ModelInstanceIndex right_hand_index =
-      parser.AddModelFromFile(path_right);
-  const ModelInstanceIndex left_hand_index =
-      parser.AddModelFromFile(path_left);
+      parser.AddModels(path_right).at(0);
+  const ModelInstanceIndex left_hand_index = parser.AddModels(path_left).at(0);
   plant.Finalize();
 
   // MultibodyPlant always creates at least two model instances, one for the
@@ -41,10 +40,10 @@ TEST_P(ParseTest, Quantities) {
 
   EXPECT_EQ(plant.num_actuators(), 2 * 16);
   if (file_extension == "sdf") {
-    EXPECT_EQ(plant.num_joints(), 2 * 16);
+    EXPECT_EQ(plant.num_joints(), 2 * 16 + 2);  // + 2 for floating body joints
     EXPECT_EQ(plant.num_bodies(), 2 * 17 + 1);  // + 1 for world
   } else {
-    EXPECT_EQ(plant.num_joints(), 2 * 21);
+    EXPECT_EQ(plant.num_joints(), 2 * 21 + 2);  // + 2 for floating body joints
     EXPECT_EQ(plant.num_bodies(), 2 * 22 + 1);  // + 1 for world
   }
   // 16 for finger joints, 7 for the free moving hand in the space

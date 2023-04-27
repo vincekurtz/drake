@@ -69,6 +69,15 @@ template <typename T>
 const RigidTransform<T>& QueryObject<T>::GetPoseInWorld(
     GeometryId geometry_id) const {
   ThrowIfNotCallable();
+  if (inspector_.IsDeformableGeometry(geometry_id)) {
+    throw std::logic_error(
+        fmt::format("{} is not allowed to be called on deformable geometries. "
+                    "Use QueryObject::GetConfigurationsInWorld() to get the "
+                    "current configuration of the deformable geometry or use "
+                    "SceneGraphInspector::GetPoseInFrame() to get the pose of "
+                    "the reference geometry in its parent frame.",
+                    __func__));
+  }
 
   FullPoseUpdate();
   const GeometryState<T>& state = geometry_state();
@@ -148,16 +157,15 @@ QueryObject<T>::ComputeContactSurfacesWithFallback(
 template <typename T>
 template <typename T1>
 typename std::enable_if_t<std::is_same_v<T1, double>, void>
-QueryObject<T>::ComputeDeformableRigidContact(
-    std::vector<internal::DeformableRigidContact<T>>* deformable_rigid_contact)
-    const {
-  DRAKE_DEMAND(deformable_rigid_contact != nullptr);
+QueryObject<T>::ComputeDeformableContact(
+    internal::DeformableContact<T>* deformable_contact) const {
+  DRAKE_DEMAND(deformable_contact != nullptr);
   ThrowIfNotCallable();
 
   FullPoseAndConfigurationUpdate();
 
   const GeometryState<T>& state = geometry_state();
-  state.ComputeDeformableRigidContact(deformable_rigid_contact);
+  state.ComputeDeformableContact(deformable_contact);
 }
 
 template <typename T>
@@ -255,8 +263,8 @@ DRAKE_DEFINE_FUNCTION_TEMPLATE_INSTANTIATIONS_ON_DEFAULT_NONSYMBOLIC_SCALARS(
     (&QueryObject<T>::template ComputeContactSurfaces<T>,
      &QueryObject<T>::template ComputeContactSurfacesWithFallback<T>))
 
-template void QueryObject<double>::ComputeDeformableRigidContact<double>(
-    std::vector<internal::DeformableRigidContact<double>>*) const;
+template void QueryObject<double>::ComputeDeformableContact<double>(
+    internal::DeformableContact<double>*) const;
 
 }  // namespace geometry
 }  // namespace drake

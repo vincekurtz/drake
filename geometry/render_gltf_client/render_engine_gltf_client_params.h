@@ -3,6 +3,7 @@
 #include <optional>
 #include <string>
 
+#include "drake/common/name_value.h"
 #include "drake/geometry/render/render_label.h"
 
 namespace drake {
@@ -11,6 +12,17 @@ namespace geometry {
 /** Construction parameters for the MakeRenderEngineGltfClient() to create a
  client as part of the @ref render_engine_gltf_client_server_api. */
 struct RenderEngineGltfClientParams {
+  /** Passes this object to an Archive.
+   Refer to @ref yaml_serialization "YAML Serialization" for background. */
+  template <typename Archive>
+  void Serialize(Archive* a) {
+    a->Visit(DRAKE_NVP(base_url));
+    a->Visit(DRAKE_NVP(render_endpoint));
+    a->Visit(DRAKE_NVP(default_label));
+    a->Visit(DRAKE_NVP(verbose));
+    a->Visit(DRAKE_NVP(cleanup));
+  }
+
   /** The base url of the server communicate with.
    See GetUrl() for details. */
   std::string base_url{"http://127.0.0.1:8000"};
@@ -26,7 +38,7 @@ struct RenderEngineGltfClientParams {
    being generated, as well as any information about HTTP communications between
    the client and server such as HTTP header information, url and port, etc.
    Information is logged at the debug level, so your application will need to
-   drake::set_log_level() to `"debug"`.  @sa drake/common/text_logging.h */
+   logging::set_log_level() to `"debug"`.  @sa drake/common/text_logging.h */
   bool verbose = false;
 
   /** Whether or not the client should cleanup files generated / retrieved from

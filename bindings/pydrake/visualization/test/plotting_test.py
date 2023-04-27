@@ -1,4 +1,4 @@
-import pydrake.visualization.plotting as mut
+import pydrake.visualization as mut
 
 import matplotlib.pyplot as plt
 import numpy as np

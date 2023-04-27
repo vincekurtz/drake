@@ -1,5 +1,3 @@
-# -*- python -*-
-
 load(
     "@drake//tools/skylark:drake_cc.bzl",
     "drake_cc_googletest",
@@ -104,9 +102,10 @@ drake_cc_library(
 drake_cc_googletest(
     name = "internal_render_engine_vtk_test",
     args = select({
-        # Disable all test cases on Mac M1 CI.
-        # TODO(17566) Re-enable this when possible.
-        "@platforms//cpu:arm64": ["--gtest_filter=-*"],
+        # Disable test cases that break on Mac M1 CI.
+        "@platforms//cpu:arm64": [
+            "--gtest_filter=-*HorizonTest:*TerrainTest:*SphereTest",
+        ],
         "//conditions:default": [],
     }),
     data = [
@@ -119,6 +118,7 @@ drake_cc_googletest(
         "//common/test_utilities",
         "//geometry/test_utilities:dummy_render_engine",
         "//math:geometric_transform",
+        "@vtk//:vtkIOImage",
     ],
 )
 

@@ -91,7 +91,7 @@ only fix code style problems, or only affect tests or documentation.
 Commits that contain breaking changes receive special attention in the release
 notes.  To aid the human editor in making that determination, you must add the
 tag ``release notes: breaking change`` to any PR that makes a breaking change
-to a [Stable API](/stable.html) without a deprecation period.
+to a [Stable API](/stable.html#stable-api) without a deprecation period.
 
 **release notes: newly deprecated**<br/>
 &nbsp;or<br/>
@@ -111,6 +111,9 @@ breaking change, so do not add ``release notes: breaking change``.
 Commits that implement a feature or a fix must be labeled with the
 corresponding tag, either ``release notes: feature`` or ``release notes: fix``
 but never both at once; choose whichever one is the best match.
+
+Commits that merely add missing pydrake bindings should be marked
+``release notes: fix``.
 
 **When combining release notes labels:**
 

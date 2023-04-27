@@ -176,7 +176,7 @@ template <typename T>
 vector<HydroelasticQuadraturePointData<T>> MakeQuadratureData(
     const Vector3<T>& offset) {
   /* We'll pick *three* quadrature points per triangle, to make sure we get
-   proper loop iteration. For simplicitly, we'll explicitly define the first
+   proper loop iteration. For simplicity, we'll explicitly define the first
    quadrature point and then express the others in terms of the first. */
   constexpr int kNumPoints = kNumFaces * kNumPointPerTri;
   vector<HydroelasticQuadraturePointData<T>> quadrature_point_data(kNumPoints);
@@ -407,7 +407,7 @@ TYPED_TEST(ContactResultsToLcmTest, Constructor) {
      match the tables we build by hand. */
     unordered_map<GeometryId, FullBodyName> expected_geo_body_map;
     /* The world body will always be the first listed. */
-    vector<string> expected_body_names{{"WorldBody(0)"}};
+    vector<string> expected_body_names{{"world(0)"}};
 
     auto namer = [use_custom_names](GeometryId id) {
       if (use_custom_names) {

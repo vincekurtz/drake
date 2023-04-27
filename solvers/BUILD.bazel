@@ -1,5 +1,3 @@
-# -*- python -*-
-
 load(
     "@drake//tools/skylark:drake_cc.bzl",
     "drake_cc_binary",
@@ -29,7 +27,6 @@ drake_cc_package_library(
     deps = [
         ":aggregate_costs_constraints",
         ":augmented_lagrangian",
-        ":bilinear_product_util",
         ":binding",
         ":branch_and_bound",
         ":choose_best_solver",
@@ -40,13 +37,11 @@ drake_cc_package_library(
         ":create_cost",
         ":csdp_solver",
         ":decision_variable",
-        ":dreal_solver",
         ":equality_constrained_qp_solver",
         ":evaluator_base",
         ":function",
         ":get_program_type",
         ":gurobi_solver",
-        ":ibex_solver",
         ":indeterminate",
         ":integer_inequality_solver",
         ":integer_optimization_util",
@@ -332,10 +327,8 @@ drake_cc_library(
     deps = [
         ":clp_solver",
         ":csdp_solver",
-        ":dreal_solver",
         ":equality_constrained_qp_solver",
         ":gurobi_solver",
-        ":ibex_solver",
         ":ipopt_solver",
         ":linear_system_solver",
         ":moby_lcp_solver",
@@ -441,18 +434,6 @@ drake_cc_library(
     deps = [
         ":solve",
         "//math:quadratic_form",
-    ],
-)
-
-drake_cc_library(
-    name = "bilinear_product_util",
-    srcs = ["bilinear_product_util.cc"],
-    hdrs = ["bilinear_product_util.h"],
-    interface_deps = [
-        ":decision_variable",
-    ],
-    deps = [
-        "//common/symbolic:replace_bilinear_terms",
     ],
 )
 
@@ -686,6 +667,9 @@ drake_cc_library(
     name = "solution_result",
     srcs = ["solution_result.cc"],
     hdrs = ["solution_result.h"],
+    deps = [
+        "//common:essential",
+    ],
 )
 
 drake_cc_library(
@@ -768,64 +752,6 @@ drake_cc_library(
     deps = [],
 )
 
-drake_cc_variant_library(
-    name = "dreal_solver",
-    opt_out_condition = "//tools:no_dreal",
-    srcs_always = ["dreal_solver_common.cc"],
-    srcs_enabled = ["dreal_solver.cc"],
-    srcs_disabled = ["no_dreal.cc"],
-    hdrs = ["dreal_solver.h"],
-    interface_deps = [
-        ":solver_base",
-        "//common:essential",
-    ],
-    deps_always = [
-        ":mathematical_program",
-    ],
-    deps_enabled = [
-        "@dreal//dreal/api",
-    ],
-)
-
-# Ibex is a dependency of dReal; disabling dReal disables Ibex.  We could
-# consider supporting Ibex w/o dReal, but have no use cases that need that
-# support yet.
-drake_cc_optional_library(
-    name = "ibex_converter",
-    opt_out_condition = "//tools:no_dreal",
-    srcs = ["ibex_converter.cc"],
-    hdrs = ["ibex_converter.h"],
-    interface_deps = [
-        "//common/symbolic:expression",
-        "@ibex//:ibex",
-    ],
-    deps = [],
-)
-
-# Ibex is a dependency of dReal; disabling dReal disables Ibex.  We could
-# consider supporting Ibex w/o dReal, but have no use cases that need that
-# support yet.
-drake_cc_variant_library(
-    name = "ibex_solver",
-    opt_out_condition = "//tools:no_dreal",
-    srcs_always = ["ibex_solver_common.cc"],
-    srcs_enabled = ["ibex_solver.cc"],
-    srcs_disabled = ["no_ibex.cc"],
-    hdrs = ["ibex_solver.h"],
-    interface_deps = [
-        ":mathematical_program",
-        ":mathematical_program_result",
-        ":solver_base",
-        ":solver_options",
-        "//common:essential",
-    ],
-    deps_always = [],
-    deps_enabled = [
-        ":ibex_converter",
-        "@ibex//:ibex",
-    ],
-)
-
 # External Solvers.
 
 # If --config gurobi is used, this target builds object code that satisfies
@@ -873,8 +799,22 @@ drake_cc_variant_library(
         ":mathematical_program",
     ],
     deps_enabled = [
+        ":mosek_solver_internal",
         "//common:scoped_singleton",
         "//common:scope_exit",
+        "@mosek",
+    ],
+)
+
+drake_cc_optional_library(
+    name = "mosek_solver_internal",
+    opt_in_condition = "//tools:with_mosek",
+    srcs = ["mosek_solver_internal.cc"],
+    hdrs = ["mosek_solver_internal.h"],
+    interface_deps = [":mathematical_program_result"],
+    deps = [
+        ":aggregate_costs_constraints",
+        ":mathematical_program",
         "//math:quadratic_form",
         "@mosek",
     ],
@@ -979,7 +919,7 @@ drake_cc_variant_library(
     ],
     deps_enabled = [
         "//math:eigen_sparse_triplet",
-        "@osqp",
+        "@osqp_internal//:osqp",
     ],
 )
 
@@ -1002,7 +942,7 @@ drake_cc_variant_library(
     deps_enabled = [
         "//common:scope_exit",
         "//math:eigen_sparse_triplet",
-        "@scs//:scsdir",
+        "@scs_internal//:scsdir",
     ],
 )
 
@@ -1064,7 +1004,6 @@ drake_cc_variant_library(
     ],
     deps_always = [
         ":mathematical_program",
-        "//common:filesystem",
         "//common:scope_exit",
     ],
     deps_enabled = [
@@ -1086,14 +1025,6 @@ drake_cc_library(
 )
 
 # === test/ ===
-
-drake_cc_googletest(
-    name = "bilinear_product_util_test",
-    deps = [
-        ":bilinear_product_util",
-        "//common/test_utilities:symbolic_test_util",
-    ],
-)
 
 drake_cc_googletest(
     name = "binding_test",
@@ -1201,7 +1132,6 @@ drake_cc_googletest(
         ":csdp_solver_internal",
         ":csdp_test_examples",
         ":sdpa_free_format",
-        "//common:filesystem",
         "//common:temp_directory",
         "//common/test_utilities:eigen_matrix_compare",
         "//common/test_utilities:expect_throws_message",
@@ -1280,25 +1210,6 @@ drake_cc_googletest(
 )
 
 drake_cc_googletest(
-    name = "dreal_solver_test",
-    timeout = "moderate",
-    # For most of floating-point operations, Valgrind core only supports the
-    # IEEE default mode (round to nearest) while dReal uses to +infinity
-    # and to -infinity rounding modes intensively to maintain conservative
-    # interval approximations. This causes some of the assertions to fail
-    # in the test. So we disable memcheck for this test. See
-    # http://valgrind.org/docs/manual/manual-core.html#manual-core.limits
-    # for more information.
-    tags = ["no_valgrind_tools"],
-    deps = [
-        ":dreal_solver",
-        ":generic_trivial_constraint",
-        ":generic_trivial_cost",
-        ":mathematical_program",
-    ],
-)
-
-drake_cc_googletest(
     name = "get_program_type_test",
     deps = [
         ":get_program_type",
@@ -1317,7 +1228,6 @@ drake_cc_googletest(
         ":mixed_integer_optimization_util",
         ":quadratic_program_examples",
         ":second_order_cone_program_examples",
-        "//common:filesystem",
         "//common:temp_directory",
         "//common/test_utilities:eigen_matrix_compare",
         "//common/test_utilities:expect_throws_message",
@@ -1332,25 +1242,6 @@ drake_cc_googletest(
         ":mathematical_program",
         "//common/test_utilities:expect_no_throw",
         "//common/test_utilities:expect_throws_message",
-    ],
-)
-
-drake_cc_googletest(
-    name = "ibex_solver_test",
-    deps = [
-        ":generic_trivial_constraint",
-        ":generic_trivial_cost",
-        ":ibex_solver",
-        ":mathematical_program",
-        "//common/test_utilities:expect_throws_message",
-    ],
-)
-
-drake_cc_optional_googletest(
-    name = "ibex_converter_test",
-    opt_out_condition = "//tools:no_dreal",
-    deps = [
-        ":ibex_converter",
     ],
 )
 
@@ -1380,7 +1271,6 @@ drake_cc_googletest(
         ":optimization_examples",
         ":quadratic_program_examples",
         ":second_order_cone_program_examples",
-        "//common:filesystem",
         "//common:temp_directory",
         "//common/test_utilities:eigen_matrix_compare",
     ] + select({
@@ -1463,6 +1353,20 @@ drake_cc_googletest(
     ],
 )
 
+drake_cc_optional_googletest(
+    name = "mosek_solver_internal_test",
+    opt_in_condition = "//tools:with_mosek",
+    use_default_main = False,
+    deps = [
+        ":mosek_solver",
+        ":mosek_solver_internal",
+        "//common/test_utilities:eigen_matrix_compare",
+        "//common/test_utilities:symbolic_test_util",
+        "//math:quadratic_form",
+        "@mosek",
+    ],
+)
+
 drake_cc_googletest(
     name = "mosek_solver_test",
     tags = mosek_test_tags(),
@@ -1478,7 +1382,6 @@ drake_cc_googletest(
         ":second_order_cone_program_examples",
         ":semidefinite_program_examples",
         ":sos_examples",
-        "//common:filesystem",
         "//common:temp_directory",
         "//common/test_utilities:expect_throws_message",
     ],
@@ -1641,6 +1544,7 @@ drake_cc_googletest(
 drake_cc_googletest(
     name = "mixed_integer_rotation_constraint_limit_test",
     timeout = "long",
+    num_threads = 4,
     tags = gurobi_test_tags() + [
         # Times out with Valgrind
         "no_memcheck",
@@ -1687,7 +1591,6 @@ drake_cc_googletest(
         ":quadratic_program_examples",
         ":second_order_cone_program_examples",
         ":snopt_solver",
-        "//common:filesystem",
         "//common:temp_directory",
         "//common/test_utilities:eigen_matrix_compare",
         "//common/test_utilities:expect_throws_message",
@@ -1708,6 +1611,7 @@ drake_cc_googletest(
     name = "solver_id_test",
     deps = [
         ":solver_id",
+        "//common/test_utilities:limit_malloc",
     ],
 )
 

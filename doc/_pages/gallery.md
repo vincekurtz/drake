@@ -11,7 +11,7 @@ aspect ratio.
 
 # Underactuated Robotics
 
-Drake is being used to teach [Underactuated Robotics](http://underactuated.csail.mit.edu/)
+Drake is being used to teach [Underactuated Robotics](https://underactuated.csail.mit.edu/)
 at MIT.  The course textbook has
 numerous examples of modeling, controlling, and analyzing many of the canonical
 problems in dynamics and control for robotics.
@@ -21,6 +21,15 @@ TODO(russt): Add videos of a few relevant examples.
 {% endcomment %}
 
 # Manipulation
+
+The robotics team at TRI is exploring learning and by combining Drake with
+external high-fidelity rendering, we can generate highly realistic, both
+physically and visually, machine-learning training data to further our research.
+
+{% include video.html
+  url = "https://www.youtube.com/embed/5aVDWjWd0EU"
+  full_width = true
+%}
 
 The Robotics team at TRI is working hard to close the gap between simulation and
 reality.  For manipulation, one important piece is accurate simulation of
@@ -41,7 +50,7 @@ rigid-body contact.
 
 # Manipulation class at MIT
 
-Drake is being used to teach a new [course on manipulation at MIT](http://manipulation.csail.mit.edu/).
+Drake is being used to teach a new [course on manipulation at MIT](https://manipulation.csail.mit.edu/).
 The course software and materials give
 a complete autonomous manipulation pipeline, including deep and geometric
 perception, planning, and control.  Here is a highlight video of the class
@@ -69,7 +78,7 @@ as described in
   Michael Posa, Scott Kuindersma, Russ Tedrake. "Optimization and
   Stabilization of Trajectories for Constrained Dynamical Systems." ICRA, 2016.
 
-*Source Code:* [https://github.com/DAIRLab/dairlib-public/tree/master/systems/trajectory_optimization](https://github.com/DAIRLab/dairlib-public/tree/master/systems/trajectory_optimization)
+*Source Code:* [https://github.com/DAIRLab/dairlib/tree/master/systems/trajectory_optimization/dircon](https://github.com/DAIRLab/dairlib/tree/master/systems/trajectory_optimization/dircon)
 
 # Task and Motion Planning
 
@@ -99,6 +108,18 @@ penalty forces to model a closed loop topology, such as a four bar linkage.
 *Four Bar Source Code:* [https://github.com/RobotLocomotion/drake/tree/master/examples/multibody/four_bar](https://github.com/RobotLocomotion/drake/tree/master/examples/multibody/four_bar)
 
 *Strandbeest Source Code:* [https://github.com/RobotLocomotion/drake/tree/master/examples/multibody/strandbeest](https://github.com/RobotLocomotion/drake/tree/master/examples/multibody/strandbeest)
+
+# Hydroelastic contact between non-convex meshes
+
+Drake has an example of modeling hydroelastic contact between non-convex 
+meshes.
+
+{% include video.html
+  url = "https://www.youtube.com/embed/ItE5FNoNsTg"
+  full_width = true
+%}
+
+*Source Code:* [drake/examples/hydroelastic/python_nonconvex_mesh](https://github.com/RobotLocomotion/drake/tree/master/examples/hydroelastic/python_nonconvex_mesh)
 
 # Third Party Documentation / Tutorials
 

@@ -55,17 +55,22 @@ namespace internal {
 
 // @tparam_default_scalar
 template <typename T>
-class ModelInstance :
-      public MultibodyElement<ModelInstance, T, ModelInstanceIndex> {
+class ModelInstance : public MultibodyElement<T> {
  public:
   DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(ModelInstance)
 
   explicit ModelInstance(ModelInstanceIndex index)
-      : MultibodyElement<ModelInstance, T, ModelInstanceIndex>(index) {}
+      : MultibodyElement<T>(index) {}
+
+  /// Returns this element's unique index.
+  ModelInstanceIndex index() const {
+    return this->template index_impl<ModelInstanceIndex>();
+  }
 
   int num_positions() const { return num_positions_; }
   int num_velocities() const { return num_velocities_; }
   int num_states() const { return num_positions_ + num_velocities_; }
+  int num_actuators() const { return joint_actuators_.size(); }
   int num_actuated_dofs() const { return num_actuated_dofs_; }
 
   void add_mobilizer(const Mobilizer<T>* mobilizer) {
@@ -78,6 +83,10 @@ class ModelInstance :
     num_actuated_dofs_ += joint_actuator->joint().num_velocities();
     joint_actuators_.push_back(joint_actuator);
   }
+
+  std::vector<JointActuatorIndex> GetJointActuatorIndices() const;
+
+  std::vector<JointIndex> GetActuatedJointIndices() const;
 
   // Returns an Eigen vector of the actuation for `this` model instance from a
   // vector `u` of actuator forces for the entire model.

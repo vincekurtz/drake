@@ -10,15 +10,19 @@
 #include "drake/bindings/pydrake/common/deprecation_pybind.h"
 #include "drake/bindings/pydrake/common/eigen_geometry_pybind.h"
 #include "drake/bindings/pydrake/common/eigen_pybind.h"
+#include "drake/bindings/pydrake/common/serialize_pybind.h"
 #include "drake/bindings/pydrake/common/type_pack.h"
 #include "drake/bindings/pydrake/common/value_pybind.h"
 #include "drake/bindings/pydrake/documentation_pybind.h"
 #include "drake/bindings/pydrake/pydrake_pybind.h"
 #include "drake/common/drake_throw.h"
 #include "drake/common/eigen_types.h"
+#include "drake/systems/sensors/camera_config_functions.h"
 #include "drake/systems/sensors/camera_info.h"
 #include "drake/systems/sensors/image.h"
 #include "drake/systems/sensors/image_to_lcm_image_array_t.h"
+#include "drake/systems/sensors/image_writer.h"
+#include "drake/systems/sensors/lcm_image_array_to_images.h"
 #include "drake/systems/sensors/pixel_types.h"
 #include "drake/systems/sensors/rgbd_sensor.h"
 
@@ -56,6 +60,7 @@ PYBIND11_MODULE(sensors, m) {
   m.doc() = "Bindings for the sensors portion of the Systems framework.";
 
   py::module::import("pydrake.common.eigen_geometry");
+  py::module::import("pydrake.common.schema");
   py::module::import("pydrake.geometry.render");
   py::module::import("pydrake.systems.framework");
 
@@ -94,7 +99,7 @@ PYBIND11_MODULE(sensors, m) {
       using ImageTraitsT = ImageTraits<kPixelType>;
       using T = typename ImageTraitsT::ChannelType;
 
-      // Get associated properites, and iterate.
+      // Get associated properties, and iterate.
       const std::string pixel_type_name = pixel_type_names[pixel_type_index];
       ++pixel_type_index;
 
@@ -141,6 +146,7 @@ PYBIND11_MODULE(sensors, m) {
       py::class_<ImageT> image(m, TemporaryClassName<ImageT>().c_str());
       AddTemplateClass(m, "Image", image, py_param);
       image  // BR
+          .def(py::init<>(), doc.Image.ctor.doc_0args)
           .def(py::init<int, int>(), py::arg("width"), py::arg("height"),
               doc.Image.ctor.doc_2args)
           .def(py::init<int, int, T>(), py::arg("width"), py::arg("height"),
@@ -234,6 +240,58 @@ PYBIND11_MODULE(sensors, m) {
       double{RgbdSensorDiscrete::kDefaultPeriod};
 
   {
+    // To bind nested serializable structs without errors, we declare the outer
+    // struct first, then bind its inner structs, then bind the outer struct.
+    constexpr auto& config_cls_doc = doc.CameraConfig;
+    py::class_<CameraConfig> config_cls(m, "CameraConfig", config_cls_doc.doc);
+
+    // Inner struct.
+    constexpr auto& fov_degrees_doc = doc.CameraConfig.FovDegrees;
+    py::class_<CameraConfig::FovDegrees> fov_class(
+        config_cls, "FovDegrees", fov_degrees_doc.doc);
+    fov_class  // BR
+        .def(ParamInit<CameraConfig::FovDegrees>());
+    DefAttributesUsingSerialize(&fov_class, fov_degrees_doc);
+    DefReprUsingSerialize(&fov_class);
+    DefCopyAndDeepCopy(&fov_class);
+
+    // Inner struct.
+    constexpr auto& focal_doc = doc.CameraConfig.FocalLength;
+    py::class_<CameraConfig::FocalLength> focal_class(
+        config_cls, "FocalLength", focal_doc.doc);
+    focal_class  // BR
+        .def(ParamInit<CameraConfig::FocalLength>());
+    DefAttributesUsingSerialize(&focal_class, focal_doc);
+    DefReprUsingSerialize(&focal_class);
+    DefCopyAndDeepCopy(&focal_class);
+
+    // Now we can bind the outer struct (see above).
+    config_cls  // BR
+        .def(ParamInit<CameraConfig>())
+        .def("focal_x", &CameraConfig::focal_x, config_cls_doc.focal_x.doc)
+        .def("focal_y", &CameraConfig::focal_y, config_cls_doc.focal_y.doc)
+        .def("principal_point", &CameraConfig::principal_point,
+            config_cls_doc.principal_point.doc)
+        .def("MakeCameras", &CameraConfig::MakeCameras,
+            config_cls_doc.MakeCameras.doc);
+    DefAttributesUsingSerialize(&config_cls, config_cls_doc);
+    DefReprUsingSerialize(&config_cls);
+    DefCopyAndDeepCopy(&config_cls);
+
+    m.def("ApplyCameraConfig",
+        py::overload_cast<const CameraConfig&, DiagramBuilder<double>*,
+            const systems::lcm::LcmBuses*,
+            const multibody::MultibodyPlant<double>*,
+            geometry::SceneGraph<double>*, drake::lcm::DrakeLcmInterface*>(
+            &ApplyCameraConfig),
+        py::arg("config"), py::arg("builder"), py::arg("lcm_buses") = nullptr,
+        py::arg("plant") = nullptr, py::arg("scene_graph") = nullptr,
+        py::arg("lcm") = nullptr,
+        // Keep alive, reference: `builder` keeps `lcm` alive.
+        py::keep_alive<2, 6>(), doc.ApplyCameraConfig.doc);
+  }
+
+  {
     using Class = CameraInfo;
     constexpr auto& cls_doc = doc.CameraInfo;
     py::class_<Class> cls(m, "CameraInfo", cls_doc.doc);
@@ -272,6 +330,21 @@ PYBIND11_MODULE(sensors, m) {
   }
 
   {
+    using Class = LcmImageArrayToImages;
+    constexpr auto& cls_doc = doc.LcmImageArrayToImages;
+    py::class_<Class, LeafSystem<double>> cls(
+        m, "LcmImageArrayToImages", cls_doc.doc);
+    cls  // BR
+        .def(py::init<>(), cls_doc.ctor.doc)
+        .def("image_array_t_input_port", &Class::image_array_t_input_port,
+            py_rvp::reference_internal, cls_doc.image_array_t_input_port.doc)
+        .def("color_image_output_port", &Class::color_image_output_port,
+            py_rvp::reference_internal, cls_doc.color_image_output_port.doc)
+        .def("depth_image_output_port", &Class::depth_image_output_port,
+            py_rvp::reference_internal, cls_doc.depth_image_output_port.doc);
+  }
+
+  {
     using Class = ImageToLcmImageArrayT;
     constexpr auto& cls_doc = doc.ImageToLcmImageArrayT;
     py::class_<Class, LeafSystem<T>> cls(
@@ -305,6 +378,26 @@ PYBIND11_MODULE(sensors, m) {
           cls_doc.DeclareImageInputPort.doc);
     };
     type_visit(def_image_input_port, PixelTypeList{});
+  }
+
+  {
+    using Class = ImageWriter;
+    constexpr auto& cls_doc = doc.ImageWriter;
+    py::class_<Class, LeafSystem<double>> cls(m, "ImageWriter", cls_doc.doc);
+    cls  // BR
+        .def(py::init<>(), cls_doc.ctor.doc)
+        .def(
+            "DeclareImageInputPort",
+            [](Class& self, PixelType pixel_type, std::string port_name,
+                std::string file_name_format, double publish_period,
+                double start_time) {
+              self.DeclareImageInputPort(pixel_type, std::move(port_name),
+                  std::move(file_name_format), publish_period, start_time);
+            },
+            py::arg("pixel_type"), py::arg("port_name"),
+            py::arg("file_name_format"), py::arg("publish_period"),
+            py::arg("start_time"), py_rvp::reference_internal,
+            cls_doc.DeclareImageInputPort.doc);
   }
 }
 

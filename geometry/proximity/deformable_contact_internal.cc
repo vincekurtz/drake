@@ -14,17 +14,6 @@ namespace geometry {
 namespace internal {
 namespace deformable {
 
-namespace {
-
-// Compare function to use with ordering results of
-// ComputeDeformableRigidContact.
-bool OrderDeformableRigidContact(const DeformableRigidContact<double>& c1,
-                                 const DeformableRigidContact<double>& c2) {
-  return c1.deformable_id() < c2.deformable_id();
-}
-
-}  // namespace
-
 void Geometries::RemoveGeometry(GeometryId id) {
   deformable_geometries_.erase(id);
   rigid_geometries_.erase(id);
@@ -64,40 +53,24 @@ void Geometries::UpdateDeformableVertexPositions(
   }
 }
 
-void Geometries::ComputeDeformableRigidContact(
-    std::vector<DeformableRigidContact<double>>* deformable_rigid_contact)
-    const {
-  DRAKE_DEMAND(deformable_rigid_contact != nullptr);
-  deformable_rigid_contact->clear();
-  deformable_rigid_contact->reserve(deformable_geometries_.size());
-
+DeformableContact<double> Geometries::ComputeDeformableContact() const {
+  DeformableContact<double> result;
   for (const auto& [deformable_id, deformable_geometry] :
        deformable_geometries_) {
     const VolumeMesh<double>& deformable_mesh =
         deformable_geometry.deformable_mesh().mesh();
-    DeformableRigidContact<double> contact_data(deformable_id,
-                                                deformable_mesh.num_vertices());
+    result.RegisterDeformableGeometry(
+        deformable_id, deformable_mesh.num_vertices());
     for (const auto& [rigid_id, rigid_geometry] : rigid_geometries_) {
       const math::RigidTransform<double>& X_WR = rigid_geometry.pose_in_world();
       const auto& rigid_bvh = rigid_geometry.rigid_mesh().bvh();
       const auto& rigid_tri_mesh = rigid_geometry.rigid_mesh().mesh();
-      AppendDeformableRigidContact(deformable_geometry, rigid_id,
-                                   rigid_tri_mesh, rigid_bvh, X_WR,
-                                   &contact_data);
+      AddDeformableRigidContactSurface(deformable_geometry, deformable_id,
+                                       rigid_id, rigid_tri_mesh, rigid_bvh,
+                                       X_WR, &result);
     }
-    deformable_rigid_contact->emplace_back(std::move(contact_data));
   }
-
-  std::sort(deformable_rigid_contact->begin(), deformable_rigid_contact->end(),
-            OrderDeformableRigidContact);
-}
-
-void Geometries::ImplementGeometry(const Sphere& sphere, void* user_data) {
-  AddRigidGeometry(sphere, *static_cast<ReifyData*>(user_data));
-}
-
-void Geometries::ImplementGeometry(const Cylinder& cylinder, void* user_data) {
-  AddRigidGeometry(cylinder, *static_cast<ReifyData*>(user_data));
+  return result;
 }
 
 void Geometries::ImplementGeometry(const Box& box, void* user_data) {
@@ -108,17 +81,17 @@ void Geometries::ImplementGeometry(const Capsule& capsule, void* user_data) {
   AddRigidGeometry(capsule, *static_cast<ReifyData*>(user_data));
 }
 
+void Geometries::ImplementGeometry(const Convex& convex, void* user_data) {
+  AddRigidGeometry(convex, *static_cast<ReifyData*>(user_data));
+}
+
+void Geometries::ImplementGeometry(const Cylinder& cylinder, void* user_data) {
+  AddRigidGeometry(cylinder, *static_cast<ReifyData*>(user_data));
+}
+
 void Geometries::ImplementGeometry(const Ellipsoid& ellipsoid,
                                    void* user_data) {
   AddRigidGeometry(ellipsoid, *static_cast<ReifyData*>(user_data));
-}
-
-void Geometries::ImplementGeometry(const Mesh& mesh, void* user_data) {
-  AddRigidGeometry(mesh, *static_cast<ReifyData*>(user_data));
-}
-
-void Geometries::ImplementGeometry(const Convex& convex, void* user_data) {
-  AddRigidGeometry(convex, *static_cast<ReifyData*>(user_data));
 }
 
 void Geometries::ImplementGeometry(const HalfSpace&, void*) {
@@ -128,11 +101,19 @@ void Geometries::ImplementGeometry(const HalfSpace&, void*) {
       "be reported.");
 }
 
+void Geometries::ImplementGeometry(const Mesh& mesh, void* user_data) {
+  AddRigidGeometry(mesh, *static_cast<ReifyData*>(user_data));
+}
+
 void Geometries::ImplementGeometry(const MeshcatCone&, void*) {
   static const logging::Warn log_once(
       "Rigid (non-deformable) Meshcat cones are not currently supported for "
       "deformable contact; registration is allowed, but no contact data will "
       "be reported.");
+}
+
+void Geometries::ImplementGeometry(const Sphere& sphere, void* user_data) {
+  AddRigidGeometry(sphere, *static_cast<ReifyData*>(user_data));
 }
 
 template <typename ShapeType>

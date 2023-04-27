@@ -91,9 +91,16 @@ class TestNamedView(unittest.TestCase):
     def test_meta(self):
         a = np.array([1, 2])
         self.assertTrue(is_same_array(a, a))
+        self.assertTrue(is_same_array(a, a[:]))
         self.assertTrue(is_same_array(a, np.asarray(a)))
         b = a.copy()
         self.assertFalse(is_same_array(a, b))
+        # Show that `np.array()` by default copies the data regardless, and
+        # thus is not the same as `np.asarray()`.
+        c = np.array(a)
+        self.assertFalse(is_same_array(a, c))
+        d = np.array(a, copy=False)
+        self.assertTrue(is_same_array(a, d))
 
     def test_array(self):
         MyView = namedview("MyView", ["a", "b"])
@@ -105,6 +112,7 @@ class TestNamedView(unittest.TestCase):
         self.assertEqual(view.a, 1)
         self.assertEqual(view.b, 2)
         self.assertTrue(is_same_array(value, np.asarray(view)))
+        self.assertTrue(is_same_array(value, view[:]))
         view.a = 10
         self.assertEqual(value[0], 10)
         value[1] = 100
@@ -113,3 +121,34 @@ class TestNamedView(unittest.TestCase):
         np.testing.assert_equal(value, [3, 3])
         self.assertEqual(repr(view), "MyView(a=3, b=3)")
         self.assertEqual(str(view), repr(view))
+        with self.assertRaisesRegex(AttributeError, ".*('a', 'b').*"):
+            view.c = 42
+
+    def test_Zero(self):
+        MyView = namedview("MyView", ["a", "b"])
+        view = MyView.Zero()
+        self.assertEqual(len(view), 2)
+        self.assertEqual(view.a, 0)
+        self.assertEqual(view.b, 0)
+
+    def test_name_sanitation(self):
+        MyView = namedview("MyView",
+                           ["$world_base", "iiwa::iiwa", "no spaces", "2vär"])
+        self.assertEqual(MyView.get_fields(),
+                         ("_world_base", "iiwa_iiwa", "no_spaces", "_2vär"))
+        view = MyView.Zero()
+        view._world_base = 3
+        view.iiwa_iiwa = 4
+        view.no_spaces = 5
+        view._2vär = 6
+        np.testing.assert_equal(view[:], [3, 4, 5, 6])
+
+        MyView = namedview("MyView", ["$world_base", "iiwa::iiwa"],
+                           sanitize_field_names=False)
+        self.assertEqual(MyView.get_fields(), ("$world_base", "iiwa::iiwa"))
+
+    def test_uniqueness(self):
+        with self.assertRaisesRegex(AssertionError, ".*must be unique.*"):
+            namedview("MyView", ['a', 'a'])
+        with self.assertRaisesRegex(AssertionError, ".*must be unique.*"):
+            namedview("MyView", ['a_a', 'a__a'])

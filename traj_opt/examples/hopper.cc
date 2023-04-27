@@ -25,7 +25,7 @@ class HopperExample : public TrajOptExample {
 
     // Add a hopper
     std::string urdf_file =
-        FindResourceOrThrow("drake/traj_opt/examples/hopper.urdf");
+        FindResourceOrThrow("drake/traj_opt/examples/models/hopper.urdf");
     Parser(plant).AddAllModelsFromFile(urdf_file);
 
     // Add collision with the ground
@@ -34,7 +34,7 @@ class HopperExample : public TrajOptExample {
                                   Box(25, 25, 10), "ground", green);
     plant->RegisterCollisionGeometry(plant->world_body(), X_ground,
                                      Box(25, 25, 10), "ground",
-                                     CoulombFriction<double>());
+                                     CoulombFriction<double>(0.5, 0.5));
   }
 };
 
@@ -45,6 +45,6 @@ class HopperExample : public TrajOptExample {
 
 int main() {
   drake::traj_opt::examples::hopper::HopperExample example;
-  example.SolveTrajectoryOptimization("drake/traj_opt/examples/hopper.yaml");
+  example.RunExample("drake/traj_opt/examples/hopper.yaml");
   return 0;
 }

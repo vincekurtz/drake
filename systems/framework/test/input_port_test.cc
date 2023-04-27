@@ -25,6 +25,11 @@ const AbstractValue* DoEval(const ContextBase&) {
   return g_do_eval_result;
 }
 
+// We need to define this to compile, but it should never be invoked.
+std::unique_ptr<AbstractValue> DoAlloc() {
+  return nullptr;
+}
+
 GTEST_TEST(InputPortTest, VectorTest) {
   using T = double;
 
@@ -43,7 +48,7 @@ GTEST_TEST(InputPortTest, VectorTest) {
 
   auto dut = internal::FrameworkFactory::Make<InputPort<T>>(
       system, system_interface, dummy_system.get_system_id(), name, index,
-      ticket, data_type, size, random_type, &DoEval);
+      ticket, data_type, size, random_type, &DoEval, &DoAlloc);
 
   // Check basic getters.
   EXPECT_EQ(dut->get_name(), name);
@@ -51,7 +56,6 @@ GTEST_TEST(InputPortTest, VectorTest) {
   EXPECT_EQ(dut->size(), size);
   EXPECT_EQ(dut->GetFullDescription(),
             "InputPort[2] (port_name) of System ::dummy (DummySystem)");
-  EXPECT_EQ(&dut->get_system_interface(), system_interface);
   EXPECT_EQ(&dut->get_system(), system);
 
   // Check HasValue.
@@ -103,7 +107,7 @@ GTEST_TEST(InputPortTest, AbstractTest) {
 
   auto dut = internal::FrameworkFactory::Make<InputPort<T>>(
       system, system_interface, dummy_system.get_system_id(), name, index,
-      ticket, data_type, size, random_type, &DoEval);
+      ticket, data_type, size, random_type, &DoEval, &DoAlloc);
 
   // Check basic getters.
   EXPECT_EQ(dut->get_name(), name);
@@ -111,7 +115,6 @@ GTEST_TEST(InputPortTest, AbstractTest) {
   EXPECT_EQ(dut->size(), size);
   EXPECT_EQ(dut->GetFullDescription(),
             "InputPort[2] (port_name) of System ::dummy (DummySystem)");
-  EXPECT_EQ(&dut->get_system_interface(), system_interface);
   EXPECT_EQ(&dut->get_system(), system);
 
   // Check HasValue.
@@ -161,18 +164,39 @@ struct SystemWithInputPorts final : public LeafSystem<double> {
         double_port{
             DeclareAbstractInputPort("double_port", Value<double>(1.25))},
         string_port{DeclareAbstractInputPort("string_port",
-                                             Value<std::string>("hello"))} {}
+                                             Value<std::string>("hello"))},
+        // To check that FixValue() properly invalidates dependents, make a
+        // cache entry that depends only on an input port.
+        cache_entry{this->DeclareCacheEntry(
+            "depends_on_int_port", &SystemWithInputPorts::CalcCacheEntry,
+            {this->input_port_ticket(int_port.get_index())})},
+        dependent_cache_entry{this->DeclareCacheEntry(
+            "depends_on_cache_entry",
+            &SystemWithInputPorts::CalcDependentCacheEntry,
+            {cache_entry.ticket()})} {}
+
+  void CalcCacheEntry(const Context<double>& context, int* value) const {
+    *value = int_port.Eval<int>(context);
+  }
+
+  void CalcDependentCacheEntry(const Context<double>& context,
+                               int* value) const {
+    *value = cache_entry.Eval<int>(context);
+  }
+
   InputPort<double>& basic_vec_port;
   InputPort<double>& derived_vec_port;
   InputPort<double>& int_port;
   InputPort<double>& double_port;
   InputPort<double>& string_port;
+  CacheEntry& cache_entry;
+  CacheEntry& dependent_cache_entry;
 };
 
 // Test the FixValue() method. Note that the conversion of its value argument
 // to an AbstractValue is handled by internal::ValueToAbstractValue which has
 // its own unit tests. Here we need just check the input-port specific
-// behavior for vector and abstract intput ports.
+// behavior for vector and abstract input ports.
 // Also for sanity, make sure the returned FixedInputPortValue object works,
 // although its API is so awful no one should use it.
 GTEST_TEST(InputPortTest, FixValueTests) {
@@ -307,6 +331,43 @@ GTEST_TEST(InputPortTest, FixValueTests) {
   }
 }
 
+GTEST_TEST(InputPortTest, FixValueCacheInvalidationTests) {
+  SystemWithInputPorts dut;
+  std::unique_ptr<Context<double>> context = dut.CreateDefaultContext();
+
+  EXPECT_FALSE(dut.int_port.HasValue(*context));
+  EXPECT_TRUE(dut.cache_entry.is_out_of_date(*context));
+  EXPECT_TRUE(dut.dependent_cache_entry.is_out_of_date(*context));
+  // Can't evaluate the cache entry if input has no value.
+  EXPECT_THROW(dut.cache_entry.Eval<int>(*context), std::exception);
+
+  dut.int_port.FixValue(&*context, 19);
+  EXPECT_TRUE(dut.int_port.HasValue(*context));
+  // Note: we're getting a _reference_ to the cache value so we'll see changes.
+  const int& cached_value = dut.cache_entry.Eval<int>(*context);
+  EXPECT_FALSE(dut.cache_entry.is_out_of_date(*context));
+  EXPECT_EQ(cached_value, 19);
+  EXPECT_TRUE(dut.dependent_cache_entry.is_out_of_date(*context));
+  const int& dependent_cached_value =
+      dut.dependent_cache_entry.Eval<int>(*context);
+  EXPECT_EQ(dependent_cached_value, 19);
+
+  dut.int_port.FixValue(&*context, -3);  // Should invalidate dependents.
+  EXPECT_TRUE(dut.cache_entry.is_out_of_date(*context));
+  EXPECT_TRUE(dut.dependent_cache_entry.is_out_of_date(*context));
+  EXPECT_EQ(cached_value, 19);  // Out-of-date values are still there.
+  EXPECT_EQ(dependent_cached_value, 19);
+  dut.dependent_cache_entry.Eval<int>(*context);  // Updates cache_entry also.
+  EXPECT_EQ(dependent_cached_value, -3);
+  EXPECT_FALSE(dut.cache_entry.is_out_of_date(*context));
+  EXPECT_EQ(cached_value, -3);
+
+  // Once more to make sure this wasn't a fluke.
+  dut.int_port.FixValue(&*context, 123);
+  EXPECT_TRUE(dut.cache_entry.is_out_of_date(*context));
+  EXPECT_TRUE(dut.dependent_cache_entry.is_out_of_date(*context));
+}
+
 // For a subsystem embedded in a diagram, test that we can query, fix, and
 // evaluate that subsystem's input ports using only a Context for that
 // subsystem (rather than the whole Diagram context).
@@ -352,7 +413,19 @@ GTEST_TEST(InputPortTest, ContextForEmbeddedSystem) {
       ".*Context.*was not created for this InputPort.*");
 }
 
+GTEST_TEST(InputPortTest, Allocate) {
+  SystemWithInputPorts system;
+  // Vector-valued input-port.
+  const auto vec_abstract_value = system.basic_vec_port.Allocate();
+  const auto& basic_vector =
+      vec_abstract_value->get_value<BasicVector<double>>();
+  EXPECT_EQ(basic_vector.size(), 3);
+  // Abstract-valued input-port.
+  const auto int_abstract_value = system.int_port.Allocate();
+  const int int_value = int_abstract_value->get_value<int>();
+  EXPECT_EQ(int_value, 5);
+}
+
 }  // namespace
 }  // namespace systems
 }  // namespace drake
-

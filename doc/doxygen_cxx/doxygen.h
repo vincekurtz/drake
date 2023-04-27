@@ -29,7 +29,7 @@ If you want to make your own Doxygen locally, see
 <a href="https://drake.mit.edu/documentation_instructions.html">Documentation
 Generation Instructions</a></p>
 
-<p><a href="https://www.stack.nl/~dimitri/doxygen/manual/docblocks.html">Check
+<p><a href="https://www.doxygen.nl/manual/docblocks.html">Check
 out the Doxygen C++ documentation</a></p>
 
 <p>Drake's Doxygen documentation is
@@ -186,17 +186,6 @@ namespace solvers {
  @}
  */
 
-/** @addtogroup planning
- @{
-   A collection of algorithms for finding configurations and/or trajectories of
-   dynamical systems.
-
-   Many planning algorithms make heavy use of solvers::MathematicalProgram and
-   the numerous @ref solver_evaluators.  There are also some useful classes in
-   @ref manipulation_systems.
- @}
-*/
-
 /** @addtogroup control
  @{
    A collection of algorithms for synthesizing feedback control.
@@ -214,10 +203,43 @@ namespace solvers {
 
  <p>Drake's C++ libraries use a small amount of template metaprogramming to
   enable more advanced features (autodiff, symbolic computation, etc).  We
-  have tried to avoid users having to be expert template programmers, but this
-  is a good reference if you'd like to
-  <a href="http://www.generic-programming.org/languages/cpp/techniques.php">
-  learn more about generic programming</a>.</p>
+  have tried to avoid users having to be expert template programmers.</p>
+
+ @}
+*/
+
+/** @addtogroup technical_notes
+
+ @{
+
+ @defgroup environment_variables Environment Variables
+
+ This section provides an inventory of environment variables relevant to Drake.
+
+ - <b>\ref allow_network "DRAKE_ALLOW_NETWORK"</b>
+ - <b>\ref drake::common::FindResource() "DRAKE_RESOURCE_ROOT"</b>
+ - <b>\ref drake::solvers::GurobiSolver "GRB_LICENSE_FILE"</b> (see also 
+   <a href="https://support.gurobi.com/hc/en-us/articles/360013417211-Where-do-I-place-the-Gurobi-license-file-gurobi-lic-">upstream documentation</a>)
+ - <b>\ref drake::solvers::GurobiSolver "GUROBI_NUM_THREADS"</b>
+ - <b>HOME</b>
+ - <b>\ref drake::solvers::MosekSolver "MOSEKLM_LICENSE_FILE"</b> (see also
+   <a href="https://docs.mosek.com/latest/licensing/client-setup.html">upstream documentation</a>)
+ - <b>OMP_NUM_THREADS</b> (see
+   <a href="https://www.openmp.org/spec-html/5.0/openmpse50.html">upstream documentation</a>)
+ - <b>\ref drake::multibody::PackageMap::PopulateFromRosPackagePath() "ROS_PACKAGE_PATH"</b> (see also
+   <a href="http://wiki.ros.org/ROS/EnvironmentVariables">upstream documentation)</a>
+ - <b>RUNFILES_DIR</b> (see
+   <a href="https://github.com/bazelbuild/bazel/blob/6.1.1/tools/python/runfiles/runfiles.py#L77">upstream documentation)</a>
+ - <b>RUNFILES_MANIFEST_FILE</b> (see
+   <a href="https://github.com/bazelbuild/bazel/blob/6.1.1/tools/python/runfiles/runfiles.py#L77">upstream documentation)</a>
+ - <b>TEST_SRCDIR</b> (see
+   <a href="https://bazel.build/reference/test-encyclopedia#initial-conditions">upstream documentation</a>)
+ - <b>\ref drake::temp_directory() "TEST_TMPDIR"</b> (see also
+   <a href="https://bazel.build/reference/test-encyclopedia#initial-conditions">upstream documentation</a>)
+ - <b>\ref drake::temp_directory() "TMPDIR"</b>
+ - <b>USER</b>
+ - <b>XDG_CACHE_HOME</b> (see
+   <a href="https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html">upstream documentation</a>)
 
  @}
 */

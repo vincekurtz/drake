@@ -1,5 +1,3 @@
-# -*- python -*-
-
 load(
     "@drake//tools/skylark:drake_cc.bzl",
     "drake_cc_googletest",
@@ -73,18 +71,15 @@ drake_cc_library_ubuntu_only(
         "internal_buffer_dim.h",
         "internal_render_engine_gl.h",
     ],
-    interface_deps = [
+    deps = [
         ":internal_opengl_context",
         ":internal_opengl_geometry",
-        ":render_engine_gl_params",
         ":internal_shader_program",
         ":internal_shape_meshes",
         ":internal_texture_library",
+        ":render_engine_gl_params",
         "//geometry/render:render_engine",
         "//systems/sensors:image",
-    ],
-    deps = [
-        "//common:filesystem",
     ],
 )
 
@@ -185,7 +180,6 @@ drake_cc_library_ubuntu_only(
         ":internal_opengl_context",
     ],
     deps = [
-        "//common:filesystem",
         "@vtk//:vtkIOImage",
     ],
 )
@@ -233,6 +227,7 @@ drake_cc_googletest_ubuntu_only(
         "//common/test_utilities:expect_throws_message",
         "//geometry/render:render_label",
         "//systems/sensors:color_palette",
+        "@vtk//:vtkIOImage",
     ],
 )
 
@@ -244,6 +239,21 @@ drake_cc_googletest(
     }),
     deps = [
         ":factory",
+        "//common/test_utilities:expect_throws_message",
+    ],
+)
+
+# TODO(zachfang): Remove this along with deprecation on 2023-07-01.
+drake_cc_googletest(
+    name = "deprecation_test",
+    copts = [
+        "-Wno-cpp",
+        "-Wno-deprecated-declarations",
+    ],
+    tags = vtk_test_tags(),
+    deps = [
+        ":factory",
+        ":render_engine_gl_params",
         "//common/test_utilities:expect_throws_message",
     ],
 )

@@ -34,6 +34,8 @@ drake_cc_package_library(
         ":isoparametric_element",
         ":linear_constitutive_model",
         ":linear_constitutive_model_data",
+        ":linear_corotated_model",
+        ":linear_corotated_model_data",
         ":linear_simplex_element",
         ":matrix_utilities",
         ":petsc_symmetric_block_sparse_matrix",
@@ -325,6 +327,40 @@ drake_cc_library(
 )
 
 drake_cc_library(
+    name = "linear_corotated_model",
+    srcs = [
+        "linear_corotated_model.cc",
+    ],
+    hdrs = [
+        "linear_corotated_model.h",
+    ],
+    deps = [
+        ":calc_lame_parameters",
+        ":constitutive_model",
+        ":linear_corotated_model_data",
+        ":matrix_utilities",
+        "//common:autodiff",
+        "//common:essential",
+    ],
+)
+
+drake_cc_library(
+    name = "linear_corotated_model_data",
+    srcs = [
+        "linear_corotated_model_data.cc",
+    ],
+    hdrs = [
+        "linear_corotated_model_data.h",
+    ],
+    deps = [
+        ":deformation_gradient_data",
+        ":matrix_utilities",
+        "//common:autodiff",
+        "//common:essential",
+    ],
+)
+
+drake_cc_library(
     name = "linear_simplex_element",
     srcs = [
         "linear_simplex_element.cc",
@@ -489,6 +525,7 @@ drake_cc_library(
         ":constitutive_model",
         ":corotated_model",
         ":linear_constitutive_model",
+        ":linear_corotated_model",
         ":matrix_utilities",
         "//common:autodiff",
         "//common/test_utilities:eigen_matrix_compare",
@@ -649,6 +686,23 @@ drake_cc_googletest(
 )
 
 drake_cc_googletest(
+    name = "linear_corotated_model_test",
+    deps = [
+        ":constitutive_model_test_utilities",
+        ":linear_corotated_model",
+    ],
+)
+
+drake_cc_googletest(
+    name = "linear_corotated_model_data_test",
+    deps = [
+        ":linear_corotated_model",
+        "//common/test_utilities:eigen_matrix_compare",
+        "//math:geometric_transform",
+    ],
+)
+
+drake_cc_googletest(
     name = "linear_simplex_element_test",
     deps = [
         ":linear_simplex_element",
@@ -669,10 +723,6 @@ drake_cc_googletest(
 
 drake_cc_googletest(
     name = "petsc_symmetric_block_sparse_matrix_test",
-    tags = [
-        # This tests uses multiple CPUs concurrently.
-        "cpu:100",
-    ],
     deps = [
         ":petsc_symmetric_block_sparse_matrix",
         "//common/test_utilities:eigen_matrix_compare",
@@ -731,4 +781,4 @@ drake_cc_googletest(
     ],
 )
 
-add_lint_tests()
+add_lint_tests(enable_clang_format_lint = True)

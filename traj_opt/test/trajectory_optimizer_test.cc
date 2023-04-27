@@ -20,6 +20,9 @@
 #include "drake/traj_opt/trajectory_optimizer_workspace.h"
 #include "drake/traj_opt/velocity_partials.h"
 
+#define PRINT_VAR(a) std::cout << #a ": " << a << std::endl;
+#define PRINT_VARn(a) std::cout << #a ":\n" << a << std::endl;
+
 namespace drake {
 namespace traj_opt {
 
@@ -48,13 +51,11 @@ class TrajectoryOptimizerTester {
     optimizer.CalcAccelerations(v, a);
   }
 
-  static void CalcInverseDynamics(
-      const TrajectoryOptimizer<double>& optimizer,
-      const TrajectoryOptimizerState<double>& state,
-      const std::vector<VectorXd>& a,
-      TrajectoryOptimizerWorkspace<double>* workspace,
-      std::vector<VectorXd>* tau) {
-    optimizer.CalcInverseDynamics(state, a, workspace, tau);
+  static void CalcInverseDynamics(const TrajectoryOptimizer<double>& optimizer,
+                                  const TrajectoryOptimizerState<double>& state,
+                                  const std::vector<VectorXd>& a,
+                                  std::vector<VectorXd>* tau) {
+    optimizer.CalcInverseDynamics(state, a, tau);
   }
 
   static void CalcInverseDynamicsPartials(
@@ -179,8 +180,8 @@ GTEST_TEST(TrajectoryOptimizerTest, ContactGradientMethods) {
   MultibodyPlantConfig config;
   config.time_step = 1.0;
   auto [plant, scene_graph] = multibody::AddMultibodyPlant(config, &builder);
-  Parser(&plant).AddAllModelsFromFile(
-      FindResourceOrThrow("drake/traj_opt/examples/spinner_sphere.urdf"));
+  Parser(&plant).AddAllModelsFromFile(FindResourceOrThrow(
+      "drake/traj_opt/examples/models/spinner_sphere.urdf"));
   plant.Finalize();
   auto diagram = builder.Build();
 
@@ -194,7 +195,6 @@ GTEST_TEST(TrajectoryOptimizerTest, ContactGradientMethods) {
   SolverParameters solver_params;
   solver_params.F = 1.0;
   solver_params.delta = 0.01;
-  solver_params.stiffness_exponent = 2.0;
   solver_params.dissipation_velocity = 0.1;
   solver_params.friction_coefficient = 0.5;
 
@@ -307,7 +307,10 @@ GTEST_TEST(TrajectoryOptimizerTest, DoglegPoint) {
   plant.Finalize();
   auto diagram = builder.Build();
 
-  TrajectoryOptimizer<double> optimizer(diagram.get(), &plant, opt_prob);
+  SolverParameters solver_params;
+  solver_params.scaling = false;
+  TrajectoryOptimizer<double> optimizer(diagram.get(), &plant, opt_prob,
+                                        solver_params);
   TrajectoryOptimizerState<double> state = optimizer.CreateState();
 
   // Choose a q that is away from the optimal solution
@@ -455,6 +458,8 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumSwingup) {
   SolverParameters solver_params;
   solver_params.max_iterations = 20;
   solver_params.verbose = false;
+  solver_params.check_convergence = true;
+  solver_params.convergence_tolerances.rel_cost_reduction = 1e-5;
   TrajectoryOptimizer<double> optimizer(diagram.get(), &plant, opt_prob,
                                         solver_params);
 
@@ -623,8 +628,7 @@ GTEST_TEST(TrajectoryOptimizerTest, HessianAcrobot) {
 }
 
 /**
- * Test our computation of the Hessian by comparing
- * with autodiff.
+ * Compare the Gauss-Newton Hessian with the exact (autodiff) Hessian.
  */
 GTEST_TEST(TrajectoryOptimizerTest, HessianPendulum) {
   // Define an optimization problem.
@@ -645,7 +649,7 @@ GTEST_TEST(TrajectoryOptimizerTest, HessianPendulum) {
     opt_prob.v_nom.push_back(Vector1d(-0.1));
   }
 
-  // Create a pendulum model
+  // Create a pendulum model without gravity
   DiagramBuilder<double> builder;
   MultibodyPlantConfig config;
   config.time_step = dt;
@@ -653,55 +657,37 @@ GTEST_TEST(TrajectoryOptimizerTest, HessianPendulum) {
   const std::string urdf_file =
       FindResourceOrThrow("drake/examples/pendulum/Pendulum.urdf");
   Parser(&plant).AddAllModelsFromFile(urdf_file);
+  plant.mutable_gravity_field().set_gravity_vector(VectorXd::Zero(3));
   plant.Finalize();
   auto diagram = builder.Build();
 
-  // Create an optimizer
-  TrajectoryOptimizer<double> optimizer(diagram.get(), &plant, opt_prob);
-  TrajectoryOptimizerState<double> state = optimizer.CreateState();
+  // Create two optimizers: one that uses a Gauss-Newton Hessian approximation
+  // and the other that uses an exact (autodiff) Hessian
+  TrajectoryOptimizer<double> optimizer_gn(diagram.get(), &plant, opt_prob);
+  TrajectoryOptimizerState<double> state_gn = optimizer_gn.CreateState();
+
+  SolverParameters params;
+  params.exact_hessian = true;
+  TrajectoryOptimizer<double> optimizer_exact(diagram.get(), &plant, opt_prob,
+                                              params);
+  TrajectoryOptimizerState<double> state_exact = optimizer_exact.CreateState();
 
   // Make some fake data
   std::vector<VectorXd> q(num_steps + 1);
   q[0] = opt_prob.q_init;
   for (int t = 1; t <= num_steps; ++t) {
-    q[t] = q[t - 1] + 0.1 * dt * VectorXd::Ones(1);
+    q[t] = q[t - 1] + 0.3 * dt * VectorXd::Ones(1);
   }
-  state.set_q(q);
+  state_gn.set_q(q);
+  state_exact.set_q(q);
 
-  // Compute the Hessian analytically
-  const int nq = plant.num_positions();
-  const int num_vars = nq * (num_steps + 1);
-  PentaDiagonalMatrix<double> H_sparse(num_steps + 1, nq);
-  optimizer.CalcHessian(state, &H_sparse);
-  MatrixXd H = H_sparse.MakeDense();
+  // Compare the Hessians
+  const MatrixXd H_gn = optimizer_gn.EvalHessian(state_gn).MakeDense();
+  const MatrixXd H_exact = optimizer_exact.EvalHessian(state_exact).MakeDense();
 
-  // Compute the Hessian using autodiff
-  // Note that this is the true Hessian, and not the Gauss-Newton approximation
-  // that we will use. But for this simple pendulum the two are very close
-  auto diagram_ad = systems::System<double>::ToAutoDiffXd(*diagram);
-  const auto& plant_ad = dynamic_cast<const MultibodyPlant<AutoDiffXd>&>(
-      diagram_ad->GetSubsystemByName(plant.get_name()));
-  TrajectoryOptimizer<AutoDiffXd> optimizer_ad(diagram_ad.get(), &plant_ad,
-                                               opt_prob);
-  TrajectoryOptimizerState<AutoDiffXd> state_ad = optimizer_ad.CreateState();
-
-  std::vector<VectorX<AutoDiffXd>> q_ad(num_steps + 1);
-  for (int t = 0; t <= num_steps; ++t) {
-    q_ad[t] = math::InitializeAutoDiff(q[t], num_steps + 1, t);
-  }
-  state_ad.set_q(q_ad);
-
-  VectorX<AutoDiffXd> g_ad(num_vars);
-  optimizer_ad.CalcGradient(state_ad, &g_ad);
-  MatrixXd H_ad = math::ExtractGradient(g_ad);
-
-  // We overwrite the first row and column of the Hessian, so we won't compare
-  // those
   const double kTolerance = sqrt(std::numeric_limits<double>::epsilon()) / dt;
   EXPECT_TRUE(
-      CompareMatrices(H.bottomRightCorner(num_steps * nq, num_steps * nq),
-                      H_ad.bottomRightCorner(num_steps * nq, num_steps * nq),
-                      kTolerance, MatrixCompareType::relative));
+      CompareMatrices(H_gn, H_exact, kTolerance, MatrixCompareType::relative));
 }
 
 GTEST_TEST(TrajectoryOptimizerTest, AutodiffGradient) {
@@ -944,18 +930,21 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcGradientPendulumNoGravity) {
 
     // dtau[t]/dq[t]
     if (t == 0) {
-      // v[0] is constant
-      id_partials_gt.dtau_dqt[t](0, 0) = -1 / dt / dt * m * l * l - 1 / dt * b;
+      // q[0] is constant
+      id_partials_gt.dtau_dqt[t](0, 0) = 0.0;
     } else {
       id_partials_gt.dtau_dqt[t](0, 0) = -2 / dt / dt * m * l * l - 1 / dt * b;
     }
 
     // dtau[t]/dq[t-1]
-    id_partials_gt.dtau_dqm[t](0, 0) = 1 / dt / dt * m * l * l;
-
-    // Derivatives w.r.t. q[t-1] do not exist
     if (t == 0) {
+      // Derivatives w.r.t. q[t-1] do not exist
       id_partials_gt.dtau_dqm[t](0, 0) = NAN;
+    } else if (t == 1) {
+      // q[0] is constant
+      id_partials_gt.dtau_dqm[t](0, 0) = 0.0;
+    } else {
+      id_partials_gt.dtau_dqm[t](0, 0) = 1 / dt / dt * m * l * l;
     }
   }
 
@@ -1076,7 +1065,6 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumDtauDq) {
   opt_prob.v_nom.resize(num_steps + 1);
   TrajectoryOptimizer<double> optimizer(diagram.get(), &plant, opt_prob);
   TrajectoryOptimizerState<double> state = optimizer.CreateState();
-  TrajectoryOptimizerWorkspace<double> workspace(num_steps, plant);
 
   // Create some fake data
   std::vector<VectorXd> q;
@@ -1094,8 +1082,7 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumDtauDq) {
   const std::vector<MatrixXd>& Nplus = optimizer.EvalNplus(state);
   TrajectoryOptimizerTester::CalcVelocities(optimizer, q, Nplus, &v);
   TrajectoryOptimizerTester::CalcAccelerations(optimizer, v, &a);
-  TrajectoryOptimizerTester::CalcInverseDynamics(optimizer, state, a,
-                                                 &workspace, &tau);
+  TrajectoryOptimizerTester::CalcInverseDynamics(optimizer, state, a, &tau);
   TrajectoryOptimizerTester::CalcInverseDynamicsPartials(optimizer, state,
                                                          &grad_data);
 
@@ -1119,16 +1106,18 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumDtauDq) {
     grad_data_gt.dtau_dqt[t](0, 0) = -2 / dt / dt * m * l * l - 1 / dt * b;
 
     if (t == 0) {
-      // v[0] is constant
-      grad_data_gt.dtau_dqt[t](0, 0) = -1 / dt / dt * m * l * l - 1 / dt * b;
+      // q[0] is constant
+      grad_data_gt.dtau_dqt[t](0, 0) = 0.0;
     }
 
     // dtau[t]/dq[t-1]
-    grad_data_gt.dtau_dqm[t](0, 0) = 1 / dt / dt * m * l * l;
-
-    // Derivatives w.r.t. q[t-1] do not exist
     if (t == 0) {
+      // Derivatives w.r.t. q[t-1] do not exist
       grad_data_gt.dtau_dqm[t](0, 0) = NAN;
+    } else if (t == 1) {
+      grad_data_gt.dtau_dqm[t](0, 0) = 0.0;
+    } else {
+      grad_data_gt.dtau_dqm[t](0, 0) = 1 / dt / dt * m * l * l;
     }
   }
 
@@ -1248,9 +1237,12 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcCost) {
   const double dt = 1e-2;
 
   // Set up an (empty) system model
-  MultibodyPlant<double> plant(dt);
+  DiagramBuilder<double> builder;
+  MultibodyPlantConfig config;
+  config.time_step = dt;
+  auto [plant, scene_graph] = multibody::AddMultibodyPlant(config, &builder);
   plant.Finalize();
-  auto context = plant.CreateDefaultContext();
+  auto diagram = builder.Build();
 
   // Set up the optimization problem
   ProblemDefinition opt_prob;
@@ -1280,7 +1272,7 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcCost) {
   v.push_back(Vector2d(-0.1, 0.0));
 
   // Compute the cost and compare with the true value
-  TrajectoryOptimizer<double> optimizer(&plant, context.get(), opt_prob);
+  TrajectoryOptimizer<double> optimizer(diagram.get(), &plant, opt_prob);
   TrajectoryOptimizerWorkspace<double> workspace(num_steps, plant);
   double L =
       TrajectoryOptimizerTester::CalcCost(optimizer, q, v, tau, &workspace);
@@ -1328,7 +1320,6 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumCalcInverseDynamics) {
   opt_prob.v_nom.resize(num_steps + 1);
   TrajectoryOptimizer<double> optimizer(diagram.get(), &plant, opt_prob);
   TrajectoryOptimizerState<double> state = optimizer.CreateState();
-  TrajectoryOptimizerWorkspace<double> workspace(num_steps, plant);
   state.set_q(q);
 
   const std::vector<VectorXd>& v = optimizer.EvalV(state);
@@ -1362,8 +1353,7 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumCalcInverseDynamics) {
     // TODO(vincekurtz): track down whatever extra allocations we got from
     // refactoring
     TrajectoryOptimizerTester::CalcAccelerations(optimizer, v, &a);
-    TrajectoryOptimizerTester::CalcInverseDynamics(optimizer, state, a,
-                                                   &workspace, &tau);
+    TrajectoryOptimizerTester::CalcInverseDynamics(optimizer, state, a, &tau);
   }
 
   // Check that our computed values match the true (recorded) ones
@@ -1384,17 +1374,22 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcVelocities) {
   const int num_steps = 5;
   const double dt = 1e-2;
 
-  // Create a TrajectoryOptimizer object
-  MultibodyPlant<double> plant(dt);
+  // Create an empty plant model
+  DiagramBuilder<double> builder;
+  MultibodyPlantConfig config;
+  config.time_step = dt;
+  auto [plant, scene_graph] = multibody::AddMultibodyPlant(config, &builder);
   plant.Finalize();
-  auto context = plant.CreateDefaultContext();
+  auto diagram = builder.Build();
+
+  // Create a TrajectoryOptimizer object
   ProblemDefinition opt_prob;
   opt_prob.q_init = Vector2d(0.1, 0.2);
   opt_prob.v_init = Vector2d(0.5 / dt, 1.5 / dt);
   opt_prob.num_steps = num_steps;
   opt_prob.q_nom.resize(num_steps + 1);
   opt_prob.v_nom.resize(num_steps + 1);
-  TrajectoryOptimizer<double> optimizer(&plant, context.get(), opt_prob);
+  TrajectoryOptimizer<double> optimizer(diagram.get(), &plant, opt_prob);
 
   // Construct a std::vector of generalized positions (q)
   // where q(t) = [0.1 + 0.5*t]
@@ -1513,6 +1508,311 @@ GTEST_TEST(TrajectoryOptimizerTest, ContactJacobians) {
                                 std::numeric_limits<double>::epsilon(),
                                 MatrixCompareType::relative));
   }
+}
+
+// Test our computation of equality constraints (torques on unactuated DoFs)
+// using the spinner example
+GTEST_TEST(TrajectoryOptimizerTest, SpinnerEqualityConstraints) {
+  // Define an optimization problem.
+  const int num_steps = 3;
+  const double dt = 0.05;
+
+  ProblemDefinition opt_prob;
+  opt_prob.num_steps = num_steps;
+  opt_prob.q_init = Vector3d(-0.1, 1.5, 0.0);
+  opt_prob.v_init = Vector3d(0.0, 0.0, 0.0);
+  opt_prob.Qq = Vector3d(0.0, 0.0, 0.1).asDiagonal();
+  opt_prob.Qv = Vector3d(0.0, 0.0, 1.0).asDiagonal();
+  opt_prob.Qf_q = Vector3d(0.0, 0.0, 10.0).asDiagonal();
+  opt_prob.Qf_v = Vector3d(0.0, 0.0, 1.0).asDiagonal();
+  opt_prob.R = Vector3d(1e0, 1e0, 1e1).asDiagonal();
+
+  for (int t = 0; t <= num_steps; ++t) {
+    VectorXd q_nom(3);
+    VectorXd v_nom(3);
+    q_nom << -0.1, 1.5, t;
+    v_nom << 0.0, 0.0, dt * num_steps;
+    opt_prob.q_nom.push_back(q_nom);
+    opt_prob.v_nom.push_back(v_nom);
+  }
+
+  // Create a system model
+  DiagramBuilder<double> builder;
+  MultibodyPlantConfig config;
+  config.time_step = dt;
+  auto [plant, scene_graph] = multibody::AddMultibodyPlant(config, &builder);
+  const std::string urdf_file = FindResourceOrThrow(
+      "drake/traj_opt/examples/models/spinner_friction.urdf");
+  Parser(&plant).AddAllModelsFromFile(urdf_file);
+  plant.Finalize();
+  auto diagram = builder.Build();
+
+  // Create an optimizer
+  SolverParameters params;
+  params.scaling = false;
+  params.gradients_method = GradientsMethod::kCentralDifferences;
+  TrajectoryOptimizer<double> optimizer(diagram.get(), &plant, opt_prob,
+                                        params);
+  TrajectoryOptimizerState<double> state = optimizer.CreateState();
+
+  // Make some fake data
+  std::vector<VectorXd> q(num_steps + 1);
+  q[0] = opt_prob.q_init;
+  for (int t = 1; t <= num_steps; ++t) {
+    q[t] = q[t - 1] + dt * opt_prob.v_init;
+  }
+  state.set_q(q);
+
+  // Compute equality constraint violations
+  VectorXd h = optimizer.EvalEqualityConstraintViolations(state);
+  EXPECT_TRUE(h.size() == num_steps);
+
+  // Set up an autodiff copy of the optimizer and plant
+  auto diagram_ad = systems::System<double>::ToAutoDiffXd(*diagram);
+  const auto& plant_ad = dynamic_cast<const MultibodyPlant<AutoDiffXd>&>(
+      diagram_ad->GetSubsystemByName(plant.get_name()));
+  TrajectoryOptimizer<AutoDiffXd> optimizer_ad(diagram_ad.get(), &plant_ad,
+                                               opt_prob, params);
+  TrajectoryOptimizerState<AutoDiffXd> state_ad = optimizer_ad.CreateState();
+
+  std::vector<VectorX<AutoDiffXd>> q_ad(num_steps + 1, VectorX<AutoDiffXd>(3));
+  int ad_idx = 0;  // index for autodiff variables
+  const int nq = plant.num_positions();
+  const int num_vars = (num_steps + 1) * nq;
+  for (int t = 0; t <= num_steps; ++t) {
+    for (int i = 0; i < nq; ++i) {
+      q_ad[t].segment<1>(i) =
+          math::InitializeAutoDiff(q[t].segment<1>(i), num_vars, ad_idx);
+      ++ad_idx;
+    }
+  }
+  state_ad.set_q(q_ad);
+
+  VectorX<AutoDiffXd> h_ad =
+      optimizer_ad.EvalEqualityConstraintViolations(state_ad);
+  MatrixXd J_ad = math::ExtractGradient(h_ad);
+  MatrixXd J = optimizer.EvalEqualityConstraintJacobian(state);
+
+  // We get a factor of sqrt(epsilon) since we're doing finite differences to
+  // get inverse dynamics partials. The first column from autodiff is not
+  // accurate since q0 is not a decision variable.
+  const double kTolerance = std::sqrt(std::numeric_limits<double>::epsilon());
+  EXPECT_TRUE(CompareMatrices(J_ad.rightCols(num_steps * nq),
+                              J.rightCols(num_steps * nq), kTolerance,
+                              MatrixCompareType::relative));
+}
+
+// Test our computation of equality constraints (torques on unactuated DoFs)
+// using the hopper example
+GTEST_TEST(TrajectoryOptimizerTest, HopperEqualityConstraints) {
+  // Define an optimization problem.
+  const int num_steps = 5;
+  const double dt = 1e-2;
+
+  ProblemDefinition opt_prob;
+  opt_prob.num_steps = num_steps;
+  opt_prob.q_init.resize(5);
+  opt_prob.q_init << 0.0, 0.6, 0.3, -0.5, 0.2;
+  opt_prob.v_init.resize(5);
+  opt_prob.v_init << 1.0, -0.2, 0.1, -0.3, 0.4;
+  opt_prob.Qq = 0.1 * MatrixXd::Identity(5, 5);
+  opt_prob.Qv = 0.2 * MatrixXd::Identity(5, 5);
+  opt_prob.Qf_q = 0.3 * MatrixXd::Identity(5, 5);
+  opt_prob.Qf_v = 0.4 * MatrixXd::Identity(5, 5);
+  opt_prob.R = 0.01 * MatrixXd::Identity(5, 5);
+
+  for (int t = 0; t <= num_steps; ++t) {
+    VectorXd q_nom(5);
+    VectorXd v_nom(5);
+    q_nom << 0.5, 0.5, 0.3, -0.4, 0.1;
+    v_nom << 0.01, 0.0, 0.2, 0.1, -0.1;
+    opt_prob.q_nom.push_back(q_nom);
+    opt_prob.v_nom.push_back(v_nom);
+  }
+
+  // Create a system
+  DiagramBuilder<double> builder;
+  MultibodyPlantConfig config;
+  config.time_step = dt;
+  auto [plant, scene_graph] = multibody::AddMultibodyPlant(config, &builder);
+  const std::string urdf_file =
+      FindResourceOrThrow("drake/traj_opt/examples/models/hopper.urdf");
+  Parser(&plant).AddAllModelsFromFile(urdf_file);
+  plant.Finalize();
+  auto diagram = builder.Build();
+
+  // Create an optimizer
+  SolverParameters params;
+  params.scaling = false;
+  params.gradients_method = GradientsMethod::kCentralDifferences;
+  TrajectoryOptimizer<double> optimizer(diagram.get(), &plant, opt_prob,
+                                        params);
+  TrajectoryOptimizerState<double> state = optimizer.CreateState();
+
+  // Make some fake data
+  std::vector<VectorXd> q(num_steps + 1);
+  q[0] = opt_prob.q_init;
+  for (int t = 1; t <= num_steps; ++t) {
+    q[t] = q[t - 1] + dt * opt_prob.v_init;
+  }
+  state.set_q(q);
+
+  // Compute equality constraint violations
+  VectorXd h = optimizer.EvalEqualityConstraintViolations(state);
+
+  EXPECT_TRUE(h[0] != 0.0);
+  EXPECT_TRUE(h.size() == num_steps * 3);
+
+  // Set up an autodiff copy of the optimizer and plant
+  auto diagram_ad = systems::System<double>::ToAutoDiffXd(*diagram);
+  const auto& plant_ad = dynamic_cast<const MultibodyPlant<AutoDiffXd>&>(
+      diagram_ad->GetSubsystemByName(plant.get_name()));
+  TrajectoryOptimizer<AutoDiffXd> optimizer_ad(diagram_ad.get(), &plant_ad,
+                                               opt_prob, params);
+  TrajectoryOptimizerState<AutoDiffXd> state_ad = optimizer_ad.CreateState();
+
+  std::vector<VectorX<AutoDiffXd>> q_ad(num_steps + 1, VectorX<AutoDiffXd>(5));
+  int ad_idx = 0;  // index for autodiff variables
+  const int nq = plant.num_positions();
+  const int num_vars = (num_steps + 1) * nq;
+  for (int t = 0; t <= num_steps; ++t) {
+    for (int i = 0; i < nq; ++i) {
+      q_ad[t].segment<1>(i) =
+          math::InitializeAutoDiff(q[t].segment<1>(i), num_vars, ad_idx);
+      ++ad_idx;
+    }
+  }
+  state_ad.set_q(q_ad);
+
+  VectorX<AutoDiffXd> h_ad =
+      optimizer_ad.EvalEqualityConstraintViolations(state_ad);
+  MatrixXd J_ad = math::ExtractGradient(h_ad);
+  MatrixXd J = optimizer.EvalEqualityConstraintJacobian(state);
+
+  // We get a factor of sqrt(epsilon) since we're doing finite differences to
+  // get inverse dynamics partials. The first column from autodiff is not
+  // accurate since q0 is not a decision variable.
+  const double kTolerance = std::sqrt(std::numeric_limits<double>::epsilon());
+  EXPECT_TRUE(CompareMatrices(J_ad.rightCols(num_steps * nq),
+                              J.rightCols(num_steps * nq), kTolerance,
+                              MatrixCompareType::relative));
+}
+
+// Test the combination of equality constraints and scaling using the hopper
+GTEST_TEST(TrajectoryOptimizerTest, EqualityConstraintsAndScaling) {
+  // Define an optimization problem.
+  const int num_steps = 5;
+  const double dt = 1e-2;
+
+  ProblemDefinition opt_prob;
+  opt_prob.num_steps = num_steps;
+  opt_prob.q_init.resize(5);
+  opt_prob.q_init << 0.0, 0.6, 0.3, -0.5, 0.2;
+  opt_prob.v_init.resize(5);
+  opt_prob.v_init << 1.0, -0.2, 0.1, -0.3, 0.4;
+  opt_prob.Qq = 0.1 * MatrixXd::Identity(5, 5);
+  opt_prob.Qv = 0.2 * MatrixXd::Identity(5, 5);
+  opt_prob.Qf_q = 0.3 * MatrixXd::Identity(5, 5);
+  opt_prob.Qf_v = 0.4 * MatrixXd::Identity(5, 5);
+  opt_prob.R = 0.01 * MatrixXd::Identity(5, 5);
+
+  for (int t = 0; t <= num_steps; ++t) {
+    VectorXd q_nom(5);
+    VectorXd v_nom(5);
+    q_nom << 0.5, 0.5, 0.3, -0.4, 0.1;
+    v_nom << 0.01, 0.0, 0.2, 0.1, -0.1;
+    opt_prob.q_nom.push_back(q_nom);
+    opt_prob.v_nom.push_back(v_nom);
+  }
+
+  // Create a system
+  DiagramBuilder<double> builder;
+  MultibodyPlantConfig config;
+  config.time_step = dt;
+  auto [plant, scene_graph] = multibody::AddMultibodyPlant(config, &builder);
+  const std::string urdf_file =
+      FindResourceOrThrow("drake/traj_opt/examples/models/hopper.urdf");
+  Parser(&plant).AddAllModelsFromFile(urdf_file);
+  plant.Finalize();
+  auto diagram = builder.Build();
+
+  // Create two optimizers: one with scaling and one without
+  SolverParameters params;
+  params.scaling = false;
+  params.equality_constraints = true;
+  TrajectoryOptimizer<double> optimizer(diagram.get(), &plant, opt_prob,
+                                        params);
+  TrajectoryOptimizerState<double> state = optimizer.CreateState();
+
+  SolverParameters params_scaled;
+  params.scaling = true;
+  params.equality_constraints = true;
+  TrajectoryOptimizer<double> optimizer_scaled(diagram.get(), &plant, opt_prob,
+                                               params);
+  TrajectoryOptimizerState<double> state_scaled =
+      optimizer_scaled.CreateState();
+
+  // Make some fake data
+  std::vector<VectorXd> q(num_steps + 1);
+  q[0] = opt_prob.q_init;
+  for (int t = 1; t <= num_steps; ++t) {
+    q[t] = q[t - 1] + dt * opt_prob.v_init;
+  }
+  state.set_q(q);
+  state_scaled.set_q(q);
+
+  // The scaled constraint jacobian is given by J_scaled = J * D
+  const VectorXd& D = optimizer_scaled.EvalScaleFactors(state_scaled);
+  const MatrixXd& J = optimizer.EvalEqualityConstraintJacobian(state);
+  const MatrixXd& J_scaled =
+      optimizer_scaled.EvalEqualityConstraintJacobian(state_scaled);
+
+  const double kEpsilon = std::numeric_limits<double>::epsilon();
+  EXPECT_TRUE(CompareMatrices(J * D.asDiagonal(), J_scaled, kEpsilon,
+                              MatrixCompareType::relative));
+
+  // Lagrange multipliers should be the same with and without scaling
+  const MatrixXd Hinv = optimizer.EvalHessian(state).MakeDense().inverse();
+  const VectorXd& h = optimizer.EvalEqualityConstraintViolations(state);
+  const VectorXd& g = optimizer.EvalGradient(state);
+  const VectorXd lambda_dense =
+      (J * Hinv * J.transpose()).inverse() * (h - J * Hinv * g);
+  const VectorXd& lambda = optimizer.EvalLagrangeMultipliers(state);
+  const VectorXd& lambda_scaled =
+      optimizer_scaled.EvalLagrangeMultipliers(state_scaled);
+
+  const double kTolerance =
+      100 * kEpsilon;  // N.B. we loose precision in H^{-1}
+  EXPECT_TRUE(CompareMatrices(lambda_dense, lambda, kTolerance,
+                              MatrixCompareType::relative));
+  EXPECT_TRUE(CompareMatrices(lambda_dense, lambda_scaled, kTolerance,
+                              MatrixCompareType::relative));
+
+  // Merit function should be the same with and without scaling
+  const double merit = optimizer.EvalMeritFunction(state);
+  const double merit_scaled = optimizer_scaled.EvalMeritFunction(state_scaled);
+
+  EXPECT_NEAR(merit, merit_scaled, kTolerance);
+
+  // The scaled merit function gradient is given by gm_scaled = D * gm
+  const VectorXd& gm = optimizer.EvalMeritFunctionGradient(state);
+  const VectorXd& gm_scaled =
+      optimizer_scaled.EvalMeritFunctionGradient(state_scaled);
+
+  const double kGradTolerance = std::sqrt(kEpsilon);  // N.B. finite difference
+  EXPECT_TRUE(CompareMatrices(D.asDiagonal() * gm, gm_scaled, kGradTolerance,
+                              MatrixCompareType::relative));
+
+  // Trust ratio should be the same with and without scaling
+  const VectorXd dq = -Hinv * gm;
+  TrajectoryOptimizerState<double> scratch_state = optimizer.CreateState();
+  double trust_ratio = TrajectoryOptimizerTester::CalcTrustRatio(
+      optimizer, state, dq, &scratch_state);
+  double trust_ratio_scaled = TrajectoryOptimizerTester::CalcTrustRatio(
+      optimizer_scaled, state_scaled, dq, &scratch_state);
+
+  EXPECT_TRUE(trust_ratio > 0.6);  // avoid the trivial rho = 0.5 case
+  EXPECT_NEAR(trust_ratio, trust_ratio_scaled, kTolerance);
 }
 
 }  // namespace internal

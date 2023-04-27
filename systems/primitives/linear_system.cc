@@ -22,13 +22,13 @@ using std::make_unique;
 using std::unique_ptr;
 
 template <typename T>
-LinearSystem<T>::LinearSystem(const Eigen::Ref<const Eigen::MatrixXd>& A,
-                              const Eigen::Ref<const Eigen::MatrixXd>& B,
-                              const Eigen::Ref<const Eigen::MatrixXd>& C,
-                              const Eigen::Ref<const Eigen::MatrixXd>& D,
-                              double time_period)
-    : LinearSystem<T>(SystemTypeTag<LinearSystem>{}, A, B, C, D,
-                      time_period) {}
+LinearSystem<T>::LinearSystem(
+    const Eigen::Ref<const Eigen::MatrixXd>& A,
+    const Eigen::Ref<const Eigen::MatrixXd>& B,
+    const Eigen::Ref<const Eigen::MatrixXd>& C,
+    const Eigen::Ref<const Eigen::MatrixXd>& D,
+    double time_period)
+    : LinearSystem<T>(SystemTypeTag<LinearSystem>{}, A, B, C, D, time_period) {}
 
 template <typename T>
 template <typename U>
@@ -37,15 +37,15 @@ LinearSystem<T>::LinearSystem(const LinearSystem<U>& other)
                       other.time_period()) {}
 
 template <typename T>
-LinearSystem<T>::LinearSystem(SystemScalarConverter converter,
-                              const Eigen::Ref<const Eigen::MatrixXd>& A,
-                              const Eigen::Ref<const Eigen::MatrixXd>& B,
-                              const Eigen::Ref<const Eigen::MatrixXd>& C,
-                              const Eigen::Ref<const Eigen::MatrixXd>& D,
-                              double time_period)
-    : AffineSystem<T>(std::move(converter), A, B,
-                      Eigen::VectorXd::Zero(A.rows()), C, D,
-                      Eigen::VectorXd::Zero(C.rows()), time_period) {}
+LinearSystem<T>::LinearSystem(
+    SystemScalarConverter converter,
+    const Eigen::Ref<const Eigen::MatrixXd>& A,
+    const Eigen::Ref<const Eigen::MatrixXd>& B,
+    const Eigen::Ref<const Eigen::MatrixXd>& C,
+    const Eigen::Ref<const Eigen::MatrixXd>& D,
+    double time_period)
+    : AffineSystem<T>(std::move(converter), A, B, Eigen::VectorXd(), C, D,
+                      Eigen::VectorXd(), time_period) {}
 
 template <typename T>
 unique_ptr<LinearSystem<T>> LinearSystem<T>::MakeLinearSystem(
@@ -178,8 +178,8 @@ std::unique_ptr<AffineSystem<double>> DoFirstOrderTaylorApproximation(
       autodiff_x0.SetFromVector(std::get<0>(autodiff_args));
       std::unique_ptr<DiscreteValues<AutoDiffXd>> autodiff_x1 =
           autodiff_system->AllocateDiscreteVariables();
-      autodiff_system->CalcDiscreteVariableUpdates(*autodiff_context,
-                                                   autodiff_x1.get());
+      autodiff_x1->SetFrom(
+          autodiff_system->EvalUniquePeriodicDiscreteUpdate(*autodiff_context));
       auto autodiff_x1_vec = autodiff_x1->get_value();
 
       const Eigen::MatrixXd AB = math::ExtractGradient(autodiff_x1_vec);

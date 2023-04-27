@@ -91,8 +91,7 @@ class TestQPasSOCP : public ::testing::TestWithParam<QPasSOCPProblem> {
  public:
   TestQPasSOCP();
 
-  void SolveAndCheckSolution(const SolverInterface& solver,
-                             double tol = 1E-6);
+  void SolveAndCheckSolution(const SolverInterface& solver, double tol = 1E-6);
 
  private:
   Eigen::MatrixXd Q_;
@@ -338,14 +337,31 @@ class MinimalDistanceFromSphereProblem {
 void TestSocpDualSolution1(const SolverInterface& solver,
                            const SolverOptions& solver_options, double tol);
 
-// @param rotated_lorentz_cone_with_coefficient_two. Set this to true if this
-// solver has a coefficient 2 on the rotated Lorentz cone constraint as 2*x₁x₂
-// >= x₃² + ... + xₙ² (like in Mosek). Set this to false if this solver doesn't
-// have a coefficient 2 on the rotated Lorentz cone constraint, as x₁x₂
-// >= x₃² + ... + xₙ²
 void TestSocpDualSolution2(const SolverInterface& solver,
-                           const SolverOptions& solver_options, double tol,
-                           bool rotated_lorentz_cone_with_coefficient_two);
+                           const SolverOptions& solver_options, double tol);
+
+// We intentionally use duplicated variables in the second order cone constraint
+// to test if Drake's solver wrappers can handle duplicated variables.
+// min x0 + x1
+// s.t 4x0²+3x1² ≤ 1
+void TestSocpDuplicatedVariable1(
+    const SolverInterface& solver,
+    const std::optional<SolverOptions>& solver_options, double tol);
+
+// We intentionally use duplicated variables in the second order cone constraint
+// to test if Drake's solver wrappers can handle duplicated variables.
+// min x0 + x1
+// s.t 4x0²+9x1² ≤ 1
+void TestSocpDuplicatedVariable2(
+    const SolverInterface& solver,
+    const std::optional<SolverOptions>& solver_options, double tol);
+
+// This SOCP is degenerate, in the sense it can be formulated as an LP.
+// find x
+// s.t x(0) >= sqrt( (x(1)-x(1))² + (x(2)-x(2))² )
+// We also intentionally impose it in a way to contain duplicated variables in
+// the LorentzConeConstraint.
+void TestDegenerateSOCP(const SolverInterface& solver);
 }  // namespace test
 }  // namespace solvers
 }  // namespace drake

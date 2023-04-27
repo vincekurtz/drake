@@ -17,7 +17,7 @@ namespace trajectories {
 /// segments of time (delimited by `breaks`) to implement a trajectory that
 /// is represented by simpler logic in each segment or "piece".
 ///
-/// @tparam_default_scalars
+/// @tparam_default_scalar
 template <typename T>
 class PiecewiseTrajectory : public Trajectory<T> {
  public:
@@ -51,7 +51,7 @@ class PiecewiseTrajectory : public Trajectory<T> {
 
   static std::vector<T> RandomSegmentTimes(
       // TODO(#2274) Fix this NOLINTNEXTLINE(runtime/references)
-      int num_segments, std::default_random_engine &generator);
+      int num_segments, std::default_random_engine& generator);
 
  protected:
   // Final subclasses are allowed to make copy/move/assign public.

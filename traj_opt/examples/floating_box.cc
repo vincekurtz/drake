@@ -32,7 +32,6 @@ class FloatingBoxExample : public TrajOptExample {
 
 int main() {
   drake::traj_opt::examples::floating_box::FloatingBoxExample example;
-  example.SolveTrajectoryOptimization(
-      "drake/traj_opt/examples/floating_box.yaml");
+  example.RunExample("drake/traj_opt/examples/floating_box.yaml");
   return 0;
 }

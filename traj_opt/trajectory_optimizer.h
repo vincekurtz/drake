@@ -18,6 +18,7 @@
 #include "drake/traj_opt/trajectory_optimizer_state.h"
 #include "drake/traj_opt/trajectory_optimizer_workspace.h"
 #include "drake/traj_opt/velocity_partials.h"
+#include "drake/traj_opt/warm_start.h"
 
 namespace drake {
 namespace systems {
@@ -36,27 +37,6 @@ using systems::Diagram;
 template <typename T>
 class TrajectoryOptimizer {
  public:
-  /**
-   * Construct a new Trajectory Optimizer object.
-   *
-   * @param plant A model of the system that we're trying to find an optimal
-   *              trajectory for.
-   * @param context A context for the plant, used to perform various multibody
-   *                dynamics computations. Should be part of a larger Diagram
-   *                context, and be connected to a scene graph.
-   * @param prob Problem definition, including cost, initial and target states,
-   *             etc.
-   * @param params solver parameters, including max iterations, linesearch
-   *               method, etc.
-   */
-  // TODO(amcastro-tri): Get rid of this constructor. Favor the new construction
-  // below so that we can cache the context at each time step in the state.
-  // In particular, context only gets used for
-  // CalcInverseDynamicsPartialsFiniteDiff().
-  TrajectoryOptimizer(const MultibodyPlant<T>* plant, Context<T>* context,
-                      const ProblemDefinition& prob,
-                      const SolverParameters& params = SolverParameters{});
-
   /**
    * Construct a new Trajectory Optimizer object.
    *
@@ -89,12 +69,37 @@ class TrajectoryOptimizer {
   int num_steps() const { return prob_.num_steps; }
 
   /**
+   * Return indices of the unactuated degrees of freedom in the model.
+   *
+   * @return const std::vector<int>& indices for the unactuated DoFs
+   */
+  const std::vector<int>& unactuated_dofs() const { return unactuated_dofs_; }
+
+  /**
+   * Convienience function to get the number of equality constraints (i.e.,
+   * torques on unactuated DoFs at each time step)
+   *
+   * @return int the number of equality constraints
+   */
+  int num_equality_constraints() const {
+    return unactuated_dofs().size() * num_steps();
+  }
+
+  /**
    * Convienience function to get a const reference to the multibody plant that
    * we are optimizing over.
    *
    * @return const MultibodyPlant<T>&, the plant we're optimizing over.
    */
   const MultibodyPlant<T>& plant() const { return *plant_; }
+
+  /**
+   * Convienience function to get a const reference to the system diagram that
+   * contains the multibody plant that we are optimizing over.
+   *
+   * @return const Diagram<T>&, the system diagram.
+   */
+  const Diagram<T>& diagram() const { return *diagram_; }
 
   /**
    * Create a state object which contains the decision variables (generalized
@@ -106,10 +111,8 @@ class TrajectoryOptimizer {
    */
   TrajectoryOptimizerState<T> CreateState() const {
     INSTRUMENT_FUNCTION("Creates state object with caching.");
-    if (diagram_ != nullptr) {
-      return TrajectoryOptimizerState<T>(num_steps(), *diagram_, plant());
-    }
-    return TrajectoryOptimizerState<T>(num_steps(), plant());
+    return TrajectoryOptimizerState<T>(num_steps(), diagram(), plant(),
+                                       num_equality_constraints());
   }
 
   /**
@@ -135,6 +138,21 @@ class TrajectoryOptimizer {
                    PentaDiagonalMatrix<T>* H) const;
 
   /**
+   * Compute the exact Hessian of the unconstrained cost (including second-order
+   * non-Gauss-Newton terms) using autodiff.
+   *
+   * This performs autodiff over the finite difference gradient, and is
+   * therefore subject to numerical differentiation errors.
+   *
+   * @warning for testing only: this is extremely slow.
+   *
+   * @param state optimizer state
+   * @return MatrixX<T> the hessian
+   */
+  void CalcExactHessian(const TrajectoryOptimizerState<T>& state,
+                        PentaDiagonalMatrix<T>* H) const;
+
+  /**
    * Solve the optimization from the given initial guess, which may or may not
    * be dynamically feasible.
    *
@@ -150,6 +168,23 @@ class TrajectoryOptimizer {
                    TrajectoryOptimizerSolution<T>* solution,
                    TrajectoryOptimizerStats<T>* stats,
                    ConvergenceReason* reason = nullptr) const;
+
+  /**
+   * Solve the optimization with a full warm-start, including both an initial
+   * guess and optimizer parameters like the trust region radius.
+   *
+   * @note this is only used for the trust-region method
+   *
+   * @param warm_start Container for the initial guess, optimizer state, etc.
+   * @param solution Optimal solution, including velocities and torques
+   * @param stats timing and other iteration-specific statistics
+   * @param reason convergence reason, if applicable
+   * @return SolverFlag
+   */
+  SolverFlag SolveFromWarmStart(WarmStart* warm_start,
+                                TrajectoryOptimizerSolution<T>* solution,
+                                TrajectoryOptimizerStats<T>* stats,
+                                ConvergenceReason* reason = nullptr) const;
 
   // The following evaluator functions get data from the state's cache, and
   // update it if necessary.
@@ -260,6 +295,120 @@ class TrajectoryOptimizer {
       const TrajectoryOptimizerState<T>& state) const;
 
   /**
+   * Evaluate a scaled version of the Hessian, given by
+   *
+   *     H̃ = DHD,
+   *
+   * where H is the original Hessian and D is a diagonal scaling matrix.
+   *
+   * @note if params_.scaling = false, this returns the ordinary Hessian H.
+   *
+   * @param state optimizer state, including q, v, tau, gradients, etc.
+   * @return const PentaDiagonalMatrix<T>& the scaled Hessian
+   */
+  const PentaDiagonalMatrix<T>& EvalScaledHessian(
+      const TrajectoryOptimizerState<T>& state) const;
+
+  /**
+   * Evaluate a scaled version of the gradient, given by
+   *
+   *     g̃ = Dg,
+   *
+   * where g is the original gradient and D is a diagonal scaling matrix.
+   *
+   * @note if params_.scaling = false, this returns the ordinary gradient g.
+   *
+   * @param state optimizer state, including q, v, tau, gradients, etc.
+   * @return const VectorX<T>& the scaled gradient
+   */
+  const VectorX<T>& EvalScaledGradient(
+      const TrajectoryOptimizerState<T>& state) const;
+
+  /**
+   * Evaluate a vector of scaling factors based on the diagonal of the Hessian.
+   *
+   * @param state the optimizer state
+   * @return const VectorX<T>& the scaling vector D
+   */
+  const VectorX<T>& EvalScaleFactors(
+      const TrajectoryOptimizerState<T>& state) const;
+
+  /**
+   * Evaluate the vector of violations of equality constrants h(q) = 0.
+   *
+   * Currently, these equality constraints consist of torques on unactuated
+   * degrees of freedom.
+   *
+   * @param state the optimizer state
+   * @return const VectorX<T>& violations h(q)
+   */
+  const VectorX<T>& EvalEqualityConstraintViolations(
+      const TrajectoryOptimizerState<T>& state) const;
+
+  /**
+   * Evaluate the Jacobian J = ∂h(q)/∂q of the equality constraints h(q) = 0.
+   *
+   * @note if scaling is enabled this returns a scaled version J*D, where D is a
+   * diagonal scaling matrix.
+   *
+   * @param state the optimizer state
+   * @return const MatrixX<T>& the Jacobian of equality constraints
+   */
+  const MatrixX<T>& EvalEqualityConstraintJacobian(
+      const TrajectoryOptimizerState<T>& state) const;
+
+  /**
+   * Evaluate the lagrange multipliers λ for the equality constraints h(q) = 0.
+   *
+   * These are given by
+   *
+   *    λ = (J H⁻¹ Jᵀ)⁻¹ (h − J H⁻¹ g),
+   *
+   * or equivalently, the solution of the KKT conditions
+   *
+   *    [H Jᵀ][Δq] = [-g]
+   *    [J 0 ][ λ]   [-h]
+   *
+   * where H is the unconstrained Hessian, J is the equality constraint
+   * jacobian, and g is the unconstrained gradient.
+   *
+   * @param state the optimizer state
+   * @return const VectorX<T>& the lagrange multipliers
+   */
+  const VectorX<T>& EvalLagrangeMultipliers(
+      const TrajectoryOptimizerState<T>& state) const;
+
+  /**
+   * Evaluate the (augmented-lagrangian-inspired) merit function
+   *
+   *    ϕ(q) = L(q) + h(q)ᵀλ
+   *
+   * for constrained optimization. If equality constraints are turned off, this
+   * simply returns the unconstrained cost L(q).
+   *
+   * @param state the optimizer state
+   * @return const T the merit function ϕ(q)
+   */
+  const T EvalMeritFunction(const TrajectoryOptimizerState<T>& state) const;
+
+  /**
+   * Evaluate the gradient of the merit function ϕ(q):
+   *
+   *    g̃ = g + Jᵀλ,
+   *
+   * under the assumption that the lagrange multipliers λ are constant. If
+   * equality constraints are turned off, this simply returns the regular
+   * gradient g.
+   *
+   * @note if scaling is enabled this uses scaled versions of g and J.
+   *
+   * @param state the optimizer state
+   * @return const VectorX<T>& the gradient of the merit function g̃
+   */
+  const VectorX<T>& EvalMeritFunctionGradient(
+      const TrajectoryOptimizerState<T>& state) const;
+
+  /**
    * Evaluate the gradient of the unconstrained cost L(q).
    *
    * @param state optimizer state, including q, v, tau, gradients, etc.
@@ -300,6 +449,21 @@ class TrajectoryOptimizer {
    */
   const typename TrajectoryOptimizerCache<T>::ContactJacobianData&
   EvalContactJacobianData(const TrajectoryOptimizerState<T>& state) const;
+
+  /**
+   * Overwrite the initial conditions x0 = [q0, v0] stored in the solver
+   * parameters. This is particularly useful when re-solving the optimization
+   * problem for MPC.
+   *
+   * @param q_init Initial generalized positions
+   * @param v_init Initial generalized velocities
+   */
+  void ResetInitialConditions(const VectorXd& q_init, const VectorXd& v_init) {
+    DRAKE_DEMAND(q_init.size() == plant().num_positions());
+    DRAKE_DEMAND(v_init.size() == plant().num_velocities());
+    prob_.q_init = q_init;
+    prob_.v_init = v_init;
+  }
 
  private:
   // Friend class to facilitate testing.
@@ -344,7 +508,23 @@ class TrajectoryOptimizer {
                                   TrajectoryOptimizerStats<T>* stats,
                                   ConvergenceReason* reason) const;
 
-  // Updates `cache` to store q and v from `state`.
+  /**
+   * Return a mutable system context for the plant at the given time step.
+   *
+   * @param state optimizer state
+   * @param t time step
+   * @return Context<T>& context for the plant at time t
+   */
+  Context<T>& GetMutablePlantContext(const TrajectoryOptimizerState<T>& state,
+                                     int t) const;
+
+  /**
+   * Update the system context for the plant at each time step to store q and v
+   * from the state.
+   *
+   * @param state optimizer state containing q and v
+   * @param cache context cache containing a plant context for each timestep
+   */
   void CalcContextCache(
       const TrajectoryOptimizerState<T>& state,
       typename TrajectoryOptimizerCache<T>::ContextCache* cache) const;
@@ -468,12 +648,10 @@ class TrajectoryOptimizer {
    * @param state state variable storing a context for each timestep. This
    * context in turn stores q(t) and v(t) for each timestep.
    * @param a sequence of generalized accelerations
-   * @param workspace scratch space for intermediate computations
    * @param tau sequence of generalized forces
    */
   void CalcInverseDynamics(const TrajectoryOptimizerState<T>& state,
                            const std::vector<VectorX<T>>& a,
-                           TrajectoryOptimizerWorkspace<T>* workspace,
                            std::vector<VectorX<T>>* tau) const;
 
   /**
@@ -767,6 +945,16 @@ class TrajectoryOptimizer {
    */
   T SolveDoglegQuadratic(const T& a, const T& b, const T& c) const;
 
+  /**
+   * Helper to solve the system H⋅x = b with a solver specified in
+   * SolverParameters::LinearSolverType.
+   *
+   * @param H A block penta-diagonal matrix H
+   * @param b The vector b. Overwritten with x on output.
+   */
+  void SolveLinearSystemInPlace(const PentaDiagonalMatrix<T>& H,
+                                EigenPtr<VectorX<T>> b) const;
+
   ConvergenceReason VerifyConvergenceCriteria(
       const TrajectoryOptimizerState<T>& state, const T& previous_cost,
       const VectorX<T>& dq) const;
@@ -838,6 +1026,86 @@ class TrajectoryOptimizer {
       const int iter_num, const double Delta, const VectorX<T>& dq,
       const TrajectoryOptimizerState<T>& state) const;
 
+  /* This methods normalizes all quaternions stored in state. */
+  void NormalizeQuaternions(TrajectoryOptimizerState<T>* state) const;
+
+  /**
+   * Compute the scaled version of the Hessian, H̃ = DHD.
+   *
+   * @param state the optimizer state
+   * @param Htilde the scaled Hessian H̃
+   */
+  void CalcScaledHessian(const TrajectoryOptimizerState<T>& state,
+                         PentaDiagonalMatrix<T>* Htilde) const;
+
+  /**
+   * Compute the scaled version of the gradient, g̃ = Dg.
+   *
+   * @param state the optimizer state
+   * @param gtilde the scaled gradient g̃
+   */
+  void CalcScaledGradient(const TrajectoryOptimizerState<T>& state,
+                          VectorX<T>* gtilde) const;
+
+  /**
+   * Compute the vector of scaling factors D based on the diagonal of the
+   * Hessian.
+   *
+   * @param state the optimizer state
+   * @param D the vector of scale factors D
+   */
+  void CalcScaleFactors(const TrajectoryOptimizerState<T>& state,
+                        VectorX<T>* D) const;
+
+  /**
+   * Compute a vector of equality constrant h(q) = 0 violations.
+   *
+   * Currently, these equality constraints consist of torques on unactuated
+   * degrees of freedom.
+   *
+   * @param state the optimizer state
+   * @param violations vector of constraint violiations h
+   */
+  void CalcEqualityConstraintViolations(
+      const TrajectoryOptimizerState<T>& state, VectorX<T>* violations) const;
+
+  /**
+   * Compute the Jacobian J = ∂h(q)/∂q of the equality constraints h(q) = 0.
+   *
+   * @param state the optimizer state
+   * @param J the constraint jacobian ∂h(q)/∂q
+   */
+  void CalcEqualityConstraintJacobian(const TrajectoryOptimizerState<T>& state,
+                                      MatrixX<T>* J) const;
+
+  /**
+   * Compute the lagrange multipliers λ for the equality constraints h(q) = 0.
+   *
+   * @param state the optimizer state
+   * @param lambda the lagrange multipliers
+   */
+  void CalcLagrangeMultipliers(const TrajectoryOptimizerState<T>& state,
+                               VectorX<T>* lambda) const;
+
+  /**
+   * Compute the (augmented-lagrangian-inspired) merit function ϕ(q) = L(q) +
+   * h(q)ᵀλ.
+   *
+   * @param state the optimizer state
+   * @param merit the merit function
+   */
+  void CalcMeritFunction(const TrajectoryOptimizerState<T>& state,
+                         T* merit) const;
+
+  /**
+   * Compute the gradient of the merit function g̃ = g + Jᵀλ.
+   *
+   * @param state the optimizer state
+   * @param g_tilde the gradient of the merit function g̃
+   */
+  void CalcMeritFunctionGradient(const TrajectoryOptimizerState<T>& state,
+                                 VectorX<T>* g_tilde) const;
+
   // Diagram of containing the plant_ model and scene graph. Needed to allocate
   // context resources.
   const Diagram<T>* diagram_{nullptr};
@@ -858,10 +1126,13 @@ class TrajectoryOptimizer {
 
   // Stores the problem definition, including cost, time horizon, initial state,
   // target state, etc.
-  const ProblemDefinition prob_;
+  ProblemDefinition prob_;
 
   // Joint damping coefficients for the plant under consideration
   VectorX<T> joint_damping_;
+
+  // Indices of unactuated degrees of freedom
+  std::vector<int> unactuated_dofs_;
 
   // Various parameters
   const SolverParameters params_;
@@ -883,6 +1154,11 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithLinesearch(
 template <>
 SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
     const std::vector<VectorXd>&, TrajectoryOptimizerSolution<double>*,
+    TrajectoryOptimizerStats<double>*, ConvergenceReason*) const;
+
+template <>
+SolverFlag TrajectoryOptimizer<double>::SolveFromWarmStart(
+    WarmStart*, TrajectoryOptimizerSolution<double>*,
     TrajectoryOptimizerStats<double>*, ConvergenceReason*) const;
 
 }  // namespace traj_opt

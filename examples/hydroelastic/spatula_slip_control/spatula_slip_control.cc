@@ -2,7 +2,6 @@
 
 #include "drake/common/drake_copyable.h"
 #include "drake/common/eigen_types.h"
-#include "drake/common/find_resource.h"
 #include "drake/geometry/drake_visualizer.h"
 #include "drake/multibody/parsing/parser.h"
 #include "drake/multibody/plant/contact_results_to_lcm.h"
@@ -149,14 +148,12 @@ int DoMain() {
 
   // Parse the gripper and spatula models.
   multibody::Parser parser(&plant, &scene_graph);
-  const std::string gripper_file = FindResourceOrThrow(
-      "drake/examples/hydroelastic/spatula_slip_control/models/"
+  parser.AddModelsFromUrl(
+      "package://drake/examples/hydroelastic/spatula_slip_control/models/"
       "schunk_wsg_50_hydro_bubble.sdf");
-  const std::string spatula_file = FindResourceOrThrow(
-      "drake/examples/hydroelastic/spatula_slip_control/models/spatula.sdf");
-  parser.AddModelFromFile(gripper_file);
-  multibody::ModelInstanceIndex spatula_instance =
-      parser.AddModelFromFile(spatula_file);
+  parser.AddModelsFromUrl(
+      "package://drake/examples/hydroelastic/spatula_slip_control/models/"
+      "spatula.sdf");
   // Pose the gripper and weld it to the world.
   const math::RigidTransform<double> X_WF0 = math::RigidTransform<double>(
       math::RollPitchYaw(0.0, -1.57, 0.0), Eigen::Vector3d(0, 0, 0.25));
@@ -217,7 +214,7 @@ int DoMain() {
   // Set spatula's free body pose.
   const math::RigidTransform<double> X_WF1 = math::RigidTransform<double>(
       math::RollPitchYaw(-0.4, 0.0, 1.57), Eigen::Vector3d(0.35, 0, 0.25));
-  const auto& base_link = plant.GetBodyByName("spatula", spatula_instance);
+  const auto& base_link = plant.GetBodyByName("spatula");
   plant.SetFreeBodyPose(&plant_context, base_link, X_WF1);
 
   // Set finger joint positions.

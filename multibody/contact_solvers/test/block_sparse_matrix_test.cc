@@ -80,7 +80,8 @@ TEST_F(BlockSparseMatrixTest, AccessBlocks) {
   // entry of get_blocks().
   EXPECT_EQ(Jblk_.get_blocks().size(), 5u);
   for (int b = 0; b < Jblk_.num_blocks(); ++b) {
-    EXPECT_EQ(Jblk_.get_block(b), std::get<2>(Jblk_.get_blocks()[b]));
+    EXPECT_EQ(Jblk_.get_block(b).MakeDenseMatrix(),
+              std::get<2>(Jblk_.get_blocks()[b]).MakeDenseMatrix());
   }
 }
 
@@ -104,7 +105,7 @@ TEST_F(BlockSparseMatrixTest, EmptyRow) {
                               "No block was specified for row 1.");
 }
 
-// Verifies the builder throws an excpetion when a column is left empty.
+// Verifies the builder throws an exception when a column is left empty.
 TEST_F(BlockSparseMatrixTest, EmptyColumn) {
   BlockSparseMatrixBuilder<double> builder(3, 4, 5);
   builder.PushBlock(0, 0, J_.block(0, 0, 3, 2));

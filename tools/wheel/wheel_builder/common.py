@@ -9,6 +9,9 @@ import sys
 # Location where most of the build will take place.
 build_root = '/opt/drake-wheel-build'
 
+# Location where testing of the wheel will take place.
+test_root = '/opt/drake-wheel-test'
+
 # Location where the wheel will be produced.
 wheelhouse = os.path.join(build_root, 'wheel', 'wheelhouse')
 
@@ -52,6 +55,28 @@ def _check_version(version):
         version) is not None
 
 
+def find_tests(*test_subdirs):
+    """
+    Returns a list of tests in the common directory and any subdirectories
+    given as additional arguments.
+    """
+    all_tests = []
+    for test_dir in ('', *test_subdirs):
+        tests = []
+
+        test_dir_full = os.path.join(resource_root, 'test', 'tests', test_dir)
+        for test in os.listdir(test_dir_full):
+            if not os.path.isdir(os.path.join(test_dir_full, test)):
+                tests.append(os.path.join('tests', test_dir, test))
+
+        where = f'subdirectory {test_dir!r}' if len(test_dir) else 'directory'
+        assert len(tests), f'No tests were found in the test {where}!'
+
+        all_tests += sorted(tests)
+
+    return all_tests
+
+
 def do_main(args, platform):
     """
     Entry point; performs the build using the given CLI arguments, platform,
@@ -83,20 +108,40 @@ def do_main(args, platform):
     parser.add_argument(
         '-n', '--no-extract', dest='extract', action='store_false',
         help='build images but do not extract wheels')
+    parser.add_argument(
+        '--no-test', dest='test', action='store_false',
+        help='build images but do not run tests')
+    # TODO(jwnimmer-tri) Remove this argument after we've updated CI not to
+    # provide it anymore.
+    parser.add_argument(
+        '-t', dest='_', action='store_true',
+        help='ignored for backwards compatibility')
 
-    platform.add_build_arguments(parser)
+    if platform is not None:
+        platform.add_build_arguments(parser)
+        platform.add_selection_arguments(parser)
 
     parser.add_argument(
-        '-t', '--test', action='store_true',
-        help='run tests on wheels')
-
-    platform.add_selection_arguments(parser)
+        '--pep440', action='store_true',
+        help='validate version number without building anything')
 
     # Parse arguments.
     options = parser.parse_args(args)
-    platform.fixup_options(options)
+    if not options.extract:
+        options.test = False
+    if platform is not None:
+        platform.fixup_options(options)
 
     if not _check_version(options.version):
-        die(f'Version \'{options.version}\' does not conform to PEP 440')
+        die(f'Version \'{options.version}\' does NOT conform to PEP 440')
 
-    platform.build(options)
+    if options.pep440:
+        print(f'Version \'{options.version}\' conforms to PEP 440')
+        return
+
+    if platform is not None:
+        platform.build(options)
+    else:
+        die('Building wheels is not supported on this platform '
+            f'(\'{sys.platform}\')')
+    print('wheel_builder: SUCCESS')

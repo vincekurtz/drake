@@ -38,6 +38,7 @@ using systems::ContinuousState;
 using systems::Diagram;
 using systems::DiscreteUpdateEvent;
 using systems::DiscreteValues;
+using systems::EventStatus;
 using systems::LeafSystem;
 using systems::PublishEvent;
 using systems::State;
@@ -91,9 +92,9 @@ struct Impl {
     using Base::DeclareDiscreteState;
     using Base::DeclareInitializationEvent;
     using Base::DeclareNumericParameter;
-    using Base::DeclarePeriodicDiscreteUpdate;
+    using Base::DeclarePeriodicDiscreteUpdateNoHandler;
     using Base::DeclarePeriodicEvent;
-    using Base::DeclarePeriodicPublish;
+    using Base::DeclarePeriodicPublishNoHandler;
     using Base::DeclarePeriodicUnrestrictedUpdateEvent;
     using Base::DeclarePerStepEvent;
     using Base::DeclareStateOutputPort;
@@ -294,6 +295,17 @@ struct Impl {
     }
   };
 
+  // Because Python doesn't offer static type checking to help remind
+  // the user to return an EventStatus from an event handler function,
+  // we'll bind the callback as optional<> to allow the user to omit a
+  // return statement. (When declaring a periodic event in C++, the
+  // user-provided callback function is similarly overloaded to return
+  // either EventStatus or void. We can't overload based on return
+  // values in pybind11, so that's another reason we'll use optional<>
+  // in Python for the same effect.)
+  template <typename... Args>
+  using EventCallback = std::function<std::optional<EventStatus>(Args...)>;
+
   static void DoScalarDependentDefinitions(py::module m) {
     // NOLINTNEXTLINE(build/namespaces): Emulate placement in namespace.
     using namespace drake::systems;
@@ -312,6 +324,151 @@ struct Impl {
             "Accept",
             [](const System<T>* self, PySystemVisitor* v) { self->Accept(v); },
             py::arg("v"), doc.System.Accept.doc)
+        // Resource allocation and initialization.
+        .def("AllocateContext", &System<T>::AllocateContext,
+            doc.System.AllocateContext.doc)
+        .def("AllocateInputVector", &System<T>::AllocateInputVector,
+            py::arg("input_port"), doc.System.AllocateInputVector.doc)
+        .def("AllocateInputAbstract", &System<T>::AllocateInputAbstract,
+            py::arg("input_port"), doc.System.AllocateInputAbstract.doc)
+        .def("AllocateOutput",
+            overload_cast_explicit<unique_ptr<SystemOutput<T>>>(
+                &System<T>::AllocateOutput),
+            doc.System.AllocateOutput.doc)
+        .def("AllocateTimeDerivatives",
+            overload_cast_explicit<unique_ptr<ContinuousState<T>>>(
+                &System<T>::AllocateTimeDerivatives),
+            doc.System.AllocateTimeDerivatives.doc)
+        .def("AllocateImplicitTimeDerivativesResidual",
+            &System<T>::AllocateImplicitTimeDerivativesResidual,
+            doc.System.AllocateImplicitTimeDerivativesResidual.doc)
+        .def("AllocateDiscreteVariables",
+            overload_cast_explicit<unique_ptr<DiscreteValues<T>>>(
+                &System<T>::AllocateDiscreteVariables),
+            doc.System.AllocateDiscreteVariables.doc)
+        .def("CreateDefaultContext", &System<T>::CreateDefaultContext,
+            doc.System.CreateDefaultContext.doc)
+        .def("SetDefaultContext", &System<T>::SetDefaultContext,
+            py::arg("context"), doc.System.SetDefaultContext.doc)
+        .def("SetRandomContext", &System<T>::SetRandomContext,
+            py::arg("context"), py::arg("generator"),
+            doc.System.SetRandomContext.doc)
+        .def("HasAnyDirectFeedthrough", &System<T>::HasAnyDirectFeedthrough,
+            doc.System.HasAnyDirectFeedthrough.doc)
+        .def("HasDirectFeedthrough",
+            overload_cast_explicit<bool, int>(  // BR
+                &System<T>::HasDirectFeedthrough),
+            py::arg("output_port"), doc.System.HasDirectFeedthrough.doc_1args)
+        .def("HasDirectFeedthrough",
+            overload_cast_explicit<bool, int, int>(
+                &System<T>::HasDirectFeedthrough),
+            py::arg("input_port"), py::arg("output_port"),
+            doc.System.HasDirectFeedthrough.doc_2args)
+        // Publishing.
+        .def("ForcedPublish", &System<T>::ForcedPublish, py::arg("context"),
+            doc.System.ForcedPublish.doc)
+        // Cached evaluations.
+        .def("EvalTimeDerivatives", &System<T>::EvalTimeDerivatives,
+            py_rvp::reference,
+            // Keep alive, ownership: `return` keeps `Context` alive.
+            py::keep_alive<0, 2>(), py::arg("context"),
+            doc.System.EvalTimeDerivatives.doc)
+        .def("EvalPotentialEnergy", &System<T>::EvalPotentialEnergy,
+            py::arg("context"), doc.System.EvalPotentialEnergy.doc)
+        .def("EvalKineticEnergy", &System<T>::EvalKineticEnergy,
+            py::arg("context"), doc.System.EvalKineticEnergy.doc)
+        .def(
+            "EvalVectorInput",
+            [](const System<T>* self, const Context<T>& arg1, int arg2) {
+              return self->EvalVectorInput(arg1, arg2);
+            },
+            py::arg("context"), py::arg("port_index"), py_rvp::reference,
+            // Keep alive, ownership: `return` keeps `Context` alive.
+            py::keep_alive<0, 2>(), doc.System.EvalVectorInput.doc)
+        // Calculations.
+        .def("CalcTimeDerivatives", &System<T>::CalcTimeDerivatives,
+            py::arg("context"), py::arg("derivatives"),
+            doc.System.CalcTimeDerivatives.doc)
+        .def("CalcImplicitTimeDerivativesResidual",
+            &System<T>::CalcImplicitTimeDerivativesResidual, py::arg("context"),
+            py::arg("proposed_derivatives"), py::arg("residual"),
+            doc.System.CalcImplicitTimeDerivativesResidual.doc)
+        .def(
+            "CalcImplicitTimeDerivativesResidual",
+            [](const System<T>* self, const Context<T>& context,
+                const ContinuousState<T>& proposed_derivatives) {
+              // Note: This is the only version of the method that works for
+              // dtype object.
+              VectorX<T> residual =
+                  self->AllocateImplicitTimeDerivativesResidual();
+              self->CalcImplicitTimeDerivativesResidual(
+                  context, proposed_derivatives, &residual);
+              return residual;
+            },
+            py::arg("context"), py::arg("proposed_derivatives"),
+            doc.System.CalcImplicitTimeDerivativesResidual.doc)
+        .def("CalcForcedDiscreteVariableUpdate",
+            &System<T>::CalcForcedDiscreteVariableUpdate, py::arg("context"),
+            py::arg("discrete_state"),
+            doc.System.CalcForcedDiscreteVariableUpdate.doc)
+        .def("CalcForcedUnrestrictedUpdate",
+            &System<T>::CalcForcedUnrestrictedUpdate, py::arg("context"),
+            py::arg("state"), doc.System.CalcForcedUnrestrictedUpdate.doc)
+        .def("GetUniquePeriodicDiscreteUpdateAttribute",
+            &System<T>::GetUniquePeriodicDiscreteUpdateAttribute,
+            doc.System.GetUniquePeriodicDiscreteUpdateAttribute.doc)
+        .def("EvalUniquePeriodicDiscreteUpdate",
+            &System<T>::EvalUniquePeriodicDiscreteUpdate, py_rvp::reference,
+            // Keep alive, ownership: `return` keeps `context` alive.
+            py::keep_alive<0, 2>(), py::arg("context"),
+            doc.System.EvalUniquePeriodicDiscreteUpdate.doc)
+        .def(
+            "IsDifferenceEquationSystem",
+            [](const System<T>& self) {
+              double period = 0.0;
+              bool retval = self.IsDifferenceEquationSystem(&period);
+              return std::pair<bool, double>(retval, period);
+            },
+            (string(doc.System.IsDifferenceEquationSystem.doc) + R""(
+Note: The above is for the C++ documentation. For Python, use
+`is_diff_eq, period = IsDifferenceEquationSystem()`)"")
+                .c_str())
+        .def("CalcOutput", &System<T>::CalcOutput, py::arg("context"),
+            py::arg("outputs"), doc.System.CalcOutput.doc)
+        .def("CalcPotentialEnergy", &System<T>::CalcPotentialEnergy,
+            py::arg("context"), doc.System.CalcPotentialEnergy.doc)
+        .def("CalcKineticEnergy", &System<T>::CalcKineticEnergy,
+            py::arg("context"), doc.System.CalcKineticEnergy.doc)
+        .def("CalcConservativePower", &System<T>::CalcConservativePower,
+            py::arg("context"), doc.System.CalcConservativePower.doc)
+        .def("CalcNonConservativePower", &System<T>::CalcNonConservativePower,
+            py::arg("context"), doc.System.CalcNonConservativePower.doc)
+        // Subcontext access.
+        .def("GetSubsystemContext",
+            overload_cast_explicit<const Context<T>&, const System<T>&,
+                const Context<T>&>(&System<T>::GetSubsystemContext),
+            py::arg("subsystem"), py::arg("context"), py_rvp::reference,
+            // Keep alive, ownership: `return` keeps `Context` alive.
+            py::keep_alive<0, 3>(), doc.System.GetMutableSubsystemContext.doc)
+        .def("GetMutableSubsystemContext",
+            overload_cast_explicit<Context<T>&, const System<T>&, Context<T>*>(
+                &System<T>::GetMutableSubsystemContext),
+            py::arg("subsystem"), py::arg("context"), py_rvp::reference,
+            // Keep alive, ownership: `return` keeps `Context` alive.
+            py::keep_alive<0, 3>(), doc.System.GetMutableSubsystemContext.doc)
+        .def("GetMyContextFromRoot",
+            overload_cast_explicit<const Context<T>&, const Context<T>&>(
+                &System<T>::GetMyContextFromRoot),
+            py::arg("root_context"), py_rvp::reference,
+            // Keep alive, ownership: `return` keeps `Context` alive.
+            py::keep_alive<0, 2>(), doc.System.GetMyMutableContextFromRoot.doc)
+        .def("GetMyMutableContextFromRoot",
+            overload_cast_explicit<Context<T>&, Context<T>*>(
+                &System<T>::GetMyMutableContextFromRoot),
+            py::arg("root_context"), py_rvp::reference,
+            // Keep alive, ownership: `return` keeps `Context` alive.
+            py::keep_alive<0, 2>(), doc.System.GetMyMutableContextFromRoot.doc)
+        // Utility methods.
         .def("get_input_port",
             overload_cast_explicit<const InputPort<T>&, int>(
                 &System<T>::get_input_port),
@@ -336,133 +493,7 @@ struct Impl {
         .def("GetOutputPort", &System<T>::GetOutputPort,
             py_rvp::reference_internal, py::arg("port_name"),
             doc.System.GetOutputPort.doc)
-        .def("DeclareInputPort",
-            overload_cast_explicit<InputPort<T>&,
-                std::variant<std::string, UseDefaultName>, PortDataType, int,
-                std::optional<RandomDistribution>>(&PySystem::DeclareInputPort),
-            py_rvp::reference_internal, py::arg("name"), py::arg("type"),
-            py::arg("size"), py::arg("random_type") = std::nullopt,
-            doc.System.DeclareInputPort.doc)
-        // Feedthrough.
-        .def("HasAnyDirectFeedthrough", &System<T>::HasAnyDirectFeedthrough,
-            doc.System.HasAnyDirectFeedthrough.doc)
-        .def("HasDirectFeedthrough",
-            overload_cast_explicit<bool, int>(  // BR
-                &System<T>::HasDirectFeedthrough),
-            py::arg("output_port"), doc.System.HasDirectFeedthrough.doc_1args)
-        .def("HasDirectFeedthrough",
-            overload_cast_explicit<bool, int, int>(
-                &System<T>::HasDirectFeedthrough),
-            py::arg("input_port"), py::arg("output_port"),
-            doc.System.HasDirectFeedthrough.doc_2args)
-        // Context.
-        .def("AllocateContext", &System<T>::AllocateContext,
-            doc.System.AllocateContext.doc)
-        .def("CreateDefaultContext", &System<T>::CreateDefaultContext,
-            doc.System.CreateDefaultContext.doc)
-        .def("SetDefaultContext", &System<T>::SetDefaultContext,
-            doc.System.SetDefaultContext.doc)
-        .def("SetRandomContext", &System<T>::SetRandomContext,
-            py::arg("context"), py::arg("generator"),
-            doc.System.SetRandomContext.doc)
-        .def("AllocateOutput",
-            overload_cast_explicit<unique_ptr<SystemOutput<T>>>(
-                &System<T>::AllocateOutput),
-            doc.System.AllocateOutput.doc)
-        .def("AllocateTimeDerivatives",
-            overload_cast_explicit<unique_ptr<ContinuousState<T>>>(
-                &System<T>::AllocateTimeDerivatives),
-            doc.System.AllocateTimeDerivatives.doc)
-        .def("AllocateImplicitTimeDerivativesResidual",
-            &System<T>::AllocateImplicitTimeDerivativesResidual,
-            doc.System.AllocateImplicitTimeDerivativesResidual.doc)
-        .def("AllocateDiscreteVariables",
-            overload_cast_explicit<unique_ptr<DiscreteValues<T>>>(
-                &System<T>::AllocateDiscreteVariables),
-            doc.System.AllocateDiscreteVariables.doc)
-        .def(
-            "EvalVectorInput",
-            [](const System<T>* self, const Context<T>& arg1, int arg2) {
-              return self->EvalVectorInput(arg1, arg2);
-            },
-            py_rvp::reference,
-            // Keep alive, ownership: `return` keeps `Context` alive.
-            py::keep_alive<0, 2>(), doc.System.EvalVectorInput.doc)
-        .def(
-            "EvalAbstractInput",
-            [](const System<T>* self, const Context<T>& arg1, int arg2) {
-              return self->EvalAbstractInput(arg1, arg2);
-            },
-            py_rvp::reference,
-            // Keep alive, ownership: `return` keeps `Context` alive.
-            py::keep_alive<0, 2>(), doc.SystemBase.EvalAbstractInput.doc)
-        // Computation.
-        .def("CalcOutput", &System<T>::CalcOutput, py::arg("context"),
-            py::arg("outputs"), doc.System.CalcOutput.doc)
-        .def("CalcPotentialEnergy", &System<T>::CalcPotentialEnergy,
-            py::arg("context"), doc.System.CalcPotentialEnergy.doc)
-        .def("CalcKineticEnergy", &System<T>::CalcKineticEnergy,
-            py::arg("context"), doc.System.CalcKineticEnergy.doc)
-        .def("CalcConservativePower", &System<T>::CalcConservativePower,
-            py::arg("context"), doc.System.CalcConservativePower.doc)
-        .def("CalcNonConservativePower", &System<T>::CalcNonConservativePower,
-            py::arg("context"), doc.System.CalcNonConservativePower.doc)
-        .def("CalcTimeDerivatives", &System<T>::CalcTimeDerivatives,
-            py::arg("context"), py::arg("derivatives"),
-            doc.System.CalcTimeDerivatives.doc)
-        .def("CalcImplicitTimeDerivativesResidual",
-            &System<T>::CalcImplicitTimeDerivativesResidual, py::arg("context"),
-            py::arg("proposed_derivatives"), py::arg("residual"),
-            doc.System.CalcImplicitTimeDerivativesResidual.doc)
-        .def(
-            "CalcImplicitTimeDerivativesResidual",
-            [](const System<T>* self, const Context<T>& context,
-                const ContinuousState<T>& proposed_derivatives) {
-              // Note: This is the only version of the method that works for
-              // dtype object.
-              VectorX<T> residual =
-                  self->AllocateImplicitTimeDerivativesResidual();
-              self->CalcImplicitTimeDerivativesResidual(
-                  context, proposed_derivatives, &residual);
-              return residual;
-            },
-            py::arg("context"), py::arg("proposed_derivatives"),
-            doc.System.CalcImplicitTimeDerivativesResidual.doc)
-        .def("CalcDiscreteVariableUpdates",
-            overload_cast_explicit<void, const Context<T>&, DiscreteValues<T>*>(
-                &System<T>::CalcDiscreteVariableUpdates),
-            py::arg("context"), py::arg("discrete_state"),
-            doc.System.CalcDiscreteVariableUpdates.doc_2args)
-        .def("CalcUnrestrictedUpdate",
-            overload_cast_explicit<void, const Context<T>&, State<T>*>(
-                &System<T>::CalcUnrestrictedUpdate),
-            py::arg("context"), py::arg("state"),
-            doc.System.CalcUnrestrictedUpdate.doc_2args)
-        .def("GetSubsystemContext",
-            overload_cast_explicit<const Context<T>&, const System<T>&,
-                const Context<T>&>(&System<T>::GetSubsystemContext),
-            py_rvp::reference,
-            // Keep alive, ownership: `return` keeps `Context` alive.
-            py::keep_alive<0, 3>(), doc.System.GetMutableSubsystemContext.doc)
-        .def("GetMutableSubsystemContext",
-            overload_cast_explicit<Context<T>&, const System<T>&, Context<T>*>(
-                &System<T>::GetMutableSubsystemContext),
-            py_rvp::reference,
-            // Keep alive, ownership: `return` keeps `Context` alive.
-            py::keep_alive<0, 3>(), doc.System.GetMutableSubsystemContext.doc)
-        .def("GetMyContextFromRoot",
-            overload_cast_explicit<const Context<T>&, const Context<T>&>(
-                &System<T>::GetMyContextFromRoot),
-            py_rvp::reference,
-            // Keep alive, ownership: `return` keeps `Context` alive.
-            py::keep_alive<0, 2>(), doc.System.GetMyMutableContextFromRoot.doc)
-        .def("GetMyMutableContextFromRoot",
-            overload_cast_explicit<Context<T>&, Context<T>*>(
-                &System<T>::GetMyMutableContextFromRoot),
-            py_rvp::reference,
-            // Keep alive, ownership: `return` keeps `Context` alive.
-            py::keep_alive<0, 2>(), doc.System.GetMyMutableContextFromRoot.doc)
-        // Sugar.
+        // Graphviz methods.
         .def(
             "GetGraphvizString",
             [str_py](const System<T>* self, int max_depth) {
@@ -473,50 +504,25 @@ struct Impl {
             },
             py::arg("max_depth") = std::numeric_limits<int>::max(),
             doc.System.GetGraphvizString.doc)
-        // Events.
-        .def("Publish",
-            overload_cast_explicit<void, const Context<T>&>(
-                &System<T>::Publish),
-            doc.System.Publish.doc_1args)
-        .def("GetUniquePeriodicDiscreteUpdateAttribute",
-            &System<T>::GetUniquePeriodicDiscreteUpdateAttribute,
-            doc.System.GetUniquePeriodicDiscreteUpdateAttribute.doc)
-        .def(
-            "IsDifferenceEquationSystem",
-            [](const System<T>& self) {
-              double period = 0.0;
-              bool retval = self.IsDifferenceEquationSystem(&period);
-              return std::pair<bool, double>(retval, period);
-            },
-            (string(doc.System.IsDifferenceEquationSystem.doc) + R""(
-Note: The above is for the C++ documentation. For Python, use
-`is_diff_eq, period = IsDifferenceEquationSystem()`)"")
-                .c_str())
-        // Cached evaluations.
-        .def("EvalTimeDerivatives", &System<T>::EvalTimeDerivatives,
-            py_rvp::reference,
-            // Keep alive, ownership: `return` keeps `Context` alive.
-            py::keep_alive<0, 2>(), doc.System.EvalTimeDerivatives.doc)
-        .def("EvalPotentialEnergy", &System<T>::EvalPotentialEnergy,
-            py::arg("context"), doc.System.EvalPotentialEnergy.doc)
-        .def("EvalKineticEnergy", &System<T>::EvalKineticEnergy,
-            py::arg("context"), doc.System.EvalKineticEnergy.doc)
-        // Scalar types.
+        // Automatic differentiation.
         .def(
             "ToAutoDiffXd",
             [](const System<T>& self) { return self.ToAutoDiffXd(); },
             doc.System.ToAutoDiffXd.doc_0args)
         .def("ToAutoDiffXdMaybe", &System<T>::ToAutoDiffXdMaybe,
             doc.System.ToAutoDiffXdMaybe.doc)
+        // Symbolics
         .def(
             "ToSymbolic",
             [](const System<T>& self) { return self.ToSymbolic(); },
             doc.System.ToSymbolic.doc_0args)
         .def("ToSymbolicMaybe", &System<T>::ToSymbolicMaybe,
             doc.System.ToSymbolicMaybe.doc)
+        // Scalar type conversion utilities.
         .def("FixInputPortsFrom", &System<T>::FixInputPortsFrom,
             py::arg("other_system"), py::arg("other_context"),
             py::arg("target_context"), doc.System.FixInputPortsFrom.doc)
+        // Witness functions.
         .def(
             "GetWitnessFunctions",
             [](const System<T>& self, const Context<T>& context) {
@@ -528,7 +534,36 @@ Note: The above is for the C++ documentation. For Python, use
             (string(doc.System.DoGetWitnessFunctions.doc) + R""(
 Note: The above is for the C++ documentation. For Python, use
 `witnesses = GetWitnessFunctions(context)`)"")
-                .c_str());
+                .c_str())
+        // Protected System construction.
+        .def("DeclareInputPort",
+            overload_cast_explicit<InputPort<T>&,
+                std::variant<std::string, UseDefaultName>, PortDataType, int,
+                std::optional<RandomDistribution>>(&PySystem::DeclareInputPort),
+            py_rvp::reference_internal, py::arg("name"), py::arg("type"),
+            py::arg("size"), py::arg("random_type") = std::nullopt,
+            doc.System.DeclareInputPort.doc)
+        // Not part of System; SystemBase method promoted in bindings.
+        .def(
+            "EvalAbstractInput",
+            [](const System<T>* self, const Context<T>& arg1, int arg2) {
+              return self->EvalAbstractInput(arg1, arg2);
+            },
+            py::arg("context"), py::arg("port_index"), py_rvp::reference,
+            // Keep alive, ownership: `return` keeps `Context` alive.
+            py::keep_alive<0, 2>(), doc.SystemBase.EvalAbstractInput.doc)
+        // TODO(jwnimmer-tri) Use DefClone here, once it has support for
+        // docstrings and overload resolution.
+        .def(
+            "Clone", [](const System<T>* self) { return self->Clone(); },
+            doc.System.Clone.doc_0args)
+        .def("__copy__", [](const System<T>* self) { return self->Clone(); })
+        .def("__deepcopy__", [](const System<T>* self, py::dict /* memo */) {
+          return self->Clone();
+        });
+
+    // Out-of-order binding for Scalar type conversion by template parameter
+    // group.
     auto def_to_scalar_type = [&system_cls, doc](auto dummy) {
       using U = decltype(dummy);
       AddTemplateMethod(
@@ -658,47 +693,44 @@ Note: The above is for the C++ documentation. For Python, use
         // LeafSystem::Declare*Event sugar methods if they are ever needed,
         // instead of implementing them here.
         .def("DeclareInitializationPublishEvent",
-            WrapCallbacks(
-                [](PyLeafSystem* self,
-                    std::function<EventStatus(const Context<T>&)> publish) {
-                  self->DeclareInitializationEvent(
-                      PublishEvent<T>(TriggerType::kInitialization,
-                          [publish](const System<T>&, const Context<T>& context,
-                              const PublishEvent<T>&) {
-                            // TODO(sherm1) Forward the return status.
-                            publish(context);  // Ignore return status for now.
-                          }));
-                }),
+            WrapCallbacks([](PyLeafSystem* self,
+                              EventCallback<const Context<T>&> publish) {
+              self->DeclareInitializationEvent(PublishEvent<T>(
+                  TriggerType::kInitialization,
+                  [publish](const System<T>&, const Context<T>& context,
+                      const PublishEvent<T>&) {
+                    return publish(context).value_or(EventStatus::Succeeded());
+                  }));
+            }),
             py::arg("publish"),
             doc.LeafSystem.DeclareInitializationPublishEvent.doc)
         .def("DeclareInitializationDiscreteUpdateEvent",
-            WrapCallbacks([](PyLeafSystem* self,
-                              std::function<EventStatus(
-                                  const Context<T>&, DiscreteValues<T>*)>
-                                  update) {
-              self->DeclareInitializationEvent(DiscreteUpdateEvent<T>(
-                  TriggerType::kInitialization,
-                  [update](const System<T>&, const Context<T>& context,
-                      const DiscreteUpdateEvent<T>&, DiscreteValues<T>* xd) {
-                    // TODO(sherm1) Forward the return status.
-                    update(context,
-                        &*xd);  // Ignore return status for now.
-                  }));
-            }),
+            WrapCallbacks(
+                [](PyLeafSystem* self,
+                    EventCallback<const Context<T>&, DiscreteValues<T>*>
+                        update) {
+                  self->DeclareInitializationEvent(
+                      DiscreteUpdateEvent<T>(TriggerType::kInitialization,
+                          [update](const System<T>&, const Context<T>& context,
+                              const DiscreteUpdateEvent<T>&,
+                              DiscreteValues<T>* xd) {
+                            return update(context, &*xd)
+                                .value_or(EventStatus::Succeeded());
+                          }));
+                }),
             py::arg("update"),
             doc.LeafSystem.DeclareInitializationDiscreteUpdateEvent.doc)
         .def("DeclareInitializationUnrestrictedUpdateEvent",
             WrapCallbacks(
                 [](PyLeafSystem* self,
-                    std::function<EventStatus(const Context<T>&, State<T>*)>
-                        update) {
-                  self->DeclareInitializationEvent(UnrestrictedUpdateEvent<T>(
-                      TriggerType::kInitialization,
-                      [update](const System<T>&, const Context<T>& context,
-                          const UnrestrictedUpdateEvent<T>&, State<T>* x) {
-                        // TODO(sherm1) Forward the return status.
-                        update(context, &*x);  // Ignore return status for now.
-                      }));
+                    EventCallback<const Context<T>&, State<T>*> update) {
+                  self->DeclareInitializationEvent(
+                      UnrestrictedUpdateEvent<T>(TriggerType::kInitialization,
+                          [update](const System<T>&, const Context<T>& context,
+                              const UnrestrictedUpdateEvent<T>&, State<T>* x) {
+                            return update(context, &*x)
+                                .value_or(EventStatus::Succeeded());
+                          }));
                 }),
             py::arg("update"),
             doc.LeafSystem.DeclareInitializationUnrestrictedUpdateEvent.doc)
@@ -708,58 +740,54 @@ Note: The above is for the C++ documentation. For Python, use
               self->DeclareInitializationEvent(event);
             },
             py::arg("event"), doc.LeafSystem.DeclareInitializationEvent.doc)
-        .def("DeclarePeriodicPublish",
-            &LeafSystemPublic::DeclarePeriodicPublish, py::arg("period_sec"),
-            py::arg("offset_sec") = 0.,
-            doc.LeafSystem.DeclarePeriodicPublish.doc)
-        .def("DeclarePeriodicDiscreteUpdate",
-            &LeafSystemPublic::DeclarePeriodicDiscreteUpdate,
+        .def("DeclarePeriodicPublishNoHandler",
+            &LeafSystemPublic::DeclarePeriodicPublishNoHandler,
             py::arg("period_sec"), py::arg("offset_sec") = 0.,
-            doc.LeafSystem.DeclarePeriodicDiscreteUpdate.doc)
+            doc.LeafSystem.DeclarePeriodicPublishNoHandler.doc)
+        .def("DeclarePeriodicDiscreteUpdateNoHandler",
+            &LeafSystemPublic::DeclarePeriodicDiscreteUpdateNoHandler,
+            py::arg("period_sec"), py::arg("offset_sec") = 0.,
+            doc.LeafSystem.DeclarePeriodicDiscreteUpdateNoHandler.doc)
         .def("DeclarePeriodicPublishEvent",
             WrapCallbacks(
                 [](PyLeafSystem* self, double period_sec, double offset_sec,
-                    std::function<EventStatus(const Context<T>&)> publish) {
+                    EventCallback<const Context<T>&> publish) {
                   self->DeclarePeriodicEvent(period_sec, offset_sec,
                       PublishEvent<T>(TriggerType::kPeriodic,
                           [publish](const System<T>&, const Context<T>& context,
                               const PublishEvent<T>&) {
-                            // TODO(sherm1) Forward the return status.
-                            publish(context);  // Ignore return status for now.
+                            return publish(context).value_or(
+                                EventStatus::Succeeded());
                           }));
                 }),
             py::arg("period_sec"), py::arg("offset_sec"), py::arg("publish"),
             doc.LeafSystem.DeclarePeriodicPublishEvent.doc)
         .def("DeclarePeriodicDiscreteUpdateEvent",
-            WrapCallbacks([](PyLeafSystem* self, double period_sec,
-                              double offset_sec,
-                              std::function<EventStatus(
-                                  const Context<T>&, DiscreteValues<T>*)>
-                                  update) {
-              self->DeclarePeriodicEvent(period_sec, offset_sec,
-                  DiscreteUpdateEvent<T>(TriggerType::kPeriodic,
-                      [update](const System<T>&, const Context<T>& context,
-                          const DiscreteUpdateEvent<T>&,
-                          DiscreteValues<T>* xd) {
-                        // TODO(sherm1) Forward the return status.
-                        update(context,
-                            &*xd);  // Ignore return status for now.
-                      }));
-            }),
+            WrapCallbacks(
+                [](PyLeafSystem* self, double period_sec, double offset_sec,
+                    EventCallback<const Context<T>&, DiscreteValues<T>*>
+                        update) {
+                  self->DeclarePeriodicEvent(period_sec, offset_sec,
+                      DiscreteUpdateEvent<T>(TriggerType::kPeriodic,
+                          [update](const System<T>&, const Context<T>& context,
+                              const DiscreteUpdateEvent<T>&,
+                              DiscreteValues<T>* xd) {
+                            return update(context, &*xd)
+                                .value_or(EventStatus::Succeeded());
+                          }));
+                }),
             py::arg("period_sec"), py::arg("offset_sec"), py::arg("update"),
             doc.LeafSystem.DeclarePeriodicDiscreteUpdateEvent.doc)
         .def("DeclarePeriodicUnrestrictedUpdateEvent",
             WrapCallbacks(
                 [](PyLeafSystem* self, double period_sec, double offset_sec,
-                    std::function<EventStatus(const Context<T>&, State<T>*)>
-                        update) {
+                    EventCallback<const Context<T>&, State<T>*> update) {
                   self->DeclarePeriodicEvent(period_sec, offset_sec,
                       UnrestrictedUpdateEvent<T>(TriggerType::kPeriodic,
                           [update](const System<T>&, const Context<T>& context,
                               const UnrestrictedUpdateEvent<T>&, State<T>* x) {
-                            // TODO(sherm1) Forward the return status.
-                            update(
-                                context, &*x);  // Ignore return status for now.
+                            return update(context, &*x)
+                                .value_or(EventStatus::Succeeded());
                           }));
                 }),
             py::arg("period_sec"), py::arg("offset_sec"), py::arg("update"),
@@ -773,47 +801,42 @@ Note: The above is for the C++ documentation. For Python, use
             py::arg("period_sec"), py::arg("offset_sec"), py::arg("event"),
             doc.LeafSystem.DeclarePeriodicEvent.doc)
         .def("DeclarePerStepPublishEvent",
-            WrapCallbacks(
-                [](PyLeafSystem* self,
-                    std::function<EventStatus(const Context<T>&)> publish) {
-                  self->DeclarePerStepEvent(
-                      PublishEvent<T>(TriggerType::kPerStep,
-                          [publish](const System<T>&, const Context<T>& context,
-                              const PublishEvent<T>&) {
-                            // TODO(sherm1) Forward the return status.
-                            publish(context);  // Ignore return status for now.
-                          }));
-                }),
-            py::arg("publish"), doc.LeafSystem.DeclarePerStepPublishEvent.doc)
-        .def("DeclarePerStepDiscreteUpdateEvent",
             WrapCallbacks([](PyLeafSystem* self,
-                              std::function<EventStatus(
-                                  const Context<T>&, DiscreteValues<T>*)>
-                                  update) {
-              self->DeclarePerStepEvent(DiscreteUpdateEvent<T>(
-                  TriggerType::kPerStep,
-                  [update](const System<T>&, const Context<T>& context,
-                      const DiscreteUpdateEvent<T>&, DiscreteValues<T>* xd) {
-                    // TODO(sherm1) Forward the return status.
-                    update(context,
-                        &*xd);  // Ignore return status for now.
+                              EventCallback<const Context<T>&> publish) {
+              self->DeclarePerStepEvent(PublishEvent<T>(TriggerType::kPerStep,
+                  [publish](const System<T>&, const Context<T>& context,
+                      const PublishEvent<T>&) {
+                    return publish(context).value_or(EventStatus::Succeeded());
                   }));
             }),
+            py::arg("publish"), doc.LeafSystem.DeclarePerStepPublishEvent.doc)
+        .def("DeclarePerStepDiscreteUpdateEvent",
+            WrapCallbacks(
+                [](PyLeafSystem* self,
+                    EventCallback<const Context<T>&, DiscreteValues<T>*>
+                        update) {
+                  self->DeclarePerStepEvent(
+                      DiscreteUpdateEvent<T>(TriggerType::kPerStep,
+                          [update](const System<T>&, const Context<T>& context,
+                              const DiscreteUpdateEvent<T>&,
+                              DiscreteValues<T>* xd) {
+                            return update(context, &*xd)
+                                .value_or(EventStatus::Succeeded());
+                          }));
+                }),
             py::arg("update"),
             doc.LeafSystem.DeclarePerStepDiscreteUpdateEvent.doc)
         .def("DeclarePerStepUnrestrictedUpdateEvent",
             WrapCallbacks(
                 [](PyLeafSystem* self,
-                    std::function<EventStatus(const Context<T>&, State<T>*)>
-                        update) {
-                  self->DeclarePerStepEvent(UnrestrictedUpdateEvent<T>(
-                      TriggerType::kPerStep,
-                      [update](const System<T>&, const Context<T>& context,
-                          const UnrestrictedUpdateEvent<T>&, State<T>* x) {
-                        // TODO(sherm1) Forward the return status.
-                        update(context,
-                            &*x);  // Ignore return status for now.
-                      }));
+                    EventCallback<const Context<T>&, State<T>*> update) {
+                  self->DeclarePerStepEvent(
+                      UnrestrictedUpdateEvent<T>(TriggerType::kPerStep,
+                          [update](const System<T>&, const Context<T>& context,
+                              const UnrestrictedUpdateEvent<T>&, State<T>* x) {
+                            return update(context, &*x)
+                                .value_or(EventStatus::Succeeded());
+                          }));
                 }),
             py::arg("update"),
             doc.LeafSystem.DeclarePerStepUnrestrictedUpdateEvent.doc)
@@ -824,47 +847,43 @@ Note: The above is for the C++ documentation. For Python, use
             },
             py::arg("event"), doc.LeafSystem.DeclarePerStepEvent.doc)
         .def("DeclareForcedPublishEvent",
-            WrapCallbacks(
-                [](PyLeafSystem* self,
-                    std::function<EventStatus(const Context<T>&)> publish) {
-                  self->get_mutable_forced_publish_events().AddEvent(
-                      PublishEvent<T>(TriggerType::kForced,
-                          [publish](const System<T>&, const Context<T>& context,
-                              const PublishEvent<T>&) {
-                            // TODO(sherm1) Forward the return status.
-                            publish(context);  // Ignore return status for now.
-                          }));
-                }),
-            py::arg("publish"), doc.LeafSystem.DeclareForcedPublishEvent.doc)
-        .def("DeclareForcedDiscreteUpdateEvent",
             WrapCallbacks([](PyLeafSystem* self,
-                              std::function<EventStatus(
-                                  const Context<T>&, DiscreteValues<T>*)>
-                                  update) {
-              self->get_mutable_forced_discrete_update_events().AddEvent(
-                  DiscreteUpdateEvent<T>(TriggerType::kForced,
-                      [update](const System<T>&, const Context<T>& context,
-                          const DiscreteUpdateEvent<T>&,
-                          DiscreteValues<T>* xd) {
-                        // TODO(sherm1) Forward the return status.
-                        update(context,
-                            &*xd);  // Ignore return status for now.
+                              EventCallback<const Context<T>&> publish) {
+              self->get_mutable_forced_publish_events().AddEvent(
+                  PublishEvent<T>(TriggerType::kForced,
+                      [publish](const System<T>&, const Context<T>& context,
+                          const PublishEvent<T>&) {
+                        return publish(context).value_or(
+                            EventStatus::Succeeded());
                       }));
             }),
+            py::arg("publish"), doc.LeafSystem.DeclareForcedPublishEvent.doc)
+        .def("DeclareForcedDiscreteUpdateEvent",
+            WrapCallbacks(
+                [](PyLeafSystem* self,
+                    EventCallback<const Context<T>&, DiscreteValues<T>*>
+                        update) {
+                  self->get_mutable_forced_discrete_update_events().AddEvent(
+                      DiscreteUpdateEvent<T>(TriggerType::kForced,
+                          [update](const System<T>&, const Context<T>& context,
+                              const DiscreteUpdateEvent<T>&,
+                              DiscreteValues<T>* xd) {
+                            return update(context, &*xd)
+                                .value_or(EventStatus::Succeeded());
+                          }));
+                }),
             py::arg("update"),
             doc.LeafSystem.DeclareForcedDiscreteUpdateEvent.doc)
         .def("DeclareForcedUnrestrictedUpdateEvent",
             WrapCallbacks(
                 [](PyLeafSystem* self,
-                    std::function<EventStatus(const Context<T>&, State<T>*)>
-                        update) {
+                    EventCallback<const Context<T>&, State<T>*> update) {
                   self->get_mutable_forced_unrestricted_update_events()
                       .AddEvent(UnrestrictedUpdateEvent<T>(TriggerType::kForced,
                           [update](const System<T>&, const Context<T>& context,
                               const UnrestrictedUpdateEvent<T>&, State<T>* x) {
-                            // TODO(sherm1) Forward the return status.
-                            update(
-                                context, &*x);  // Ignore return status for now.
+                            return update(context, &*x)
+                                .value_or(EventStatus::Succeeded());
                           }));
                 }),
             py::arg("update"),
@@ -941,7 +960,7 @@ Note: The above is for the C++ documentation. For Python, use
         .def("DeclareAbstractState",
             py::overload_cast<const AbstractValue&>(
                 &LeafSystemPublic::DeclareAbstractState),
-            doc.LeafSystem.DeclareAbstractState.doc);
+            py::arg("model_value"), doc.LeafSystem.DeclareAbstractState.doc);
 
     DefineTemplateClassWithDefault<Diagram<T>, PyDiagram, System<T>>(
         m, "Diagram", GetPyParam<T>(), doc.Diagram.doc)
@@ -1022,6 +1041,8 @@ Note: The above is for the C++ documentation. For Python, use
             // Keep alive, ownership: `return` keeps `Context` alive.
             py::keep_alive<0, 3>(),
             doc.Diagram.GetMutableSubsystemState.doc_2args_subsystem_context)
+        .def("HasSubsystemNamed", &Diagram<T>::HasSubsystemNamed,
+            py::arg("name"), doc.Diagram.HasSubsystemNamed.doc)
         .def("GetSubsystemByName", &Diagram<T>::GetSubsystemByName,
             py::arg("name"), py_rvp::reference_internal,
             doc.Diagram.GetSubsystemByName.doc)

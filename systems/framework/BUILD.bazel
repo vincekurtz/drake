@@ -1,5 +1,3 @@
-# -*- python -*-
-
 load(
     "@drake//tools/skylark:drake_cc.bzl",
     "drake_cc_googletest",
@@ -301,6 +299,7 @@ drake_cc_library(
         ":context_base",
         ":framework_common",
         ":port_base",
+        ":value_producer",
         "//common:nice_type_name",
         "//common:random",
     ],
@@ -623,13 +622,16 @@ drake_cc_library(
     name = "diagram",
     srcs = ["diagram.cc"],
     hdrs = ["diagram.h"],
-    deps = [
-        ":abstract_value_cloner",
+    interface_deps = [
         ":diagram_context",
         ":diagram_output_port",
         ":system",
         "//common:default_scalars",
         "//common:essential",
+    ],
+    deps = [
+        ":abstract_value_cloner",
+        "//common:pointer_cast",
     ],
 )
 
@@ -637,10 +639,13 @@ drake_cc_library(
     name = "diagram_builder",
     srcs = ["diagram_builder.cc"],
     hdrs = ["diagram_builder.h"],
-    deps = [
+    interface_deps = [
         ":diagram",
         "//common:default_scalars",
         "//common:essential",
+    ],
+    deps = [
+        "//common:pointer_cast",
     ],
 )
 
@@ -874,6 +879,13 @@ drake_cc_googletest(
 )
 
 drake_cc_googletest(
+    name = "leaf_system_deprecation_test",
+    deps = [
+        ":leaf_system",
+    ],
+)
+
+drake_cc_googletest(
     name = "model_values_test",
     deps = [
         ":model_values",
@@ -947,7 +959,9 @@ drake_cc_googletest(
     deps = [
         ":diagram_builder",
         ":system_html",
-        "//systems/primitives",
+        "//systems/primitives:adder",
+        "//systems/primitives:discrete_derivative",
+        "//systems/primitives:pass_through",
     ],
 )
 

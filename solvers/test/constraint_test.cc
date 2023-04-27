@@ -1,5 +1,7 @@
 #include "drake/solvers/constraint.h"
 
+#include <limits>
+
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
@@ -10,11 +12,11 @@
 #include "drake/math/autodiff.h"
 #include "drake/math/autodiff_gradient.h"
 
-using Eigen::MatrixXd;
-using Eigen::VectorXd;
 using Eigen::Matrix2d;
+using Eigen::MatrixXd;
 using Eigen::Vector2d;
 using Eigen::Vector3d;
+using Eigen::VectorXd;
 using ::testing::HasSubstr;
 using ::testing::Not;
 
@@ -178,6 +180,10 @@ GTEST_TEST(testConstraint, testQuadraticConstraintHessian) {
   QuadraticConstraint constraint1(Q, b, 0, 1);
   EXPECT_TRUE(CompareMatrices(constraint1.Q(), Q));
   EXPECT_TRUE(CompareMatrices(constraint1.b(), b));
+  EXPECT_EQ(constraint1.hessian_type(),
+            QuadraticConstraint::HessianType::kPositiveSemidefinite);
+  // The constraint is non-convex due to the lower bound not being -inf.
+  EXPECT_FALSE(constraint1.is_convex());
   std::ostringstream os;
   constraint1.Display(os, symbolic::MakeVectorContinuousVariable(2, "x"));
   EXPECT_EQ(os.str(),
@@ -197,20 +203,49 @@ GTEST_TEST(testConstraint, testQuadraticConstraintHessian) {
   EXPECT_PRED2(FormulaEqual, constraint1.CheckSatisfied(x_sym),
                0 <= y_sym[0] && y_sym[0] <= 1);
 
-  // Updates constraint with a non-symmetric Hessian.
+  // Updates constraint with a non-symmetric negative definite Hessian.
   // clang-format off
-  Q << 1, 1,
-       0, 1;
+  Q << -1, 1,
+       0, -1;
   // clang-format on
   b << 1, 2;
   constraint1.UpdateCoefficients(Q, b);
   EXPECT_TRUE(CompareMatrices(constraint1.Q(), (Q + Q.transpose()) / 2));
   EXPECT_TRUE(CompareMatrices(constraint1.b(), b));
+  EXPECT_EQ(constraint1.hessian_type(),
+            QuadraticConstraint::HessianType::kNegativeSemidefinite);
+  EXPECT_FALSE(constraint1.is_convex());
 
   // Constructs a constraint with a non-symmetric Hessian.
-  QuadraticConstraint constraint2(Q, b, 0, 1);
+  QuadraticConstraint constraint2(
+      Q, b, 0, kInf, QuadraticConstraint::HessianType::kNegativeSemidefinite);
   EXPECT_TRUE(CompareMatrices(constraint2.Q(), (Q + Q.transpose()) / 2));
   EXPECT_TRUE(CompareMatrices(constraint2.b(), b));
+  EXPECT_EQ(constraint2.hessian_type(),
+            QuadraticConstraint::HessianType::kNegativeSemidefinite);
+  EXPECT_TRUE(constraint2.is_convex());
+
+  // Updates constraints with an indefinite Hessian.
+  // clang-format off
+  Q << 1, 2,
+       2, 3;
+  // clang-format on
+  constraint2.UpdateCoefficients(Q, b);
+  EXPECT_EQ(constraint2.hessian_type(),
+            QuadraticConstraint::HessianType::kIndefinite);
+  EXPECT_FALSE(constraint2.is_convex());
+
+  // Updates constraint with a specified Hessian type.
+  constraint2.UpdateCoefficients(
+      Eigen::Matrix2d::Identity(), b,
+      QuadraticConstraint::HessianType::kPositiveSemidefinite);
+  EXPECT_EQ(constraint2.hessian_type(),
+            QuadraticConstraint::HessianType::kPositiveSemidefinite);
+  EXPECT_FALSE(constraint2.is_convex());
+
+  // Construct a constraint with psd Hessian and lower bound being -inf.
+  QuadraticConstraint constraint3(Eigen::Matrix2d::Identity(), b, -kInf, 1);
+  EXPECT_TRUE(constraint3.is_convex());
 }
 
 void TestLorentzConeEvalConvex(const Eigen::Ref<const Eigen::MatrixXd>& A,
@@ -246,8 +281,7 @@ void TestLorentzConeEvalConvex(const Eigen::Ref<const Eigen::MatrixXd>& A,
   dx_test.col(0) = Eigen::VectorXd::LinSpaced(x_test.rows(), 0, 1);
   dx_test.col(1) = Eigen::VectorXd::LinSpaced(x_test.rows(), 1, 2);
 
-  const AutoDiffVecXd x_autodiff =
-      math::InitializeAutoDiff(x_test, dx_test);
+  const AutoDiffVecXd x_autodiff = math::InitializeAutoDiff(x_test, dx_test);
 
   AutoDiffVecXd y_autodiff1, y_autodiff2;
   cnstr1.Eval(x_autodiff, &y_autodiff1);
@@ -283,13 +317,13 @@ void TestLorentzConeEvalNonconvex(const Eigen::Ref<const Eigen::MatrixXd>& A,
   EXPECT_TRUE(
       CompareMatrices(y, y_expected, 1E-10, MatrixCompareType::absolute));
 
-  bool is_in_cone_expected = (y(0) >= 0) & (y(1) >= 0);
+  bool is_in_cone_expected = (y(0) >= 0) && (y(1) >= 0);
   EXPECT_EQ(is_in_cone, is_in_cone_expected);
   EXPECT_EQ(cnstr.CheckSatisfied(x_test), is_in_cone_expected);
 
   std::ostringstream os;
-  cnstr.Display(
-      os, symbolic::MakeVectorContinuousVariable(cnstr.num_vars(), "x"));
+  cnstr.Display(os,
+                symbolic::MakeVectorContinuousVariable(cnstr.num_vars(), "x"));
   EXPECT_THAT(os.str(), HasSubstr("LorentzConeConstraint\n"));
   EXPECT_THAT(os.str(), HasSubstr("pow"));
   EXPECT_THAT(os.str(), Not(HasSubstr("sqrt")));
@@ -321,15 +355,13 @@ void TestRotatedLorentzConeEval(const Eigen::Ref<const Eigen::MatrixXd> A,
   VectorXd y;
   cnstr.Eval(x_test, &y);
   Eigen::VectorXd z = A * x_test + b;
-  Vector3d y_expected(
-      z(0),
-      z(1),
-      z(0) * z(1) - z.tail(z.size() - 2).squaredNorm());
+  Vector3d y_expected(z(0), z(1),
+                      z(0) * z(1) - z.tail(z.size() - 2).squaredNorm());
   EXPECT_TRUE(
       CompareMatrices(y, y_expected, 1E-10, MatrixCompareType::absolute));
 
-  bool is_in_cone_expected =
-      (z(0) >= 0) & (z(1) >= 0) & (z(0) * z(1) >= z.tail(z.size() - 2).norm());
+  bool is_in_cone_expected = (z(0) >= 0) && (z(1) >= 0) &&
+                             (z(0) * z(1) >= z.tail(z.size() - 2).norm());
   EXPECT_EQ(is_in_cone, is_in_cone_expected);
   EXPECT_EQ(cnstr.CheckSatisfied(x_test), is_in_cone_expected);
 
@@ -343,8 +375,8 @@ void TestRotatedLorentzConeEval(const Eigen::Ref<const Eigen::MatrixXd> A,
   EXPECT_EQ(cnstr.CheckSatisfied(x_taylor), is_in_cone_expected);
 
   std::ostringstream os;
-  cnstr.Display(
-      os, symbolic::MakeVectorContinuousVariable(cnstr.num_vars(), "x"));
+  cnstr.Display(os,
+                symbolic::MakeVectorContinuousVariable(cnstr.num_vars(), "x"));
   EXPECT_THAT(os.str(), HasSubstr("RotatedLorentzConeConstraint\n"));
   EXPECT_THAT(os.str(), HasSubstr("pow"));
 
@@ -588,9 +620,9 @@ GTEST_TEST(testConstraint, testExpressionConstraint) {
   Variable x2{"x2"};
 
   Vector3<Variable> vars{x0, x1, x2};
-  Vector2<Expression> e{ 1. + x0*x0, x1*x1 + x2 };
+  Vector2<Expression> e{1. + x0 * x0, x1 * x1 + x2};
 
-  ExpressionConstraint constraint(e, Vector2d::Zero(), 2.*Vector2d::Ones());
+  ExpressionConstraint constraint(e, Vector2d::Zero(), 2. * Vector2d::Ones());
 
   const VectorX<symbolic::Expression>& expressions{constraint.expressions()};
   ASSERT_EQ(expressions.size(), 2);
@@ -678,9 +710,10 @@ class SimpleEvaluator : public EvaluatorBase {
   DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(SimpleEvaluator)
   SimpleEvaluator() : EvaluatorBase(2, 3) {
     c_.resize(2, 3);
-    c_ <<
-        1, 2, 3,
-        4, 5, 6;
+    // clang-format off
+    c_ << 1, 2, 3,
+          4, 5, 6;
+    // clang-format on
   }
 
  protected:
@@ -721,8 +754,10 @@ GTEST_TEST(testConstraint, testEvaluatorConstraint) {
   x << 7, 8, 9;
   VectorXd y(2);
   MatrixXd c(2, 3);
+  // clang-format off
   c << 1, 2, 3,
        4, 5, 6;
+  // clang-format on
   const VectorXd y_expected = c * x;
   constraint.Eval(x, &y);
   EXPECT_EQ(y_expected, y);
@@ -765,8 +800,7 @@ GTEST_TEST(testConstraint, testExponentialConeConstraint) {
   // Check autodiff evaluation.
   Eigen::MatrixXd dx(2, 1);
   dx << 1, 1;
-  const auto x_autodiff = math::InitializeAutoDiff(
-      Eigen::VectorXd(x), dx);
+  const auto x_autodiff = math::InitializeAutoDiff(Eigen::VectorXd(x), dx);
   AutoDiffVecXd y_autodiff;
   constraint.Eval(x_autodiff, &y_autodiff);
   // Now compute the gradient manually.
@@ -776,9 +810,8 @@ GTEST_TEST(testConstraint, testExponentialConeConstraint) {
       z_autodiff(0) - z_autodiff(1) * exp(z_autodiff(2) / z_autodiff(1));
   y_autodiff_expected(1) = z_autodiff(1);
   EXPECT_TRUE(CompareMatrices(math::ExtractValue(y_autodiff), y_expected, tol));
-  EXPECT_TRUE(CompareMatrices(
-      math::ExtractGradient(y_autodiff),
-      math::ExtractGradient(y_autodiff_expected), tol));
+  EXPECT_TRUE(CompareMatrices(math::ExtractGradient(y_autodiff),
+                              math::ExtractGradient(y_autodiff_expected), tol));
 }
 
 }  // namespace

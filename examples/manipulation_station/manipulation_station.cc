@@ -5,13 +5,18 @@
 #include <string>
 #include <utility>
 
+#include "drake/common/eigen_types.h"
 #include "drake/common/find_resource.h"
 #include "drake/geometry/render_vtk/factory.h"
 #include "drake/manipulation/schunk_wsg/schunk_wsg_constants.h"
 #include "drake/manipulation/schunk_wsg/schunk_wsg_position_controller.h"
 #include "drake/math/rigid_transform.h"
 #include "drake/math/rotation_matrix.h"
+#include "drake/multibody/math/spatial_force.h"
 #include "drake/multibody/parsing/parser.h"
+#include "drake/multibody/parsing/process_model_directives.h"
+#include "drake/multibody/plant/externally_applied_spatial_force.h"
+#include "drake/multibody/tree/multibody_forces.h"
 #include "drake/multibody/tree/prismatic_joint.h"
 #include "drake/multibody/tree/revolute_joint.h"
 #include "drake/perception/depth_image_to_point_cloud.h"
@@ -40,76 +45,156 @@ using math::RigidTransform;
 using math::RigidTransformd;
 using math::RollPitchYaw;
 using math::RotationMatrix;
+using multibody::Body;
+using multibody::ExternallyAppliedSpatialForce;
 using multibody::Joint;
+using multibody::MultibodyForces;
 using multibody::MultibodyPlant;
 using multibody::PrismaticJoint;
 using multibody::RevoluteJoint;
+using multibody::SpatialForce;
 using multibody::SpatialInertia;
 
 namespace internal {
+namespace {
 
-// TODO(amcastro-tri): Refactor this into schunk_wsg directory, and cover it
-// with a unit test.  Potentially tighten the tolerance in
-// station_simulation_test.
-// @param gripper_body_frame_name Name of a frame that's attached to the
-// gripper's main body.
-SpatialInertia<double> MakeCompositeGripperInertia(
-    const std::string& wsg_sdf_path,
-    const std::string& gripper_body_frame_name) {
+// This system computes the generalized forces on the IIWA arm of the
+// manipulation resulting from externally applied spatial forces.
+//
+// @system
+// name: ExternalGeneralizedForcesComputer
+// input_ports:
+// - multibody_state
+// - applied_spatial_force
+// output_ports:
+// - applied_generalized_force
+// @endsystem
+class ExternalGeneralizedForcesComputer : public systems::LeafSystem<double> {
+ public:
+  DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(ExternalGeneralizedForcesComputer)
+
+  ExternalGeneralizedForcesComputer(
+      const multibody::MultibodyPlant<double>* plant, int iiwa_num_dofs)
+      : plant_(plant), iiwa_num_velocities_(iiwa_num_dofs) {
+    const auto& base_joint = plant_->GetJointByName("iiwa_joint_1");
+    iiwa_velocity_start_ = base_joint.velocity_start();
+
+    multibody_state_ =
+        this->DeclareVectorInputPort("multibody_state",
+                                     plant_->num_multibody_states())
+            .get_index();
+    applied_spatial_force_input_port_ =
+        this->DeclareAbstractInputPort(
+                "applied_spatial_force",
+                Value<std::vector<ExternallyAppliedSpatialForce<double>>>())
+            .get_index();
+    applied_generalized_force_output_port_ =
+        this->DeclareVectorOutputPort(
+                "applied_generalized_force", iiwa_num_dofs,
+                &ExternalGeneralizedForcesComputer::CalcGeneralizedForcesOutput)
+            .get_index();
+  }
+
+ private:
+  void CalcGeneralizedForcesOutput(
+      const drake::systems::Context<double>& context,
+      drake::systems::BasicVector<double>* output_vector) const {
+    const auto& qv = get_input_port(multibody_state_).Eval(context);
+
+    // TODO(amcastro-tri): Consider getting rid of this heap allocation. For
+    // instance, this could be placed into a cache entry in the context.
+    auto plant_context = plant_->CreateDefaultContext();
+    plant_->SetPositionsAndVelocities(plant_context.get(), qv);
+
+    const auto* applied_input = this->template EvalInputValue<
+        std::vector<ExternallyAppliedSpatialForce<double>>>(
+        context, applied_spatial_force_input_port_);
+
+    // Output will be zero if the port is not connected.
+    VectorXd generalized_forces(plant_->num_velocities());
+    generalized_forces.setZero();
+
+    // Generalized forces are zero if applied input is not connected.
+    if (applied_input) {
+      // Gather externally applied forces into a MultibodyForces object.
+      multibody::MultibodyForces<double> forces(*plant_);
+      for (const ExternallyAppliedSpatialForce<double>& a_force :
+           *applied_input) {
+        const Body<double>& body = plant_->get_body(a_force.body_index);
+
+        // Get the pose for this body in the world frame.
+        const RigidTransform<double>& X_WB =
+            body.EvalPoseInWorld(*plant_context);
+        // Get the position vector from the body origin (Bo) to the point of
+        // force application (Bq), expressed in the world frame (W).
+        const Vector3<double> p_BoBq_W = X_WB.rotation() * a_force.p_BoBq_B;
+
+        // Shift the spatial force from Bq to Bo.
+        const SpatialForce<double> F_Bo_W = a_force.F_Bq_W.Shift(-p_BoBq_W);
+
+        // Add contribution.
+        body.AddInForceInWorld(context, F_Bo_W, &forces);
+      }
+
+      // Compute generalized forces for the particular configuration in
+      // `plant_context`.
+      plant_->CalcGeneralizedForces(*plant_context, forces,
+                                    &generalized_forces);
+    }
+    const auto iiwa_tau_external =
+        generalized_forces.segment(iiwa_velocity_start_, iiwa_num_velocities_);
+    output_vector->SetFromVector(iiwa_tau_external);
+  }
+
+  const multibody::MultibodyPlant<double>* plant_{nullptr};
+  int iiwa_num_velocities_{0};
+  int iiwa_velocity_start_{0};
+  systems::InputPortIndex multibody_state_;
+  systems::InputPortIndex applied_spatial_force_input_port_;
+  systems::OutputPortIndex applied_generalized_force_output_port_;
+};
+
+// Calculate the spatial inertia of the set S of bodies that make up the gripper
+// about Go (the gripper frame's origin), expressed in the gripper frame G.
+// The rigid bodies in set S consist of the gripper body G, the left finger, and
+// the right finger. For this calculation, the sliding joints associated with
+// the fingers are regarded as being in a "zero" configuration.
+// @param[in] wsg_sdf_path path to sdf file that when parsed creates the model.
+// @param[in] gripper_body_frame_name Name of the frame attached to the
+//            gripper's main body.
+// @retval M_SGo_G spatial inertia of set S about Go, expressed in frame G.
+SpatialInertia<double> CalcGripperSpatialInertia(
+    const std::string& wsg_sdf_path) {
   // Set timestep to 1.0 since it is arbitrary, to quiet joint limit warnings.
   MultibodyPlant<double> plant(1.0);
   multibody::Parser parser(&plant);
-  parser.AddModelFromFile(wsg_sdf_path);
+  parser.AddModels(wsg_sdf_path);
   plant.Finalize();
-  const auto& frame = plant.GetFrameByName(gripper_body_frame_name);
-  const auto& gripper_body = plant.GetRigidBodyByName(frame.body().name());
-  const auto& left_finger = plant.GetRigidBodyByName("left_finger");
-  const auto& right_finger = plant.GetRigidBodyByName("right_finger");
-  const auto& left_slider = plant.GetJointByName("left_finger_sliding_joint");
-  const auto& right_slider = plant.GetJointByName("right_finger_sliding_joint");
-  const SpatialInertia<double>& M_GGo_G =
-      gripper_body.default_spatial_inertia();
-  const SpatialInertia<double>& M_LLo_L = left_finger.default_spatial_inertia();
-  const SpatialInertia<double>& M_RRo_R =
-      right_finger.default_spatial_inertia();
-  auto CalcFingerPoseInGripperFrame = [](const Joint<double>& slider) {
-    // Pose of the joint's parent frame P (attached on gripper body G) in the
-    // frame of the gripper G.
-    const RigidTransform<double> X_GP(
-        slider.frame_on_parent().GetFixedPoseInBodyFrame());
-    // Pose of the joint's child frame C (attached on the slider's finger body)
-    // in the frame of the slider's finger F.
-    const RigidTransform<double> X_FC(
-        slider.frame_on_child().GetFixedPoseInBodyFrame());
-    // When the slider's translational dof is zero, then P coincides with C.
-    // Therefore:
-    const RigidTransform<double> X_GF = X_GP * X_FC.inverse();
-    return X_GF;
-  };
-  // Pose of left finger L in gripper frame G when the slider's dof is zero.
-  const RigidTransform<double> X_GL(CalcFingerPoseInGripperFrame(left_slider));
-  // Pose of right finger R in gripper frame G when the slider's dof is zero.
-  const RigidTransform<double> X_GR(CalcFingerPoseInGripperFrame(right_slider));
-  // Helper to compute the spatial inertia of a finger F in about the gripper's
-  // origin Go, expressed in G.
-  auto CalcFingerSpatialInertiaInGripperFrame =
-      [](const SpatialInertia<double>& M_FFo_F,
-         const RigidTransform<double>& X_GF) {
-        const auto M_FFo_G = M_FFo_F.ReExpress(X_GF.rotation());
-        const auto p_FoGo_G = -X_GF.translation();
-        const auto M_FGo_G = M_FFo_G.Shift(p_FoGo_G);
-        return M_FGo_G;
-      };
-  // Shift and re-express in G frame the finger's spatial inertias.
-  const auto M_LGo_G = CalcFingerSpatialInertiaInGripperFrame(M_LLo_L, X_GL);
-  const auto M_RGo_G = CalcFingerSpatialInertiaInGripperFrame(M_RRo_R, X_GR);
-  // With everything about the same point Go and expressed in the same frame G,
-  // proceed to compose into composite body C:
-  // TODO(amcastro-tri): Implement operator+() in SpatialInertia.
-  SpatialInertia<double> M_CGo_G = M_GGo_G;
-  M_CGo_G += M_LGo_G;
-  M_CGo_G += M_RGo_G;
-  return M_CGo_G;
+
+  // Create a default context which should contain a default state in which all
+  // joints/mobilizers have zero translation, zero rotation, zero velocity, etc.
+  auto context = plant.CreateDefaultContext();
+
+  // Get references to gripper frame, gripper body, and the two fingers.
+  const multibody::Frame<double>& gripper_frame =
+      plant.GetFrameByName("body");  // The gripper body's frame name is "body".
+  const multibody::RigidBody<double>& gripper_body =
+      plant.GetRigidBodyByName(gripper_frame.body().name());
+  const multibody::RigidBody<double>& left_finger =
+      plant.GetRigidBodyByName("left_finger");
+  const multibody::RigidBody<double>& right_finger =
+      plant.GetRigidBodyByName("right_finger");
+
+  // Form a vector with the BodyIndex for the gripper body and the two fingers.
+  std::vector<multibody::BodyIndex> body_indexes;
+  body_indexes.push_back(gripper_body.index());
+  body_indexes.push_back(left_finger.index());
+  body_indexes.push_back(right_finger.index());
+
+  // Calculate and return the spatial inertia of set S about Go, expressed in G.
+  const SpatialInertia<double> M_SGo_G =
+      plant.CalcSpatialInertia(*context, gripper_frame, body_indexes);
+  return M_SGo_G;
 }
 
 // TODO(russt): Get these from SDF instead of having them hard-coded (#10022).
@@ -129,9 +214,11 @@ void get_camera_poses(std::map<std::string, RigidTransform<double>>* pose_map) {
                         Vector3d(0.786258, -0.048422, 1.043315)));
 }
 
+// TODO(rpoyner-tri): Consider alternatives to forcing the model name: either a
+// breaking change to some other naming scheme, decoupling of renaming from
+// parsing, etc.
 // Load a SDF model and weld it to the MultibodyPlant.
-// @param model_path Full path to the sdf model file. i.e. with
-// FindResourceOrThrow
+// @param model_url URL to the model file.
 // @param model_name Name of the added model instance.
 // @param parent Frame P from the MultibodyPlant to which the new model is
 // welded to.
@@ -140,14 +227,23 @@ void get_camera_poses(std::map<std::string, RigidTransform<double>>* pose_map) {
 // @param X_PC Transformation of frame C relative to frame P.
 template <typename T>
 multibody::ModelInstanceIndex AddAndWeldModelFrom(
-    const std::string& model_path, const std::string& model_name,
+    const std::string& model_url, const std::string& model_name,
     const multibody::Frame<T>& parent, const std::string& child_frame_name,
     const RigidTransform<double>& X_PC, MultibodyPlant<T>* plant) {
   DRAKE_THROW_UNLESS(!plant->HasModelInstanceNamed(model_name));
 
+  // Since we need to force the model name here, exploit the fact that model
+  // directives processing can do that.
   multibody::Parser parser(plant);
-  const multibody::ModelInstanceIndex new_model =
-      parser.AddModelFromFile(model_path, model_name);
+  multibody::parsing::ModelDirectives directives;
+  multibody::parsing::ModelDirective directive;
+  directive.add_model = multibody::parsing::AddModel{
+      model_url, model_name, {}, {}};
+  directives.directives.push_back(directive);
+  const auto models = ProcessModelDirectives(directives, &parser);
+  DRAKE_THROW_UNLESS(models.size() == 1);
+  const multibody::ModelInstanceIndex new_model = models[0].model_instance;
+
   const auto& child_frame = plant->GetFrameByName(child_frame_name, new_model);
   plant->WeldFrames(parent, child_frame, X_PC);
   return new_model;
@@ -193,6 +289,7 @@ MakeD415CameraModel(const std::string& renderer_name) {
   return {color_camera, depth_camera};
 }
 
+}  // namespace
 }  // namespace internal
 
 template <typename T>
@@ -219,8 +316,9 @@ template <typename T>
 void ManipulationStation<T>::AddManipulandFromFile(
     const std::string& model_file, const RigidTransform<double>& X_WObject) {
   multibody::Parser parser(plant_);
-  const auto model_index =
-      parser.AddModelFromFile(FindResourceOrThrow(model_file));
+  const auto models = parser.AddModels(FindResourceOrThrow(model_file));
+  DRAKE_THROW_UNLESS(models.size() == 1);
+  const auto model_index = models[0];
   const auto indices = plant_->GetBodyIndices(model_index);
   // Only support single-body objects for now.
   // Note: this could be generalized fairly easily... would just want to
@@ -240,17 +338,17 @@ void ManipulationStation<T>::SetupClutterClearingStation(
 
   // Add the bins.
   {
-    const std::string sdf_path = FindResourceOrThrow(
-        "drake/examples/manipulation_station/models/bin.sdf");
+    const std::string sdf_url =
+        "package://drake/examples/manipulation_station/models/bin.sdf";
 
     RigidTransform<double> X_WC(RotationMatrix<double>::MakeZRotation(M_PI_2),
                                 Vector3d(-0.145, -0.63, 0.075));
-    internal::AddAndWeldModelFrom(sdf_path, "bin1", plant_->world_frame(),
+    internal::AddAndWeldModelFrom(sdf_url, "bin1", plant_->world_frame(),
                                   "bin_base", X_WC, plant_);
 
     X_WC = RigidTransform<double>(RotationMatrix<double>::MakeZRotation(M_PI),
                                   Vector3d(0.5, -0.1, 0.075));
-    internal::AddAndWeldModelFrom(sdf_path, "bin2", plant_->world_frame(),
+    internal::AddAndWeldModelFrom(sdf_url, "bin2", plant_->world_frame(),
                                   "bin_base", X_WC, plant_);
   }
 
@@ -281,13 +379,13 @@ void ManipulationStation<T>::SetupManipulationClassStation(
   {
     const double dx_table_center_to_robot_base = 0.3257;
     const double dz_table_top_robot_base = 0.0127;
-    const std::string sdf_path = FindResourceOrThrow(
-        "drake/examples/manipulation_station/models/"
-        "amazon_table_simplified.sdf");
+    const std::string sdf_url =
+        "package://drake/examples/manipulation_station/models/"
+        "amazon_table_simplified.sdf";
 
     RigidTransform<double> X_WT(
         Vector3d(dx_table_center_to_robot_base, 0, -dz_table_top_robot_base));
-    internal::AddAndWeldModelFrom(sdf_path, "table", plant_->world_frame(),
+    internal::AddAndWeldModelFrom(sdf_url, "table", plant_->world_frame(),
                                   "amazon_table", X_WT, plant_);
   }
 
@@ -299,15 +397,15 @@ void ManipulationStation<T>::SetupManipulationClassStation(
     const double dz_cupboard_to_table_center = 0.02;
     const double cupboard_height = 0.815;
 
-    const std::string sdf_path = FindResourceOrThrow(
-        "drake/examples/manipulation_station/models/cupboard.sdf");
+    const std::string sdf_url =
+        "package://drake/examples/manipulation_station/models/cupboard.sdf";
 
     RigidTransform<double> X_WC(
         RotationMatrix<double>::MakeZRotation(M_PI),
         Vector3d(dx_table_center_to_robot_base + dx_cupboard_to_table_center, 0,
                  dz_cupboard_to_table_center + cupboard_height / 2.0 -
                      dz_table_top_robot_base));
-    internal::AddAndWeldModelFrom(sdf_path, "cupboard", plant_->world_frame(),
+    internal::AddAndWeldModelFrom(sdf_url, "cupboard", plant_->world_frame(),
                                   "cupboard_body", X_WC, plant_);
   }
 
@@ -336,29 +434,30 @@ void ManipulationStation<T>::SetupPlanarIiwaStation(
 
   // Add the tables.
   {
-    const std::string sdf_path = FindResourceOrThrow(
-        "drake/examples/kuka_iiwa_arm/models/table/"
-        "extra_heavy_duty_table_surface_only_collision.sdf");
+    const std::string sdf_url =
+        "package://drake/examples/kuka_iiwa_arm/models/table/"
+        "extra_heavy_duty_table_surface_only_collision.sdf";
 
     const double table_height = 0.7645;
     internal::AddAndWeldModelFrom(
-        sdf_path, "robot_table", plant_->world_frame(), "link",
+        sdf_url, "robot_table", plant_->world_frame(), "link",
         RigidTransform<double>(Vector3d(0, 0, -table_height)), plant_);
     internal::AddAndWeldModelFrom(
-        sdf_path, "work_table", plant_->world_frame(), "link",
+        sdf_url, "work_table", plant_->world_frame(), "link",
         RigidTransform<double>(Vector3d(0.75, 0, -table_height)), plant_);
   }
 
   // Add planar iiwa model.
   {
-    std::string sdf_path = FindResourceOrThrow(
+    std::string sdf_path =
         "drake/manipulation/models/iiwa_description/urdf/"
-        "planar_iiwa14_spheres_dense_elbow_collision.urdf");
+        "planar_iiwa14_spheres_dense_elbow_collision.urdf";
+    std::string sdf_url = "package://" + sdf_path;
     const auto X_WI = RigidTransform<double>::Identity();
     auto iiwa_instance = internal::AddAndWeldModelFrom(
-        sdf_path, "iiwa", plant_->world_frame(), "iiwa_link_0", X_WI, plant_);
+        sdf_url, "iiwa", plant_->world_frame(), "iiwa_link_0", X_WI, plant_);
     RegisterIiwaControllerModel(
-        sdf_path, iiwa_instance, plant_->world_frame(),
+        FindResourceOrThrow(sdf_path), iiwa_instance, plant_->world_frame(),
         plant_->GetFrameByName("iiwa_link_0", iiwa_instance), X_WI);
   }
 
@@ -440,8 +539,9 @@ void ManipulationStation<T>::MakeIiwaControllerModel() {
   // Build the controller's version of the plant, which only contains the
   // IIWA and the equivalent inertia of the gripper.
   multibody::Parser parser(owned_controller_plant_.get());
-  const auto controller_iiwa_model =
-      parser.AddModelFromFile(iiwa_model_.model_path, "iiwa");
+  const auto models = parser.AddModels(iiwa_model_.model_path);
+  DRAKE_THROW_UNLESS(models.size() == 1);
+  const auto controller_iiwa_model = models[0];
 
   owned_controller_plant_->WeldFrames(
       owned_controller_plant_->world_frame(),
@@ -453,11 +553,11 @@ void ManipulationStation<T>::MakeIiwaControllerModel() {
   // (according to the sdf)... and we don't believe our inertia calibration
   // on the hardware to be so precise, so we simply ignore the inertia
   // contribution from the fingers here.
+  const multibody::SpatialInertia<double> wsg_spatial_inertial =
+    internal::CalcGripperSpatialInertia(wsg_model_.model_path);
   const multibody::RigidBody<T>& wsg_equivalent =
       owned_controller_plant_->AddRigidBody(
-          "wsg_equivalent", controller_iiwa_model,
-          internal::MakeCompositeGripperInertia(
-              wsg_model_.model_path, wsg_model_.child_frame->name()));
+          "wsg_equivalent", controller_iiwa_model, wsg_spatial_inertial);
 
   // TODO(siyuan.feng@tri.global): when we handle multiple IIWA and WSG, this
   // part need to deal with the parent's (iiwa's) model instance id.
@@ -687,8 +787,27 @@ void ManipulationStation<T>::Finalize(
                          "wsg_force_measured");
   }
 
-  builder.ExportOutput(plant_->get_generalized_contact_forces_output_port(
-                           iiwa_model_.model_instance),
+  // System to compute generalized forces due to externally applied spatial
+  // forces.
+  auto computer =
+      builder.template AddSystem<internal::ExternalGeneralizedForcesComputer>(
+          plant_, num_iiwa_positions);
+  builder.Connect(plant_->get_state_output_port(),
+                  computer->GetInputPort("multibody_state"));
+  builder.ExportInput(computer->GetInputPort("applied_spatial_force"),
+                      "applied_spatial_force");
+
+  // Adder to compute τ_external = τ_applied_spatial_force + τ_contact
+  systems::Adder<double>* external_forces_adder =
+      builder.template AddSystem<systems::Adder<double>>(2, num_iiwa_positions);
+  builder.Connect(plant_->get_generalized_contact_forces_output_port(
+                      iiwa_model_.model_instance),
+                  external_forces_adder->get_input_port(0));
+  builder.Connect(computer->GetOutputPort("applied_generalized_force"),
+                  external_forces_adder->get_input_port(1));
+
+  // Export port for τ_external.
+  builder.ExportOutput(external_forces_adder->get_output_port(),
                        "iiwa_torque_external");
 
   {  // RGB-D Cameras
@@ -936,10 +1055,11 @@ void ManipulationStation<T>::RegisterRgbdSensor(
 
   camera_information_[name] = info;
 
-  const std::string urdf_path = FindResourceOrThrow(
-      "drake/manipulation/models/realsense2_description/urdf/d415.urdf");
+  const std::string urdf_url =
+      "package://drake/manipulation/models/realsense2_description/urdf/"
+      "d415.urdf";
   multibody::ModelInstanceIndex model_index = internal::AddAndWeldModelFrom(
-      urdf_path, name, parent_frame, "base_link", X_PC, plant_);
+      urdf_url, name, parent_frame, "base_link", X_PC, plant_);
 
   // Remove the perception properties -- the camera should not be visible to
   // itself or else it obscures its own view. We only want the illustration
@@ -989,21 +1109,22 @@ void ManipulationStation<T>::AddDefaultIiwa(
   std::string sdf_path;
   switch (collision_model) {
     case IiwaCollisionModel::kNoCollision:
-      sdf_path = FindResourceOrThrow(
+      sdf_path =
           "drake/manipulation/models/iiwa_description/iiwa7/"
-          "iiwa7_no_collision.sdf");
+          "iiwa7_no_collision.sdf";
       break;
     case IiwaCollisionModel::kBoxCollision:
-      sdf_path = FindResourceOrThrow(
+      sdf_path =
           "drake/manipulation/models/iiwa_description/iiwa7/"
-          "iiwa7_with_box_collision.sdf");
+          "iiwa7_with_box_collision.sdf";
       break;
   }
+  std::string sdf_url = "package://" + sdf_path;
   const auto X_WI = RigidTransform<double>::Identity();
   auto iiwa_instance = internal::AddAndWeldModelFrom(
-      sdf_path, "iiwa", plant_->world_frame(), "iiwa_link_0", X_WI, plant_);
+      sdf_url, "iiwa", plant_->world_frame(), "iiwa_link_0", X_WI, plant_);
   RegisterIiwaControllerModel(
-      sdf_path, iiwa_instance, plant_->world_frame(),
+      FindResourceOrThrow(sdf_path), iiwa_instance, plant_->world_frame(),
       plant_->GetFrameByName("iiwa_link_0", iiwa_instance), X_WI);
 }
 
@@ -1014,23 +1135,24 @@ void ManipulationStation<T>::AddDefaultWsg(
   std::string sdf_path;
   switch (schunk_model) {
     case SchunkCollisionModel::kBox:
-      sdf_path = FindResourceOrThrow(
+      sdf_path =
           "drake/manipulation/models/wsg_50_description/sdf"
-          "/schunk_wsg_50_no_tip.sdf");
+          "/schunk_wsg_50_no_tip.sdf";
       break;
     case SchunkCollisionModel::kBoxPlusFingertipSpheres:
-      sdf_path = FindResourceOrThrow(
+      sdf_path =
           "drake/manipulation/models/wsg_50_description/sdf"
-          "/schunk_wsg_50_with_tip.sdf");
+          "/schunk_wsg_50_with_tip.sdf";
       break;
   }
+  std::string sdf_url = "package://" + sdf_path;
   const multibody::Frame<T>& link7 =
       plant_->GetFrameByName("iiwa_link_7", iiwa_model_.model_instance);
   const RigidTransform<double> X_7G(RollPitchYaw<double>(M_PI_2, 0, M_PI_2),
                                     Vector3d(0, 0, 0.114));
-  auto wsg_instance = internal::AddAndWeldModelFrom(sdf_path, "gripper", link7,
+  auto wsg_instance = internal::AddAndWeldModelFrom(sdf_url, "gripper", link7,
                                                     "body", X_7G, plant_);
-  RegisterWsgControllerModel(sdf_path, wsg_instance, link7,
+  RegisterWsgControllerModel(FindResourceOrThrow(sdf_path), wsg_instance, link7,
                              plant_->GetFrameByName("body", wsg_instance),
                              X_7G);
 }

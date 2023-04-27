@@ -4,11 +4,13 @@
 #include <functional>
 #include <map>
 #include <ostream>
+#include <unordered_map>
 #include <utility>
 
 #include <Eigen/Core>
 
 #include "drake/common/drake_copyable.h"
+#include "drake/common/fmt_ostream.h"
 #include "drake/common/symbolic/expression.h"
 #define DRAKE_COMMON_SYMBOLIC_POLYNOMIAL_H
 #include "drake/common/symbolic/monomial.h"
@@ -151,7 +153,7 @@ class Polynomial {
 
   /// Returns the mapping from a Monomial to its corresponding coefficient of
   /// this polynomial.
-  /// We maintain the invariance that for ancy [monomial, coeff] pair in
+  /// We maintain the invariance that for any [monomial, coeff] pair in
   /// monomial_to_coefficient_map(), symbolic:is_zero(coeff) is false.
   [[nodiscard]] const MapType& monomial_to_coefficient_map() const;
 
@@ -257,6 +259,58 @@ class Polynomial {
 
   /// Adds @p coeff * @p m to this polynomial.
   Polynomial& AddProduct(const Expression& coeff, const Monomial& m);
+
+  /// An encapsulated data type for use with the method SubstituteAndExpand.
+  struct SubstituteAndExpandCacheData {
+   public:
+    std::map<Monomial, Polynomial, internal::CompareMonomial>* get_data() {
+      return &data_;
+    }
+
+   private:
+    friend class Polynomial;
+    std::map<Monomial, Polynomial, internal::CompareMonomial> data_;
+  };
+
+  /// Substitute the monomials of this polynomial with new polynomial
+  /// expressions and expand the polynomial to the monomial basis. For example,
+  /// consider the substitution x = a(1-y) into the polynomial x¹⁴ +
+  /// (x−1)². Repeatedly expanding the powers of x can take a long time using
+  /// factory methods, so we store intermediate computations in the substitution
+  /// map to avoid recomputing very high powers.
+  /// @param indeterminate_substitution The substitutions of every indeterminate
+  /// with the new desired expression. This map must contain each element
+  /// of `indeterminates()`. For performance reasons, it is recommended that
+  /// this map contains Expanded polynomials as its values, but this is not
+  /// necessary.
+  /// @param[in,out] substitutions_cached_data A container caching the higher
+  /// order expansions of the `indeterminate_substitutions`. Typically, the
+  /// first time an indeterminate_substitution is performed, this will be empty.
+  /// If the same indeterminate_substitutions is used for multiple polynomials,
+  /// passing this value will enable the user to re-use the expansions across
+  /// multiple calls. For example, suppose we wish to perform the substitution x
+  /// = a(1-y) into the polynomials p1 = x¹⁴ + (x−1)² and p2 = x⁷. A user may
+  /// call p1.SubstituteAndExpand({x : a(1-y), substitutions_cached_data}) where
+  /// substitutions_cached_data is a pointer to an empty container. As part of
+  /// computing the expansion of p1, the expansion of x⁷ may get computed and
+  /// stored in substitutions_cached_data, and so a subsequent call of
+  /// p2.SubstituteAndExpand({x : a(1-y)}, substitutions_cached_data) would be
+  /// very fast.
+  ///
+  /// Never reuse substitutions_cached_data if indeterminate_substitutions
+  /// changes as this function will then compute an incorrect result.
+  ///
+  /// Note that this function is NOT responsible for ensuring that @param
+  /// substitutions_cached_data is consistent i.e. this method will not throw an
+  /// error if substitutions_cached_data contains the inconsistent substitutions
+  /// {x: y, x²: 2y}. To ensure correct results, ensure that the passed
+  /// substitutions_cached_data object is consistent with
+  /// indeterminate_substitutions. The easiest way to do this is to pass a
+  /// pointer to an empty substitutions_cached_data or nullopt to this function.
+  [[nodiscard]] Polynomial SubstituteAndExpand(
+      const std::unordered_map<Variable, Polynomial>&
+          indeterminate_substitution,
+      SubstituteAndExpandCacheData* substitutions_cached_data = nullptr) const;
 
   /// Expands each coefficient expression and returns the expanded polynomial.
   /// If any coefficient is equal to 0 after expansion, then remove that term
@@ -395,7 +449,7 @@ class Polynomial {
 /// Returns `p / v`.
 [[nodiscard]] Polynomial operator/(Polynomial p, double v);
 
-/// Returns polynomial @p rasied to @p n.
+/// Returns polynomial @p raised to @p n.
 [[nodiscard]] Polynomial pow(const Polynomial& p, int n);
 
 std::ostream& operator<<(std::ostream& os, const Polynomial& p);
@@ -520,7 +574,7 @@ DRAKE_SYMBOLIC_SCALAR_SUM_DIFF_PRODUCT_CONJ_PRODUCT_TRAITS(
 //
 // Note that we inform Eigen that the return type of Monomial op Monomial is
 // Polynomial, not Monomial, while Monomial * Monomial gets a Monomial in our
-// implementation. This discrepency is due to the implementation of Eigen's
+// implementation. This discrepancy is due to the implementation of Eigen's
 // dot() method whose return type is scalar_product_op::ReturnType. For more
 // information, check line 67 of Eigen/src/Core/Dot.h and line 767 of
 // Eigen/src/Core/util/XprHelper.h.
@@ -555,6 +609,18 @@ EIGEN_DEVICE_FUNC inline drake::symbolic::Expression cast(
   return p.ToExpression();
 }
 }  // namespace internal
+namespace numext {
+template <>
+bool equal_strict(
+    const drake::symbolic::Polynomial& x,
+    const drake::symbolic::Polynomial& y);
+template <>
+EIGEN_STRONG_INLINE bool not_equal_strict(
+    const drake::symbolic::Polynomial& x,
+    const drake::symbolic::Polynomial& y) {
+  return !Eigen::numext::equal_strict(x, y);
+}
+}  // namespace numext
 }  // namespace Eigen
 #endif  // !defined(DRAKE_DOXYGEN_CXX)
 
@@ -582,5 +648,50 @@ Evaluate(const Eigen::MatrixBase<Derived>& m, const Environment& env) {
     const Eigen::Ref<const VectorX<Polynomial>>& f,
     const Eigen::Ref<const VectorX<Variable>>& vars);
 
+/**
+ Returns the polynomial m(x)ᵀ * Q * m(x), where m(x) is the monomial basis,
+ and Q is the Gram matrix.
+ @param monomial_basis m(x) in the documentation. A vector of monomials.
+ @param gram_lower The lower triangular entries in Q, stacked columnwise
+ into a vector.
+ */
+template <typename Derived1, typename Derived2>
+[[nodiscard]] typename std::enable_if<
+    is_eigen_vector_of<Derived1, symbolic::Monomial>::value &&
+        (is_eigen_vector_of<Derived2, double>::value ||
+         is_eigen_vector_of<Derived2, symbolic::Variable>::value ||
+         is_eigen_vector_of<Derived2, symbolic::Expression>::value),
+    symbolic::Polynomial>::type
+CalcPolynomialWLowerTriangularPart(
+    const Eigen::MatrixBase<Derived1>& monomial_basis,
+    const Eigen::MatrixBase<Derived2>& gram_lower) {
+  DRAKE_DEMAND(monomial_basis.rows() * (monomial_basis.rows() + 1) / 2 ==
+               gram_lower.rows());
+  Polynomial::MapType monomial_coeff_map;
+  for (int j = 0; j < monomial_basis.rows(); ++j) {
+    for (int i = j; i < monomial_basis.rows(); ++i) {
+      // Compute 2 * mᵢ(x) * Qᵢⱼ * mⱼ(x) if i != j, or mᵢ(x)²*Qᵢᵢ
+      const auto monomial_product = monomial_basis(i) * monomial_basis(j);
+      const auto& Qij =
+          gram_lower(monomial_basis.rows() * j + i - (j + 1) * j / 2);
+      const symbolic::Expression coeff = i == j ? Qij : 2 * Qij;
+      auto it = monomial_coeff_map.find(monomial_product);
+      if (it == monomial_coeff_map.end()) {
+        monomial_coeff_map.emplace_hint(it, monomial_product, coeff);
+      } else {
+        it->second += coeff;
+      }
+    }
+  }
+  return Polynomial(monomial_coeff_map);
+}
 }  // namespace symbolic
 }  // namespace drake
+
+
+// TODO(jwnimmer-tri) Add a real formatter and deprecate the operator<<.
+namespace fmt {
+template <>
+struct formatter<drake::symbolic::Polynomial>
+    : drake::ostream_formatter {};
+}  // namespace fmt

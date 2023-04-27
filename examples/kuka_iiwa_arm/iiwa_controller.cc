@@ -36,8 +36,8 @@ namespace drake {
 namespace examples {
 namespace kuka_iiwa_arm {
 namespace {
-using manipulation::planner::RobotPlanInterpolator;
-using manipulation::planner::InterpolatorType;
+using manipulation::util::InterpolatorType;
+using manipulation::util::RobotPlanInterpolator;
 
 const char kIiwaUrdf[] =
     "drake/manipulation/models/iiwa_description/urdf/"
@@ -140,7 +140,7 @@ int DoMain() {
     simulator.AdvanceTo(time);
     // Force-publish the lcmt_iiwa_command (via the command_pub system within
     // the diagram).
-    diagram.Publish(diagram_context);
+    diagram.ForcedPublish(diagram_context);
   }
 
   // We should never reach here.

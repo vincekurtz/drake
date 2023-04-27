@@ -13,6 +13,7 @@
 #include "drake/multibody/tree/multibody_forces.h"
 #include "drake/multibody/tree/multibody_tree_indexes.h"
 #include "drake/multibody/tree/multibody_tree_topology.h"
+#include "drake/multibody/tree/scoped_name.h"
 #include "drake/multibody/tree/spatial_inertia.h"
 #include "drake/systems/framework/context.h"
 
@@ -42,10 +43,9 @@ template<typename T> class Body;
 /// We represent a body frame by a %BodyFrame object that is created whenever a
 /// Body is constructed and is owned by the Body.
 ///
-/// Note that the %BodyFrame associated with
-/// a body does not necessarily need to be located at its center of mass nor
-/// does it need to be aligned with the body's principal axes, although, in
-/// practice, it frequently is.
+/// Note that the %BodyFrame associated with a body does not necessarily need to
+/// be located at its center of mass nor does it need to be aligned with the
+/// body's principal axes, although, in practice, it frequently is.
 /// For flexible bodies, %BodyFrame provides a representation for the body's
 /// reference frame. The flexible degrees of freedom associated with a flexible
 /// body describe the body's deformation in this frame. Therefore, the motion of
@@ -55,12 +55,11 @@ template<typename T> class Body;
 ///
 /// A %BodyFrame and Body are tightly coupled concepts; neither makes sense
 /// without the other. Therefore, a %BodyFrame instance is constructed in
-/// conjunction with its Body and cannot be
-/// constructed anywhere else. However, you can still access the frame
-/// associated with a body, see Body::body_frame().
-/// This access is more than a convenience; you can use the %BodyFrame to
-/// define other frames on the body and to attach other multibody elements
-/// to it.
+/// conjunction with its Body and cannot be constructed anywhere else. However,
+/// you can still access the frame associated with a body, see
+/// Body::body_frame(). This access is more than a convenience; you can use the
+/// %BodyFrame to define other frames on the body and to attach other multibody
+/// elements to it.
 ///
 /// @tparam_default_scalar
 template <typename T>
@@ -172,28 +171,37 @@ class BodyAttorney {
 /// makes no assumption about whether a body is rigid or deformable and neither
 /// does it make any assumptions about the underlying physical model or
 /// approximation.
-/// As an element or component of a MultibodyTree, a body is a
+/// As an element or component of a MultibodyPlant, a body is a
 /// MultibodyElement, and therefore it has a unique index of type BodyIndex
-/// within the multibody tree it belongs to.
+/// within the multibody plant it belongs to.
 ///
 /// A %Body contains a unique BodyFrame; see BodyFrame class documentation for
 /// more information.
 ///
 /// @tparam_default_scalar
 template <typename T>
-class Body : public MultibodyElement<Body, T, BodyIndex> {
+class Body : public MultibodyElement<T> {
  public:
   DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(Body)
+
+  /// Returns this element's unique index.
+  BodyIndex index() const { return this->template index_impl<BodyIndex>(); }
 
   /// Gets the `name` associated with `this` body. The name will never be empty.
   const std::string& name() const { return name_; }
 
-  /// Returns the number of generalized positions q describing flexible
-  /// deformations for this body. A rigid body will therefore return zero.
+  /// Returns scoped name of this frame. Neither of the two pieces of the name
+  /// will be empty (the scope name and the element name).
+  ScopedName scoped_name() const;
+
+  /// (Not implemented) Returns the number of generalized positions q describing
+  /// flexible deformations for this body. A rigid body will therefore return
+  /// zero.
   virtual int get_num_flexible_positions() const = 0;
 
-  /// Returns the number of generalized velocities v describing flexible
-  /// deformations for this body. A rigid body will therefore return zero.
+  /// (Not implemented) Returns the number of generalized velocities v
+  /// describing flexible deformations for this body. A rigid body will
+  /// therefore return zero.
   virtual int get_num_flexible_velocities() const = 0;
 
   /// Returns a const reference to the associated BodyFrame.
@@ -201,7 +209,7 @@ class Body : public MultibodyElement<Body, T, BodyIndex> {
     return body_frame_;
   }
 
-  /// For a floating body, lock its implicit inboard joint. Its generalized
+  /// For a floating body, lock its inboard joint. Its generalized
   /// velocities will be 0 until it is unlocked. Locking is not yet supported
   /// for continuous-mode systems.
   /// @throws std::exception if this body is not a floating body, or if the
@@ -214,22 +222,14 @@ class Body : public MultibodyElement<Body, T, BodyIndex> {
     // non-floating bodies.
     if (!is_floating()) {
       throw std::logic_error(fmt::format(
-          "Attempted to call lock() on non-floating body {}", name()));
+          "Attempted to call Lock() on non-floating body {}", name()));
     }
-    context->get_mutable_abstract_parameter(is_locked_parameter_index_)
-        .set_value(true);
-
-    static constexpr int kVelocities = 6;
-    const auto& tree = this->get_parent_tree();
-    const int start_in_v =
-        this->floating_velocities_start() - tree.num_positions();
-    DRAKE_ASSERT(start_in_v >= 0);
-    DRAKE_ASSERT(start_in_v + kVelocities <= tree.num_velocities());
-    tree.GetMutableVelocities(context)
-        .template segment<kVelocities>(start_in_v).setZero();
+    this->get_parent_tree()
+        .get_mobilizer(topology_.inboard_mobilizer)
+        .Lock(context);
   }
 
-  /// For a floating body, unlock its implicit inboard joint. Unlocking is not
+  /// For a floating body, unlock its inboard joint. Unlocking is not
   /// yet supported for continuous-mode systems.
   /// @throws std::exception if this body is not a floating body, or if the
   /// parent model uses continuous state.
@@ -241,16 +241,21 @@ class Body : public MultibodyElement<Body, T, BodyIndex> {
     // non-floating bodies.
     if (!is_floating()) {
       throw std::logic_error(fmt::format(
-          "Attempted to call unlock() on non-floating body {}", name()));
+          "Attempted to call Unlock() on non-floating body {}", name()));
     }
-    context->get_mutable_abstract_parameter(is_locked_parameter_index_)
-        .set_value(false);
+    this->get_parent_tree()
+        .get_mobilizer(topology_.inboard_mobilizer)
+        .Unlock(context);
   }
 
-  /// @return true if the body is locked, false otherwise.
+  /// Determines whether this %Body is currently locked to its inboard (parent)
+  /// %Body. This is not limited to floating bodies but generally
+  /// Joint::is_locked() is preferable otherwise.
+  /// @returns true if the body is locked, false otherwise.
   bool is_locked(const systems::Context<T>& context) const {
-    return context.get_parameters().template get_abstract_parameter<bool>(
-        is_locked_parameter_index_);
+    return this->get_parent_tree()
+        .get_mobilizer(topology_.inboard_mobilizer)
+        .is_locked(context);
   }
 
   /// (Advanced) Returns the index of the node in the underlying tree structure
@@ -259,23 +264,24 @@ class Body : public MultibodyElement<Body, T, BodyIndex> {
     return topology_.body_node;
   }
 
-  /// (Advanced) Returns `true` if `this` body is granted 6-dofs by a Mobilizer.
+  /// (Advanced) Returns `true` if `this` body is granted 6-dofs by a Mobilizer
+  /// and the parent body of this body's associated 6-dof joint is `world`.
   /// @note A floating body is not necessarily modeled with a quaternion
   /// mobilizer, see has_quaternion_dofs(). Alternative options include a space
   /// XYZ parametrization of rotations, see SpaceXYZMobilizer.
-  /// @throws std::exception if called pre-finalize, see
-  /// MultibodyPlant::Finalize().
+  /// @throws std::exception if called pre-finalize,
+  /// @see MultibodyPlant::Finalize()
   bool is_floating() const {
     DRAKE_BODY_THROW_IF_NOT_FINALIZED();
     return topology_.is_floating;
   }
 
-  /// (Advanced) If `true`, this body is a floating body modeled with a
-  /// quaternion floating mobilizer. By implication, is_floating() is also
-  /// `true`.
-  /// @see floating_positions_start(), floating_velocities_start().
-  /// @throws std::exception if called pre-finalize, see
-  /// MultibodyPlant::Finalize().
+  /// (Advanced) If `true`, this body's generalized position coordinates q
+  /// include a quaternion, which occupies the first four elements of q. Note
+  /// that this does not imply that the body is floating since it may have
+  /// fewer than 6 dofs or its inboard body could be something other than World.
+  /// @throws std::exception if called pre-finalize
+  /// @see is_floating(), MultibodyPlant::Finalize()
   bool has_quaternion_dofs() const {
     DRAKE_BODY_THROW_IF_NOT_FINALIZED();
     return topology_.has_quaternion_dofs;
@@ -289,10 +295,12 @@ class Body : public MultibodyElement<Body, T, BodyIndex> {
   /// has_quaternion_dofs()), the four consecutive entries in the state starting
   /// at this index correspond to the quaternion that parametrizes this body's
   /// orientation.
-  /// @throws std::exception if called pre-finalize, see
-  /// MultibodyPlant::Finalize().
+  /// @throws std::exception if called pre-finalize
+  /// @pre `this` is a floating body
+  /// @see is_floating(), has_quaternion_dofs(), MultibodyPlant::Finalize()
   int floating_positions_start() const {
     DRAKE_BODY_THROW_IF_NOT_FINALIZED();
+    DRAKE_DEMAND(is_floating());
     return topology_.floating_positions_start;
   }
 
@@ -300,19 +308,21 @@ class Body : public MultibodyElement<Body, T, BodyIndex> {
   /// index of the first generalized velocity in the state vector for a
   /// MultibodyPlant model.
   /// Velocities for this body are then contiguous starting at this index.
-  /// @throws std::exception if called pre-finalize, see
-  /// MultibodyPlant::Finalize().
+  /// @throws std::exception if called pre-finalize
+  /// @pre `this` is a floating body
+  /// @see is_floating(), MultibodyPlant::Finalize()
   int floating_velocities_start() const {
     DRAKE_BODY_THROW_IF_NOT_FINALIZED();
+    DRAKE_DEMAND(is_floating());
     return topology_.floating_velocities_start;
   }
 
   /// Returns a string suffix (e.g. to be appended to the name()) to identify
   /// the `k`th position in the floating base. @p position_index_in_body must
   /// be in [0, 7) if `has_quaternion_dofs()` is true, otherwise in [0, 6).
-  /// @throws std::exception if is_floating() is false.
-  /// @throws std::exception if called pre-finalize, see
-  /// MultibodyPlant::Finalize().
+  /// @throws std::exception if called pre-finalize
+  /// @pre `this` is a floating body
+  /// @see is_floating(), has_quaternion_dofs(), MultibodyPlant::Finalize()
   std::string floating_position_suffix(int position_index_in_body) const {
     DRAKE_BODY_THROW_IF_NOT_FINALIZED();
     DRAKE_DEMAND(is_floating());
@@ -328,20 +338,15 @@ class Body : public MultibodyElement<Body, T, BodyIndex> {
   /// Returns a string suffix (e.g. to be appended to the name()) to identify
   /// the `k`th velocity in the floating base. @p velocity_index_in_body must
   /// be in [0,6).
-  /// @throws std::exception if is_floating() is false.
-  /// @throws std::exception if called pre-finalize, see
-  /// MultibodyPlant::Finalize().
+  /// @throws std::exception if called pre-finalize
+  /// @pre `this` is a floating body
+  /// @see is_floating(), MultibodyPlant::Finalize()
   std::string floating_velocity_suffix(int velocity_index_in_body) const {
     DRAKE_BODY_THROW_IF_NOT_FINALIZED();
     DRAKE_DEMAND(is_floating());
     DRAKE_DEMAND(0 <= velocity_index_in_body && velocity_index_in_body < 6);
     return this->get_parent_tree().get_mobilizer(
       topology_.inboard_mobilizer).velocity_suffix(velocity_index_in_body);
-  }
-
-  DRAKE_DEPRECATED("2022-11-01", "Use Body::default_mass().")
-  double get_default_mass() const {
-    return default_mass();
   }
 
   /// Returns the default mass (not Context dependent) for `this` body.
@@ -479,7 +484,7 @@ class Body : public MultibodyElement<Body, T, BodyIndex> {
   /// Creates a %Body named `name` in model instance `model_instance`.
   /// The `name` must not be empty.
   Body(const std::string& name, ModelInstanceIndex model_instance)
-      : MultibodyElement<Body, T, BodyIndex>(model_instance),
+      : MultibodyElement<T>(model_instance),
         name_(internal::DeprecateWhenEmptyName(name, "Body")),
         body_frame_(*this) {}
 
@@ -511,16 +516,6 @@ class Body : public MultibodyElement<Body, T, BodyIndex> {
       const internal::MultibodyTree<symbolic::Expression>&) const = 0;
 
   /// @}
-
-  // Implementation for MultibodyElement::DoDeclareParameters().
-  void DoDeclareParameters(
-      internal::MultibodyTreeSystem<T>* tree_system) override {
-    // Declare parent classes' parameters
-    MultibodyElement<Body, T, BodyIndex>::DoDeclareParameters(tree_system);
-
-    is_locked_parameter_index_ =
-        this->DeclareAbstractParameter(tree_system, Value<bool>(false));
-  }
 
  private:
   // Only friends of BodyAttorney (i.e. MultibodyTree) have access to a selected
@@ -554,8 +549,8 @@ class Body : public MultibodyElement<Body, T, BodyIndex> {
   }
 
   // A string identifying the body in its model.
-  // Within a MultibodyPlant model this string is guaranteed to be unique by
-  // MultibodyPlant's API.
+  // Within a MultibodyPlant model instance this string is guaranteed to be
+  // unique by MultibodyPlant's API.
   const std::string name_;
 
   // Body frame associated with this body.
@@ -563,9 +558,6 @@ class Body : public MultibodyElement<Body, T, BodyIndex> {
 
   // The internal bookkeeping topology struct used by MultibodyTree.
   internal::BodyTopology topology_;
-
-  // System parameter index for `this` body's lock state stored in a context.
-  systems::AbstractParameterIndex is_locked_parameter_index_;
 };
 
 /// @cond

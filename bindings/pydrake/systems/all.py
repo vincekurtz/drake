@@ -1,5 +1,6 @@
 from .analysis import *
 from .controllers import *
+from .drawing import *
 from .framework import *
 from .lcm import *
 from .perception import *
@@ -9,9 +10,3 @@ from .pyplot_visualizer import *
 from .rendering import *
 from .scalar_conversion import *
 from .sensors import *
-from .trajectory_optimization import *
-
-try:
-    from .drawing import *
-except ImportError:
-    pass

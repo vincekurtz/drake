@@ -6,6 +6,7 @@
 #include <tuple>
 #include <vector>
 
+#include "drake/common/drake_copyable.h"
 #include "drake/solvers/test/optimization_examples.h"
 
 namespace drake {
@@ -23,7 +24,7 @@ class LinearFeasibilityProgram : public OptimizationProgram {
 
   explicit LinearFeasibilityProgram(ConstraintForm constraint_form);
 
-  ~LinearFeasibilityProgram() override {};
+  ~LinearFeasibilityProgram() override = default;
 
   void CheckSolution(const MathematicalProgramResult& result) const override;
 
@@ -47,7 +48,7 @@ class LinearProgram0 : public OptimizationProgram {
 
   LinearProgram0(CostForm cost_form, ConstraintForm constraint_form);
 
-  ~LinearProgram0() override {};
+  ~LinearProgram0() override = default;
 
   void CheckSolution(const MathematicalProgramResult& result) const override;
 
@@ -68,7 +69,7 @@ class LinearProgram1 : public OptimizationProgram {
 
   LinearProgram1(CostForm cost_form, ConstraintForm constraint_form);
 
-  ~LinearProgram1() override {};
+  ~LinearProgram1() override = default;
 
   void CheckSolution(const MathematicalProgramResult& result) const override;
 
@@ -78,7 +79,7 @@ class LinearProgram1 : public OptimizationProgram {
 };
 
 // Test a simple linear programming problem
-// Adapted from https://docs.mosek.com/9.3/capi/tutorial-lo-shared.html
+// Adapted from https://docs.mosek.com/10.0/capi/tutorial-lo-shared.html
 // min -3x0 - x1 - 5x2 - x3
 // s.t     3x0 +  x1 + 2x2        = 30
 //   15 <= 2x0 +  x1 + 3x2 +  x3 <= inf
@@ -96,7 +97,7 @@ class LinearProgram2 : public OptimizationProgram {
 
   LinearProgram2(CostForm cost_form, ConstraintForm constraint_form);
 
-  ~LinearProgram2() override {};
+  ~LinearProgram2() override = default;
 
   void CheckSolution(const MathematicalProgramResult& result) const override;
 
@@ -121,7 +122,7 @@ class LinearProgram3 : public OptimizationProgram {
 
   LinearProgram3(CostForm cost_form, ConstraintForm constraint_form);
 
-  ~LinearProgram3() override {};
+  ~LinearProgram3() override = default;
 
   void CheckSolution(const MathematicalProgramResult& result) const override;
 
@@ -142,11 +143,11 @@ std::ostream& operator<<(std::ostream& os, LinearProblems value);
 
 class LinearProgramTest
     : public ::testing::TestWithParam<
-        std::tuple<CostForm, ConstraintForm, LinearProblems>> {
+          std::tuple<CostForm, ConstraintForm, LinearProblems>> {
  public:
   LinearProgramTest();
 
-  OptimizationProgram* prob() const {return prob_.get();}
+  OptimizationProgram* prob() const { return prob_.get(); }
 
  private:
   std::unique_ptr<OptimizationProgram> prob_;
@@ -212,6 +213,32 @@ class UnboundedLinearProgramTest1 : public ::testing::Test {
 };
 
 /**
+ When adding constraints and costs, we intentionally put duplicated variables in
+ each constraint/cost binding, so as to test if Drake's solver wrapper can
+ handle duplicated variables correctly.
+ min x0 + 3 * x1 + 4 * x2 + 3
+ s.t x0 + 2 * x1 + x2 <= 3
+     x0 + 2 * x2 = 1
+     1 <= 2 * x0 + x1 <= 3
+     x0 + 2x1 + 3x2 >= 0
+ */
+class DuplicatedVariableLinearProgramTest1 : public ::testing::Test {
+ public:
+  DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(DuplicatedVariableLinearProgramTest1)
+
+  DuplicatedVariableLinearProgramTest1();
+
+  void CheckSolution(
+      const SolverInterface& solver,
+      const std::optional<SolverOptions>& solver_options = std::nullopt,
+      double tol = 1E-7) const;
+
+ protected:
+  std::unique_ptr<MathematicalProgram> prog_;
+  Vector3<symbolic::Variable> x_;
+};
+
+/**
  * Test getting dual solution for LP.
  * This LP has inequality constraints.
  */
@@ -227,6 +254,9 @@ void TestLPDualSolution2Scaled(const SolverInterface& solver,
 
 /** This LP has only bounding box constraints. */
 void TestLPDualSolution3(const SolverInterface& solver, double tol = 1e-6);
+
+/** This LP has only linear equality constraints. */
+void TestLPDualSolution4(const SolverInterface& solver, double tol = 1E-6);
 
 /** This test confirms that the solver can solve problems with poorly scaled
  * data. See github issue https://github.com/RobotLocomotion/drake/issues/15341

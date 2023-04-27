@@ -1,5 +1,3 @@
-# -*- python -*-
-
 package(default_visibility = ["//visibility:public"])
 
 load(
@@ -69,6 +67,15 @@ drake_lcm_cc_library(
         "lcmt_acrobot_u.lcm",
         "lcmt_acrobot_x.lcm",
         "lcmt_acrobot_y.lcm",
+    ],
+)
+
+drake_lcm_cc_library(
+    name = "traj_opt",
+    lcm_package = "drake",
+    lcm_srcs = [
+        "lcmt_traj_opt_x.lcm",
+        "lcmt_traj_opt_u.lcm",
     ],
 )
 
@@ -319,6 +326,7 @@ LCMTYPES_CC = [
     ":robot_plan",
     ":schunk",
     ":scope",
+    ":traj_opt",
     ":viewer",
 ]
 

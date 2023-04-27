@@ -161,14 +161,7 @@ class GeometryState {
   }
 
   /** Implementation of SceneGraphInspector::GetAllGeometryIds().  */
-  std::vector<GeometryId> GetAllGeometryIds() const {
-    std::vector<GeometryId> ids;
-    ids.reserve(geometries_.size());
-    for (const auto& id_geometry_pair : geometries_) {
-      ids.push_back(id_geometry_pair.first);
-    }
-    return ids;
-  }
+  std::vector<GeometryId> GetAllGeometryIds() const;
 
   /** Implementation of SceneGraphInspector::GetGeometryIds().  */
   std::unordered_set<GeometryId> GetGeometryIds(
@@ -284,10 +277,6 @@ class GeometryState {
   const math::RigidTransform<double>& GetPoseInFrame(
       GeometryId geometry_id) const;
 
-  /** Implementation of SceneGraphInspector::X_PG().  */
-  const math::RigidTransform<double>& GetPoseInParent(
-      GeometryId geometry_id) const;
-
   /** Implementation of
    SceneGraphInspector::maybe_get_hydroelastic_mesh().  */
   std::variant<std::monostate, const TriangleSurfaceMesh<double>*,
@@ -365,14 +354,6 @@ class GeometryState {
   GeometryId RegisterGeometry(SourceId source_id, FrameId frame_id,
                               std::unique_ptr<GeometryInstance> geometry);
 
-  /** Implementation of
-   @ref SceneGraph::RegisterGeometry(SourceId,GeometryId,
-   std::unique_ptr<GeometryInstance>) "SceneGraph::RegisterGeometry()" with
-   parent GeometryId.  */
-  GeometryId RegisterGeometryWithParent(
-      SourceId source_id, GeometryId parent_id,
-      std::unique_ptr<GeometryInstance> geometry);
-
   // TODO(SeanCurtis-TRI): Consider deprecating this; it's now strictly a
   // wrapper for the more general `RegisterGeometry()`.
   /** Implementation of SceneGraph::RegisterAnchoredGeometry().  */
@@ -383,6 +364,11 @@ class GeometryState {
   GeometryId RegisterDeformableGeometry(
       SourceId source_id, FrameId frame_id,
       std::unique_ptr<GeometryInstance> geometry, double resolution_hint);
+
+  /** Implementation of SceneGraph::ChangeShape().  */
+  void ChangeShape(
+      SourceId source_id, GeometryId geometry_id, const Shape& shape,
+      std::optional<math::RigidTransform<double>> X_FG);
 
   /** Implementation of SceneGraph::RemoveGeometry().  */
   void RemoveGeometry(SourceId source_id, GeometryId geometry_id);
@@ -500,14 +486,12 @@ class GeometryState {
         representation, kinematics_data_.X_WGs, surfaces, point_pairs);
   }
 
-  /** Implementation of QueryObject::ComputeDeformableRigidContact().  */
+  /** Implementation of QueryObject::ComputeDeformableContact().  */
   template <typename T1 = T>
   typename std::enable_if_t<std::is_same_v<T1, double>, void>
-  ComputeDeformableRigidContact(
-      std::vector<internal::DeformableRigidContact<T>>*
-          deformable_rigid_contact) const {
-    return geometry_engine_->ComputeDeformableRigidContact(
-        deformable_rigid_contact);
+  ComputeDeformableContact(
+      internal::DeformableContact<T>* deformable_contact) const {
+    return geometry_engine_->ComputeDeformableContact(deformable_contact);
   }
 
   /** Implementation of QueryObject::FindCollisionCandidates().  */
@@ -549,10 +533,7 @@ class GeometryState {
   /** Implementation of
    QueryObject::ComputeSignedDistancePairClosestPoints().  */
   SignedDistancePair<T> ComputeSignedDistancePairClosestPoints(
-      GeometryId id_A, GeometryId id_B) const {
-    return geometry_engine_->ComputeSignedDistancePairClosestPoints(
-        id_A, id_B, kinematics_data_.X_WGs);
-  }
+      GeometryId id_A, GeometryId id_B) const;
 
   /** Implementation of QueryObject::ComputeSignedDistanceToPoint().  */
   std::vector<SignedDistanceToPoint<T>> ComputeSignedDistanceToPoint(
@@ -619,10 +600,7 @@ class GeometryState {
    scalar values initialized from the current values. If this is invoked on an
    instance already instantiated on AutoDiffXd, it is equivalent to cloning
    the instance.  */
-  template <typename T1 = T>
-  typename std::enable_if_t<!std::is_same_v<T1, symbolic::Expression>,
-                            std::unique_ptr<GeometryState<AutoDiffXd>>>
-  ToAutoDiffXd() const;
+  std::unique_ptr<GeometryState<AutoDiffXd>> ToAutoDiffXd() const;
 
   //@}
 
@@ -631,69 +609,9 @@ class GeometryState {
   template <typename>
   friend class GeometryState;
 
-  // Conversion constructor.
-  // It is _vitally_ important that all members are _explicitly_ accounted for
-  // (either in the initialization list or in the body). Failure to do so will
-  // lead to errors in the converted GeometryState instance.
-  //
-  // TODO(russt): Move this to the .cc file, support
-  // (T=AutoDiffXd,U=Expression), and remove the enable_if restriction on
-  // ToAutoDiffXd().
+  // Scalar-converting copy constructor.
   template <typename U>
-  explicit GeometryState(const GeometryState<U>& source)
-      : self_source_(source.self_source_),
-        source_frame_id_map_(source.source_frame_id_map_),
-        source_deformable_geometry_id_map_(
-            source.source_deformable_geometry_id_map_),
-        source_frame_name_map_(source.source_frame_name_map_),
-        source_root_frame_map_(source.source_root_frame_map_),
-        source_names_(source.source_names_),
-        source_anchored_geometry_map_(source.source_anchored_geometry_map_),
-        frames_(source.frames_),
-        geometries_(source.geometries_),
-        frame_index_to_id_map_(source.frame_index_to_id_map_),
-        geometry_engine_(
-            std::move(source.geometry_engine_->template ToScalarType<T>())),
-        render_engines_(source.render_engines_),
-        geometry_version_(source.geometry_version_) {
-    auto convert_pose_vector = [](const std::vector<math::RigidTransform<U>>& s,
-                                  std::vector<math::RigidTransform<T>>* d) {
-      std::vector<math::RigidTransform<T>>& dest = *d;
-      dest.resize(s.size());
-      for (size_t i = 0; i < s.size(); ++i) {
-        dest[i] = s[i].template cast<T>();
-      }
-    };
-    // TODO(xuchenhan-tri): The scalar conversion of KinematicsData should be
-    // handled by the KinematicsData class.
-    convert_pose_vector(source.kinematics_data_.X_PFs, &kinematics_data_.X_PFs);
-    convert_pose_vector(source.kinematics_data_.X_WFs, &kinematics_data_.X_WFs);
-
-    // Now convert the id -> pose map.
-    {
-      std::unordered_map<GeometryId, math::RigidTransform<T>>& dest =
-          kinematics_data_.X_WGs;
-      const std::unordered_map<GeometryId, math::RigidTransform<U>>& s =
-          source.kinematics_data_.X_WGs;
-      for (const auto& id_pose_pair : s) {
-        const GeometryId id = id_pose_pair.first;
-        const math::RigidTransform<U>& X_WG_source = id_pose_pair.second;
-        dest.insert({id, X_WG_source.template cast<T>()});
-      }
-    }
-
-    // Now convert the id -> configuration map.
-    {
-      std::unordered_map<GeometryId, VectorX<T>>& dest = kinematics_data_.q_WGs;
-      const std::unordered_map<GeometryId, VectorX<U>>& s =
-          source.kinematics_data_.q_WGs;
-      for (const auto& id_configuration_pair : s) {
-        const GeometryId id = id_configuration_pair.first;
-        const VectorX<U>& q_WG_source = id_configuration_pair.second;
-        dest.insert({id, q_WG_source.template cast<T>()});
-      }
-    }
-  }
+  explicit GeometryState(const GeometryState<U>& source);
 
   // Allow SceneGraph unique access to the state members to perform queries.
   friend class SceneGraph<T>;
@@ -773,29 +691,6 @@ class GeometryState {
   // geometry belongs to no registered source.
   SourceId get_source_id(GeometryId frame_id) const;
 
-  // The origin from where an invocation of RemoveGeometryUnchecked was called.
-  // The origin changes the work that is required.
-  // TODO(SeanCurtis-TRI): Add `kFrame` when this can be invoked by removing
-  // a frame.
-  enum class RemoveGeometryOrigin {
-    kGeometry,  // Invoked by RemoveGeometry().
-    kRecurse    // Invoked by recursive call in RemoveGeometryUnchecked.
-  };
-
-  // Performs the work necessary to remove the identified geometry from
-  // the world. The amount of work depends on the context from which this
-  // method is invoked:
-  //
-  //  - RemoveGeometry(): A specific geometry (and its corresponding
-  //    hierarchy) is being removed. In addition to recursively removing all
-  //    child geometries, it must also remove this geometry id from its parent
-  //    frame and, if it exists, its parent geometry.
-  //   - RemoveGeometryUnchecked(): This is the recursive call; it's parent
-  //    is already slated for removal, so parent references can be left alone.
-  // @throws std::exception if `geometry_id` is not in `geometries_`.
-  void RemoveGeometryUnchecked(GeometryId geometry_id,
-                               RemoveGeometryOrigin caller);
-
   // Recursively updates the frame and geometry _pose_ information for the tree
   // rooted at the given frame, whose parent's pose in the world frame is given
   // as `X_WP`.
@@ -824,9 +719,9 @@ class GeometryState {
   void ThrowIfNameExistsInRole(FrameId id, Role role,
                                const std::string& name) const;
 
-  // Propagate all roles defined in geometry instance to `this` geometry state.
-  void AssignAllRoles(SourceId source_id, GeometryId geometry_id,
-                      std::unique_ptr<GeometryInstance> geometry);
+  // Propagates all roles defined in geometry instance to `this` geometry state.
+  void AssignAllDefinedRoles(SourceId source_id,
+                             std::unique_ptr<GeometryInstance> geometry);
 
   // Confirms that the given role assignment is valid and return the geometry
   // if valid. Throws if not.
@@ -840,12 +735,37 @@ class GeometryState {
   // @pre geometry_id maps to a registered geometry.
   bool RemoveRoleUnchecked(GeometryId geometry_id, Role role);
 
+  // Handles adding the given geometry to the proximity engine. The only
+  // GeometryState-level data structure modified is the proximity version. All
+  // other changes to GeometryState data must happen elsewhere.
+  void AddToProximityEngineUnchecked(
+      const internal::InternalGeometry& geometry);
+
+  // Handles removing the given geometry from the proximity engine. The only
+  // GeometryState-level data structure modified is the proximity version. All
+  // other changes to GeometryState data must happen elsewhere.
+  void RemoveFromProximityEngineUnchecked(
+      const internal::InternalGeometry& geometry);
+
   // Attempts to remove the geometry with the given `id` from the named
   // renderer. Returns true if removed (false doesn't imply "failure", just
   // nothing to remove). This does no checking on ownership.
   // @pre geometry_id maps to a registered geometry.
   bool RemoveFromRendererUnchecked(const std::string& renderer_name,
                                    GeometryId id);
+
+  // Attempts to add the given `geometry` to all compatible render engines. The
+  // only GeometryState-level data structure modified is the perception version.
+  // All other changes to GeometryState data must happen elsewhere.
+  // @returns `true` if the geometry was added to *any* renderer.
+  bool AddToCompatibleRenderersUnchecked(
+      const internal::InternalGeometry& geometry);
+
+  // Attempts to remove the geometry with the given id from *all* render
+  // engines. The only GeometryState-level data structure modified is the
+  // perception version. All other changes to GeometryState data must happen
+  // elsewhere.
+  void RemoveFromAllRenderersUnchecked(GeometryId id);
 
   bool RemoveProximityRole(GeometryId geometry_id);
   bool RemoveIllustrationRole(GeometryId geometry_id);

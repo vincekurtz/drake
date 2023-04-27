@@ -1,5 +1,3 @@
-# -*- python -*-
-
 load("//tools/workspace:github.bzl", "github_archive")
 
 def sdformat_internal_repository(
@@ -7,12 +5,14 @@ def sdformat_internal_repository(
         mirrors = None):
     github_archive(
         name = name,
+        # This dependency is part of a "cohort" defined in
+        # drake/tools/workspace/new_release.py.  When practical, all members
+        # of this cohort should be updated at the same time.
         repository = "gazebosim/sdformat",
-        commit = "sdformat12_12.5.0",
+        commit = "sdformat13_13.4.1",
         build_file = ":package.BUILD.bazel",
-        sha256 = "3896772db68b7ca7b18bbf1945a72206885b03d3f0caf29491be5b53b79a7124",  # noqa
+        sha256 = "28bfe11c2c7a78b6bd156769ebc40c34eda3de8eac47282f902d76fe9254b223",  # noqa
         patches = [
-            ":patches/1043.patch",
             ":patches/console.patch",
             ":patches/deprecation_unit_testing.patch",
             ":patches/no_global_config.patch",

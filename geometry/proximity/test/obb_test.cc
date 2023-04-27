@@ -114,7 +114,7 @@ GTEST_TEST(ObbMakerTest, VerifyEigenvalues) {
   // In all cases, points are measured and expressed in frame M,
   // and C is the centroid (average) of the points.
 
-  // Case 1: (rank 3, multiplicty 1).
+  // Case 1: (rank 3, multiplicity 1).
   // Covariance matrix of 8 vertices of the box [-1,-1]x[-2,2]x[-3,3]
   // has distinct eigenvalues in increasing order: 1, 2², 3².
   {
@@ -495,6 +495,25 @@ GTEST_TEST(ObbMakerTest, TestOptimizeObbVolume) {
   // Empirically we saw about 22% improvement for this particular example.
   // This check make sure the future code will not degrade this optimization.
   EXPECT_GT(percent_improvement, 22.0);
+
+  // Now repeat the test, but with a mesh that is so small that there's no point
+  // in optimizing it. The resulting "optimized" Obb should be identical to the
+  // original Obb.
+
+  // The whole mesh is much smaller than 1mm -- that should be sufficient.
+  TriangleSurfaceMesh<double> mesh2_M =
+      MakeEllipsoidSurfaceMesh<double>(Ellipsoid(1e-5, 2e-5, 3e-5), 6);
+  mesh2_M.TransformVertices(X_ME);
+  const Obb initial_obb2_M(X_ME, Vector3d(1e-5, 2e-5, 3e-5));
+  const Obb optimized_obb2_M =
+      ObbMakerTester<TriangleSurfaceMesh<double>>(mesh2_M, test_vertices)
+          .OptimizeObbVolume(initial_obb2_M);
+  // The pose and half_width will be bit identical as evidence that no work was
+  // done when the volume would not change appreciably.
+  EXPECT_TRUE(CompareMatrices(initial_obb2_M.half_width(),
+                              optimized_obb2_M.half_width()));
+  EXPECT_TRUE(CompareMatrices(initial_obb2_M.pose().GetAsMatrix34(),
+                              optimized_obb2_M.pose().GetAsMatrix34()));
 }
 
 // TODO(DamrongGuoy): Update the tests when we improve the algorithm

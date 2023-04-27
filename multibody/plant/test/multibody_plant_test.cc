@@ -3,6 +3,7 @@
 #include <functional>
 #include <limits>
 #include <memory>
+#include <regex>
 #include <set>
 #include <tuple>
 #include <utility>
@@ -34,6 +35,7 @@
 #include "drake/multibody/plant/discrete_contact_pair.h"
 #include "drake/multibody/plant/externally_applied_spatial_force.h"
 #include "drake/multibody/test_utilities/add_fixed_objects_to_plant.h"
+#include "drake/multibody/tree/planar_joint.h"
 #include "drake/multibody/tree/prismatic_joint.h"
 #include "drake/multibody/tree/revolute_joint.h"
 #include "drake/multibody/tree/revolute_spring.h"
@@ -99,27 +101,6 @@ class MultibodyPlantTester {
       const MultibodyPlant<T>& plant, GeometryId id) {
     return plant.FindBodyByGeometryId(id);
   }
-
-  static void CalcNormalAndTangentContactJacobians(
-      const MultibodyPlant<double>& plant, const Context<double>& context,
-      const std::vector<PenetrationAsPointPair<double>>& point_pairs,
-      MatrixX<double>* Jn, MatrixX<double>* Jt,
-      std::vector<RotationMatrix<double>>* R_WC_set) {
-    // We first convert point contact pairs to discrete contact pairs.
-    std::vector<internal::DiscreteContactPair<double>> discrete_pairs;
-    for (const PenetrationAsPointPair<double>& pair : point_pairs) {
-      const Vector3d p_WC = 0.5 * (pair.p_WCa + pair.p_WCb);
-      // fn0, k and d are irrelevant values for Jacobian computation. Thus we
-      // arbitrarily set them to zero.
-      const double fn0 = 0.0;
-      const double k = 0.0;
-      const double d = 0.0;
-      discrete_pairs.push_back(
-          {pair.id_A, pair.id_B, p_WC, pair.nhat_BA_W, fn0, k, d});
-    }
-    plant.CalcNormalAndTangentContactJacobians(
-        context, discrete_pairs, Jn, Jt, R_WC_set);
-  }
 };
 
 namespace {
@@ -158,8 +139,10 @@ GTEST_TEST(MultibodyPlant, SimpleModelCreation) {
 
   // Add a split pendulum to the plant.
   const ModelInstanceIndex pendulum_model_instance =
-      Parser(plant.get()).AddModelFromFile(FindResourceOrThrow(
-          "drake/multibody/plant/test/split_pendulum.sdf"));
+      Parser(plant.get())
+          .AddModels(FindResourceOrThrow(
+              "drake/multibody/plant/test/split_pendulum.sdf"))
+          .at(0);
   EXPECT_EQ(plant->num_model_instances(), 3);
 
   plant->Finalize();
@@ -191,10 +174,14 @@ GTEST_TEST(MultibodyPlant, SimpleModelCreation) {
   EXPECT_EQ(plant->num_velocities(), 3);
   EXPECT_EQ(plant->num_multibody_states(), 6);
 
+  // Acrobot is in the default model instance.
+  EXPECT_EQ(plant->num_actuators(default_model_instance()), 1);
   EXPECT_EQ(plant->num_actuated_dofs(default_model_instance()), 1);
   EXPECT_EQ(plant->num_positions(default_model_instance()), 2);
   EXPECT_EQ(plant->num_velocities(default_model_instance()), 2);
 
+  // Pendulum model instance.
+  EXPECT_EQ(plant->num_actuators(pendulum_model_instance), 1);
   EXPECT_EQ(plant->num_actuated_dofs(pendulum_model_instance), 1);
   EXPECT_EQ(plant->num_positions(pendulum_model_instance), 1);
   EXPECT_EQ(plant->num_velocities(pendulum_model_instance), 1);
@@ -219,10 +206,10 @@ GTEST_TEST(MultibodyPlant, SimpleModelCreation) {
       "DefaultModelInstance_actuation");
   EXPECT_EQ(plant->get_state_output_port(default_model_instance())
                 .get_name(),
-            "DefaultModelInstance_continuous_state");
+            "DefaultModelInstance_state");
   EXPECT_EQ(plant->get_state_output_port(pendulum_model_instance)
                 .get_name(),
-            "SplitPendulum_continuous_state");
+            "SplitPendulum_state");
 
   // Query if elements exist in the model.
   EXPECT_TRUE(plant->HasBodyNamed(parameters.link1_name()));
@@ -303,7 +290,7 @@ GTEST_TEST(MultibodyPlant, SimpleModelCreation) {
   const ForceElementIndex invalid_force_index(plant->num_force_elements() + 1);
   EXPECT_ANY_THROW(plant->GetForceElement<RevoluteSpring>(invalid_force_index));
 
-  // Get joint indices by model instance
+  // Get joint indices by model instance.
   const std::vector<JointIndex> acrobot_joint_indices =
       plant->GetJointIndices(default_model_instance());
   EXPECT_EQ(acrobot_joint_indices.size(), 2);
@@ -315,6 +302,34 @@ GTEST_TEST(MultibodyPlant, SimpleModelCreation) {
   EXPECT_EQ(pendulum_joint_indices.size(), 2);  // pin joint + weld joint.
   EXPECT_EQ(pendulum_joint_indices[0], pin_joint.index());
   EXPECT_EQ(pendulum_joint_indices[1], weld_joint.index());
+
+  // Get actuated joint indices only, by model instance.
+  const std::vector<JointIndex> acrobot_actuated_joint_indices =
+      plant->GetActuatedJointIndices(default_model_instance());
+  EXPECT_EQ(acrobot_actuated_joint_indices.size(), 1);
+  EXPECT_EQ(acrobot_actuated_joint_indices[0], elbow_joint.index());
+
+  const std::vector<JointIndex> pendulum_actuated_joint_indices =
+      plant->GetActuatedJointIndices(pendulum_model_instance);
+  EXPECT_EQ(pendulum_actuated_joint_indices.size(), 1);  // pin joint
+  EXPECT_EQ(pendulum_actuated_joint_indices[0], pin_joint.index());
+
+  // Get actuated joint actuator indices by model instance.
+  const std::vector<JointActuatorIndex> acrobot_joint_actuator_indices =
+      plant->GetJointActuatorIndices(default_model_instance());
+  EXPECT_EQ(acrobot_joint_actuator_indices.size(), 1);
+  EXPECT_EQ(plant->get_joint_actuator(acrobot_joint_actuator_indices[0])
+                .joint()
+                .index(),
+            elbow_joint.index());
+
+  const std::vector<JointActuatorIndex> pendulum_joint_actuator_indices =
+      plant->GetJointActuatorIndices(pendulum_model_instance);
+  EXPECT_EQ(pendulum_joint_actuator_indices.size(), 1);  // pin joint
+  EXPECT_EQ(plant->get_joint_actuator(pendulum_joint_actuator_indices[0])
+                .joint()
+                .index(),
+            pin_joint.index());
 
   // Templatized version to obtain retrieve a particular known type of joint.
   const RevoluteJoint<double>& shoulder =
@@ -380,6 +395,21 @@ GTEST_TEST(MultibodyPlant, SimpleModelCreation) {
   EXPECT_EQ(pendulum_frame_indices[5], weld_joint.frame_on_child().index());
 }
 
+GTEST_TEST(MultibodyPlantTest, AddJointActuator) {
+  MultibodyPlant<double> plant(0.0);
+  ModelInstanceIndex model_instance = plant.AddModelInstance("instance");
+  const SpatialInertia<double> M_B;  // Default construction is ok for this.
+  auto body = &plant.AddRigidBody("body", model_instance, M_B);
+  const Joint<double>& planar_joint =
+      plant.AddJoint(std::make_unique<PlanarJoint<double>>(
+          "planar", plant.world_body().body_frame(), body->body_frame(),
+          Eigen::Vector3d{0, 0, 0.1}));
+
+  DRAKE_EXPECT_THROWS_MESSAGE(
+      plant.AddJointActuator("planar_actuator", planar_joint),
+      ".*3 degrees of freedom.*");
+}
+
 GTEST_TEST(MultibodyPlantTest, AddMultibodyPlantSceneGraph) {
   systems::DiagramBuilder<double> builder;
   auto pair = AddMultibodyPlantSceneGraph(&builder, 0.0);
@@ -424,7 +454,7 @@ GTEST_TEST(MultibodyPlantTest, NoHeapAllocOnStringQueries) {
       std::make_unique<MultibodyPlant<double>>(0 /* plant type irrelevant */);
   Parser parser(plant.get());
   multibody::ModelInstanceIndex iiwa_instance =
-      parser.AddModelFromFile(FindResourceOrThrow(kSdfPath), "iiwa");
+      parser.AddModels(FindResourceOrThrow(kSdfPath)).at(0);
   plant->Finalize();
 
   // Use string to ensure that there is no heap allocation in the implicit
@@ -437,19 +467,45 @@ GTEST_TEST(MultibodyPlantTest, NoHeapAllocOnStringQueries) {
   drake::test::LimitMalloc dummy;
 
   // Check the HasX versions first. Note that functions that take no model
-  // instance argument delgate to model instance argument versions.
-  EXPECT_TRUE(plant->HasModelInstanceNamed("iiwa"));
+  // instance argument delegate to model instance argument versions.
+  EXPECT_TRUE(plant->HasModelInstanceNamed("iiwa14"));
   EXPECT_TRUE(plant->HasBodyNamed(kLinkName, iiwa_instance));
   EXPECT_TRUE(plant->HasFrameNamed(kLinkName, iiwa_instance));
   EXPECT_TRUE(plant->HasJointNamed(kJointName, iiwa_instance));
   EXPECT_TRUE(plant->HasJointActuatorNamed(kJointName, iiwa_instance));
 
   // Check the GetX versions now.
-  plant->GetModelInstanceByName("iiwa");
+  plant->GetModelInstanceByName("iiwa14");
   plant->GetBodyByName(kLinkName, iiwa_instance);
   plant->GetFrameByName(kLinkName, iiwa_instance);
   plant->GetJointByName(kJointName, iiwa_instance);
   plant->GetJointActuatorByName(kJointName, iiwa_instance);
+}
+
+// This test creates an empty model and checks simple invariants on model
+// elements. We test the contracts here, not in MultibodyTree, to test
+// behavior from public API perspective.
+GTEST_TEST(MultibodyPlant, EmptyWorldElements) {
+  const double time_step = 0.0;
+  MultibodyPlant<double> plant(time_step);
+  // Model instances.
+  EXPECT_EQ(plant.num_model_instances(), 2);
+  // Bodies.
+  EXPECT_EQ(plant.num_bodies(), 1);
+  const Body<double>& world_body = plant.world_body();
+  EXPECT_EQ(world_body.index(), world_index());
+  EXPECT_EQ(world_body.model_instance(), world_model_instance());
+  // Frames.
+  EXPECT_EQ(plant.num_frames(), 1);
+  const Frame<double>& world_frame = plant.world_frame();
+  EXPECT_EQ(world_frame.index(), world_frame_index());
+  EXPECT_EQ(world_frame.model_instance(), world_model_instance());
+  EXPECT_EQ(&world_body.body_frame(), &world_frame);
+  // Remaining elements.
+  EXPECT_EQ(plant.num_joints(), 0);
+  EXPECT_EQ(plant.num_actuators(), 0);
+  EXPECT_EQ(plant.num_constraints(), 0);
+  EXPECT_EQ(plant.num_force_elements(), 1);
 }
 
 GTEST_TEST(MultibodyPlantTest, EmptyWorldDiscrete) {
@@ -458,6 +514,8 @@ GTEST_TEST(MultibodyPlantTest, EmptyWorldDiscrete) {
   plant.Finalize();
   EXPECT_EQ(plant.num_velocities(), 0);
   EXPECT_EQ(plant.num_positions(), 0);
+  EXPECT_EQ(plant.num_multibody_states(), 0);
+  EXPECT_EQ(plant.num_actuated_dofs(), 0);
   // Compute discrete update.
   auto context = plant.CreateDefaultContext();
   auto& discrete_state_vector = context->get_discrete_state_vector();
@@ -467,7 +525,8 @@ GTEST_TEST(MultibodyPlantTest, EmptyWorldDiscrete) {
       new_discrete_state->get_vector();
   EXPECT_EQ(new_discrete_state_vector.size(), 0);
   DRAKE_EXPECT_NO_THROW(
-      plant.CalcDiscreteVariableUpdates(*context, new_discrete_state.get()));
+      plant.CalcForcedDiscreteVariableUpdate(*context,
+                                             new_discrete_state.get()));
 }
 
 GTEST_TEST(MultibodyPlantTest, EmptyWorldContinuous) {
@@ -475,6 +534,8 @@ GTEST_TEST(MultibodyPlantTest, EmptyWorldContinuous) {
   plant.Finalize();
   EXPECT_EQ(plant.num_velocities(), 0);
   EXPECT_EQ(plant.num_positions(), 0);
+  EXPECT_EQ(plant.num_multibody_states(), 0);
+  EXPECT_EQ(plant.num_actuated_dofs(), 0);
   // Compute continuous derivatives.
   auto context = plant.CreateDefaultContext();
   auto& continuous_state_vector = context->get_continuous_state_vector();
@@ -508,8 +569,9 @@ GTEST_TEST(ActuationPortsTest, CheckActuation) {
       "drake/multibody/benchmarks/acrobot/acrobot.sdf");
   const std::string cylinder_path = FindResourceOrThrow(
       "drake/multibody/benchmarks/free_body/uniform_solid_cylinder.urdf");
-  auto acrobot_instance = Parser(&plant).AddModelFromFile(acrobot_path);
-  auto cylinder_instance = Parser(&plant).AddModelFromFile(cylinder_path);
+  Parser parser(&plant);
+  auto acrobot_instance = parser.AddModels(acrobot_path).at(0);
+  auto cylinder_instance = parser.AddModels(cylinder_path).at(0);
   plant.Finalize();
 
   // Verify the number of actuators.
@@ -581,7 +643,7 @@ class AcrobotPlantTests : public ::testing::Test {
     const std::string full_name = FindResourceOrThrow(
         "drake/multibody/benchmarks/acrobot/acrobot.sdf");
     std::tie(plant_, scene_graph_) = AddMultibodyPlantSceneGraph(&builder, 0.0);
-    Parser(plant_).AddModelFromFile(full_name);
+    Parser(plant_).AddModels(full_name);
     // Sanity check on the availability of the optional source id before using
     // it.
     DRAKE_DEMAND(plant_->get_source_id() != std::nullopt);
@@ -631,7 +693,7 @@ class AcrobotPlantTests : public ::testing::Test {
     const std::string full_name = FindResourceOrThrow(
         "drake/multibody/benchmarks/acrobot/acrobot.sdf");
     discrete_plant_ = std::make_unique<MultibodyPlant<double>>(time_step);
-    Parser(discrete_plant_.get()).AddModelFromFile(full_name);
+    Parser(discrete_plant_.get()).AddModels(full_name);
     discrete_plant_->Finalize();
 
     discrete_context_ = discrete_plant_->CreateDefaultContext();
@@ -815,7 +877,7 @@ class AcrobotPlantTests : public ::testing::Test {
 
     diagram_->CalcTimeDerivatives(*context_, derivatives_.get());
     auto updates = discrete_plant_->AllocateDiscreteVariables();
-    discrete_plant_->CalcDiscreteVariableUpdates(
+    discrete_plant_->CalcForcedDiscreteVariableUpdate(
         *discrete_context_, updates.get());
 
     // Copies to plain Eigen vectors to verify the math.
@@ -997,7 +1059,7 @@ TEST_F(AcrobotPlantTests, VisualGeometryRegistration) {
   DRAKE_EXPECT_THROWS_MESSAGE(
       plant_->GetBodyFrameIdOrThrow(world_index()),
       /* Verify this method is throwing for the right reasons. */
-      "Body 'WorldBody' does not have geometry registered with it.");
+      "Body 'world' does not have geometry registered with it.");
 
   // Similarly, the "optional" variant should return a null opt.
   std::optional<FrameId> undefined_id =
@@ -1098,12 +1160,13 @@ GTEST_TEST(MultibodyPlantTest, Graphviz) {
       FindResourceOrThrow("drake/multibody/benchmarks/acrobot/acrobot.sdf");
   const std::string cylinder_path = FindResourceOrThrow(
       "drake/multibody/benchmarks/free_body/uniform_solid_cylinder.urdf");
-  Parser(&plant).AddModelFromFile(acrobot_path);
-  Parser(&plant).AddModelFromFile(cylinder_path);
-  Parser(&plant).AddModelFromFile(cylinder_path, "cylinder2");
+  Parser(&plant).AddModels(acrobot_path);
+  Parser(&plant).AddModels(cylinder_path);
+  Parser(&plant, "cylinder2").AddModels(cylinder_path);
 
   plant.set_name("MyTestMBP");
-  const std::string dot = plant.GetTopologyGraphvizString();
+  const std::string dot = std::regex_replace(plant.GetTopologyGraphvizString(),
+                                             std::regex("\\n"), "");
 
   // Check that the diagram is labeled with the system name.
   EXPECT_NE(std::string::npos, dot.find("MyTestMBP")) << dot;
@@ -1119,13 +1182,29 @@ GTEST_TEST(MultibodyPlantTest, Graphviz) {
   EXPECT_NE(std::string::npos, dot.find("uniformSolidCylinder", pos + 1))
       << dot;
   // Check for the second cylinder model instance.
-  EXPECT_NE(std::string::npos, dot.find("cylinder2")) << dot;
+  EXPECT_NE(std::string::npos,
+            dot.find("cylinder2::uniformSolidCylinder")) << dot;
   // Check for the Acrobot elbow joint.
   EXPECT_NE(std::string::npos, dot.find("ElbowJoint [revolute]")) << dot;
 
-  // Check that the same string appears before and after calling Finalize().
+  // Finalize() will add floating joints for the free bodies.
   plant.Finalize();
-  EXPECT_STREQ(dot.c_str(), plant.GetTopologyGraphvizString().c_str());
+  const std::string dot_finalized = std::regex_replace(
+      plant.GetTopologyGraphvizString(), std::regex("\\n"), "");
+
+  // Check that the pre-finalize string is a substring of the post-finalize
+  // string (ignoring newlines and the ending '}' as the last character)
+  EXPECT_THAT(dot_finalized.c_str(),
+              testing::HasSubstr(dot.substr(0, dot.size() - 1).c_str()));
+
+  // Check that the two floating joints created at Finalize() exist.
+  const size_t pos_finalized =
+      dot_finalized.find("world_uniformSolidCylinder [quaternion_floating]");
+  EXPECT_NE(std::string::npos, pos_finalized) << dot_finalized;
+  EXPECT_NE(
+      std::string::npos,
+      dot_finalized.find("world_uniformSolidCylinder [quaternion_floating]",
+                         pos_finalized + 1));
 }
 
 // Verifies that the right errors get invoked upon finalization.
@@ -1343,27 +1422,35 @@ GTEST_TEST(MultibodyPlantTest, AutoBodySceneGraphRegistration) {
 // collision because the `expected_pairs` only accounts for collision
 // geometries.
 GTEST_TEST(MultibodyPlantTest, FilterAdjacentBodies) {
-  SphereChainScenario scenario(3);
-  scenario.Finalize();
-  std::vector<geometry::PenetrationAsPointPair<double>> contacts =
-      scenario.ComputePointPairPenetration();
+  for (bool do_filters : {false, true}) {
+    SphereChainScenario scenario(3);
+    scenario.mutable_plant()->set_adjacent_bodies_collision_filters(do_filters);
+    scenario.Finalize();
+    std::vector<geometry::PenetrationAsPointPair<double>> contacts =
+        scenario.ComputePointPairPenetration();
 
-  // The expected collisions.
-  const std::set<std::pair<GeometryId, GeometryId>>& expected_pairs =
-      scenario.unfiltered_collisions();
-  ASSERT_EQ(contacts.size(), expected_pairs.size());
-
-  auto expect_pair_in_set = [&expected_pairs](GeometryId id1, GeometryId id2) {
-    auto pair1 = std::make_pair(id1, id2);
-    auto pair2 = std::make_pair(id2, id1);
-    if (expected_pairs.count(pair1) == 0 && expected_pairs.count(pair2) == 0) {
-      GTEST_FAIL() << "The pair " << id1 << ", " << id2
-                   << " is not in the expected set";
+    // The expected collisions.
+    const std::set<std::pair<GeometryId, GeometryId>>& expected_pairs =
+        scenario.unfiltered_collisions();
+    if (do_filters) {
+      ASSERT_EQ(contacts.size(), expected_pairs.size());
+      auto expect_pair_in_set = [&expected_pairs](
+          GeometryId id1, GeometryId id2) {
+        auto pair1 = std::make_pair(id1, id2);
+        auto pair2 = std::make_pair(id2, id1);
+        if (expected_pairs.count(pair1) == 0 &&
+            expected_pairs.count(pair2) == 0) {
+          GTEST_FAIL() << "The pair " << id1 << ", " << id2
+                       << " is not in the expected set";
+        }
+      };
+      for (int i = 0; i < static_cast<int>(contacts.size()); ++i) {
+        const auto& point_pair = contacts[i];
+        expect_pair_in_set(point_pair.id_A, point_pair.id_B);
+      }
+    } else {
+      ASSERT_GT(contacts.size(), expected_pairs.size());
     }
-  };
-  for (int i = 0; i < static_cast<int>(contacts.size()); ++i) {
-    const auto& point_pair = contacts[i];
-    expect_pair_in_set(point_pair.id_A, point_pair.id_B);
   }
 }
 
@@ -1509,7 +1596,7 @@ GTEST_TEST(MultibodyPlantTest, GetBodiesWeldedTo) {
   const std::string sdf_file =
       FindResourceOrThrow("drake/multibody/plant/test/split_pendulum.sdf");
   MultibodyPlant<double> plant(0.0);
-  Parser(&plant).AddModelFromFile(sdf_file);
+  Parser(&plant).AddModels(sdf_file);
   const Body<double>& upper = plant.GetBodyByName("upper_section");
   const Body<double>& lower = plant.GetBodyByName("lower_section");
 
@@ -1545,6 +1632,46 @@ GTEST_TEST(MultibodyPlantTest, GetBodiesWeldedTo) {
               UnorderedElementsAre(&upper_ad, &lower_ad));
 }
 
+// Checks plumbing and top-level contract in MultibodyPlant.
+// See more complete testing of this graph query in `multibody_graph_test`.
+GTEST_TEST(MultibodyPlantTest, GetBodiesKinematicallyAffectedBy) {
+  // This test expects that the following model has a world body and a pair of
+  // welded-together bodies.
+  const std::string sdf_file =
+      FindResourceOrThrow("drake/multibody/plant/test/split_pendulum.sdf");
+  MultibodyPlant<double> plant(0.0);
+  Parser(&plant).AddModels(sdf_file);
+  const Body<double>& upper = plant.GetBodyByName("upper_section");
+  const Body<double>& lower = plant.GetBodyByName("lower_section");
+  const JointIndex shoulder = plant.GetJointByName("pin").index();
+  const JointIndex elbow = plant.GetJointByName("weld").index();
+  // Add a new body, and weld it to the world body.
+  const Body<double>& extra = plant.AddRigidBody(
+      "extra", default_model_instance(), SpatialInertia<double>());
+  plant.WeldFrames(plant.world_frame(), extra.body_frame());
+
+  const std::vector<JointIndex> joints1{shoulder};
+  std::vector<BodyIndex> expected_bodies1{lower.index(), upper.index()};
+  std::sort(expected_bodies1.begin(), expected_bodies1.end());
+
+  // Verify we can only call GetBodiesKinematicallyAffectedBy() post-finalize.
+  DRAKE_EXPECT_THROWS_MESSAGE(
+      plant.GetBodiesKinematicallyAffectedBy(joints1),
+      "Pre-finalize calls to .*GetBodiesKinematicallyAffectedBy.*");
+  plant.Finalize();
+  EXPECT_EQ(plant.GetBodiesKinematicallyAffectedBy(joints1), expected_bodies1);
+
+  // Test throw condition: weld joint.
+  const std::vector<JointIndex> joints2{shoulder, elbow};
+  DRAKE_EXPECT_THROWS_MESSAGE(plant.GetBodiesKinematicallyAffectedBy(joints2),
+                              ".*joint with index.*welded.");
+
+  // Test throw condition: unregistered joint.
+  std::vector<JointIndex> joint100{JointIndex(100)};
+  DRAKE_EXPECT_THROWS_MESSAGE(plant.GetBodiesKinematicallyAffectedBy(joint100),
+                              ".*No joint with index.*registered.");
+}
+
 // Regression test for unhelpful error message -- see #14641.
 GTEST_TEST(MultibodyPlantTest, ReversedWeldError) {
   // This test expects that the following model has a world body and a pair of
@@ -1552,7 +1679,7 @@ GTEST_TEST(MultibodyPlantTest, ReversedWeldError) {
   const std::string sdf_file =
       FindResourceOrThrow("drake/multibody/plant/test/split_pendulum.sdf");
   MultibodyPlant<double> plant(0.0);
-  Parser(&plant).AddModelFromFile(sdf_file);
+  Parser(&plant).AddModels(sdf_file);
 
   // Add a new body, and weld it in the wrong direction using `WeldFrames`.
   const Body<double>& extra = plant.AddRigidBody(
@@ -2111,7 +2238,7 @@ class SplitPendulum : public ::testing::Test {
     // Make the cart_pole model.
     const std::string full_name = FindResourceOrThrow(
         "drake/multibody/plant/test/split_pendulum.sdf");
-    Parser(&plant_).AddModelFromFile(full_name);
+    Parser(&plant_).AddModels(full_name);
     plant_.Finalize();
 
     // Get pin joint so that we can set the state.
@@ -2182,7 +2309,7 @@ GTEST_TEST(MultibodyPlantTest, ScalarConversionConstructor) {
           "links_with_visuals_and_collisions.sdf");
   MultibodyPlant<double> plant(0.0);
   SceneGraph<double> scene_graph;
-  Parser(&plant, &scene_graph).AddModelFromFile(full_name);
+  Parser(&plant, &scene_graph).AddModels(full_name);
 
   // Try scalar-converting pre-finalize - error.
   DRAKE_EXPECT_THROWS_MESSAGE(
@@ -2520,54 +2647,6 @@ class MultibodyPlantContactJacobianTests : public ::testing::Test {
   const double penetration_{0.01};
 };
 
-TEST_F(MultibodyPlantContactJacobianTests, NormalAndTangentJacobian) {
-  const double kTolerance = 5 * std::numeric_limits<double>::epsilon();
-
-  // Store the orientation of the contact frames so that we can use them later
-  // to compute the same Jacobian using autodifferentiation.
-  std::vector<RotationMatrix<double>> R_WC_set;
-
-  // Compute separation velocities Jacobian.
-  MatrixX<double> N, D;
-  MultibodyPlantTester::CalcNormalAndTangentContactJacobians(
-          plant_, *context_, penetrations_, &N, &D, &R_WC_set);
-
-  // Assert Jt has the right sizes.
-  const int nv = plant_.num_velocities();
-  const int nc = penetrations_.size();
-
-  ASSERT_EQ(N.rows(), nc);
-  ASSERT_EQ(N.cols(), nv);
-
-  ASSERT_EQ(D.rows(), 2 * nc);
-  ASSERT_EQ(D.cols(), nv);
-
-  // Scalar convert the plant and its context_.
-  unique_ptr<MultibodyPlant<AutoDiffXd>> plant_autodiff;
-  unique_ptr<Context<AutoDiffXd>> context_autodiff;
-  tie(plant_autodiff, context_autodiff) = ConvertPlantAndContextToAutoDiffXd();
-
-  // Automatically differentiate vn (with respect to v) to get the normal
-  // separation velocities Jacobian N.
-  VectorX<AutoDiffXd> vn_autodiff = CalcNormalVelocities(
-      *plant_autodiff, *context_autodiff, penetrations_);
-  const MatrixX<double> vn_derivs = math::ExtractGradient(vn_autodiff);
-
-  // Verify the result.
-  EXPECT_TRUE(CompareMatrices(
-      N, vn_derivs, kTolerance, MatrixCompareType::relative));
-
-  // Automatically differentiate vt (with respect to v) to get the tangent
-  // velocities Jacobian Jt.
-  VectorX<AutoDiffXd> vt_autodiff = CalcTangentVelocities(
-      *plant_autodiff, *context_autodiff, penetrations_, R_WC_set);
-  const MatrixX<double> vt_derivs = math::ExtractGradient(vt_autodiff);
-
-  // Verify the result.
-  EXPECT_TRUE(CompareMatrices(
-      D, vt_derivs, kTolerance, MatrixCompareType::relative));
-}
-
 // Verifies that we can obtain the indexes into the state vector for each joint
 // in the model of a Kuka arm.
 // For this topologically simple model with only one branch of bodies with root
@@ -2579,7 +2658,7 @@ GTEST_TEST(KukaModel, JointIndexes) {
           "iiwa14_no_collision.sdf";
 
   MultibodyPlant<double> plant(0.0);
-  Parser(&plant).AddModelFromFile(FindResourceOrThrow(kSdfPath));
+  Parser(&plant).AddModels(FindResourceOrThrow(kSdfPath));
   const auto& base_link_frame = plant.GetFrameByName("iiwa_link_0");
   const Joint<double>& weld = plant.WeldFrames(
       plant.world_frame(), base_link_frame);
@@ -2664,7 +2743,7 @@ class KukaArmTest : public ::testing::TestWithParam<double> {
         "drake/manipulation/models/iiwa_description/sdf/"
             "iiwa14_no_collision.sdf";
     plant_ = std::make_unique<MultibodyPlant<double>>(this->GetParam());
-    Parser(plant_.get()).AddModelFromFile(FindResourceOrThrow(kSdfPath));
+    Parser(plant_.get()).AddModels(FindResourceOrThrow(kSdfPath));
     const Joint<double>& weld =
         plant_->WeldFrames(plant_->world_frame(),
                            plant_->GetFrameByName("iiwa_link_0"));
@@ -2798,10 +2877,11 @@ TEST_P(KukaArmTest, InstanceStateAccess) {
           "iiwa14_no_collision.sdf";
   plant_ = std::make_unique<MultibodyPlant<double>>(this->GetParam());
   Parser parser(plant_.get());
-  multibody::ModelInstanceIndex arm1 = parser.AddModelFromFile(
-      FindResourceOrThrow(kSdfPath), "arm1");
-  multibody::ModelInstanceIndex arm2 = parser.AddModelFromFile(
-      FindResourceOrThrow(kSdfPath), "arm2");
+  const std::string sdf_resource = FindResourceOrThrow(kSdfPath);
+  multibody::ModelInstanceIndex arm1 =
+      Parser(plant_.get(), "arm1").AddModels(sdf_resource).at(0);
+  multibody::ModelInstanceIndex arm2 =
+      Parser(plant_.get(), "arm2").AddModels(sdf_resource).at(0);
   plant_->WeldFrames(plant_->world_frame(),
                      plant_->GetFrameByName("iiwa_link_0", arm1));
   plant_->WeldFrames(plant_->world_frame(),
@@ -2949,7 +3029,7 @@ GTEST_TEST(StateSelection, JointHasNoActuator) {
   const std::string file_name =
       "drake/multibody/benchmarks/acrobot/acrobot.sdf";
   MultibodyPlant<double> plant(0.0);
-  Parser(&plant).AddModelFromFile(FindResourceOrThrow(file_name));
+  Parser(&plant).AddModels(FindResourceOrThrow(file_name));
   plant.Finalize();
 
   // Sanity checks.
@@ -2981,11 +3061,11 @@ GTEST_TEST(StateSelection, KukaWithSimpleGripper) {
   MultibodyPlant<double> plant(0.0);
   Parser parser(&plant);
   const ModelInstanceIndex arm_model =
-      parser.AddModelFromFile(FindResourceOrThrow(kArmSdfPath));
+      parser.AddModels(FindResourceOrThrow(kArmSdfPath)).at(0);
 
   // Add the gripper.
   const ModelInstanceIndex gripper_model =
-      parser.AddModelFromFile(FindResourceOrThrow(kWsg50SdfPath));
+      parser.AddModels(FindResourceOrThrow(kWsg50SdfPath)).at(0);
   const auto& end_effector = plant.GetBodyByName("iiwa_link_7", arm_model);
   const auto& gripper_body = plant.GetBodyByName("body", gripper_model);
   // We don't care for the actual pose of the gripper in the end effector frame
@@ -3213,15 +3293,15 @@ GTEST_TEST(StateSelection, FloatingBodies) {
   MultibodyPlant<double> plant(0.0);
 
   // Load a model of a table for the robot.
-  Parser parser(&plant);
+  Parser robot_parser(&plant, "robot");
   const ModelInstanceIndex robot_table_model =
-      parser.AddModelFromFile(table_sdf_path, "robot_table");
+      robot_parser.AddModels(table_sdf_path).at(0);
   plant.WeldFrames(plant.world_frame(),
                    plant.GetFrameByName("link", robot_table_model));
 
   // Load the robot and weld it on top of the robot table.
   const ModelInstanceIndex arm_model =
-      parser.AddModelFromFile(iiwa_sdf_path);
+      robot_parser.AddModels(iiwa_sdf_path).at(0);
 
   const double table_top_z_in_world =
       // table's top height
@@ -3234,8 +3314,9 @@ GTEST_TEST(StateSelection, FloatingBodies) {
       X_WLink0);
 
   // Load a second table for objects.
+  Parser objects_parser(&plant, "objects");
   const ModelInstanceIndex objects_table_model =
-      parser.AddModelFromFile(table_sdf_path, "objects_table");
+      objects_parser.AddModels(table_sdf_path).at(0);
   const RigidTransformd X_WT(Vector3d(0.8, 0.0, 0.0));
   plant.WeldFrames(plant.world_frame(),
                    plant.GetFrameByName("link", objects_table_model), X_WT);
@@ -3249,9 +3330,8 @@ GTEST_TEST(StateSelection, FloatingBodies) {
           X_TO));
 
   // Add a floating mug.
-  const ModelInstanceIndex mug_model =
-      parser.AddModelFromFile(mug_sdf_path);
-  const Body<double>& mug = plant.GetBodyByName("main_body", mug_model);
+  objects_parser.AddModels(mug_sdf_path);
+  const Body<double>& mug = plant.GetBodyByName("simple_mug");
 
   plant.Finalize();
 
@@ -3410,7 +3490,7 @@ GTEST_TEST(MultibodyPlantTest, RigidBodyParameters) {
   const double cube_mass = 5.0;
   const Vector3d cube_com(0, 0, 0);
   const UnitInertia<double> cube_unit_inertia =
-      UnitInertia<double>::SolidBox(cube_length, cube_length, cube_length);
+      UnitInertia<double>::SolidCube(cube_length);
   const RigidBody<double>& cube = plant.AddRigidBody(
       "cube", SpatialInertia<double>(cube_mass, cube_com, cube_unit_inertia));
 
@@ -3465,8 +3545,7 @@ GTEST_TEST(MultibodyPlantTest, RigidBodyParameters) {
   const double new_cube_mass = 3.0;
   const Vector3d new_cube_com(0, 0, 0);
   const UnitInertia<double> new_cube_unit_inertia =
-      UnitInertia<double>::SolidBox(new_cube_length, new_cube_length,
-                                    new_cube_length);
+      UnitInertia<double>::SolidCube(new_cube_length);
 
   SpatialInertia<double> new_sphere_params(new_sphere_mass, new_sphere_com,
                                            new_sphere_unit_inertia);
@@ -3606,8 +3685,8 @@ GTEST_TEST(MultibodyPlantTest, AutoDiffAcrobotParameters) {
 
   const RigidTransform<AutoDiffXd> X_link1_Ei(-l1_ad * Vector3d::UnitZ());
 
-  elbow_joint_parent_frame.SetPoseInBodyFrame(context_autodiff.get(),
-                                              X_link1_Ei);
+  elbow_joint_parent_frame.SetPoseInParentFrame(context_autodiff.get(),
+                                                X_link1_Ei);
 
   // Take the derivative of the mass matrix w.r.t. length.
   Matrix2<AutoDiffXd> mass_matrix;
@@ -3687,53 +3766,109 @@ GTEST_TEST(MultibodyPlantTest, AutoDiffAcrobotParameters) {
                               MatrixCompareType::relative));
 }
 
-GTEST_TEST(MultibodyPlantTests, FixedOffsetFrameParameters) {
+GTEST_TEST(MultibodyPlantTests, FixedOffsetFrameFunctions) {
   MultibodyPlant<double> plant(0.0);
+  const Body<double>& body_B = plant.AddRigidBody("body_B",
+                                                  SpatialInertia<double>{});
 
-  const Vector3d p_WF(0, 0, 0);
-  const RotationMatrixd R_WF{};
-  const RigidTransformd X_WF(R_WF, p_WF);
+  // Weld body B to the world W which creates a fixed offset frame Wp fixed to
+  // the world and a fixed offset frame P fixed to body B.
+  const RigidTransformd X_WWp(RotationMatrixd::MakeZRotation(M_PI/6),
+                              Vector3d(2, 2, 0));
+  const RigidTransformd X_WpP(RotationMatrixd::MakeZRotation(M_PI/12),
+                              Vector3d(0.1, 0.2, 0));
+  RigidTransformd X_BP(RotationMatrixd::MakeXRotation(M_PI/4),
+                       Vector3d(0, 0.3, 0.4));
+  const Joint<double>& weld_joint = plant.AddJoint<WeldJoint>("weld_WB",
+      plant.world_body(), X_WWp, body_B, X_BP, X_WpP);
 
-  const Body<double>& body = plant.AddRigidBody("B", SpatialInertia<double>{});;
-
-  const Joint<double>& weld_joint =
-      plant.AddJoint<WeldJoint>("weld_WB", plant.world_body(), X_WF, body, {},
-                                RigidTransformd::Identity());
-
-  const FixedOffsetFrame<double>& frame_F =
+  // Get a reference to the fixed offset frame P on body B.
+  const FixedOffsetFrame<double>& frame_P =
       dynamic_cast<const FixedOffsetFrame<double>&>(
-          weld_joint.frame_on_parent());
+          weld_joint.frame_on_child());
 
+  // Create a fixed offset frame F on body B whose parent frame is P.
+  RigidTransformd X_PF(RotationMatrixd::MakeZRotation(M_PI/3),
+                       Vector3d(0.9, 0.7, 0.3));
+  const FixedOffsetFrame<double>& frame_F = plant.AddFrame(
+      std::make_unique<FixedOffsetFrame<double>>(
+          "fixed_offset_frame_F", frame_P, X_PF));
+
+  // Finalize the plant and create a default context.
   plant.Finalize();
-
-  // Create a default context.
   auto context = plant.CreateDefaultContext();
+  constexpr double kTolerance = 8 * std::numeric_limits<double>::epsilon();
 
-  // Verify default parameters are set for the frame and that they've propagated
-  // to the welded body's pose.
-  const RigidTransformd& X_WF_context = frame_F.CalcPoseInBodyFrame(*context);
-  const math::RigidTransformd& X_WF_body =
-      plant.EvalBodyPoseInWorld(*context, body);
+  // Verify frame P's pose in its parent B (reminder P is a fixed-offset frame).
+  RigidTransformd X_BP_check1 = frame_P.GetPoseInParentFrame(*context);
+  RigidTransformd X_BP_check2 = frame_P.CalcPoseInBodyFrame(*context);
+  EXPECT_TRUE(X_BP_check1.IsNearlyEqualTo(X_BP, kTolerance));
+  EXPECT_TRUE(X_BP_check2.IsNearlyEqualTo(X_BP, kTolerance));
 
-  EXPECT_TRUE(
-      CompareMatrices(X_WF.GetAsMatrix34(), X_WF_context.GetAsMatrix34()));
-  EXPECT_TRUE(CompareMatrices(X_WF.GetAsMatrix34(), X_WF_body.GetAsMatrix34()));
+  // Verify frame P's pose in world W.
+  RigidTransformd X_WP = X_WWp * X_WpP;
+  RigidTransformd X_WP_check = frame_P.CalcPoseInWorld(*context);
+  EXPECT_TRUE(X_WP_check.IsNearlyEqualTo(X_WP, kTolerance));
 
-  // Set new parameters and verify they propagate.
-  const Vector3d p_WF_new(1, 1, 1);
-  const RotationMatrixd R_WF_new = RotationMatrixd::MakeXRotation(3);
-  const RigidTransformd X_WF_new(R_WF_new, p_WF_new);
+  // Verify frame F's pose in its parent P.
+  RigidTransformd X_PF_check = frame_F.GetPoseInParentFrame(*context);
+  EXPECT_TRUE(X_PF_check.IsNearlyEqualTo(X_PF, kTolerance));
 
-  frame_F.SetPoseInBodyFrame(context.get(), X_WF_new);
+  // Verify frame F's pose in body B.
+  RigidTransformd X_BF = X_BP * X_PF;
+  RigidTransformd X_BF_check = frame_F.CalcPoseInBodyFrame(*context);
+  EXPECT_TRUE(X_BF_check.IsNearlyEqualTo(X_BF, kTolerance));
 
-  const RigidTransformd& X_WF_context_new =
-      frame_F.CalcPoseInBodyFrame(*context);
-  const math::RigidTransformd& X_WF_body_new =
-      plant.EvalBodyPoseInWorld(*context, body);
-  EXPECT_TRUE(CompareMatrices(X_WF_new.GetAsMatrix34(),
-                              X_WF_context_new.GetAsMatrix34()));
-  EXPECT_TRUE(
-      CompareMatrices(X_WF_new.GetAsMatrix34(), X_WF_body_new.GetAsMatrix34()));
+  // Verify frame F's pose in world W.
+  RigidTransformd X_WF = X_WWp * X_WpP * X_PF;
+  RigidTransformd X_WF_check = frame_F.CalcPoseInWorld(*context);
+  EXPECT_TRUE(X_WF_check.IsNearlyEqualTo(X_WF, kTolerance));
+
+  // Verify body B's pose in world W.
+  RigidTransformd X_WB = X_WWp * X_WpP * X_BP.inverse();
+  RigidTransformd X_WB_check = plant.EvalBodyPoseInWorld(*context, body_B);
+  EXPECT_TRUE(X_WB_check.IsNearlyEqualTo(X_WB, kTolerance));
+
+  //-------------------------------------------------------------------------
+  // Set new pose for fixed offset frame P and verify it propagates correctly.
+  X_BP = RigidTransformd(RotationMatrixd::MakeXRotation(3*M_PI/4),
+                         Vector3d(0, 0.5, 0.8));
+  frame_P.SetPoseInParentFrame(context.get(), X_BP);
+
+  // Verify frame P's new pose in its parent B.
+  X_BP_check1 = frame_P.GetPoseInParentFrame(*context);
+  X_BP_check2 = frame_P.CalcPoseInBodyFrame(*context);
+  EXPECT_TRUE(X_BP_check1.IsNearlyEqualTo(X_BP, kTolerance));
+  EXPECT_TRUE(X_BP_check2.IsNearlyEqualTo(X_BP, kTolerance));
+
+  // Verify frame P's new pose in world W (which should not have changed).
+  X_WP_check = frame_P.CalcPoseInWorld(*context);
+  EXPECT_TRUE(X_WP_check.IsNearlyEqualTo(X_WP, kTolerance));
+
+  //-------------------------------------------------------------------------
+  // Set new pose for fixed offset frame F and verify it propagates correctly.
+  X_PF = RigidTransformd(RotationMatrixd::MakeZRotation(2*M_PI/3),
+                         Vector3d(2, 2, 2));
+  frame_F.SetPoseInParentFrame(context.get(), X_PF);
+
+  // Verify frame F's new pose in its parent P.
+  X_PF_check = frame_F.GetPoseInParentFrame(*context);
+  EXPECT_TRUE(X_PF_check.IsNearlyEqualTo(X_PF, kTolerance));
+
+  // Verify frame F's new pose in body B.
+  X_BF = X_BP * X_PF;
+  X_BF_check = frame_F.CalcPoseInBodyFrame(*context);
+  EXPECT_TRUE(X_BF_check.IsNearlyEqualTo(X_BF, kTolerance));
+
+  // Verify frame F's new pose in world W.
+  X_WF = X_WWp * X_WpP * X_PF;
+  X_WF_check = frame_F.CalcPoseInWorld(*context);
+  EXPECT_TRUE(X_WF_check.IsNearlyEqualTo(X_WF, kTolerance));
+
+  // Verify body B's pose in world W.
+  X_WB = X_WWp * X_WpP * X_BP.inverse();
+  X_WB_check = plant.EvalBodyPoseInWorld(*context, body_B);
+  EXPECT_TRUE(X_WB_check.IsNearlyEqualTo(X_WB, kTolerance));
 }
 
 GTEST_TEST(MultibodyPlant, CombinePointContactParameters) {
@@ -3761,7 +3896,7 @@ GTEST_TEST(MultibodyPlant, CombinePointContactParameters) {
 GTEST_TEST(MultibodyPlant, FixInputPortsFrom) {
   systems::DiagramBuilder<double> builder;
   MultibodyPlant<double>& plant = AddMultibodyPlantSceneGraph(&builder, 0.0);
-  Parser(&plant).AddModelFromFile(
+  Parser(&plant).AddModels(
       FindResourceOrThrow("drake/multibody/plant/test/split_pendulum.sdf"));
   plant.Finalize();
   auto diagram = builder.Build();
@@ -3787,8 +3922,9 @@ GTEST_TEST(MultibodyPlantTests, ActuationPorts) {
   // Add a split pendulum to the plant.
   const ModelInstanceIndex pendulum_model_instance =
       Parser(plant.get())
-          .AddModelFromFile(FindResourceOrThrow(
-              "drake/multibody/plant/test/split_pendulum.sdf"));
+          .AddModels(FindResourceOrThrow(
+              "drake/multibody/plant/test/split_pendulum.sdf"))
+          .at(0);
   plant->Finalize();
   ASSERT_EQ(plant->num_actuated_dofs(default_model_instance()), 1);
   ASSERT_EQ(plant->num_actuated_dofs(pendulum_model_instance), 1);
@@ -3841,8 +3977,7 @@ GTEST_TEST(MultibodyPlantTests, AlgebraicLoopDetection) {
       "drake/manipulation/models/iiwa_description/sdf/"
       "iiwa14_no_collision.sdf";
   Parser parser(plant);
-  auto iiwa_instance =
-      parser.AddModelFromFile(FindResourceOrThrow(kSdfPath), "iiwa");
+  auto iiwa_instance = parser.AddModels(FindResourceOrThrow(kSdfPath)).at(0);
   plant->Finalize();
   auto feedback =
       builder.AddSystem<systems::PassThrough<double>>(plant->num_velocities());
@@ -3939,11 +4074,11 @@ GTEST_TEST(MultibodyPlantTest, SetDefaultPositions) {
       "iiwa14_no_collision.sdf";
   auto plant =
       std::make_unique<MultibodyPlant<double>>(0 /* plant type irrelevant */);
-  Parser parser(plant.get());
+  const std::string sdf_resource = FindResourceOrThrow(kSdfPath);
   multibody::ModelInstanceIndex iiwa0_instance =
-      parser.AddModelFromFile(FindResourceOrThrow(kSdfPath), "iiwa0");
+      Parser(plant.get(), "iiwa0").AddModels(sdf_resource).at(0);
   multibody::ModelInstanceIndex iiwa1_instance =
-      parser.AddModelFromFile(FindResourceOrThrow(kSdfPath), "iiwa1");
+      Parser(plant.get(), "iiwa1").AddModels(sdf_resource).at(0);
   // Weld iiwa0 to the world, leave iiwa1 to be floating.
   plant->WeldFrames(plant->world_frame(),
                     plant->GetFrameByName("iiwa_link_0", iiwa0_instance));
@@ -3991,6 +4126,362 @@ GTEST_TEST(MultibodyPlantTest, SetDefaultPositions) {
                               q.head<7>()));
   EXPECT_TRUE(CompareMatrices(plant->GetPositions(*context, iiwa1_instance),
                               q.tail<14>(), kTol));
+}
+
+GTEST_TEST(MultibodyPlantTest, GetNames) {
+  // Construct a plant with two Iiwas.
+  const char kSdfPath[] =
+      "drake/manipulation/models/iiwa_description/sdf/"
+      "iiwa14_no_collision.sdf";
+  auto plant =
+      std::make_unique<MultibodyPlant<double>>(0 /* plant type irrelevant */);
+  const std::string sdf_resource = FindResourceOrThrow(kSdfPath);
+  multibody::ModelInstanceIndex iiwa0_instance =
+      Parser(plant.get(), "iiwa0").AddModels(sdf_resource).at(0);
+  multibody::ModelInstanceIndex iiwa1_instance =
+      Parser(plant.get(), "iiwa1").AddModels(sdf_resource).at(0);
+  // Weld iiwa0 to the world, leave iiwa1 to be floating.
+  plant->WeldFrames(plant->world_frame(),
+                    plant->GetFrameByName("iiwa_link_0", iiwa0_instance));
+
+  // Throws if called pre-finalize.
+  DRAKE_EXPECT_THROWS_MESSAGE(plant->GetPositionNames(),
+                              ".*you must call Finalize.* first.");
+  DRAKE_EXPECT_THROWS_MESSAGE(plant->GetVelocityNames(),
+                              ".*you must call Finalize.* first.");
+  DRAKE_EXPECT_THROWS_MESSAGE(plant->GetStateNames(),
+                              ".*you must call Finalize.* first.");
+  DRAKE_EXPECT_THROWS_MESSAGE(plant->GetActuatorNames(),
+                              ".*you must call Finalize.* first.");
+  plant->Finalize();
+
+  // Throws if model_instance is invalid. Currently the message is platform
+  // dependent (thrown by model_instances.at() in
+  // MultibodyTree::num_positions(model_instance)).
+  // TODO(russt): Throw a proper message in MultibodyTree.
+  EXPECT_THROW(plant->GetPositionNames(ModelInstanceIndex()), std::exception);
+  EXPECT_THROW(plant->GetVelocityNames(ModelInstanceIndex()), std::exception);
+  EXPECT_THROW(plant->GetStateNames(ModelInstanceIndex()), std::exception);
+  EXPECT_THROW(plant->GetActuatorNames(ModelInstanceIndex()), std::exception);
+
+  std::vector<std::string> names = plant->GetPositionNames(iiwa0_instance);
+  EXPECT_THAT(names, testing::ElementsAreArray(
+                         {"iiwa_joint_1_q", "iiwa_joint_2_q", "iiwa_joint_3_q",
+                          "iiwa_joint_4_q", "iiwa_joint_5_q", "iiwa_joint_6_q",
+                          "iiwa_joint_7_q"}));
+
+  names = plant->GetPositionNames(iiwa0_instance,
+                                  true /* add_model_instance_prefix */,
+                                  true /* always_add_suffix */);
+  EXPECT_THAT(
+      names,
+      testing::ElementsAreArray(
+          {"iiwa0::iiwa14_iiwa_joint_1_q", "iiwa0::iiwa14_iiwa_joint_2_q",
+           "iiwa0::iiwa14_iiwa_joint_3_q", "iiwa0::iiwa14_iiwa_joint_4_q",
+           "iiwa0::iiwa14_iiwa_joint_5_q", "iiwa0::iiwa14_iiwa_joint_6_q",
+           "iiwa0::iiwa14_iiwa_joint_7_q"}));
+
+  names = plant->GetPositionNames(iiwa0_instance,
+                                  true /* add_model_instance_prefix */,
+                                  false /* always_add_suffix */);
+  EXPECT_THAT(names,
+              testing::ElementsAreArray(
+                  {"iiwa0::iiwa14_iiwa_joint_1", "iiwa0::iiwa14_iiwa_joint_2",
+                   "iiwa0::iiwa14_iiwa_joint_3", "iiwa0::iiwa14_iiwa_joint_4",
+                   "iiwa0::iiwa14_iiwa_joint_5", "iiwa0::iiwa14_iiwa_joint_6",
+                   "iiwa0::iiwa14_iiwa_joint_7"}));
+
+  names = plant->GetPositionNames(iiwa0_instance,
+                                  false /* add_model_instance_prefix */,
+                                  true /* always_add_suffix */);
+  EXPECT_THAT(names, testing::ElementsAreArray(
+                         {"iiwa_joint_1_q", "iiwa_joint_2_q", "iiwa_joint_3_q",
+                          "iiwa_joint_4_q", "iiwa_joint_5_q", "iiwa_joint_6_q",
+                          "iiwa_joint_7_q"}));
+
+  names = plant->GetPositionNames(iiwa0_instance,
+                                  false /* add_model_instance_prefix */,
+                                  false /* always_add_suffix */);
+  EXPECT_THAT(names, testing::ElementsAreArray({"iiwa_joint_1", "iiwa_joint_2",
+                                                "iiwa_joint_3", "iiwa_joint_4",
+                                                "iiwa_joint_5", "iiwa_joint_6",
+                                                "iiwa_joint_7"}));
+
+  names = plant->GetPositionNames(iiwa1_instance);
+  EXPECT_THAT(names,
+              testing::ElementsAreArray(
+                  {"$world_iiwa_link_0_qw", "$world_iiwa_link_0_qx",
+                   "$world_iiwa_link_0_qy", "$world_iiwa_link_0_qz",
+                   "$world_iiwa_link_0_x", "$world_iiwa_link_0_y",
+                   "$world_iiwa_link_0_z", "iiwa_joint_1_q", "iiwa_joint_2_q",
+                   "iiwa_joint_3_q", "iiwa_joint_4_q", "iiwa_joint_5_q",
+                   "iiwa_joint_6_q", "iiwa_joint_7_q"}));
+
+  names = plant->GetPositionNames();
+  EXPECT_THAT(names,
+              testing::ElementsAreArray({"iiwa0::iiwa14_iiwa_joint_1_q",
+                                         "iiwa0::iiwa14_iiwa_joint_2_q",
+                                         "iiwa0::iiwa14_iiwa_joint_3_q",
+                                         "iiwa0::iiwa14_iiwa_joint_4_q",
+                                         "iiwa0::iiwa14_iiwa_joint_5_q",
+                                         "iiwa0::iiwa14_iiwa_joint_6_q",
+                                         "iiwa0::iiwa14_iiwa_joint_7_q",
+                                         "iiwa1::iiwa14_$world_iiwa_link_0_qw",
+                                         "iiwa1::iiwa14_$world_iiwa_link_0_qx",
+                                         "iiwa1::iiwa14_$world_iiwa_link_0_qy",
+                                         "iiwa1::iiwa14_$world_iiwa_link_0_qz",
+                                         "iiwa1::iiwa14_$world_iiwa_link_0_x",
+                                         "iiwa1::iiwa14_$world_iiwa_link_0_y",
+                                         "iiwa1::iiwa14_$world_iiwa_link_0_z",
+                                         "iiwa1::iiwa14_iiwa_joint_1_q",
+                                         "iiwa1::iiwa14_iiwa_joint_2_q",
+                                         "iiwa1::iiwa14_iiwa_joint_3_q",
+                                         "iiwa1::iiwa14_iiwa_joint_4_q",
+                                         "iiwa1::iiwa14_iiwa_joint_5_q",
+                                         "iiwa1::iiwa14_iiwa_joint_6_q",
+                                         "iiwa1::iiwa14_iiwa_joint_7_q"}));
+
+  names = plant->GetPositionNames(false /* add_model_instance_prefix */,
+                                  false /* always_add_suffix */);
+  EXPECT_THAT(names, testing::ElementsAreArray(
+                         {"iiwa_joint_1",          "iiwa_joint_2",
+                          "iiwa_joint_3",          "iiwa_joint_4",
+                          "iiwa_joint_5",          "iiwa_joint_6",
+                          "iiwa_joint_7",          "$world_iiwa_link_0_qw",
+                          "$world_iiwa_link_0_qx", "$world_iiwa_link_0_qy",
+                          "$world_iiwa_link_0_qz", "$world_iiwa_link_0_x",
+                          "$world_iiwa_link_0_y",  "$world_iiwa_link_0_z",
+                          "iiwa_joint_1",          "iiwa_joint_2",
+                          "iiwa_joint_3",          "iiwa_joint_4",
+                          "iiwa_joint_5",          "iiwa_joint_6",
+                          "iiwa_joint_7"}));
+
+  names = plant->GetVelocityNames(iiwa0_instance);
+  EXPECT_THAT(names, testing::ElementsAreArray(
+                         {"iiwa_joint_1_w", "iiwa_joint_2_w", "iiwa_joint_3_w",
+                          "iiwa_joint_4_w", "iiwa_joint_5_w", "iiwa_joint_6_w",
+                          "iiwa_joint_7_w"}));
+
+  names = plant->GetVelocityNames(iiwa0_instance,
+                                  true /* add_model_instance_prefix */,
+                                  true /* always_add_suffix */);
+  EXPECT_THAT(
+      names,
+      testing::ElementsAreArray(
+          {"iiwa0::iiwa14_iiwa_joint_1_w", "iiwa0::iiwa14_iiwa_joint_2_w",
+           "iiwa0::iiwa14_iiwa_joint_3_w", "iiwa0::iiwa14_iiwa_joint_4_w",
+           "iiwa0::iiwa14_iiwa_joint_5_w", "iiwa0::iiwa14_iiwa_joint_6_w",
+           "iiwa0::iiwa14_iiwa_joint_7_w"}));
+
+  names = plant->GetVelocityNames(iiwa0_instance,
+                                  true /* add_model_instance_prefix */,
+                                  false /* always_add_suffix */);
+  EXPECT_THAT(names,
+              testing::ElementsAreArray(
+                  {"iiwa0::iiwa14_iiwa_joint_1", "iiwa0::iiwa14_iiwa_joint_2",
+                   "iiwa0::iiwa14_iiwa_joint_3", "iiwa0::iiwa14_iiwa_joint_4",
+                   "iiwa0::iiwa14_iiwa_joint_5", "iiwa0::iiwa14_iiwa_joint_6",
+                   "iiwa0::iiwa14_iiwa_joint_7"}));
+
+  names = plant->GetVelocityNames(iiwa0_instance,
+                                  false /* add_model_instance_prefix */,
+                                  true /* always_add_suffix */);
+  EXPECT_THAT(names, testing::ElementsAreArray(
+                         {"iiwa_joint_1_w", "iiwa_joint_2_w", "iiwa_joint_3_w",
+                          "iiwa_joint_4_w", "iiwa_joint_5_w", "iiwa_joint_6_w",
+                          "iiwa_joint_7_w"}));
+
+  names = plant->GetVelocityNames(iiwa0_instance,
+                                  false /* add_model_instance_prefix */,
+                                  false /* always_add_suffix */);
+  EXPECT_THAT(names, testing::ElementsAreArray({"iiwa_joint_1", "iiwa_joint_2",
+                                                "iiwa_joint_3", "iiwa_joint_4",
+                                                "iiwa_joint_5", "iiwa_joint_6",
+                                                "iiwa_joint_7"}));
+
+  names = plant->GetVelocityNames(iiwa1_instance);
+  EXPECT_THAT(names, testing::ElementsAreArray(
+                         {"$world_iiwa_link_0_wx", "$world_iiwa_link_0_wy",
+                          "$world_iiwa_link_0_wz", "$world_iiwa_link_0_vx",
+                          "$world_iiwa_link_0_vy", "$world_iiwa_link_0_vz",
+                          "iiwa_joint_1_w", "iiwa_joint_2_w", "iiwa_joint_3_w",
+                          "iiwa_joint_4_w", "iiwa_joint_5_w", "iiwa_joint_6_w",
+                          "iiwa_joint_7_w"}));
+
+  names = plant->GetVelocityNames();
+  EXPECT_THAT(names,
+              testing::ElementsAreArray({"iiwa0::iiwa14_iiwa_joint_1_w",
+                                         "iiwa0::iiwa14_iiwa_joint_2_w",
+                                         "iiwa0::iiwa14_iiwa_joint_3_w",
+                                         "iiwa0::iiwa14_iiwa_joint_4_w",
+                                         "iiwa0::iiwa14_iiwa_joint_5_w",
+                                         "iiwa0::iiwa14_iiwa_joint_6_w",
+                                         "iiwa0::iiwa14_iiwa_joint_7_w",
+                                         "iiwa1::iiwa14_$world_iiwa_link_0_wx",
+                                         "iiwa1::iiwa14_$world_iiwa_link_0_wy",
+                                         "iiwa1::iiwa14_$world_iiwa_link_0_wz",
+                                         "iiwa1::iiwa14_$world_iiwa_link_0_vx",
+                                         "iiwa1::iiwa14_$world_iiwa_link_0_vy",
+                                         "iiwa1::iiwa14_$world_iiwa_link_0_vz",
+                                         "iiwa1::iiwa14_iiwa_joint_1_w",
+                                         "iiwa1::iiwa14_iiwa_joint_2_w",
+                                         "iiwa1::iiwa14_iiwa_joint_3_w",
+                                         "iiwa1::iiwa14_iiwa_joint_4_w",
+                                         "iiwa1::iiwa14_iiwa_joint_5_w",
+                                         "iiwa1::iiwa14_iiwa_joint_6_w",
+                                         "iiwa1::iiwa14_iiwa_joint_7_w"}));
+
+  names = plant->GetVelocityNames(false /* add_model_instance_prefix */,
+                                  false /* always_add_suffix */);
+  EXPECT_THAT(names, testing::ElementsAreArray(
+                         {"iiwa_joint_1",          "iiwa_joint_2",
+                          "iiwa_joint_3",          "iiwa_joint_4",
+                          "iiwa_joint_5",          "iiwa_joint_6",
+                          "iiwa_joint_7",          "$world_iiwa_link_0_wx",
+                          "$world_iiwa_link_0_wy", "$world_iiwa_link_0_wz",
+                          "$world_iiwa_link_0_vx", "$world_iiwa_link_0_vy",
+                          "$world_iiwa_link_0_vz", "iiwa_joint_1",
+                          "iiwa_joint_2",          "iiwa_joint_3",
+                          "iiwa_joint_4",          "iiwa_joint_5",
+                          "iiwa_joint_6",          "iiwa_joint_7"}));
+
+  names = plant->GetStateNames(iiwa0_instance);
+  EXPECT_THAT(names, testing::ElementsAreArray(
+                         {"iiwa_joint_1_q", "iiwa_joint_2_q", "iiwa_joint_3_q",
+                          "iiwa_joint_4_q", "iiwa_joint_5_q", "iiwa_joint_6_q",
+                          "iiwa_joint_7_q", "iiwa_joint_1_w", "iiwa_joint_2_w",
+                          "iiwa_joint_3_w", "iiwa_joint_4_w", "iiwa_joint_5_w",
+                          "iiwa_joint_6_w", "iiwa_joint_7_w"}));
+
+  names = plant->GetStateNames(iiwa0_instance,
+                               true /* add_model_instance_prefix */);
+  EXPECT_THAT(
+      names,
+      testing::ElementsAreArray(
+          {"iiwa0::iiwa14_iiwa_joint_1_q", "iiwa0::iiwa14_iiwa_joint_2_q",
+           "iiwa0::iiwa14_iiwa_joint_3_q", "iiwa0::iiwa14_iiwa_joint_4_q",
+           "iiwa0::iiwa14_iiwa_joint_5_q", "iiwa0::iiwa14_iiwa_joint_6_q",
+           "iiwa0::iiwa14_iiwa_joint_7_q", "iiwa0::iiwa14_iiwa_joint_1_w",
+           "iiwa0::iiwa14_iiwa_joint_2_w", "iiwa0::iiwa14_iiwa_joint_3_w",
+           "iiwa0::iiwa14_iiwa_joint_4_w", "iiwa0::iiwa14_iiwa_joint_5_w",
+           "iiwa0::iiwa14_iiwa_joint_6_w", "iiwa0::iiwa14_iiwa_joint_7_w"}));
+
+  names = plant->GetStateNames();
+  EXPECT_THAT(names,
+              testing::ElementsAreArray({"iiwa0::iiwa14_iiwa_joint_1_q",
+                                         "iiwa0::iiwa14_iiwa_joint_2_q",
+                                         "iiwa0::iiwa14_iiwa_joint_3_q",
+                                         "iiwa0::iiwa14_iiwa_joint_4_q",
+                                         "iiwa0::iiwa14_iiwa_joint_5_q",
+                                         "iiwa0::iiwa14_iiwa_joint_6_q",
+                                         "iiwa0::iiwa14_iiwa_joint_7_q",
+                                         "iiwa1::iiwa14_$world_iiwa_link_0_qw",
+                                         "iiwa1::iiwa14_$world_iiwa_link_0_qx",
+                                         "iiwa1::iiwa14_$world_iiwa_link_0_qy",
+                                         "iiwa1::iiwa14_$world_iiwa_link_0_qz",
+                                         "iiwa1::iiwa14_$world_iiwa_link_0_x",
+                                         "iiwa1::iiwa14_$world_iiwa_link_0_y",
+                                         "iiwa1::iiwa14_$world_iiwa_link_0_z",
+                                         "iiwa1::iiwa14_iiwa_joint_1_q",
+                                         "iiwa1::iiwa14_iiwa_joint_2_q",
+                                         "iiwa1::iiwa14_iiwa_joint_3_q",
+                                         "iiwa1::iiwa14_iiwa_joint_4_q",
+                                         "iiwa1::iiwa14_iiwa_joint_5_q",
+                                         "iiwa1::iiwa14_iiwa_joint_6_q",
+                                         "iiwa1::iiwa14_iiwa_joint_7_q",
+                                         "iiwa0::iiwa14_iiwa_joint_1_w",
+                                         "iiwa0::iiwa14_iiwa_joint_2_w",
+                                         "iiwa0::iiwa14_iiwa_joint_3_w",
+                                         "iiwa0::iiwa14_iiwa_joint_4_w",
+                                         "iiwa0::iiwa14_iiwa_joint_5_w",
+                                         "iiwa0::iiwa14_iiwa_joint_6_w",
+                                         "iiwa0::iiwa14_iiwa_joint_7_w",
+                                         "iiwa1::iiwa14_$world_iiwa_link_0_wx",
+                                         "iiwa1::iiwa14_$world_iiwa_link_0_wy",
+                                         "iiwa1::iiwa14_$world_iiwa_link_0_wz",
+                                         "iiwa1::iiwa14_$world_iiwa_link_0_vx",
+                                         "iiwa1::iiwa14_$world_iiwa_link_0_vy",
+                                         "iiwa1::iiwa14_$world_iiwa_link_0_vz",
+                                         "iiwa1::iiwa14_iiwa_joint_1_w",
+                                         "iiwa1::iiwa14_iiwa_joint_2_w",
+                                         "iiwa1::iiwa14_iiwa_joint_3_w",
+                                         "iiwa1::iiwa14_iiwa_joint_4_w",
+                                         "iiwa1::iiwa14_iiwa_joint_5_w",
+                                         "iiwa1::iiwa14_iiwa_joint_6_w",
+                                         "iiwa1::iiwa14_iiwa_joint_7_w"}));
+
+  names =
+      plant->GetStateNames(false /* add_model_instance_prefix */);
+  EXPECT_THAT(names, testing::ElementsAreArray(
+                         {"iiwa_joint_1_q",        "iiwa_joint_2_q",
+                          "iiwa_joint_3_q",        "iiwa_joint_4_q",
+                          "iiwa_joint_5_q",        "iiwa_joint_6_q",
+                          "iiwa_joint_7_q",        "$world_iiwa_link_0_qw",
+                          "$world_iiwa_link_0_qx", "$world_iiwa_link_0_qy",
+                          "$world_iiwa_link_0_qz", "$world_iiwa_link_0_x",
+                          "$world_iiwa_link_0_y",  "$world_iiwa_link_0_z",
+                          "iiwa_joint_1_q",        "iiwa_joint_2_q",
+                          "iiwa_joint_3_q",        "iiwa_joint_4_q",
+                          "iiwa_joint_5_q",        "iiwa_joint_6_q",
+                          "iiwa_joint_7_q",        "iiwa_joint_1_w",
+                          "iiwa_joint_2_w",        "iiwa_joint_3_w",
+                          "iiwa_joint_4_w",        "iiwa_joint_5_w",
+                          "iiwa_joint_6_w",        "iiwa_joint_7_w",
+                          "$world_iiwa_link_0_wx", "$world_iiwa_link_0_wy",
+                          "$world_iiwa_link_0_wz", "$world_iiwa_link_0_vx",
+                          "$world_iiwa_link_0_vy", "$world_iiwa_link_0_vz",
+                          "iiwa_joint_1_w",        "iiwa_joint_2_w",
+                          "iiwa_joint_3_w",        "iiwa_joint_4_w",
+                          "iiwa_joint_5_w",        "iiwa_joint_6_w",
+                          "iiwa_joint_7_w"}));
+
+  names = plant->GetActuatorNames(iiwa0_instance);
+  EXPECT_THAT(names, testing::ElementsAreArray({"iiwa_joint_1", "iiwa_joint_2",
+                                                "iiwa_joint_3", "iiwa_joint_4",
+                                                "iiwa_joint_5", "iiwa_joint_6",
+                                                "iiwa_joint_7"}));
+
+  names = plant->GetActuatorNames(iiwa0_instance,
+                                  true /* add_model_instance_prefix */);
+  EXPECT_THAT(names,
+              testing::ElementsAreArray(
+                  {"iiwa0::iiwa14_iiwa_joint_1", "iiwa0::iiwa14_iiwa_joint_2",
+                   "iiwa0::iiwa14_iiwa_joint_3", "iiwa0::iiwa14_iiwa_joint_4",
+                   "iiwa0::iiwa14_iiwa_joint_5", "iiwa0::iiwa14_iiwa_joint_6",
+                   "iiwa0::iiwa14_iiwa_joint_7"}));
+
+  names = plant->GetActuatorNames();
+  EXPECT_THAT(
+      names, testing::ElementsAreArray(
+                 {"iiwa0::iiwa14_iiwa_joint_1", "iiwa0::iiwa14_iiwa_joint_2",
+                  "iiwa0::iiwa14_iiwa_joint_3", "iiwa0::iiwa14_iiwa_joint_4",
+                  "iiwa0::iiwa14_iiwa_joint_5", "iiwa0::iiwa14_iiwa_joint_6",
+                  "iiwa0::iiwa14_iiwa_joint_7", "iiwa1::iiwa14_iiwa_joint_1",
+                  "iiwa1::iiwa14_iiwa_joint_2", "iiwa1::iiwa14_iiwa_joint_3",
+                  "iiwa1::iiwa14_iiwa_joint_4", "iiwa1::iiwa14_iiwa_joint_5",
+                  "iiwa1::iiwa14_iiwa_joint_6", "iiwa1::iiwa14_iiwa_joint_7"}));
+
+  names = plant->GetActuatorNames(false /* add_model_instance_prefix */);
+  EXPECT_THAT(names, testing::ElementsAreArray(
+                         {"iiwa_joint_1", "iiwa_joint_2", "iiwa_joint_3",
+                          "iiwa_joint_4", "iiwa_joint_5", "iiwa_joint_6",
+                          "iiwa_joint_7", "iiwa_joint_1", "iiwa_joint_2",
+                          "iiwa_joint_3", "iiwa_joint_4", "iiwa_joint_5",
+                          "iiwa_joint_6", "iiwa_joint_7"}));
+}
+
+GTEST_TEST(MultibodyPlantTest, GetMutableSceneGraphPreFinalize) {
+  MultibodyPlant<double> plant(0.0);
+  DRAKE_EXPECT_THROWS_MESSAGE(plant.GetMutableSceneGraphPreFinalize(),
+                              ".*geometry_source_is_registered.*");
+
+  SceneGraph<double> scene_graph;
+  plant.RegisterAsSourceForSceneGraph(&scene_graph);
+  EXPECT_EQ(plant.GetMutableSceneGraphPreFinalize(), &scene_graph);
+
+  plant.Finalize();
+  DRAKE_EXPECT_THROWS_MESSAGE(plant.GetMutableSceneGraphPreFinalize(),
+                              ".*!is_finalized.*");
 }
 
 }  // namespace

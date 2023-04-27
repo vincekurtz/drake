@@ -44,19 +44,10 @@ class WeldJoint final : public Joint<T> {
                  VectorX<double>() /* no acc upper limits */),
         X_FM_(X_FM) {}
 
-  const std::string& type_name() const override {
-    static const never_destroyed<std::string> name{kTypeName};
-    return name.access();
-  }
+  const std::string& type_name() const override;
 
   /// Returns the pose X_FM of frame M in F.
   const math::RigidTransform<double>& X_FM() const { return X_FM_; }
-
-  /// Returns the pose X_PC of frame C in P.
-  DRAKE_DEPRECATED(
-      "2022-12-01",
-      "WeldJoint frame notation has changed. Use `X_FM()` instead.")
-  const math::RigidTransform<double>& X_PC() const { return X_FM_; }
 
  protected:
   /// Joint<T> override called through public NVI, Joint::AddInForce().

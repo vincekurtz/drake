@@ -1,4 +1,4 @@
-# -*- python -*-
+# -*- bazel -*-
 
 load(
     "@drake//tools/install:install.bzl",
@@ -39,6 +39,7 @@ cc_library(
         "include/pybind11/pybind11.h",
         "include/pybind11/pytypes.h",
         "include/pybind11/stl.h",
+        "include/pybind11/stl/filesystem.h",
         "include/pybind11/stl_bind.h",
     ],
     includes = ["include"],
@@ -67,6 +68,8 @@ install_files(
     dest = "lib/cmake/pybind11",
     files = [
         "tools/FindPythonLibsNew.cmake",
+        # N.B. We explicitly exclude pybind11Common.cmake because Drake's
+        # `pybind11-config.cmake` covers its functionality.
         "tools/pybind11Tools.cmake",
     ],
     strip_prefix = ["**/"],

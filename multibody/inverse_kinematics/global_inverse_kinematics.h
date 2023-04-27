@@ -23,7 +23,7 @@ namespace multibody {
  * Convex Optimization by Hongkai Dai, Gregory Izatt and Russ Tedrake,
  * International Journal of Robotics Research, 2019.
  *
- * @ingroup planning
+ * @ingroup planning_kinematics
  */
 class GlobalInverseKinematics {
  public:
@@ -153,15 +153,6 @@ class GlobalInverseKinematics {
       BodyIndex body_index, const Eigen::Vector3d& p_BQ,
       const Eigen::Vector3d& box_lb_F, const Eigen::Vector3d& box_ub_F,
       const math::RigidTransformd& X_WF = math::RigidTransformd());
-
-  /** @exclude_from_pydrake_mkdoc */
-  DRAKE_DEPRECATED(
-      "2022-10-01",
-      "Use the method taking a RigidTransform instead of Isometry3d.")
-  solvers::Binding<solvers::LinearConstraint> AddWorldPositionConstraint(
-      BodyIndex body_index, const Eigen::Vector3d& p_BQ,
-      const Eigen::Vector3d& box_lb_F, const Eigen::Vector3d& box_ub_F,
-      const Eigen::Isometry3d& X_WF);
 
   /**
    * Adds the constraint that the position of a point `Q` on a body `B`

@@ -4,6 +4,7 @@
 
 #include <gtest/gtest.h>
 
+#include "drake/common/test_utilities/eigen_matrix_compare.h"
 #include "drake/common/test_utilities/expect_no_throw.h"
 #include "drake/common/test_utilities/expect_throws_message.h"
 #include "drake/geometry/proximity/make_sphere_mesh.h"
@@ -13,7 +14,10 @@ namespace geometry {
 namespace internal {
 namespace {
 
+using Eigen::Vector3d;
 using math::RigidTransformd;
+using math::RollPitchYawd;
+using math::RotationMatrixd;
 using std::make_unique;
 
 // Create two instances of the given Properties type with different properties:
@@ -80,6 +84,47 @@ GTEST_TEST(InternalGeometryTest, PropertyAssignment) {
   }
 }
 
+GTEST_TEST(InternalGeometryTest, SetShape) {
+  InternalGeometry geometry;
+
+  // Default constructor has no shape at all.
+  if constexpr (!kDrakeAssertIsArmed) {
+    // When assert is armed, the call to shape() throws because
+    // copyable_unique_ptr rejects dereferencing a null pointer.
+    ASSERT_EQ(&geometry.shape(), nullptr);
+  }
+
+  // Set it to a couple of arbitrary shapes to confirm the change registers.
+  const Sphere s(1.5);
+  geometry.SetShape(s);
+  EXPECT_EQ(ShapeName(s).name(), ShapeName(geometry.shape()).name());
+
+  const Box b(1, 2, 3);
+  geometry.SetShape(b);
+  EXPECT_EQ(ShapeName(b).name(), ShapeName(geometry.shape()).name());
+}
+
+GTEST_TEST(InternalGeometryTest, SetPose) {
+  const SourceId source_id = SourceId::get_new_id();
+  const Sphere sphere(1.5);
+  const FrameId frame_id = FrameId::get_new_id();
+  const GeometryId geometry_id = GeometryId::get_new_id();
+  const std::string name("geometry");
+
+  const RigidTransformd X_FGold(RotationMatrixd::MakeXRotation(M_PI / 3),
+                                Vector3d(1, 2, 3));
+  const RigidTransformd X_FGNew(RotationMatrixd::MakeYRotation(M_PI / 7),
+                                Vector3d(4, 5, 6));
+
+  InternalGeometry geometry(source_id, sphere.Clone(), frame_id, geometry_id,
+                            name, X_FGold);
+  EXPECT_TRUE(CompareMatrices(geometry.X_FG().GetAsMatrix34(),
+                              X_FGold.GetAsMatrix34()));
+  geometry.set_pose(X_FGNew);
+  EXPECT_TRUE(CompareMatrices(geometry.X_FG().GetAsMatrix34(),
+                              X_FGNew.GetAsMatrix34()));
+}
+
 // Tests the removal of all roles.
 GTEST_TEST(InternalGeometryTest, RemoveRole) {
   // Configure a geometry with all roles; we assume from previous unit tests
@@ -103,70 +148,75 @@ GTEST_TEST(InternalGeometryTest, RemoveRole) {
   EXPECT_FALSE(geometry.has_role(Role::kProximity));
   EXPECT_TRUE(geometry.has_role(Role::kIllustration));
   EXPECT_TRUE(geometry.has_role(Role::kPerception));
+  EXPECT_FALSE(geometry.has_role(Role::kUnassigned));
 
   // Case: Redundant removal of role is a no-op.
   DRAKE_EXPECT_NO_THROW(geometry.RemoveProximityRole());
   EXPECT_FALSE(geometry.has_role(Role::kProximity));
   EXPECT_TRUE(geometry.has_role(Role::kIllustration));
   EXPECT_TRUE(geometry.has_role(Role::kPerception));
+  EXPECT_FALSE(geometry.has_role(Role::kUnassigned));
 
   // Case: Remove illustration, only perception remains.
   DRAKE_EXPECT_NO_THROW(geometry.RemoveIllustrationRole());
   EXPECT_FALSE(geometry.has_role(Role::kProximity));
   EXPECT_FALSE(geometry.has_role(Role::kIllustration));
   EXPECT_TRUE(geometry.has_role(Role::kPerception));
+  EXPECT_FALSE(geometry.has_role(Role::kUnassigned));
 
   // Case: Redundant removal of role is a no-op.
   DRAKE_EXPECT_NO_THROW(geometry.RemoveIllustrationRole());
   EXPECT_FALSE(geometry.has_role(Role::kProximity));
   EXPECT_FALSE(geometry.has_role(Role::kIllustration));
   EXPECT_TRUE(geometry.has_role(Role::kPerception));
+  EXPECT_FALSE(geometry.has_role(Role::kUnassigned));
 
   // Case: Remove perception, no roles exist.
   DRAKE_EXPECT_NO_THROW(geometry.RemovePerceptionRole());
   EXPECT_FALSE(geometry.has_role(Role::kProximity));
   EXPECT_FALSE(geometry.has_role(Role::kIllustration));
   EXPECT_FALSE(geometry.has_role(Role::kPerception));
+  EXPECT_TRUE(geometry.has_role(Role::kUnassigned));
 
   // Case: Redundant removal of role is a no-op.
   DRAKE_EXPECT_NO_THROW(geometry.RemoveIllustrationRole());
   EXPECT_FALSE(geometry.has_role(Role::kProximity));
   EXPECT_FALSE(geometry.has_role(Role::kIllustration));
   EXPECT_FALSE(geometry.has_role(Role::kPerception));
+  EXPECT_TRUE(geometry.has_role(Role::kUnassigned));
 }
 
-GTEST_TEST(InternalGeometryTest, DeformableMeshedGeometry) {
+GTEST_TEST(InternalGeometryTest, DeformableGeometry) {
   SourceId source_id = SourceId::get_new_id();
   Sphere sphere(1.0);
   constexpr double kRezHint = .5;
   FrameId frame_id = FrameId::get_new_id();
   GeometryId deformable_geometry_id = GeometryId::get_new_id();
   std::string name = "sphere";
-  const VolumeMesh<double> expected_mesh = MakeSphereVolumeMesh<double>(
+  const RigidTransformd X_FG(RollPitchYawd(1, 2, 3), Vector3d(3, 4, 5));
+  const VolumeMesh<double> expected_mesh_G = MakeSphereVolumeMesh<double>(
       sphere, kRezHint, TessellationStrategy::kDenseInteriorVertices);
 
-  // Confirms that a meshed geometry can be constructed.
+  // Confirms that a deformable geometry can be constructed.
   InternalGeometry geometry(source_id, make_unique<Sphere>(sphere), frame_id,
-                            deformable_geometry_id, name, kRezHint);
-  const VolumeMesh<double>* reference_mesh = geometry.reference_mesh();
-  ASSERT_NE(reference_mesh, nullptr);
-  EXPECT_TRUE(expected_mesh.Equal(*reference_mesh));
+                            deformable_geometry_id, name, X_FG, kRezHint);
+  const VolumeMesh<double>* reference_mesh_G = geometry.reference_mesh();
+  ASSERT_NE(reference_mesh_G, nullptr);
+  EXPECT_TRUE(expected_mesh_G.Equal(*reference_mesh_G));
 
-  // Deformable geometry doesn't have the notion of "fixed-in" frame. Those
-  // values are set to identity.
-  EXPECT_TRUE(geometry.X_FG().IsExactlyIdentity());
-  EXPECT_TRUE(geometry.X_PG().IsExactlyIdentity());
+  EXPECT_TRUE(geometry.X_FG().IsExactlyEqualTo(X_FG));
   // Meshed geometry is never anchored.
   EXPECT_TRUE(geometry.is_dynamic());
   // Meshed geometry is always deformable.
   EXPECT_TRUE(geometry.is_deformable());
 
+  // Confirms that the a geometry created without resolution hint is not a
+  // deformable geometry and doesn't have a reference mesh.
   GeometryId rigid_geometry_id = GeometryId::get_new_id();
   InternalGeometry rigid_geometry(source_id, make_unique<Sphere>(sphere),
                                   frame_id, rigid_geometry_id, name,
                                   RigidTransformd());
   EXPECT_EQ(rigid_geometry.reference_mesh(), nullptr);
-  // Non-meshed geometry is not deformable.
   EXPECT_FALSE(rigid_geometry.is_deformable());
 }
 

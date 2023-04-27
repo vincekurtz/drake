@@ -129,7 +129,6 @@ class BlockPushExample : public TrajOptExample {
 
 int main() {
   drake::traj_opt::examples::block_push::BlockPushExample example;
-  example.SolveTrajectoryOptimization(
-      "drake/traj_opt/examples/block_push.yaml");
+  example.RunExample("drake/traj_opt/examples/block_push.yaml");
   return 0;
 }

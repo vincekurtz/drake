@@ -1,3 +1,6 @@
+// This file is licensed under the MIT-0 License.
+// See LICENSE-MIT-0.txt in the current directory.
+
 /* This program serves as an example of a simulator for hardware, i.e., a
 simulator for robots that one might have in their lab. There is no controller
 built-in to this program -- it merely sends status and sensor messages, and
@@ -7,11 +10,15 @@ It is intended to operate in the "no ground truth" regime, i.e, the only LCM
 messages it knows about are the ones used by the actual hardware. The one
 messaging difference from real life is that we emit visualization messages (for
 meldis or drake-visualizer) so that you can watch a simulation on your screen
-while some (separate) controller operates the robot, without extra hassle. */
+while some (separate) controller operates the robot, without extra hassle.
+
+Drake maintainers should keep this file in sync with hardware_sim.py. */
 
 #include <gflags/gflags.h>
 
+#include "drake/common/unused.h"
 #include "drake/examples/hardware_sim/scenario.h"
+#include "drake/manipulation/kuka_iiwa/iiwa_driver_functions.h"
 #include "drake/manipulation/schunk_wsg/schunk_wsg_driver_functions.h"
 #include "drake/manipulation/util/apply_driver_configs.h"
 #include "drake/manipulation/util/zero_force_driver_functions.h"
@@ -22,6 +29,7 @@ while some (separate) controller operates the robot, without extra hassle. */
 #include "drake/systems/analysis/simulator_config_functions.h"
 #include "drake/systems/framework/diagram_builder.h"
 #include "drake/systems/lcm/lcm_config_functions.h"
+#include "drake/systems/sensors/camera_config_functions.h"
 #include "drake/visualization/visualization_config_functions.h"
 
 DEFINE_string(scenario_file, "",
@@ -49,6 +57,7 @@ using systems::DiagramBuilder;
 using systems::Simulator;
 using systems::lcm::ApplyLcmBusConfig;
 using systems::lcm::LcmBuses;
+using systems::sensors::ApplyCameraConfig;
 using visualization::ApplyVisualizationConfig;
 
 /* Class that holds the configuration and data of a simulation. */
@@ -92,6 +101,12 @@ void Simulation::Setup() {
   // Add actuation inputs.
   ApplyDriverConfigs(scenario_.model_drivers, sim_plant, added_models,
                      lcm_buses, &builder);
+
+  // Add scene cameras.
+  for (const auto& [yaml_name, camera] : scenario_.cameras) {
+    unused(yaml_name);
+    ApplyCameraConfig(camera, &builder, &lcm_buses);
+  }
 
   // Add visualization.
   ApplyVisualizationConfig(scenario_.visualization, &builder, &lcm_buses);

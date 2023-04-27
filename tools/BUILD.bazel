@@ -1,5 +1,3 @@
-# -*- python -*-
-
 load("//tools/skylark:py.bzl", "py_binary", "py_library")
 load("//tools/lint:lint.bzl", "add_lint_tests")
 load(
@@ -29,7 +27,7 @@ py_binary(
     name = "drake_visualizer_py",
     srcs = [_VISUALIZER_MAIN],
     data = [
-        "//examples:prod_models",
+        "//examples:models",
         "@drake_visualizer",
     ] if _DRAKE_VISUALIZER_ENABLED else [],
     main = _VISUALIZER_MAIN,
@@ -38,7 +36,6 @@ py_binary(
     deps = [
         "//lcmtypes:lcmtypes_drake_py",
         "//tools/workspace/drake_visualizer:builtin_scripts_py",
-        "//tools/workspace/drake_visualizer:stub_pydrake",
         "@drake_visualizer//:drake_visualizer_python_deps",
         "@optitrack_driver//lcmtypes:py_optitrack_lcmtypes",
     ] if _DRAKE_VISUALIZER_ENABLED else [],
@@ -52,6 +49,16 @@ drake_runfiles_binary(
 alias(
     name = "meldis",
     actual = "//bindings/pydrake/visualization:meldis",
+)
+
+alias(
+    name = "model_visualizer",
+    actual = "//bindings/pydrake/visualization:model_visualizer",
+)
+
+alias(
+    name = "mesh_to_model",
+    actual = "//bindings/pydrake/multibody:mesh_to_model",
 )
 
 # === config_setting rules ===
@@ -96,16 +103,6 @@ config_setting(
 config_setting(
     name = "no_csdp",
     values = {"define": "NO_CSDP=ON"},
-)
-
-# dReal is an open-source solver, and is included in the Drake build by
-# default. The dReal solver is irrelevant to some users of MathematicalProgram,
-# so we provide a hidden switch to shut it off for developers who don't
-# actually need it.  This is not a supported configuration. Use at your own
-# risk: --define=NO_DREAL=ON
-config_setting(
-    name = "no_dreal",
-    values = {"define": "NO_DREAL=ON"},
 )
 
 # IPOPT is an open-source solver, and is included in the Drake build by

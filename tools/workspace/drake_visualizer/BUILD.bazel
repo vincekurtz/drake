@@ -1,5 +1,3 @@
-# -*- python -*-
-
 load("//tools/skylark:drake_py.bzl", "drake_py_unittest")
 load("//tools/skylark:py.bzl", "py_library")
 load("//tools/lint:lint.bzl", "add_lint_tests")
@@ -34,21 +32,8 @@ py_library(
     ],
 )
 
-# When developing within Drake, we don't want //tools:drake_visualizer to
-# depend on the entire pydrake library, because that adds a dependency on a
-# whole bunch of C++ code that is irrelevant for the visualizer.  So, here we
-# provide a small stub version of pydrake with only getDrakePath implemented
-# (the only piece drake_visualizer needs).  Note that the installed version of
-# drake-visualizer *does* use the installed (full) version of pydrake -- this
-# is development-sandbox-only stub.
-py_library(
-    name = "stub_pydrake",
-    srcs = ["stub/pydrake/__init__.py"],
-    visibility = ["//tools:__pkg__"],
-)
-
 # TODO(eric.cousineau): Use something simpler than cmake_configure_file to do
-# basic subsitutions as a genrule.
+# basic substitutions as a genrule.
 cmake_configure_file(
     name = "config_wrapper_script",
     src = "drake_visualizer_installed.py.in",

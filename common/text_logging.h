@@ -24,13 +24,25 @@ not be compiled if debugging is turned off (-DNDEBUG is set):
 </pre>
 
 The format string syntax is fmtlib; see https://fmt.dev/latest/syntax.html.
-In particular, any class that overloads `operator<<` for `ostream` can be
-printed without any special handling.  (Note that the documentation link
-provides syntax for the latest version of fmtlib; the version of fmtlib
-used by Drake might be older.)
-*/
+(Note that the documentation link provides syntax for the latest version of
+fmtlib; the version of fmtlib used by Drake might be older.)
+
+When formatting an Eigen matrix into a string you must wrap the Eigen object
+with fmt_eigen(); see its documentation for details. This holds true whether it
+be for logging, error messages, etc.
+
+When logging a third-party type whose only affordance for string output is
+`operator<<`, use fmt_streamed(); see its documentation for details. This is
+very rare (only a couple uses in Drake so far).
+
+When implementing a string output for a Drake type, eventually this page will
+demonstrate how to use fmt::formatter<T>. In the meantime, you can implement
+`operator<<` and use drake::ostream_formatter, or else use the macro helper
+DRAKE_FORMATTER_AS(). Grep around in Drake's existing code to find examples. */
 
 #include <string>
+
+#include "drake/common/fmt.h"
 
 #ifndef DRAKE_DOXYGEN_CXX
 #ifdef HAVE_SPDLOG
@@ -70,20 +82,7 @@ used by Drake might be older.)
 
 #endif
 
-/* clang-format off */
 #include <spdlog/spdlog.h>
-#include <spdlog/fmt/ostr.h>
-/* clang-format on */
-
-#else  // HAVE_SPDLOG
-
-// We always want text_logging.h to provide fmt support to those who include
-// it, even if spdlog is disabled.
-
-/* clang-format off */
-#include <fmt/format.h>
-#include <fmt/ostream.h>
-/* clang-format on */
 
 #endif  // HAVE_SPDLOG
 #endif  // DRAKE_DOXYGEN_CXX
@@ -195,7 +194,10 @@ sink* get_dist_sink();
 struct Warn {
   template <typename... Args>
   Warn(const char* a, const Args&... b) {
-    drake::log()->warn(a, b...);
+    // TODO(jwnimmer-tri) Ideally we would compile-time check our Warn format
+    // strings without using fmt_runtime here, but I haven't figured out how
+    // to forward the arguments properly for all versions of fmt.
+    drake::log()->warn(fmt_runtime(a), b...);
   }
 };
 

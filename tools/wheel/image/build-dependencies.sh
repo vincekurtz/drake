@@ -13,7 +13,7 @@ cmake -G Ninja \
 
 ninja
 
-if [ "$(uname)" == "Linux" ]; then
+if [[ "$(uname)" == "Linux" ]]; then
     ln -s /opt/drake-dependencies/bin/patchelf /usr/local/bin/patchelf
 
     # Libraries we get from the distro that get bundled into the wheel need to
@@ -21,4 +21,7 @@ if [ "$(uname)" == "Linux" ]; then
     mkdir -p /opt/drake-dependencies/licenses/mumps
     cp -t /opt/drake-dependencies/licenses/mumps \
         /usr/share/doc/libmumps-seq-dev/copyright
+    mkdir -p /opt/drake-dependencies/licenses/gcc
+    cp -t /opt/drake-dependencies/licenses/gcc \
+        /usr/share/doc/libgomp1/copyright
 fi

@@ -2,16 +2,13 @@
 
 #include <gflags/gflags.h>
 
-#include "drake/common/find_resource.h"
-#include "drake/geometry/drake_visualizer.h"
 #include "drake/geometry/scene_graph.h"
-#include "drake/lcm/drake_lcm.h"
 #include "drake/multibody/parsing/parser.h"
-#include "drake/multibody/plant/contact_results_to_lcm.h"
 #include "drake/multibody/plant/multibody_plant_config_functions.h"
 #include "drake/systems/analysis/simulator.h"
 #include "drake/systems/analysis/simulator_gflags.h"
 #include "drake/systems/framework/diagram_builder.h"
+#include "drake/visualization/visualization_config_functions.h"
 
 DEFINE_double(simulation_time, 2.0, "Simulation duration in seconds");
 DEFINE_double(penetration_allowance, 1.0E-3, "Allowable penetration (meters).");
@@ -54,9 +51,8 @@ int do_main() {
   auto [plant, scene_graph] =
       multibody::AddMultibodyPlant(plant_config, &builder);
 
-  const std::string full_name =
-      FindResourceOrThrow("drake/examples/atlas/urdf/atlas_convex_hull.urdf");
-  multibody::Parser(&plant).AddModelFromFile(full_name);
+  multibody::Parser(&plant).AddModelsFromUrl(
+      "package://drake_models/atlas/atlas_convex_hull.urdf");
 
   // Add model of the ground.
   const double static_friction = 1.0;
@@ -96,10 +92,8 @@ int do_main() {
   // is stacked as x = [q; v].
   DRAKE_DEMAND(pelvis.floating_velocities_start() == plant.num_positions());
 
-  // Publish contact results for visualization.
-  ConnectContactResultsToDrakeVisualizer(&builder, plant, scene_graph);
+  visualization::AddDefaultVisualization(&builder);
 
-  geometry::DrakeVisualizerd::AddToBuilder(&builder, scene_graph);
   auto diagram = builder.Build();
 
   // Create a context for this system:

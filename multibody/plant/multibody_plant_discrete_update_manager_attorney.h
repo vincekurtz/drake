@@ -42,32 +42,9 @@ class MultibodyPlantDiscreteUpdateManagerAttorney {
                                     std::move(prerequisites_of_calc));
   }
 
-  static const contact_solvers::internal::ContactSolverResults<T>&
-  EvalContactSolverResults(const MultibodyPlant<T>& plant,
-                           const systems::Context<T>& context) {
-    return plant.EvalContactSolverResults(context);
-  }
-
-  static const internal::ContactJacobians<T>& EvalContactJacobians(
-      const MultibodyPlant<T>& plant, const systems::Context<T>& context) {
-    return plant.EvalContactJacobians(context);
-  }
-
-  static const std::vector<internal::DiscreteContactPair<T>>&
-  EvalDiscreteContactPairs(const MultibodyPlant<T>& plant,
-                           const systems::Context<T>& context) {
-    return plant.EvalDiscreteContactPairs(context);
-  }
-
   static const std::vector<geometry::ContactSurface<T>>& EvalContactSurfaces(
       const MultibodyPlant<T>& plant, const systems::Context<T>& context) {
     return plant.EvalContactSurfaces(context);
-  }
-
-  static std::vector<CoulombFriction<double>> CalcCombinedFrictionCoefficients(
-      const MultibodyPlant<T>& plant, const systems::Context<T>& context,
-      const std::vector<internal::DiscreteContactPair<T>>& contact_pairs) {
-    return plant.CalcCombinedFrictionCoefficients(context, contact_pairs);
   }
 
   static void AddInForcesFromInputPorts(const MultibodyPlant<T>& plant,
@@ -116,9 +93,29 @@ class MultibodyPlantDiscreteUpdateManagerAttorney {
     return plant.geometry_id_to_body_index_;
   }
 
-  static const std::vector<internal::CouplerConstraintSpecs<T>>&
+  static const std::vector<internal::CouplerConstraintSpecs>&
   coupler_constraints_specs(const MultibodyPlant<T>& plant) {
     return plant.coupler_constraints_specs_;
+  }
+
+  static const std::vector<int>& EvalJointLockingIndices(
+      const MultibodyPlant<T>& plant, const systems::Context<T>& context) {
+    return plant.EvalJointLockingIndices(context);
+  }
+
+  static const std::vector<internal::DistanceConstraintSpecs>&
+  distance_constraints_specs(const MultibodyPlant<T>& plant) {
+    return plant.distance_constraints_specs_;
+  }
+
+  static const std::vector<internal::BallConstraintSpecs>&
+  ball_constraints_specs(const MultibodyPlant<T>& plant) {
+    return plant.ball_constraints_specs_;
+  }
+
+  static BodyIndex FindBodyByGeometryId(const MultibodyPlant<T>& plant,
+                                        geometry::GeometryId geometry_id) {
+    return plant.FindBodyByGeometryId(geometry_id);
   }
 };
 }  // namespace internal

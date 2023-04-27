@@ -1,5 +1,3 @@
-# -*- python -*-
-
 load(
     "@drake//tools/skylark:drake_cc.bzl",
     "drake_cc_googletest",
@@ -121,6 +119,13 @@ drake_cc_googletest(
 )
 
 drake_cc_googletest(
+    name = "ostream_test",
+    deps = [
+        ":generic_polynomial",
+    ],
+)
+
+drake_cc_googletest(
     name = "polynomial_basis_element_test",
     deps = [
         ":generic_polynomial",
@@ -153,6 +158,13 @@ drake_cc_library(
     hdrs = ["monomial_util.h"],
     deps = [
         ":polynomial",
+    ],
+)
+
+drake_cc_googletest(
+    name = "monomial_util_test",
+    deps = [
+        ":monomial_util",
     ],
 )
 

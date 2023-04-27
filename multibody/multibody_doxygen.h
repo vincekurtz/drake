@@ -48,7 +48,7 @@ correct implementation.
 
 In addition, we need developers to provide good local documentation for our
 mathematical algorithms in the form of
-<a href=http://www.stack.nl/~dimitri/doxygen>Doxygen</a> comments. That
+<a href="https://www.doxygen.nl/">Doxygen</a> comments. That
 documentation will be best viewed after formatting by Doxygen, which employs
 other tools like LaTeX and Markdown for beautification. However, for effective
 development we need that documentation to be understandable and easily modified
@@ -132,13 +132,15 @@ We are more careful about the font for more complex symbols and equations.
 Physical quantities in general may be characterized by
 - a symbol for the quantity type, e.g. @f$v@f$ for velocity or @f$I@f$ for
   inertia,
-- a reference symbol (typically a body or frame, can be a point),
+- a reference symbol (typically a "measured-in" body or frame, can 
+  sometimes be a "measured from" point),
 - a target symbol (can be a point, body, or frame), and
 - an index for selecting a particular quantity from a collection (rarely
   needed in practice).
 
 Quantities involving mass properties may have an additional "taken about" point;
-we'll discuss that elsewhere.
+_relative_ velocities and accelerations may need an additional frame; we'll
+discuss those elsewhere.
 
 (Note that a physical quantity does not have an expressed-in frame; that is
 necessary only for numerical computation.)
@@ -349,10 +351,14 @@ Jacobian wrt v               | Jv   |@f$J_{v}^{{}^B\omega^C}@f$|`Jv_w_BC`   
 
 ᵃ In code, a vector has an expressed-in-frame which appears after the quantity.
 <br>Example: `w_BC_E` is C's angular velocity in B, expressed in frame E, typeset
-as @f$[^B\omega^C]_E @f$.
+as @f$[^B\omega^C]_E @f$. If not explicitly present, the expressed-in-frame
+defaults to the measured-in-frame. Hence, `w_BC` is C's angular velocity
+<b>in</b> (measured-in) frame B, expressed in frame B (implied).
 <br>Similarly, an inertia matrix or spatial inertia has an expressed-in-frame.
 <br>Example: `I_BBo_E` is body B's inertia matrix about Bo,
 expressed in frame E, typeset as @f$[I^{B/Bo}]_E@f$.
+<br>By convention, `I_BP` is body B's inertia matrix about point P,
+expressed in B (implied).
 <br>For more information, see @ref multibody_spatial_inertia
 
 ᵇ In code, spatial velocity (or spatial acceleration) has an expressed-in-frame
@@ -672,23 +678,25 @@ Body B's spatial velocity in A|Bo | A |@f$^AV^B         @f$|`V_AB`   |`V_ABo_A`
 Same, but expressed in world  |Bo | W |@f$[^AV^B]_W     @f$|`V_AB_W` |`V_ABo_W`
 B's spatial acceleration in W |Bcm| W |@f$^WA^{B_{cm}}  @f$|`A_WBcm` |`A_WBcm_W`
 Spatial force acting on body B|Bcm| W |@f$[F^{B_{cm}}]_W@f$|`F_Bcm_W`|`F_BBcm_W`
-Spatial force acting on body A| Q | W |@f$[F^{A/Q}]_W   @f$|`F_AQ_W` |    —
+Spatial force acting on body B|Bq | W |@f$[F^{B_q}]_W   @f$|`F_Bq_W` |`F_BBq_W`
 
 In the above table "At" is the point at which the translational activity occurs;
-"Exp" is the expressed-in frame in which both vectors are expressed. The
-expressed-in frame defaults to the reference (left) frame and the point
-defaults to the target (right) frame origin. The "Code" column shows the
-notation to use in code, using the available defaults; "Full" shows the code
-notation with the defaults shown explicitly.
+"Exp" is the expressed-in frame in which both vectors are expressed. In cases
+in which the typeset has a top-left superscript frame (such as spatial velocity
+or spatial acceleration), the default expressed-in frame is that top-left frame.
+If the typeset has a top-right superscript frame, the default point is the
+origin of that top-right frame. The "Code" column shows the notation to use in
+code (abbreviated via default conventions); "Full" shows the code notation
+without the abbreviated defaults (i.e., fully explicit).
 
-For spatial forces we need to identify the body (actually a frame) on which the
-force is acting, as well as a point rigidly fixed to that body (or frame). When
-the body is obvious from the point name (such as Bo or Bcm above), the body does
-not need to be specified again. However, when the body is not clear it should be
-listed before the point as in the last line of the table above. There it can be
-read as "the point of body A coincident in space with point Q", where point Q
-might be identified with a different body. You should use fully-expanded
-symbols, and helpful comments, if there is any chance of confusion.
+For spatial forces we need to identify the body (or frame) on which the force is
+acting, as well as a point rigidly fixed to that body (or frame). When the body
+is obvious from the point name (such as Bo or Bcm above), the body does not need
+to be specified again. However, when the body is not clear it should be listed
+before the point as in the last line of the table above. There it can be read as
+"point Bq of body B" or "point Bq is the point of body B which is coincident in
+space with point Q", where point Q may be fixed to a different body. Use fully-
+expanded symbols, and helpful comments, if there is any chance of confusion.
 
 Next topic: @ref multibody_spatial_inertia
 */

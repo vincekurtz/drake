@@ -103,14 +103,13 @@ void SetDualSolutions(const MathematicalProgram& prog,
 }  // namespace
 
 EqualityConstrainedQPSolver::EqualityConstrainedQPSolver()
-    : SolverBase(&id, &is_available, &is_enabled,
+    : SolverBase(id(), &is_available, &is_enabled,
                  &ProgramAttributesSatisfied) {}
 
 EqualityConstrainedQPSolver::~EqualityConstrainedQPSolver() = default;
 
 void EqualityConstrainedQPSolver::DoSolve(
-    const MathematicalProgram& prog,
-    const Eigen::VectorXd& initial_guess,
+    const MathematicalProgram& prog, const Eigen::VectorXd& initial_guess,
     const SolverOptions& merged_options,
     MathematicalProgramResult* result) const {
   if (!prog.GetVariableScaling().empty()) {
@@ -323,13 +322,17 @@ std::string EqualityConstrainedQPSolver::FeasibilityTolOptionName() {
 }
 
 SolverId EqualityConstrainedQPSolver::id() {
-  static const never_destroyed<SolverId> singleton{"Equality constrained QP"};
+  static const never_destroyed<SolverId> singleton{"EqConstrainedQP"};
   return singleton.access();
 }
 
-bool EqualityConstrainedQPSolver::is_available() { return true; }
+bool EqualityConstrainedQPSolver::is_available() {
+  return true;
+}
 
-bool EqualityConstrainedQPSolver::is_enabled() { return true; }
+bool EqualityConstrainedQPSolver::is_enabled() {
+  return true;
+}
 
 bool EqualityConstrainedQPSolver::ProgramAttributesSatisfied(
     const MathematicalProgram& prog) {

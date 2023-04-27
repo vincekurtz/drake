@@ -12,32 +12,37 @@
 #include <fmt/format.h>
 #include <gtest/gtest.h>
 #include <vtkOpenGLTexture.h>
+#include <vtkPNGReader.h>
 #include <vtkProperty.h>
 
 #include "drake/common/drake_copyable.h"
 #include "drake/common/find_resource.h"
+#include "drake/common/fmt_eigen.h"
 #include "drake/common/test_utilities/eigen_matrix_compare.h"
 #include "drake/common/test_utilities/expect_no_throw.h"
 #include "drake/common/test_utilities/expect_throws_message.h"
 #include "drake/geometry/shape_specification.h"
-#include "drake/geometry/test_utilities/dummy_render_engine.h"
 #include "drake/math/rigid_transform.h"
 #include "drake/math/rotation_matrix.h"
 #include "drake/systems/sensors/image.h"
 
 namespace drake {
 namespace geometry {
-namespace render {
+namespace render_vtk {
+namespace internal {
 namespace {
 
 using Eigen::AngleAxisd;
 using Eigen::Vector2d;
 using Eigen::Vector3d;
 using Eigen::Vector4d;
-using geometry::RenderEngineVtkParams;
-using geometry::internal::DummyRenderEngine;
 using math::RigidTransformd;
 using math::RotationMatrixd;
+using render::ColorRenderCamera;
+using render::DepthRenderCamera;
+using render::RenderCameraCore;
+using render::RenderEngine;
+using render::RenderLabel;
 using std::make_unique;
 using std::unique_ptr;
 using std::unordered_map;
@@ -966,6 +971,52 @@ TEST_F(RenderEngineVtkTest, ImpliedTextureMeshTest) {
   PerformCenterShapeTest(renderer_.get(), "Implied textured mesh test");
 }
 
+// Performs the test to cast textures to uchar channels. It depends on the image
+// with non-uchar channels being converted to uchar channels losslessly. An
+// uint16 image is loaded to prove the existence of the conversion, but this
+// test doesn't guarantee universal conversion success.
+TEST_F(RenderEngineVtkTest, NonUcharChannelTextures) {
+  const ColorRenderCamera camera(depth_camera_.core(), kShowWindow);
+  const auto& intrinsics = camera.core().intrinsics();
+  const Box box(1.999, 0.55, 0.75);
+  expected_label_ = RenderLabel(1);
+
+  // Ensure the texture has non-uchar channels.
+  vtkNew<vtkPNGReader> reader;
+  const std::string file_path =
+      FindResourceOrThrow("drake/geometry/render/test/meshes/box16u.png");
+  reader->SetFileName(file_path.c_str());
+  reader->Update();
+  ASSERT_NE(reader->GetOutput()->GetScalarType(), VTK_UNSIGNED_CHAR);
+
+  // Render a box with an uchar-channel PNG texture.
+  ImageRgba8U color_uchar_texture(intrinsics.width(), intrinsics.height());
+  {
+    RenderEngineVtk renderer;
+    InitializeRenderer(X_WC_, false /* add terrain */, &renderer);
+
+    const GeometryId id = GeometryId::get_new_id();
+    PerceptionProperties props = simple_material(true);
+    renderer.RegisterVisual(id, box, props, RigidTransformd::Identity(), true);
+    renderer.RenderColorImage(camera, &color_uchar_texture);
+  }
+
+  // Render a box with an uint16-channel PNG texture.
+  ImageRgba8U color_uint16_texture(intrinsics.width(), intrinsics.height());
+  {
+    RenderEngineVtk renderer;
+    InitializeRenderer(X_WC_, false /* add terrain */, &renderer);
+
+    const GeometryId id = GeometryId::get_new_id();
+    PerceptionProperties props = simple_material(false);
+    props.AddProperty("phong", "diffuse_map", file_path);
+    renderer.RegisterVisual(id, box, props, RigidTransformd::Identity(), true);
+    renderer.RenderColorImage(camera, &color_uint16_texture);
+  }
+
+  EXPECT_EQ(color_uchar_texture, color_uint16_texture);
+}
+
 // This confirms that geometries are correctly removed from the render engine.
 // We add two new geometries (testing the rendering after each addition).
 // By removing the first of the added geometries, we can confirm that the
@@ -1136,7 +1187,7 @@ TEST_F(RenderEngineVtkTest, DifferentCameras) {
   const auto& ref_core = depth_camera_.core();
   const std::string& ref_name = ref_core.renderer_name();
   const RigidTransformd ref_X_BS = ref_core.sensor_pose_in_camera_body();
-  const ClippingRange& ref_clipping = ref_core.clipping();
+  const render::ClippingRange& ref_clipping = ref_core.clipping();
   const auto& ref_intrinsics = ref_core.intrinsics();
   const int ref_w = ref_intrinsics.width();
   const int ref_h = ref_intrinsics.height();
@@ -1271,7 +1322,7 @@ class TextureSetterEngine : public RenderEngineVtk {
   TextureSetterEngine() = default;
 
   // Reports if the color actor for the geometry with the given `id` has the
-  // property texture append by this class's DoRegisterVisual() implementaiton.
+  // property texture append by this class's DoRegisterVisual() implementation.
   bool GeometryHasColorTexture(GeometryId id,
                                const std::string& texture_name) const {
     const auto color_actor = actors().at(id)[0];
@@ -1459,7 +1510,8 @@ TEST_F(RenderEngineVtkTest, IntrinsicsAndRenderProperties) {
   // Confirm all edges were found, the box is square and centered in the
   // image.
   const Vector4<int> ref_box_edges = FindBoxEdges(ref_depth);
-  ASSERT_TRUE((ref_box_edges.array() > -1).all()) << ref_box_edges.transpose();
+  ASSERT_TRUE((ref_box_edges.array() > -1).all())
+      << fmt::to_string(fmt_eigen(ref_box_edges.transpose()));
   const int ref_box_width = ref_box_edges(2) - ref_box_edges(0);
   const int ref_box_height = ref_box_edges(1) - ref_box_edges(3);
   ASSERT_EQ(ref_box_width, ref_box_height);
@@ -1469,9 +1521,11 @@ TEST_F(RenderEngineVtkTest, IntrinsicsAndRenderProperties) {
   {
     // Also confirm the box is positioned the same in color and label images.
     const Vector4<int> color_edges = FindBoxEdges(ref_color);
-    ASSERT_EQ(color_edges, ref_box_edges) << color_edges;
+    ASSERT_EQ(color_edges, ref_box_edges)
+        << fmt::to_string(fmt_eigen(color_edges));
     const Vector4<int> label_edges = FindBoxEdges(ref_label);
-    ASSERT_EQ(label_edges, ref_box_edges) << label_edges;
+    ASSERT_EQ(label_edges, ref_box_edges)
+        << fmt::to_string(fmt_eigen(label_edges));
   }
 
   {
@@ -1516,7 +1570,8 @@ TEST_F(RenderEngineVtkTest, IntrinsicsAndRenderProperties) {
     //    increase or decrease the amount of image around the box.
 
     const Vector4<int> test_edges = FindBoxEdges(depth);
-    ASSERT_TRUE((test_edges.array() > -1).all()) << test_edges.transpose();
+    ASSERT_TRUE((test_edges.array() > -1).all())
+        << fmt::to_string(fmt_eigen(test_edges.transpose()));
     const int test_box_width = test_edges(2) - test_edges(0);
     const int test_box_height = test_edges(1) - test_edges(3);
 
@@ -1528,16 +1583,18 @@ TEST_F(RenderEngineVtkTest, IntrinsicsAndRenderProperties) {
 
     // Confirm that its center is translated.
     EXPECT_NEAR((test_edges(0) + test_edges(2)) / 2.0, w2 / 2.0 + offset_x, 1.0)
-        << test_edges.transpose();
+        << fmt::to_string(fmt_eigen(test_edges.transpose()));
     EXPECT_NEAR((test_edges(1) + test_edges(3)) / 2.0, h2 / 2.0 + offset_y, 1.0)
-        << test_edges.transpose();
+        << fmt::to_string(fmt_eigen(test_edges.transpose()));
 
     {
       // Also confirm it matches for color and label.
       const Vector4<int> color_edges = FindBoxEdges(color);
-      ASSERT_EQ(color_edges, test_edges) << color_edges.transpose();
+      ASSERT_EQ(color_edges, test_edges)
+          << fmt::to_string(fmt_eigen(color_edges.transpose()));
       const Vector4<int> label_edges = FindBoxEdges(label);
-      ASSERT_EQ(label_edges, test_edges) << label_edges.transpose();
+      ASSERT_EQ(label_edges, test_edges)
+          << fmt::to_string(fmt_eigen(label_edges.transpose()));
     }
   }
 
@@ -1651,6 +1708,7 @@ TEST_F(RenderEngineVtkTest, IntrinsicsAndRenderProperties) {
 }
 
 }  // namespace
-}  // namespace render
+}  // namespace internal
+}  // namespace render_vtk
 }  // namespace geometry
 }  // namespace drake

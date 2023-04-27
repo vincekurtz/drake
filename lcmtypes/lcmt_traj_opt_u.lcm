@@ -1,0 +1,19 @@
+package drake;
+
+// Input for trajectory optimization
+struct lcmt_traj_opt_u
+{
+  int64_t utime;
+
+  // Joint torques
+  int16_t nu;
+  double u[nu];
+
+  // Nominal positions
+  int16_t nq;
+  double q[nq];
+
+  // Nominal velocities
+  int16_t nv;
+  double v[nv];
+}

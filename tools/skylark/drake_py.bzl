@@ -1,6 +1,10 @@
-# -*- python -*-
-
 load("//tools/skylark:py.bzl", "py_binary", "py_library", "py_test")
+load(
+    "//tools/skylark:kwargs.bzl",
+    "amend",
+    "incorporate_allow_network",
+    "incorporate_num_threads",
+)
 
 def drake_py_library(
         name,
@@ -17,14 +21,14 @@ def drake_py_library(
         **kwargs
     )
 
-def _disable_test_impl(ctx):
+def _redirect_test_impl(ctx):
     info = dict(
         bad_target = ctx.attr.bad_target,
         good_target = ctx.attr.good_target,
     )
     content = """#!/bin/bash
-echo "ERROR: Please use '{good_target}'; the label '{bad_target}'" \
-     "has been removed." >&2
+echo "ERROR: Please use\n    {good_target}\n  The label\n    {bad_target}\n" \
+     " does not exist." >&2
 exit 1
 """.format(**info)
     ctx.actions.write(
@@ -34,15 +38,15 @@ exit 1
     return [DefaultInfo()]
 
 # Defines a test which will fail when run via `bazel run` or `bazel test`,
-# pointing the user to the correct binary to use. This should typically have
+# redirecting the user to the correct binary to use. This should typically have
 # a "manual" tag.
-_disable_test = rule(
+_redirect_test = rule(
     attrs = {
         "bad_target": attr.string(mandatory = True),
         "good_target": attr.string(mandatory = True),
     },
     test = True,
-    implementation = _disable_test_impl,
+    implementation = _redirect_test_impl,
 )
 
 def _py_target_isolated(
@@ -59,10 +63,10 @@ def _py_target_isolated(
     if py_target == None:
         fail("Must supply macro function for defining `py_target`.")
 
-    # Do not isolate targets that are already isolated. This generally happens
-    # when linting tests (which are isolated) are invoked for isolated Python
-    # targets. Without this check, the actual test turns into
-    # `py/py/{name}`.
+    # Targets that are already isolated (with a `py/` prefix) don't require any
+    # additional work. This can happen when linting tests (isolated by
+    # definition) are invoked for isolated Python targets. Otherwise, they get
+    # "doubly isolated" as `py/py/{name}`.
     prefix = "py/"
     if isolate and not name.startswith(prefix):
         actual = prefix + name
@@ -83,10 +87,11 @@ def _py_target_isolated(
         # Disable and redirect original name.
         package_prefix = "//" + native.package_name() + ":"
 
-        # N.B. We make the disabled rule a test, even if the original was not.
-        # This ensures that developers will see the redirect using both
-        # `bazel run` or `bazel test`.
-        _disable_test(
+        # N.B. Make sure that a test (visible to both `bazel run` and
+        # `bazel test`) with the original name redirects to the isolated
+        # instantiation so users unfamiliar with isolation that use the
+        # "obvious" spelling will be properly informed.
+        _redirect_test(
             name = name,
             good_target = package_prefix + actual,
             bad_target = package_prefix + name,
@@ -173,12 +178,22 @@ def drake_py_unittest(
     that use the `unittest` framework.  Tests that use this macro should *not*
     contain a __main__ handler nor a shebang line.  By default, sets test size
     to "small" to indicate a unit test.
+
+    @param allow_network (optional, default is ["meshcat"])
+        See drake/tools/skylark/README.md for details.
+
+    @param num_threads (optional, default is 1)
+        See drake/tools/skylark/README.md for details.
     """
     helper = "//common/test_utilities:drake_py_unittest_main.py"
     if kwargs.pop("srcs", None):
         fail("Changing srcs= is not allowed by drake_py_unittest." +
              " Use drake_py_test instead, if you need something weird.")
     srcs = ["test/%s.py" % name, helper]
+    allow_network = kwargs.pop("allow_network", None)
+    kwargs = incorporate_allow_network(kwargs, allow_network = allow_network)
+    num_threads = kwargs.pop("num_threads", 1)
+    kwargs = incorporate_num_threads(kwargs, num_threads = num_threads)
     drake_py_test(
         name = name,
         srcs = srcs,
@@ -198,7 +213,8 @@ def drake_py_test(
         deps = None,
         isolate = True,
         allow_import_unittest = False,
-        tags = [],
+        allow_network = None,
+        num_threads = None,
         **kwargs):
     """A wrapper to insert Drake-specific customizations.
 
@@ -215,6 +231,12 @@ def drake_py_test(
         (thus disabling this interlock), but can override this parameter in
         case something unique is happening and the other macro can't be used.
 
+    @param allow_network (optional, default is ["meshcat"])
+        See drake/tools/skylark/README.md for details.
+
+    @param num_threads (optional, default is 1)
+        See drake/tools/skylark/README.md for details.
+
     By default, sets test size to "small" to indicate a unit test. Adds the tag
     "py" if not already present.
 
@@ -228,14 +250,15 @@ def drake_py_test(
         fail("Only drake_py_unittest can use sharding")
     shard_count = kwargs.pop("_drake_py_unittest_shard_count", None)
 
+    kwargs = incorporate_num_threads(kwargs, num_threads = num_threads)
+    kwargs = amend(kwargs, "tags", append = ["py"])
+
     # Work around https://github.com/bazelbuild/bazel/issues/1567.
     deps = deps or []
     if "//:module_py" not in deps:
         deps += ["//:module_py"]
     if not allow_import_unittest:
         deps = deps + ["//common/test_utilities:disable_python_unittest"]
-    if "py" not in tags:
-        tags = tags + ["py"]
     _py_target_isolated(
         name = name,
         py_target = py_test,
@@ -244,7 +267,6 @@ def drake_py_test(
         shard_count = shard_count,
         srcs = srcs,
         deps = deps,
-        tags = tags,
         python_version = "PY3",
         srcs_version = "PY3",
         **kwargs

@@ -4,13 +4,14 @@
 #include <memory>
 #include <set>
 #include <string>
+#include <string_view>
 #include <typeinfo>
 #include <unordered_map>
 
-#include "fmt/ostream.h"
 #include <Eigen/Dense>
 
 #include "drake/common/copyable_unique_ptr.h"
+#include "drake/common/fmt_ostream.h"
 #include "drake/common/never_destroyed.h"
 #include "drake/common/value.h"
 #include "drake/geometry/rgba.h"
@@ -469,7 +470,7 @@ class GeometryProperties {
   // that is easily traceable to this class.
   template <typename ValueType>
   static const ValueType& GetValueOrThrow(
-      const std::string& method, const std::string& group_name,
+      std::string_view method, const std::string& group_name,
       const std::string& name, const AbstractValue& abstract,
       const std::type_info& requested_type = typeid(ValueType)) {
     const ValueType* value = abstract.maybe_get_value<ValueType>();
@@ -486,7 +487,7 @@ class GeometryProperties {
   // TODO(eric.cousineau): Deprecate this, saying: "Use Rgba instead of
   // Vector4d to define diffuse color."
   static Eigen::Vector4d ToVector4d(const Rgba& color) {
-    return Eigen::Vector4d(color.r(), color.g(), color.b(), color.a());
+    return color.rgba();
   }
 
   // TODO(eric.cousineau): Deprecate this, saying: "Use Rgba instead of
@@ -501,3 +502,11 @@ class GeometryProperties {
 
 }  // namespace geometry
 }  // namespace drake
+
+
+// TODO(jwnimmer-tri) Add a real formatter and deprecate the operator<<.
+namespace fmt {
+template <>
+struct formatter<drake::geometry::GeometryProperties>
+    : drake::ostream_formatter {};
+}  // namespace fmt

@@ -1,12 +1,10 @@
-# -*- python -*-
-# This file contains rules for Bazel; see drake/doc/bazel.rst.
-
 load(
     "@drake//tools/skylark:drake_cc.bzl",
     "drake_cc_binary",
     "drake_cc_googletest",
     "drake_cc_library",
 )
+load("//tools/skylark:drake_data.bzl", "models_filegroup")
 load("//tools/install:install_data.bzl", "install_data")
 load(
     "@drake//tools/vector_gen:vector_gen.bzl",
@@ -15,6 +13,15 @@ load(
 load("//tools/lint:lint.bzl", "add_lint_tests")
 
 package(default_visibility = ["//visibility:public"])
+
+models_filegroup(
+    name = "models",
+)
+
+install_data(
+    name = "install_data",
+    data = [":models"],
+)
 
 drake_cc_vector_gen_library(
     name = "cart_pole_params",
@@ -32,12 +39,11 @@ drake_cc_binary(
     ],
     deps = [
         "//common:add_text_logging_gflags",
-        "//common:find_resource",
-        "//geometry:drake_visualizer",
         "//multibody/parsing",
         "//multibody/plant",
         "//systems/analysis:simulator",
         "//systems/framework:diagram",
+        "//visualization:visualization_config_functions",
         "@gflags",
     ],
 )
@@ -47,14 +53,11 @@ drake_cc_googletest(
     data = [":models"],
     deps = [
         ":cart_pole_params",
-        "//common:find_resource",
         "//common/test_utilities:eigen_matrix_compare",
         "//common/test_utilities:limit_malloc",
         "//multibody/parsing",
         "//multibody/plant",
     ],
 )
-
-install_data()
 
 add_lint_tests()

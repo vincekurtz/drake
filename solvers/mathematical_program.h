@@ -23,6 +23,7 @@
 #include "drake/common/drake_assert.h"
 #include "drake/common/drake_copyable.h"
 #include "drake/common/eigen_types.h"
+#include "drake/common/fmt.h"
 #include "drake/common/polynomial.h"
 #include "drake/common/symbolic/expression.h"
 #include "drake/common/symbolic/monomial_util.h"
@@ -61,7 +62,8 @@ struct NewVariableNames<Eigen::Dynamic> {
 
 template <int Rows, int Cols>
 struct NewVariableNames<Rows, Cols>
-    : public NewVariableNames<MultiplyEigenSizes<Rows, Cols>::value> {};
+    : public NewVariableNames<
+          Eigen::Matrix<double, Rows, Cols>::SizeAtCompileTime> {};
 
 template <int Rows>
 struct NewSymmetricVariableNames
@@ -142,7 +144,17 @@ struct assert_if_is_constraint {
  */
 class MathematicalProgram {
  public:
-  DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(MathematicalProgram)
+  /** @name Does not allow copy, move, or assignment. */
+  /** @{ */
+#ifdef DRAKE_DOXYGEN_CXX
+  // Copy constructor is private for use in implementing Clone().
+  MathematicalProgram(const MathematicalProgram&) = delete;
+#endif
+  MathematicalProgram& operator=(const MathematicalProgram&) = delete;
+  MathematicalProgram(MathematicalProgram&&) = delete;
+  MathematicalProgram& operator=(MathematicalProgram&&) = delete;
+  /** @} */
+
   using VarType = symbolic::Variable::Type;
 
   /// The optimal cost is +∞ when the problem is globally infeasible.
@@ -165,8 +177,9 @@ class MathematicalProgram {
    * - solver settings
    * - initial guess
    *
-   * However, the clone's x values will be initialized to NaN, and all internal
-   * solvers will be freshly constructed.
+   * Note that this is currently a *shallow* clone. The costs and constraints
+   * are not themselves cloned.
+   *
    * @retval new_prog. The newly constructed mathematical program.
    */
   [[nodiscard]] std::unique_ptr<MathematicalProgram> Clone() const;
@@ -249,9 +262,8 @@ class MathematicalProgram {
       int rows, int cols, const std::string& name = "X") {
     rows = Rows == Eigen::Dynamic ? rows : Rows;
     cols = Cols == Eigen::Dynamic ? cols : Cols;
-    auto names =
-        internal::CreateNewVariableNames<MultiplyEigenSizes<Rows, Cols>::value>(
-            rows * cols);
+    auto names = internal::CreateNewVariableNames<
+        Eigen::Matrix<double, Rows, Cols>::SizeAtCompileTime>(rows * cols);
     internal::SetVariableNames(name, rows, cols, &names);
     return NewVariables<Rows, Cols>(VarType::CONTINUOUS, names, rows, cols);
   }
@@ -319,9 +331,8 @@ class MathematicalProgram {
       int rows, int cols, const std::string& name) {
     rows = Rows == Eigen::Dynamic ? rows : Rows;
     cols = Cols == Eigen::Dynamic ? cols : Cols;
-    auto names =
-        internal::CreateNewVariableNames<MultiplyEigenSizes<Rows, Cols>::value>(
-            rows * cols);
+    auto names = internal::CreateNewVariableNames<
+        Eigen::Matrix<double, Rows, Cols>::SizeAtCompileTime>(rows * cols);
     internal::SetVariableNames(name, rows, cols, &names);
     return NewVariables<Rows, Cols>(VarType::BINARY, names, rows, cols);
   }
@@ -407,13 +418,11 @@ class MathematicalProgram {
 
   /** Appends new variables to the end of the existing variables.
    * @param decision_variables The newly added decision_variables.
-   * @pre `decision_variables` should not intersect with the existing variables
-   * or indeterminates in the optimization program.
+   * @pre `decision_variables` should not intersect with the existing
+   * indeterminates in the optimization program.
    * @pre Each entry in `decision_variables` should not be a dummy variable.
    * @throws std::exception if the preconditions are not satisfied.
    */
-  // TODO(hongkai.dai): also check if decision_variables contain duplicate
-  // entries.
   void AddDecisionVariables(
       const Eigen::Ref<const MatrixXDecisionVariable>& decision_variables);
 
@@ -466,9 +475,9 @@ class MathematicalProgram {
    */
   enum class NonnegativePolynomial {
     // We reserve the 0 value as a tactic for identifying uninitialized enums.
-    kSos = 1,    ///< A sum-of-squares polynomial.
-    kSdsos,      ///< A scaled-diagonally dominant sum-of-squares polynomial.
-    kDsos,       ///< A diagonally dominant sum-of-squares polynomial.
+    kSos = 1,  ///< A sum-of-squares polynomial.
+    kSdsos,    ///< A scaled-diagonally dominant sum-of-squares polynomial.
+    kDsos,     ///< A diagonally dominant sum-of-squares polynomial.
   };
 
   /** Returns a pair of a SOS polynomial p = mᵀQm and the Gramian matrix Q,
@@ -801,19 +810,47 @@ class MathematicalProgram {
   MatrixXIndeterminate NewIndeterminates(int rows, int cols,
                                          const std::string& name = "X");
 
+  /** Adds indeterminate.
+   * This method appends an indeterminate to the end of the program's old
+   * indeterminates, if `new_indeterminate` is not already in the program's old
+   * indeterminates.
+   * @param new_indeterminate The indeterminate to be appended to the
+   * program's old indeterminates.
+   * @return indeterminate_index The index of the added indeterminate in the
+   * program's indeterminates. i.e. prog.indeterminates()(indeterminate_index) =
+   * new_indeterminate.
+   * @pre `new_indeterminate` should not intersect with the program's
+   * decision variables.
+   * @pre new_indeterminate should not be dummy.
+   * @pre new_indeterminate should be of CONTINUOUS type.
+   */
+  int AddIndeterminate(const symbolic::Variable& new_indeterminate);
+
   /** Adds indeterminates.
    * This method appends some indeterminates to the end of the program's old
    * indeterminates.
    * @param new_indeterminates The indeterminates to be appended to the
    * program's old indeterminates.
    * @pre `new_indeterminates` should not intersect with the program's old
-   * indeterminates or decision variables.
+   * decision variables.
    * @pre Each entry in new_indeterminates should not be dummy.
    * @pre Each entry in new_indeterminates should be of CONTINUOUS type.
    */
-  // TODO(hongkai.dai): check if new_indeterminates contain duplicate entries.
   void AddIndeterminates(
       const Eigen::Ref<const MatrixXIndeterminate>& new_indeterminates);
+
+  /** Adds indeterminates.
+   * This method appends some indeterminates to the end of the program's old
+   * indeterminates.
+   * @param new_indeterminates The indeterminates to be appended to the
+   * program's old indeterminates.
+   * @pre `new_indeterminates` should not intersect with the program's old
+   * decision variables.
+   * @pre Each entry in new_indeterminates should not be dummy.
+   * @pre Each entry in new_indeterminates should be of CONTINUOUS type.
+   */
+  void AddIndeterminates(
+      const symbolic::Variables& new_indeterminates);
 
   /**
    * Adds a callback method to visualize intermediate results of the
@@ -1110,8 +1147,7 @@ class MathematicalProgram {
   /**
    * Adds an L2 norm cost |Ax+b|₂ (notice this cost is not quadratic since we
    * don't take the square of the L2 norm).
-   * @note Currently no solver supports kL2NormCost, and the user will
-   * receive an error message if they add L2NormCost and call Solve().
+   * @note Currently only the SnoptSolver and IpoptSolver support kL2NormCost.
    * @pydrake_mkdoc_identifier{3args_A_b_vars}
    */
   // TODO(hongkai.dai): support L2NormCost in each solver.
@@ -1533,8 +1569,8 @@ class MathematicalProgram {
    * @tparam Derived An Eigen Array type of Formula.
    */
   Binding<LinearConstraint> AddLinearConstraint(
-      const Eigen::Ref<const Eigen::Array<
-          symbolic::Formula, Eigen::Dynamic, Eigen::Dynamic>>& formulas);
+      const Eigen::Ref<const Eigen::Array<symbolic::Formula, Eigen::Dynamic,
+                                          Eigen::Dynamic>>& formulas);
 
   /**
    * Adds linear equality constraints referencing potentially a
@@ -1855,6 +1891,58 @@ class MathematicalProgram {
         Eigen::Matrix<double, kSize, 1>::Constant(vars.size(), ub), flat_vars);
   }
 
+  /** Adds quadratic constraint.
+   The quadratic constraint is of the form
+   lb ≤ .5 xᵀQx + bᵀx ≤ ub
+   where `x` might be a subset of the decision variables in this
+   MathematicalProgram.
+   @exclude_from_pydrake_mkdoc{Not bound in pydrake.}
+   */
+  Binding<QuadraticConstraint> AddConstraint(
+      const Binding<QuadraticConstraint>& binding);
+
+  /** Adds quadratic constraint
+   lb ≤ .5 xᵀQx + bᵀx ≤ ub
+   @param vars x in the documentation above.
+   @param hessian_type Whether the Hessian is positive semidefinite, negative
+   semidefinite or indefinite. Drake will check the type if
+   hessian_type=std::nullopt. Specifying the hessian type will speed this
+   method up.
+   @pre hessian_type should be correct if it is not std::nullopt, as we will
+   blindly trust it in the downstream code.
+   */
+  Binding<QuadraticConstraint> AddQuadraticConstraint(
+      const Eigen::Ref<const Eigen::MatrixXd>& Q,
+      const Eigen::Ref<const Eigen::VectorXd>& b, double lb, double ub,
+      const Eigen::Ref<const VectorXDecisionVariable>& vars,
+      std::optional<QuadraticConstraint::HessianType> hessian_type =
+          std::nullopt);
+
+  /** Adds quadratic constraint
+   lb ≤ .5 xᵀQx + bᵀx ≤ ub
+   @param vars x in the documentation above.
+   @param hessian_type Whether the Hessian is positive semidefinite, negative
+   semidefinite or indefinite. Drake will check the type if
+   hessian_type=std::nullopt. Specifying the hessian type will speed this
+   method up.
+   @pre hessian_type should be correct if it is not std::nullopt, as we will
+   blindly trust it in the downstream code.
+   */
+  Binding<QuadraticConstraint> AddQuadraticConstraint(
+      const Eigen::Ref<const Eigen::MatrixXd>& Q,
+      const Eigen::Ref<const Eigen::VectorXd>& b, double lb, double ub,
+      const VariableRefList& vars,
+      std::optional<QuadraticConstraint::HessianType> hessian_type =
+          std::nullopt);
+
+  /** Overloads AddQuadraticConstraint, impose lb <= e <= ub where `e` is a
+   quadratic expression.
+   */
+  Binding<QuadraticConstraint> AddQuadraticConstraint(
+      const symbolic::Expression& e, double lb, double ub,
+      std::optional<QuadraticConstraint::HessianType> hessian_type =
+          std::nullopt);
+
   /**
    * Adds Lorentz cone constraint referencing potentially a subset
    * of the decision variables.
@@ -2170,7 +2258,7 @@ class MathematicalProgram {
    * matrices.
    * @param A A matrix whose number of columns equals to the size of the
    * decision variables.
-   * @param b A vector whose number of rows equals to the size fo the decision
+   * @param b A vector whose number of rows equals to the size of the decision
    * variables.
    * @param vars The decision variables on which the constraint is imposed.
    */
@@ -2196,7 +2284,7 @@ class MathematicalProgram {
    * matrices.
    * @param A A matrix whose number of columns equals to the size of the
    * decision variables.
-   * @param b A vector whose number of rows equals to the size fo the decision
+   * @param b A vector whose number of rows equals to the size of the decision
    * variables.
    * @param vars The decision variables on which the constraint is imposed.
    */
@@ -2251,7 +2339,7 @@ class MathematicalProgram {
   /** Add the convex quadratic constraint 0.5xᵀQx + bᵀx + c <= 0 as a
    * rotated Lorentz cone constraint [rᵀx+s, 1, Px+q] is in the rotated Lorentz
    * cone. When solving the optimization problem using conic solvers (like
-   * Mosek, Gurobi, SCS, etc), it is numerically preferrable to impose the
+   * Mosek, Gurobi, SCS, etc), it is numerically preferable to impose the
    * convex quadratic constraint as rotated Lorentz cone constraint. See
    * https://docs.mosek.com/latest/capi/prob-def-quadratic.html#a-recommendation
    * @throw exception if this quadratic constraint is not convex (Q is not
@@ -2645,9 +2733,8 @@ class MathematicalProgram {
       MatrixLikewise<double, Derived>>
   GetInitialGuess(
       const Eigen::MatrixBase<Derived>& decision_variable_mat) const {
-    MatrixLikewise<double, Derived>
-        decision_variable_values(decision_variable_mat.rows(),
-                                 decision_variable_mat.cols());
+    MatrixLikewise<double, Derived> decision_variable_values(
+        decision_variable_mat.rows(), decision_variable_mat.cols());
     for (int i = 0; i < decision_variable_mat.rows(); ++i) {
       for (int j = 0; j < decision_variable_mat.cols(); ++j) {
         decision_variable_values(i, j) =
@@ -2838,6 +2925,12 @@ class MathematicalProgram {
   /** Getter for linear constraints. */
   const std::vector<Binding<LinearConstraint>>& linear_constraints() const {
     return linear_constraints_;
+  }
+
+  /** Getter for quadratic constraints. */
+  const std::vector<Binding<QuadraticConstraint>>& quadratic_constraints()
+      const {
+    return quadratic_constraints_;
   }
 
   /** Getter for Lorentz cone constraints. */
@@ -3233,6 +3326,9 @@ class MathematicalProgram {
   //@}
 
  private:
+  // Copy constructor is private for use in implementing Clone().
+  explicit MathematicalProgram(const MathematicalProgram&);
+
   static void AppendNanToEnd(int new_var_size, Eigen::VectorXd* vector);
 
   // Removes a binding of a constraint/constraint, @p removal, from a given
@@ -3253,56 +3349,6 @@ class MathematicalProgram {
    * costs/constraints/callbacks.
    */
   void UpdateRequiredCapability(ProgramAttribute query_capability);
-
-  // maps the ID of a symbolic variable to the index of the variable stored
-  // in the optimization program.
-  std::unordered_map<symbolic::Variable::Id, int> decision_variable_index_{};
-
-  // Use std::vector here instead of Eigen::VectorX because std::vector performs
-  // much better when pushing new variables into the container.
-  std::vector<symbolic::Variable> decision_variables_;
-
-  std::unordered_map<symbolic::Variable::Id, int> indeterminates_index_;
-  // Use std::vector here instead of Eigen::VectorX because std::vector performs
-  // much better when pushing new variables into the container.
-  std::vector<symbolic::Variable> indeterminates_;
-
-  std::vector<Binding<VisualizationCallback>> visualization_callbacks_;
-
-  std::vector<Binding<Cost>> generic_costs_;
-  std::vector<Binding<QuadraticCost>> quadratic_costs_;
-  std::vector<Binding<LinearCost>> linear_costs_;
-  std::vector<Binding<L2NormCost>> l2norm_costs_;
-  // TODO(naveenoid) : quadratic_constraints_
-
-  // note: linear_constraints_ does not include linear_equality_constraints_
-  std::vector<Binding<Constraint>> generic_constraints_;
-  std::vector<Binding<LinearConstraint>> linear_constraints_;
-  std::vector<Binding<LinearEqualityConstraint>> linear_equality_constraints_;
-  std::vector<Binding<BoundingBoxConstraint>> bbox_constraints_;
-  std::vector<Binding<LorentzConeConstraint>> lorentz_cone_constraint_;
-  std::vector<Binding<RotatedLorentzConeConstraint>>
-      rotated_lorentz_cone_constraint_;
-  std::vector<Binding<PositiveSemidefiniteConstraint>>
-      positive_semidefinite_constraint_;
-  std::vector<Binding<LinearMatrixInequalityConstraint>>
-      linear_matrix_inequality_constraint_;
-  std::vector<Binding<ExponentialConeConstraint>> exponential_cone_constraints_;
-
-  // Invariant:  The bindings in this list must be non-overlapping, when calling
-  // Linear Complementarity solver like Moby. If this constraint is solved
-  // through a nonlinear optimization solver (like SNOPT) instead, then we allow
-  // the bindings to be overlapping.
-  // TODO(ggould-tri) can this constraint be relaxed?
-  std::vector<Binding<LinearComplementarityConstraint>>
-      linear_complementarity_constraints_;
-
-  Eigen::VectorXd x_initial_guess_;
-
-  // The actual per-solver customization options.
-  SolverOptions solver_options_;
-
-  ProgramAttributes required_capabilities_;
 
   template <typename T>
   void NewVariables_impl(
@@ -3448,13 +3494,64 @@ class MathematicalProgram {
       // for just this tiny enum (e.g., use a bare int == 0,1,2 instead).
       symbolic::internal::DegreeType degree_type);
 
-  std::unordered_map<int, double> var_scaling_map_{};
-
   void CheckVariableType(VarType var_type);
+
+  // maps the ID of a symbolic variable to the index of the variable stored
+  // in the optimization program.
+  std::unordered_map<symbolic::Variable::Id, int> decision_variable_index_{};
+
+  // Use std::vector here instead of Eigen::VectorX because std::vector performs
+  // much better when pushing new variables into the container.
+  std::vector<symbolic::Variable> decision_variables_;
+
+  std::unordered_map<symbolic::Variable::Id, int> indeterminates_index_;
+  // Use std::vector here instead of Eigen::VectorX because std::vector performs
+  // much better when pushing new variables into the container.
+  std::vector<symbolic::Variable> indeterminates_;
+
+  std::vector<Binding<VisualizationCallback>> visualization_callbacks_;
+
+  std::vector<Binding<Cost>> generic_costs_;
+  std::vector<Binding<QuadraticCost>> quadratic_costs_;
+  std::vector<Binding<LinearCost>> linear_costs_;
+  std::vector<Binding<L2NormCost>> l2norm_costs_;
+
+  // note: linear_constraints_ does not include linear_equality_constraints_
+  std::vector<Binding<Constraint>> generic_constraints_;
+  std::vector<Binding<LinearConstraint>> linear_constraints_;
+  std::vector<Binding<LinearEqualityConstraint>> linear_equality_constraints_;
+  std::vector<Binding<BoundingBoxConstraint>> bbox_constraints_;
+  std::vector<Binding<QuadraticConstraint>> quadratic_constraints_;
+  std::vector<Binding<LorentzConeConstraint>> lorentz_cone_constraint_;
+  std::vector<Binding<RotatedLorentzConeConstraint>>
+      rotated_lorentz_cone_constraint_;
+  std::vector<Binding<PositiveSemidefiniteConstraint>>
+      positive_semidefinite_constraint_;
+  std::vector<Binding<LinearMatrixInequalityConstraint>>
+      linear_matrix_inequality_constraint_;
+  std::vector<Binding<ExponentialConeConstraint>> exponential_cone_constraints_;
+
+  // Invariant:  The bindings in this list must be non-overlapping, when calling
+  // Linear Complementarity solver like Moby. If this constraint is solved
+  // through a nonlinear optimization solver (like SNOPT) instead, then we allow
+  // the bindings to be overlapping.
+  // TODO(ggould-tri) can this constraint be relaxed?
+  std::vector<Binding<LinearComplementarityConstraint>>
+      linear_complementarity_constraints_;
+
+  Eigen::VectorXd x_initial_guess_;
+
+  // The actual per-solver customization options.
+  SolverOptions solver_options_;
+
+  ProgramAttributes required_capabilities_;
+
+  std::unordered_map<int, double> var_scaling_map_{};
 };
 
 std::ostream& operator<<(std::ostream& os, const MathematicalProgram& prog);
 
-
 }  // namespace solvers
 }  // namespace drake
+
+DRAKE_FORMATTER_AS(, drake::solvers, MathematicalProgram, x, x.to_string())

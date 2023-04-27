@@ -8,7 +8,7 @@
 #include <variant>
 #include <vector>
 
-#include <msgpack.hpp>
+#include <drake_vendor/msgpack.hpp>
 
 #include "drake/common/nice_type_name.h"
 #include "drake/geometry/meshcat.h"
@@ -37,9 +37,6 @@ namespace internal {
 // Note: These types lack many of the standard const qualifiers in order to be
 // compatible with msgpack, which wants to be able to unpack into the same
 // structure.
-
-// From https://github.com/mrdoob/three.js/blob/dev/src/constants.js
-enum ThreeSide { kFrontSide = 0, kBackSide = 1, kDoubleSide = 2 };
 
 // TODO(russt): We should expose these options to the user.
 // The documentation of the fields is adapted from
@@ -74,7 +71,7 @@ struct MaterialData {
 
   // Defines which side of faces will be rendered - front, back or both. Default
   // is kFrontSide. Other options are kBackSide and kDoubleSide.
-  std::optional<ThreeSide> side;
+  std::optional<Meshcat::SideOfFaceToRender> side;
 
   // For PointsMaterial, sets the size of the points. The three.js default
   // is 1.0. Will be capped if it exceeds the hardware dependent parameter
@@ -187,6 +184,29 @@ struct SphereGeometryData : public GeometryData {
     PACK_MAP_VAR(o, radius);
     PACK_MAP_VAR(o, widthSegments);
     PACK_MAP_VAR(o, heightSegments);
+  }
+};
+
+struct CapsuleGeometryData : public GeometryData {
+  // For a complete description of these parameters see:
+  // https://threejs.org/docs/#api/en/geometries/CapsuleGeometry
+  double radius{};
+  double length{};
+  double radialSegments{20};  // Number of segmented faces around the
+                              // circumference of the capsule.
+  double capSegments{10};     // Number of curve segments used to build
+                              // the caps.
+
+  // NOLINTNEXTLINE(runtime/references) cpplint disapproves of msgpack choices.
+  void msgpack_pack(msgpack::packer<std::stringstream>& o) const override {
+    o.pack_map(6);
+    o.pack("type");
+    o.pack("CapsuleGeometry");
+    PACK_MAP_VAR(o, uuid);
+    PACK_MAP_VAR(o, radius);
+    PACK_MAP_VAR(o, length);
+    PACK_MAP_VAR(o, radialSegments);
+    PACK_MAP_VAR(o, capSegments);
   }
 };
 
@@ -405,7 +425,8 @@ struct SetButtonControl {
   int num_clicks{0};
   std::string name;
   std::string callback;
-  MSGPACK_DEFINE_MAP(type, name, callback);
+  std::string keycode1{};
+  MSGPACK_DEFINE_MAP(type, name, callback, keycode1);
 };
 
 struct SetSliderControl {
@@ -416,7 +437,10 @@ struct SetSliderControl {
   double min{};
   double max{};
   double step{};
-  MSGPACK_DEFINE_MAP(type, name, callback, value, min, max, step);
+  std::string keycode1{};
+  std::string keycode2{};
+  MSGPACK_DEFINE_MAP(type, name, callback, value, min, max, step, keycode1,
+                     keycode2);
 };
 
 struct SetSliderValue {
@@ -437,11 +461,21 @@ struct DeleteControl {
   MSGPACK_DEFINE_MAP(type, name);
 };
 
+// This message schema is defined by gamepad dictionary populated in
+// /drake/geometry/meshcat.html::handle_gamepads().
+struct Gamepad {
+  int index{};
+  std::vector<double> button_values;
+  std::vector<double> axes;
+  MSGPACK_DEFINE_MAP(index, button_values, axes);
+};
+
 struct UserInterfaceEvent {
   std::string type;
   std::string name;
   std::optional<double> value;
-  MSGPACK_DEFINE_MAP(type, name, value);
+  std::optional<internal::Gamepad> gamepad;
+  MSGPACK_DEFINE_MAP(type, name, value, gamepad);
 };
 
 }  // namespace internal
@@ -450,7 +484,7 @@ struct UserInterfaceEvent {
 
 #ifndef DRAKE_DOXYGEN_CXX
 
-MSGPACK_ADD_ENUM(drake::geometry::internal::ThreeSide);
+MSGPACK_ADD_ENUM(drake::geometry::Meshcat::SideOfFaceToRender);
 MSGPACK_ADD_ENUM(drake::geometry::MeshcatAnimation::LoopMode);
 
 // We use the msgpack "non-intrusive" approach for packing types exposed in the
@@ -458,7 +492,6 @@ MSGPACK_ADD_ENUM(drake::geometry::MeshcatAnimation::LoopMode);
 namespace msgpack {
 MSGPACK_API_VERSION_NAMESPACE(MSGPACK_DEFAULT_API_NS) {
 namespace adaptor {
-
 
 template <typename Scalar, int RowsAtCompileTime, int ColsAtCompileTime,
           int Options, int MaxRowsAtCompileTime, int MaxColsAtCompileTime>
@@ -547,7 +580,7 @@ struct pack<drake::geometry::Meshcat::PerspectiveCamera> {
   // NOLINTNEXTLINE(runtime/references) cpplint disapproves of msgpack choices.
       msgpack::packer<Stream>& o,
       const drake::geometry::Meshcat::PerspectiveCamera& v) const {
-    o.pack_map(5);
+    o.pack_map(6);
     o.pack("type");
     o.pack("PerspectiveCamera");
     o.pack("fov");

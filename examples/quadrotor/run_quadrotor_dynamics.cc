@@ -7,9 +7,7 @@
 
 #include <gflags/gflags.h>
 
-#include "drake/common/find_resource.h"
 #include "drake/common/text_logging.h"
-#include "drake/geometry/drake_visualizer.h"
 #include "drake/multibody/parsing/parser.h"
 #include "drake/multibody/plant/multibody_plant.h"
 #include "drake/systems/analysis/runge_kutta2_integrator.h"
@@ -18,6 +16,7 @@
 #include "drake/systems/framework/diagram.h"
 #include "drake/systems/framework/diagram_builder.h"
 #include "drake/systems/primitives/constant_vector_source.h"
+#include "drake/visualization/visualization_config_functions.h"
 
 namespace drake {
 namespace examples {
@@ -36,15 +35,15 @@ class Quadrotor : public systems::Diagram<T> {
     systems::DiagramBuilder<T> builder;
     auto [plant, scene_graph] =
         multibody::AddMultibodyPlantSceneGraph(&builder, 0.0);
-    geometry::DrakeVisualizerd::AddToBuilder(&builder, scene_graph);
     multibody::Parser parser(&plant);
-    parser.AddModelFromFile(
-        FindResourceOrThrow("drake/examples/quadrotor/quadrotor.urdf"));
-    parser.AddModelFromFile(
-        FindResourceOrThrow("drake/examples/quadrotor/warehouse.sdf"));
+    parser.AddModelsFromUrl(
+        "package://drake/examples/quadrotor/quadrotor.urdf");
+    parser.AddModelsFromUrl(
+        "package://drake/examples/quadrotor/warehouse.sdf");
     plant.Finalize();
     DRAKE_DEMAND(plant.num_actuators() == 0);
     DRAKE_DEMAND(plant.num_positions() == 7);
+    visualization::AddDefaultVisualization(&builder);
 
     builder.BuildInto(this);
     plant_ = &plant;

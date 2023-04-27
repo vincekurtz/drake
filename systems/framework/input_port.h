@@ -172,6 +172,7 @@ class InputPort final : public InputPortBase {
   using InputPortBase::is_random;
   using InputPortBase::get_random_type;
   using PortBase::ticket;
+  using InputPortBase::Allocate;
 
  private:
   friend class internal::FrameworkFactory;
@@ -185,9 +186,10 @@ class InputPort final : public InputPortBase {
       internal::SystemId system_id, std::string name,
       InputPortIndex index, DependencyTicket ticket, PortDataType data_type,
       int size, const std::optional<RandomDistribution>& random_type,
-      EvalAbstractCallback eval)
+      EvalAbstractCallback eval, ValueProducer::AllocateCallback alloc)
       : InputPortBase(system_interface, system_id, std::move(name), index,
-                      ticket, data_type, size, random_type, std::move(eval)),
+                      ticket, data_type, size, random_type, std::move(eval),
+                      std::move(alloc)),
         system_(*system) {
     DRAKE_DEMAND(system != nullptr);
     // Check the precondition on identical parameters; note that comparing as

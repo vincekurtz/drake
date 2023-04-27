@@ -1,16 +1,161 @@
 #include "drake/traj_opt/examples/example_base.h"
 
+#include <chrono>
+#include <iostream>
+#include <thread>
+#include <utility>
+
+#include "drake/systems/primitives/discrete_time_delay.h"
+#include "drake/traj_opt/examples/mpc_controller.h"
+#include "drake/traj_opt/examples/pd_plus_controller.h"
+#include "drake/visualization/visualization_config_functions.h"
+
 namespace drake {
 namespace traj_opt {
 namespace examples {
 
-void TrajOptExample::SolveTrajectoryOptimization(
-    const std::string options_file) const {
+using mpc::Interpolator;
+using mpc::ModelPredictiveController;
+using pd_plus::PdPlusController;
+using systems::DiscreteTimeDelay;
+
+void TrajOptExample::RunExample(const std::string options_file) const {
   // Load parameters from file
   TrajOptExampleParams default_options;
   TrajOptExampleParams options = yaml::LoadYamlFile<TrajOptExampleParams>(
       FindResourceOrThrow(options_file), {}, default_options);
 
+  if (options.mpc) {
+    // Run a simulation that uses the optimizer as a model predictive controller
+    RunModelPredictiveControl(options);
+  } else {
+    // Solve a single instance of the optimization problem and play back the
+    // result on the visualizer
+    SolveTrajectoryOptimization(options);
+  }
+}
+
+void TrajOptExample::RunModelPredictiveControl(
+    const TrajOptExampleParams& options) const {
+  // Perform a full solve to convergence (as defined by YAML parameters) to
+  // warm-start the first MPC iteration. Subsequent MPC iterations will be
+  // warm-started based on the prior MPC iteration.
+  TrajectoryOptimizerSolution<double> initial_solution =
+      SolveTrajectoryOptimization(options);
+
+  // Set up the system diagram for the simulator
+  DiagramBuilder<double> builder;
+
+  // Construct the multibody plant system model
+  MultibodyPlantConfig config;
+  config.time_step = options.sim_time_step;
+  auto [plant, scene_graph] = AddMultibodyPlant(config, &builder);
+  CreatePlantModelForSimulation(&plant);
+  plant.Finalize();
+
+  const int nq = plant.num_positions();
+  const int nv = plant.num_velocities();
+  const int nu = plant.num_actuators();
+
+  // Connect to the visualizer
+  visualization::AddDefaultVisualization(&builder);
+
+  // Create a system model for the controller
+  DiagramBuilder<double> ctrl_builder;
+  MultibodyPlantConfig ctrl_config;
+  ctrl_config.time_step = options.time_step;
+  auto [ctrl_plant, ctrl_scene_graph] =
+      AddMultibodyPlant(ctrl_config, &ctrl_builder);
+  CreatePlantModel(&ctrl_plant);
+  ctrl_plant.Finalize();
+  auto ctrl_diagram = ctrl_builder.Build();
+
+  // Define the optimization problem
+  ProblemDefinition opt_prob;
+  SetProblemDefinition(options, &opt_prob);
+  NormalizeQuaternions(ctrl_plant, &opt_prob.q_nom);
+
+  // Set MPC-specific solver parameters
+  SolverParameters solver_params;
+  SetSolverParameters(options, &solver_params);
+  solver_params.max_iterations = options.mpc_iters;
+
+  // Set up the MPC system
+  const double replan_period = 1. / options.controller_frequency;
+  auto controller = builder.AddSystem<ModelPredictiveController>(
+      ctrl_diagram.get(), &ctrl_plant, opt_prob, initial_solution,
+      solver_params, replan_period);
+
+  // Create an interpolator to send samples from the optimal trajectory at a
+  // faster rate
+  auto interpolator = builder.AddSystem<Interpolator>(nq, nv, nu);
+
+  // Connect the MPC controller to the interpolator
+  // N.B. We place a delay block between the MPC controller and the interpolator
+  // to simulate the fact that the system continues to evolve over time as the
+  // optimizer solves the trajectory optimization problem.
+  mpc::StoredTrajectory placeholder_trajectory;
+  controller->StoreOptimizerSolution(initial_solution, 0.0,
+                                     &placeholder_trajectory);
+
+  auto delay = builder.AddSystem<DiscreteTimeDelay>(
+      replan_period, 1, Value(placeholder_trajectory));
+  builder.Connect(controller->get_trajectory_output_port(),
+                  delay->get_input_port());
+  builder.Connect(delay->get_output_port(),
+                  interpolator->get_trajectory_input_port());
+
+  // Connect the interpolator to a low-level PD controller
+  const MatrixXd B = plant.MakeActuationMatrix();
+  auto dummy_context = plant.CreateDefaultContext();
+  MatrixXd N(nq, nv);
+  plant.CalcNMatrix(*dummy_context, &N);
+  MatrixXd Bq = N * B;
+
+  const MatrixXd Kp =
+      (options.Kp.size() == 0)
+          ? MatrixXd::Zero(nu, nq)
+          : static_cast<MatrixXd>(Bq.transpose() * options.Kp.asDiagonal());
+  const MatrixXd Kd =
+      (options.Kd.size() == 0)
+          ? MatrixXd::Zero(nu, nv)
+          : static_cast<MatrixXd>(B.transpose() * options.Kd.asDiagonal());
+
+  auto pd = builder.AddSystem<PdPlusController>(Kp, Kd, options.feed_forward);
+  builder.Connect(interpolator->get_state_output_port(),
+                  pd->get_nominal_state_input_port());
+  builder.Connect(interpolator->get_control_output_port(),
+                  pd->get_nominal_control_input_port());
+  builder.Connect(plant.get_state_output_port(),
+                  pd->get_state_input_port());
+  builder.Connect(pd->get_control_output_port(),
+                  plant.get_actuation_input_port());
+
+  // Connect the plant's state estimate to the MPC planner
+  builder.Connect(plant.get_state_output_port(),
+                  controller->get_state_input_port());
+
+  // Compile the diagram
+  auto diagram = builder.Build();
+  std::unique_ptr<systems::Context<double>> diagram_context =
+      diagram->CreateDefaultContext();
+  systems::Context<double>& plant_context =
+      diagram->GetMutableSubsystemContext(plant, diagram_context.get());
+
+  // Run the simulation
+  plant.SetPositions(&plant_context, options.q_init);
+  plant.SetVelocities(&plant_context, options.v_init);
+  systems::Simulator<double> simulator(*diagram, std::move(diagram_context));
+  simulator.set_target_realtime_rate(options.sim_realtime_rate);
+  simulator.Initialize();
+  simulator.AdvanceTo(options.sim_time);
+
+  // Print profiling info
+  std::cout << TableOfAverages() << std::endl;
+}
+
+TrajectoryOptimizerSolution<double> TrajOptExample::SolveTrajectoryOptimization(
+    const TrajOptExampleParams& options) const {
   // Create a system model
   // N.B. we need a whole diagram, including scene_graph, to handle contact
   DiagramBuilder<double> builder;
@@ -27,6 +172,10 @@ void TrajOptExample::SolveTrajectoryOptimization(
   ProblemDefinition opt_prob;
   SetProblemDefinition(options, &opt_prob);
 
+  // Normalize quaternions in the reference
+  // TODO(vincekurtz): consider moving this to SetProblemDefinition
+  NormalizeQuaternions(plant, &opt_prob.q_nom);
+
   // Set our solver parameters
   SolverParameters solver_params;
   SetSolverParameters(options, &solver_params);
@@ -34,6 +183,7 @@ void TrajOptExample::SolveTrajectoryOptimization(
   // Establish an initial guess
   std::vector<VectorXd> q_guess = MakeLinearInterpolation(
       opt_prob.q_init, options.q_guess, opt_prob.num_steps + 1);
+  NormalizeQuaternions(plant, &q_guess);
 
   // Visualize the target trajectory and initial guess, if requested
   if (options.play_target_trajectory) {
@@ -123,6 +273,8 @@ void TrajOptExample::SolveTrajectoryOptimization(
   if (options.play_optimal_trajectory) {
     PlayBackTrajectory(solution.q, options.time_step);
   }
+
+  return solution;
 }
 
 void TrajOptExample::PlayBackTrajectory(const std::vector<VectorXd>& q,
@@ -137,9 +289,7 @@ void TrajOptExample::PlayBackTrajectory(const std::vector<VectorXd>& q,
   CreatePlantModel(&plant);
   plant.Finalize();
 
-  geometry::DrakeVisualizerParams vis_params;
-  vis_params.role = geometry::Role::kIllustration;
-  DrakeVisualizerd::AddToBuilder(&builder, scene_graph, {}, vis_params);
+  visualization::AddDefaultVisualization(&builder);
 
   auto diagram = builder.Build();
   std::unique_ptr<systems::Context<double>> diagram_context =
@@ -155,7 +305,7 @@ void TrajOptExample::PlayBackTrajectory(const std::vector<VectorXd>& q,
   for (int t = 0; t < N; ++t) {
     diagram_context->SetTime(t * time_step);
     plant.SetPositions(&plant_context, q[t]);
-    diagram->Publish(*diagram_context);
+    diagram->ForcedPublish(*diagram_context);
 
     // Hack to make the playback roughly realtime
     // TODO(vincekurtz): add realtime rate option?
@@ -231,6 +381,52 @@ void TrajOptExample::SetSolverParameters(
         fmt::format("Unknown solver method '{}'", options.method));
   }
 
+  if (options.linear_solver == "pentadiagonal_lu") {
+    solver_params->linear_solver =
+        SolverParameters::LinearSolverType::kPentaDiagonalLu;
+  } else if (options.linear_solver == "dense_ldlt") {
+    solver_params->linear_solver =
+        SolverParameters::LinearSolverType::kDenseLdlt;
+  } else if (options.linear_solver == "petsc") {
+    solver_params->linear_solver = SolverParameters::LinearSolverType::kPetsc;
+  } else {
+    throw std::runtime_error(
+        fmt::format("Unknown linear solver '{}'", options.linear_solver));
+  }
+
+  solver_params->petsc_parameters.relative_tolerance =
+      options.petsc_rel_tolerance;
+
+  // PETSc solver type.
+  if (options.petsc_solver == "cg") {
+    solver_params->petsc_parameters.solver_type =
+        SolverParameters::PetscSolverPatameters::SolverType::kConjugateGradient;
+  } else if (options.petsc_solver == "direct") {
+    solver_params->petsc_parameters.solver_type =
+        SolverParameters::PetscSolverPatameters::SolverType::kDirect;
+  } else if (options.petsc_solver == "minres") {
+    solver_params->petsc_parameters.solver_type =
+        SolverParameters::PetscSolverPatameters::SolverType::kMINRES;
+  } else {
+    throw std::runtime_error(
+        fmt::format("Unknown PETSc solver '{}'", options.petsc_solver));
+  }
+
+  // PETSc preconditioner.
+  if (options.petsc_preconditioner == "none") {
+    solver_params->petsc_parameters.preconditioner_type =
+        SolverParameters::PetscSolverPatameters::PreconditionerType::kNone;
+  } else if (options.petsc_preconditioner == "chol") {
+    solver_params->petsc_parameters.preconditioner_type =
+        SolverParameters::PetscSolverPatameters::PreconditionerType::kCholesky;
+  } else if (options.petsc_preconditioner == "ichol") {
+    solver_params->petsc_parameters.preconditioner_type = SolverParameters::
+        PetscSolverPatameters::PreconditionerType::kIncompleteCholesky;
+  } else {
+    throw std::runtime_error(fmt::format("Unknown PETSc preconditioner '{}'",
+                                         options.petsc_preconditioner));
+  }
+
   solver_params->max_iterations = options.max_iters;
   solver_params->max_linesearch_iterations = 60;
   solver_params->print_debug_data = options.print_debug_data;
@@ -246,12 +442,9 @@ void TrajOptExample::SetSolverParameters(
   // TODO(vincekurtz): figure out a better place to set these
   solver_params->F = options.F;
   solver_params->delta = options.delta;
-  solver_params->stiffness_exponent = options.stiffness_exponent;
   solver_params->dissipation_velocity = options.dissipation_velocity;
-  solver_params->dissipation_exponent = options.dissipation_exponent;
   solver_params->friction_coefficient = options.friction_coefficient;
   solver_params->stiction_velocity = options.stiction_velocity;
-
   solver_params->force_at_a_distance = options.force_at_a_distance;
   solver_params->smoothing_factor = options.smoothing_factor;
 
@@ -269,6 +462,52 @@ void TrajOptExample::SetSolverParameters(
 
   // Flag for printing iteration data
   solver_params->verbose = options.verbose;
+
+  // Whether to normalize quaterions between iterations
+  solver_params->normalize_quaternions = options.normalize_quaternions;
+
+  // Type of Hessian approximation
+  solver_params->exact_hessian = options.exact_hessian;
+
+  // Hessian rescaling
+  solver_params->scaling = options.scaling;
+
+  if (options.scaling_method == "sqrt") {
+    solver_params->scaling_method = ScalingMethod::kSqrt;
+  } else if (options.scaling_method == "adaptive_sqrt") {
+    solver_params->scaling_method = ScalingMethod::kAdaptiveSqrt;
+  } else if (options.scaling_method == "double_sqrt") {
+    solver_params->scaling_method = ScalingMethod::kDoubleSqrt;
+  } else if (options.scaling_method == "adaptive_double_sqrt") {
+    solver_params->scaling_method = ScalingMethod::kAdaptiveDoubleSqrt;
+  } else {
+    throw std::runtime_error(
+        fmt::format("Unknown scaling method '{}'", options.scaling_method));
+  }
+
+  // Equality constriant (unactuated DoF torques) enforcement
+  solver_params->equality_constraints = options.equality_constraints;
+
+  // Maximum and initial trust region radius
+  solver_params->Delta0 = options.Delta0;
+  solver_params->Delta_max = options.Delta_max;
+
+  // Number of threads
+  solver_params->num_threads = options.num_threads;
+}
+
+void TrajOptExample::NormalizeQuaternions(const MultibodyPlant<double>& plant,
+                                          std::vector<VectorXd>* q) const {
+  const int num_steps = q->size() - 1;
+  for (const multibody::BodyIndex& index : plant.GetFloatingBaseBodies()) {
+    const multibody::Body<double>& body = plant.get_body(index);
+    const int q_start = body.floating_positions_start();
+    DRAKE_DEMAND(body.has_quaternion_dofs());
+    for (int t = 0; t <= num_steps; ++t) {
+      auto body_qs = q->at(t).segment<4>(q_start);
+      body_qs.normalize();
+    }
+  }
 }
 
 }  // namespace examples

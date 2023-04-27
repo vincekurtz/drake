@@ -141,8 +141,8 @@ class MathematicalProgramResult final {
    * an error if the solver_details has not been set. */
   template <typename Solver>
   const typename Solver::Details& get_solver_details() const {
-    return get_abstract_solver_details().
-        template get_value<typename Solver::Details>();
+    return get_abstract_solver_details()
+        .template get_value<typename Solver::Details>();
   }
 
   /** (Advanced.) Gets the type-erased solver details. Most users should use
@@ -301,7 +301,7 @@ class MathematicalProgramResult final {
    *    solution to the (rotated) Lorentz cone constraint doesn't have the
    *    "shadow price" interpretation, but should lie in the dual cone, and
    *    satisfy the KKT condition. For more information, refer to
-   *    https://docs.mosek.com/9.3/capi/prob-def-conic.html#duality-for-conic-optimization
+   *    https://docs.mosek.com/10.0/capi/prob-def-conic.html#duality-for-conic-optimization
    *    as an explanation.
    *
    * The interpretation for the dual variable to conic constraint x ∈ K can be

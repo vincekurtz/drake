@@ -3,11 +3,13 @@
 #include <memory>
 #include <vector>
 
+#include <fmt/format.h>
+#include <fmt/ostream.h>
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
-#include "drake/common/filesystem.h"
 #include "drake/common/find_resource.h"
+#include "drake/common/fmt_eigen.h"
 #include "drake/common/test_utilities/eigen_matrix_compare.h"
 #include "drake/common/test_utilities/expect_no_throw.h"
 #include "drake/common/test_utilities/expect_throws_message.h"
@@ -25,13 +27,13 @@ namespace internal {
 
 std::ostream& operator<<(std::ostream& out, const UrdfMaterial& m) {
   if (m.rgba.has_value()) {
-    out << "RGBA: " << m.rgba->transpose();
+    fmt::print(out, "RGBA: {}", fmt_eigen(m.rgba->transpose()));
   } else {
     out << "RGBA: None";
   }
   out << ", ";
   if (m.diffuse_map.has_value()) {
-    out << "Diffuse map: " << *m.diffuse_map;
+    fmt::print(out, "Diffuse map: {}", *m.diffuse_map);
   } else {
     out << "Diffuse map: None";
   }
@@ -48,6 +50,7 @@ using std::make_unique;
 using std::unique_ptr;
 
 using Eigen::Vector4d;
+using testing::ContainsRegex;
 using testing::MatchesRegex;
 using tinyxml2::XMLDocument;
 using tinyxml2::XMLElement;
@@ -239,7 +242,7 @@ class UrdfGeometryTest : public test::DiagnosticPolicyTestBase {
   // <collision> tag.
   void MakeCollisionDocFromString(
       const std::string& collision_spec) {
-    const std::string urdf_harness = R"""(
+    constexpr const char* urdf_harness = R"""(
 <?xml version="1.0"?>
   <collision>
     <geometry>
@@ -696,7 +699,7 @@ TEST_F(UrdfGeometryTest, TestCollisionNameExhaustion) {
   numeric_name_suffix_limit_ = 0;
   geometry_names_.insert("Box");
   DRAKE_EXPECT_NO_THROW(ParseCollisionDoc(""));
-  EXPECT_THAT(TakeError(), MatchesRegex(".*Too many identical.*"));
+  EXPECT_THAT(TakeError(), MatchesRegex(".*Too many.*identical.*"));
 }
 
 TEST_F(UrdfGeometryTest, TestVisualNameExhaustion) {
@@ -713,7 +716,67 @@ TEST_F(UrdfGeometryTest, TestVisualNameExhaustion) {
       </link>
     </robot>)""";
   DRAKE_EXPECT_NO_THROW(ParseUrdfGeometryString(robot));
-  EXPECT_THAT(TakeError(), MatchesRegex(".*Too many identical.*"));
+  EXPECT_THAT(TakeError(), MatchesRegex(".*Too many.*identical.*"));
+}
+
+TEST_F(UrdfGeometryTest, TestDuplicateVisualName) {
+  // Duplicate visual names are allowed by URDF, but not by SceneGraph.
+  // They should produce a warning (with automatic renaming).
+  std::string robot = R"""(
+    <robot name='a'>
+      <link name='b'>
+        <visual name='hello'>
+          <geometry><box size='1 2 3'/></geometry>
+        </visual>
+        <visual name='hello'>
+          <geometry><box size='3 2 1'/></geometry>
+        </visual>
+      </link>
+    </robot>)""";
+  DRAKE_EXPECT_NO_THROW(ParseUrdfGeometryString(robot));
+  ASSERT_EQ(visual_instances_.size(), 2);
+  EXPECT_EQ(visual_instances_[0].name(), "hello");
+  EXPECT_EQ(visual_instances_[1].name(), "hello_1");
+  EXPECT_THAT(TakeWarning(), ContainsRegex("visual.*hello.*renam.*hello_1"));
+}
+
+TEST_F(UrdfGeometryTest, TestDrakeDiffuseMapError) {
+  // If <drake:diffuse_map> is specified, the parser should report an error. The
+  // URDF snippet models a user that copies <drake:diffuse> from an SDFormat
+  // file verbatim (so it maintains the SDFormat style instead of URDF).
+  std::string robot = R"""(
+    <robot name='a'>
+      <link name='b'>
+        <visual name='hello'>
+          <geometry><box size='1 2 3'/></geometry>
+          <material><drake:diffuse_map>abc.png</drake:diffuse_map></material>
+        </visual>
+      </link>
+    </robot>)""";
+  DRAKE_EXPECT_NO_THROW(ParseUrdfGeometryString(robot));
+  EXPECT_THAT(TakeError(),
+              ContainsRegex("<drake:diffuse_map> is not supported.*"));
+}
+
+TEST_F(UrdfGeometryTest, TestDuplicateCollisionName) {
+  // Duplicate visual names are allowed by URDF, but not by SceneGraph.
+  // They should produce a warning (with automatic renaming).
+  std::string robot = R"""(
+    <robot name='a'>
+      <link name='b'>
+        <collision name='hello'>
+          <geometry><box size='1 2 3'/></geometry>
+        </collision>
+        <collision name='hello'>
+          <geometry><box size='3 2 1'/></geometry>
+        </collision>
+      </link>
+    </robot>)""";
+  DRAKE_EXPECT_NO_THROW(ParseUrdfGeometryString(robot));
+  ASSERT_EQ(collision_instances_.size(), 2);
+  EXPECT_EQ(collision_instances_[0].name(), "hello");
+  EXPECT_EQ(collision_instances_[1].name(), "hello_1");
+  EXPECT_THAT(TakeWarning(), ContainsRegex("collision.*hello.*renam.*hello_1"));
 }
 
 TEST_F(UrdfGeometryTest, TestBadCollision) {
@@ -749,7 +812,7 @@ TEST_F(UrdfGeometryTest, TestBadBox) {
 }
 
 TEST_F(UrdfGeometryTest, TestBadSphere) {
-  std::string base = R"""(
+  constexpr const char* base = R"""(
     <robot name='a'>
       <link name='b'>
         <collision>
@@ -766,7 +829,7 @@ TEST_F(UrdfGeometryTest, TestBadSphere) {
 }
 
 TEST_F(UrdfGeometryTest, TestBadCylinder) {
-  std::string base = R"""(
+  constexpr const char* base = R"""(
     <robot name='a'>
       <link name='b'>
         <collision>
@@ -791,7 +854,7 @@ TEST_F(UrdfGeometryTest, TestBadCylinder) {
 }
 
 TEST_F(UrdfGeometryTest, TestBadCapsule) {
-  std::string base = R"""(
+  constexpr const char* base = R"""(
     <robot name='a'>
       <link name='b'>
         <collision>
@@ -821,7 +884,7 @@ TEST_F(UrdfGeometryTest, TestBadCapsule) {
 }
 
 TEST_F(UrdfGeometryTest, TestBadEllipsoid) {
-  std::string base = R"""(
+  constexpr const char* base = R"""(
     <robot name='a'>
       <link name='b'>
         <collision>
@@ -854,7 +917,7 @@ TEST_F(UrdfGeometryTest, TestBadEllipsoid) {
 }
 
 TEST_F(UrdfGeometryTest, TestBadMesh) {
-  std::string base = R"""(
+  constexpr const char* base = R"""(
     <robot name='a'>
       <link name='b'>
         <collision>
@@ -889,7 +952,7 @@ TEST_F(UrdfGeometryTest, TestBadShapeCollision) {
 }
 
 TEST_F(UrdfGeometryTest, TestLegacyDrakeCompliance) {
-  std::string base = R"""(
+  constexpr const char* base = R"""(
     <robot name='a'>
       <link name='b'>
         <collision>
@@ -938,7 +1001,7 @@ TEST_F(UrdfGeometryTest, TestBadShapeVisual) {
 }
 
 TEST_F(UrdfGeometryTest, TestBadProperty) {
-  std::string base = R"""(
+  constexpr const char* base = R"""(
   <drake:proximity_properties>
     <drake:mu_dynamic {}/>
   </drake:proximity_properties>)""";
@@ -1108,7 +1171,7 @@ TEST_F(UrdfGeometryTest, TwoUnnamedBoxes) {
 
   ASSERT_EQ(collision_instances_.size(), 2);
   EXPECT_EQ(collision_instances_[0].name(), "Box");
-  EXPECT_EQ(collision_instances_[1].name(), "Box1");
+  EXPECT_EQ(collision_instances_[1].name(), "Box_1");
 }
 
 }  // namespace

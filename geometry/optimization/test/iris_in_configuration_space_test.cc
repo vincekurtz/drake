@@ -1,5 +1,7 @@
 #include <gtest/gtest.h>
 
+#include "drake/common/find_resource.h"
+#include "drake/common/test_utilities/expect_throws_message.h"
 #include "drake/geometry/meshcat.h"
 #include "drake/geometry/optimization/hpolyhedron.h"
 #include "drake/geometry/optimization/iris.h"
@@ -7,7 +9,6 @@
 #include "drake/geometry/test_utilities/meshcat_environment.h"
 #include "drake/multibody/inverse_kinematics/inverse_kinematics.h"
 #include "drake/multibody/parsing/parser.h"
-#include "drake/solvers/ibex_solver.h"
 #include "drake/systems/framework/diagram_builder.h"
 
 namespace drake {
@@ -27,7 +28,10 @@ HPolyhedron IrisFromUrdf(const std::string urdf,
   systems::DiagramBuilder<double> builder;
   multibody::MultibodyPlant<double>& plant =
       multibody::AddMultibodyPlantSceneGraph(&builder, 0.0);
-  multibody::Parser(&plant).AddModelFromString(urdf, "urdf");
+  multibody::Parser parser(&plant);
+  parser.package_map().AddPackageXml(FindResourceOrThrow(
+      "drake/multibody/parsing/test/box_package/package.xml"));
+  parser.AddModelsFromString(urdf, "urdf");
   plant.Finalize();
   auto diagram = builder.Build();
 
@@ -69,7 +73,7 @@ GTEST_TEST(IrisInConfigurationSpaceTest, JointLimits) {
   EXPECT_FALSE(region.PointInSet(Vector1d{qmax + kTol}));
 }
 
-const char boxes_urdf[] = R"(
+const char boxes_urdf[] = R"""(
 <robot name="boxes">
   <link name="fixed">
     <collision name="right">
@@ -97,7 +101,7 @@ const char boxes_urdf[] = R"(
     <child link="movable"/>
   </joint>
 </robot>
-)";
+)""";
 
 // Three boxes.  Two on the outside are fixed.  One in the middle on a prismatic
 // joint.  The configuration space is a (convex) line segment q ∈ (−1,1).
@@ -115,6 +119,131 @@ GTEST_TEST(IrisInConfigurationSpaceTest, BoxesPrismatic) {
   EXPECT_TRUE(region.PointInSet(Vector1d{qmax - kTol}));
   EXPECT_FALSE(region.PointInSet(Vector1d{qmin - kTol}));
   EXPECT_FALSE(region.PointInSet(Vector1d{qmax + kTol}));
+
+  DRAKE_EXPECT_THROWS_MESSAGE(IrisFromUrdf(boxes_urdf, Vector1d{1.1}, options),
+                              "The seed point is in collision.*");
+}
+
+const char boxes_with_mesh_urdf[] = R"""(
+<robot name="boxes">
+  <link name="fixed">
+    <collision name="right">
+      <origin rpy="0 0 0" xyz="2.5 0 0"/>
+      <geometry><box size="1 1 1"/></geometry>
+    </collision>
+    <collision name="left">
+      <origin rpy="0 0 0" xyz="-2.5 0 0"/>
+      <geometry><box size="1 1 1"/></geometry>
+    </collision>
+  </link>
+  <joint name="fixed_link_weld" type="fixed">
+    <parent link="world"/>
+    <child link="fixed"/>
+  </joint>
+  <link name="movable">
+    <collision name="center">
+      <!-- box size="2 2 2" -->
+      <geometry>
+        <mesh filename="package://box_model/meshes/box.obj">
+          <drake:declare_convex/>
+        </mesh>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="movable" type="prismatic">
+    <axis xyz="1 0 0"/>
+    <limit lower="-2" upper="2"/>
+    <parent link="world"/>
+    <child link="movable"/>
+  </joint>
+</robot>
+)""";
+
+// Three boxes.  Two on the outside are fixed.  One in the middle on a prismatic
+// joint.  The configuration space is a (convex) line segment q ∈ (−1,1).
+GTEST_TEST(IrisInConfigurationSpaceTest, BoxesWithMeshPrismatic) {
+  const Vector1d sample = Vector1d::Zero();
+  IrisOptions options;
+  HPolyhedron region = IrisFromUrdf(boxes_with_mesh_urdf, sample, options);
+
+  EXPECT_EQ(region.ambient_dimension(), 1);
+
+  const double kTol = 1e-3;  // due to ibex's rel_eps_f.
+  const double qmin = -1.0 + options.configuration_space_margin,
+               qmax = 1.0 - options.configuration_space_margin;
+  EXPECT_TRUE(region.PointInSet(Vector1d{qmin + kTol}));
+  EXPECT_TRUE(region.PointInSet(Vector1d{qmax - kTol}));
+  EXPECT_FALSE(region.PointInSet(Vector1d{qmin - kTol}));
+  EXPECT_FALSE(region.PointInSet(Vector1d{qmax + kTol}));
+
+  DRAKE_EXPECT_THROWS_MESSAGE(IrisFromUrdf(boxes_urdf, Vector1d{1.1}, options),
+                              "The seed point is in collision.*");
+}
+
+GTEST_TEST(IrisInConfigurationSpaceTest, ConfigurationObstacles) {
+  const double kTol = 1e-3;  // due to ibex's rel_eps_f.
+  const Vector1d sample = Vector1d::Zero();
+  IrisOptions options;
+
+  // Configuration space obstacles less restrictive than task space obstacle.
+  {
+    ConvexSets obstacles;
+    obstacles.emplace_back(HPolyhedron::MakeBox(Vector1d(1.5), Vector1d(3)));
+    options.configuration_obstacles = obstacles;
+    HPolyhedron region = IrisFromUrdf(boxes_urdf, sample, options);
+
+    EXPECT_EQ(region.ambient_dimension(), 1);
+
+    const double qmin = -1.0 + options.configuration_space_margin,
+                 qmax = 1.0 - options.configuration_space_margin;
+    EXPECT_TRUE(region.PointInSet(Vector1d{qmin + kTol}));
+    EXPECT_TRUE(region.PointInSet(Vector1d{qmax - kTol}));
+    EXPECT_FALSE(region.PointInSet(Vector1d{qmin - kTol}));
+    EXPECT_FALSE(region.PointInSet(Vector1d{qmax + kTol}));
+  }
+
+  // Configuration space obstacle more restrictive than task space obstacles.
+  {
+    ConvexSets obstacles;
+    obstacles.emplace_back(HPolyhedron::MakeBox(Vector1d(0.5), Vector1d(3)));
+    options.configuration_obstacles = obstacles;
+    HPolyhedron region = IrisFromUrdf(boxes_urdf, sample, options);
+
+    EXPECT_EQ(region.ambient_dimension(), 1);
+
+    const double qmin = -1.0 + options.configuration_space_margin, qmax = 0.5;
+    EXPECT_TRUE(region.PointInSet(Vector1d{qmin + kTol}));
+    EXPECT_TRUE(region.PointInSet(Vector1d{qmax - kTol}));
+    EXPECT_FALSE(region.PointInSet(Vector1d{qmin - kTol}));
+    EXPECT_FALSE(region.PointInSet(Vector1d{qmax + kTol}));
+  }
+
+  // Configuration space obstacles align with task space obstacle.
+  {
+    ConvexSets obstacles;
+    obstacles.emplace_back(HPolyhedron::MakeBox(Vector1d(1), Vector1d(3)));
+    options.configuration_obstacles = obstacles;
+    HPolyhedron region = IrisFromUrdf(boxes_urdf, sample, options);
+
+    EXPECT_EQ(region.ambient_dimension(), 1);
+
+    const double qmin = -1.0 + options.configuration_space_margin,
+                 qmax = 1.0 - options.configuration_space_margin;
+    EXPECT_TRUE(region.PointInSet(Vector1d{qmin + kTol}));
+    EXPECT_TRUE(region.PointInSet(Vector1d{qmax - kTol}));
+    EXPECT_FALSE(region.PointInSet(Vector1d{qmin - kTol}));
+    EXPECT_FALSE(region.PointInSet(Vector1d{qmax + kTol}));
+  }
+
+  // Sample is in configuration space obstacles.
+  {
+    ConvexSets obstacles;
+    obstacles.emplace_back(HPolyhedron::MakeBox(Vector1d(0.5), Vector1d(3)));
+    options.configuration_obstacles = obstacles;
+    DRAKE_EXPECT_THROWS_MESSAGE(
+        IrisFromUrdf(boxes_urdf, Vector1d(0.7), options),
+        "The seed point is in configuration obstacle.*");
+  }
 }
 
 // Three spheres.  Two on the outside are fixed.  One in the middle on a
@@ -362,16 +491,11 @@ GTEST_TEST(IrisInConfigurationSpaceTest, BlockOnGround) {
 // polytopes):  A simple pendulum of length `l` with a sphere at the tip of
 // radius `r` on a vertical track, plus a ground plane at z=0.  The
 // configuration space is given by the joint limits and z + l*cos(theta) >= r.
-// The region is visualized at https://www.desmos.com/calculator/flshvay78b.
-// In addition to testing the convex space, this is a test for which Ibex finds
-// counter-examples that Snopt misses.
+// The region is visualized at https://www.desmos.com/calculator/flshvay78b. In
+// addition to testing the convex space, this was originally a test for which
+// Ibex found counter-examples that Snopt missed; now Snopt succeeds due to
+// having options.num_collision_infeasible_samples > 1.
 GTEST_TEST(IrisInConfigurationSpaceTest, ConvexConfigurationSpace) {
-  if (!solvers::IbexSolver::is_available() ||
-      !solvers::IbexSolver::is_enabled()) {
-    // This test requires Ibex.
-    return;
-  }
-
   const double l = 1.5;
   const double r = 0.1;
   const std::string convex_urdf = fmt::format(
@@ -411,10 +535,25 @@ GTEST_TEST(IrisInConfigurationSpaceTest, ConvexConfigurationSpace) {
 )",
       fmt::arg("l", l), fmt::arg("r", r));
 
-  const Vector2d sample{1.0, 0.0};
+  const Vector2d sample{-0.5, 0.0};
   IrisOptions options;
-  options.enable_ibex = true;
+
+  // This point should be outside of the configuration space (in collision).
+  // The particular value was found by visual inspection using the desmos plot.
+  const double z_test = 0, theta_test = -1.55;
+  // Confirm that the pendulum is colliding with the wall with true kinematics:
+  EXPECT_LE(z_test + l*std::cos(theta_test), r);
+
+  // With num_collision_infeasible_samples == 1, we found that SNOPT misses this
+  // point (on some platforms with some random seeds).
+
+  options.num_collision_infeasible_samples = 5;
   HPolyhedron region = IrisFromUrdf(convex_urdf, sample, options);
+  EXPECT_FALSE(region.PointInSet(Vector2d{z_test, theta_test}));
+
+  EXPECT_EQ(region.ambient_dimension(), 2);
+  // Confirm that we've found a substantial region.
+  EXPECT_GE(region.MaximumVolumeInscribedEllipsoid().Volume(), 0.5);
 
   // Note: You may use this to plot the solution in the desmos graphing
   // calculator link above.  Just copy each equation in the printed formula into
@@ -423,17 +562,8 @@ GTEST_TEST(IrisInConfigurationSpaceTest, ConvexConfigurationSpace) {
   //                                        symbolic::Variable("y")};
   // std::cout << (region.A()*xy <= region.b()) << std::endl;
 
-  EXPECT_EQ(region.ambient_dimension(), 2);
-  // Confirm that we've found a substantial region.
-  EXPECT_GE(region.MaximumVolumeInscribedEllipsoid().Volume(), 0.5);
-
-  // Without Ibex, we find that SNOPT misses this point. It should be outside of
-  // the configuration space (in collision).  The particular value was found by
-  // visual inspection using the desmos plot.
-  const double z_test = 0, theta_test = -1.55;
-  EXPECT_FALSE(region.PointInSet(Vector2d{z_test, theta_test}));
-  // Confirm that the pendulum is colliding with the wall with true kinematics:
-  EXPECT_LE(z_test + l*std::cos(theta_test), r);
+  // TODO(russt): Drop desmos and draw these in meshcat (as I did in the
+  // DoublePendulumEndEffectorConstraints test below).
 }
 
 // Three boxes.  Two on the outside are fixed.  One in the middle on a prismatic
@@ -505,7 +635,7 @@ GTEST_TEST(IrisInConfigurationSpaceTest, DoublePendulumEndEffectorConstraints) {
   systems::DiagramBuilder<double> builder;
   multibody::MultibodyPlant<double>& plant =
       multibody::AddMultibodyPlantSceneGraph(&builder, 0.0);
-  multibody::Parser(&plant).AddModelFromString(double_pendulum_urdf, "urdf");
+  multibody::Parser(&plant).AddModelsFromString(double_pendulum_urdf, "urdf");
   plant.Finalize();
   auto diagram = builder.Build();
 
@@ -518,7 +648,7 @@ GTEST_TEST(IrisInConfigurationSpaceTest, DoublePendulumEndEffectorConstraints) {
 
   multibody::InverseKinematics ik(plant, false);
   // Note: It is tempting to set the lower and upper bounds on the y-axis to
-  // zero (afterall, the point is always in the y=0 plane for all q). This does
+  // zero (after all, the point is always in the y=0 plane for all q). This does
   // work, but the numerics of the counter-example search are much worse and
   // the resulting IRIS region is much smaller because of it.
   ik.AddPositionConstraint(plant.GetFrameByName("link2"),
@@ -528,6 +658,7 @@ GTEST_TEST(IrisInConfigurationSpaceTest, DoublePendulumEndEffectorConstraints) {
 
   IrisOptions options;
   options.prog_with_additional_constraints = &ik.prog();
+  options.num_additional_constraint_infeasible_samples = 10;
 
   HPolyhedron region = IrisInConfigurationSpace(
       plant, plant.GetMyContextFromRoot(*context), options);
@@ -542,7 +673,7 @@ GTEST_TEST(IrisInConfigurationSpaceTest, DoublePendulumEndEffectorConstraints) {
 
   // These tolerances are necessarily loose because we are approximating a
   // non-convex configuration space region with a polytope.
-  const double kInnerTol = 0.01;
+  const double kInnerTol = 0.1;
   const double kOuterTol = 0.1;
   EXPECT_TRUE(
       region.PointInSet(Eigen::Vector2d{theta1, theta2_min + kInnerTol}));
@@ -575,14 +706,22 @@ GTEST_TEST(IrisInConfigurationSpaceTest, DoublePendulumEndEffectorConstraints) {
     points.bottomRows<1>().setZero();
     meshcat->SetLine("IRIS Region", points, 2.0, Rgba(0, 1, 0));
 
-    meshcat->SetObject("Test point (max)", Sphere(0.03), Rgba(1, 0, 0));
-    meshcat->SetTransform("Test point (max)",
+    meshcat->SetObject("Test point in (min)", Sphere(0.03), Rgba(0, 1, 0));
+    meshcat->SetTransform("Test point in (min)",
                           math::RigidTransform(Eigen::Vector3d(
-                              theta1, theta2_max + kOuterTol, 0)));
-    meshcat->SetObject("Test point (min)", Sphere(0.03), Rgba(1, 0, 0));
-    meshcat->SetTransform("Test point (min)",
+                              theta1, theta2_min + kInnerTol, 0)));
+    meshcat->SetObject("Test point in (max)", Sphere(0.03), Rgba(0, 1, 0));
+    meshcat->SetTransform("Test point in (max)",
+                          math::RigidTransform(Eigen::Vector3d(
+                              theta1, theta2_max - kInnerTol, 0)));
+    meshcat->SetObject("Test point out (min)", Sphere(0.03), Rgba(1, 0, 0));
+    meshcat->SetTransform("Test point out (min)",
                           math::RigidTransform(Eigen::Vector3d(
                               theta1, theta2_min - kOuterTol, 0)));
+    meshcat->SetObject("Test point out (max)", Sphere(0.03), Rgba(1, 0, 0));
+    meshcat->SetTransform("Test point out (max)",
+                          math::RigidTransform(Eigen::Vector3d(
+                              theta1, theta2_max + kOuterTol, 0)));
 
     // Note: This will not pause execution when running as a bazel test.
     std::cout << "[Press RETURN to continue]." << std::endl;

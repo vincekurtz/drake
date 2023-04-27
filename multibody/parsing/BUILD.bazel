@@ -1,5 +1,3 @@
-# -*- python -*-
-
 load(
     "@drake//tools/skylark:drake_cc.bzl",
     "drake_cc_binary",
@@ -7,6 +5,12 @@ load(
     "drake_cc_library",
     "drake_cc_package_library",
 )
+load(
+    "@drake//tools/skylark:drake_py.bzl",
+    "drake_py_library",
+    "drake_py_unittest",
+)
+load("@drake//tools/install:install.bzl", "install_files")
 load("//tools/lint:lint.bzl", "add_lint_tests")
 load("@drake//tools/workspace:forward_files.bzl", "forward_files")
 load(
@@ -19,11 +23,13 @@ filegroup(
     testonly = 1,
     srcs = glob([
         "test/**/*.config",
+        "test/**/*.dmd.yaml",
         "test/**/*.obj",
+        "test/**/*.png",
         "test/**/*.sdf",
         "test/**/*.urdf",
         "test/**/*.xml",
-        "test/**/*.png",
+        "test/**/*.zip",
         "test/**/COLCON_IGNORE",
     ]),
     visibility = ["//visibility:public"],
@@ -49,19 +55,38 @@ drake_cc_package_library(
     ],
 )
 
+genrule(
+    name = "drake_models_json",
+    srcs = ["@drake_models//:drake_repository_metadata.json"],
+    outs = ["drake_models.json"],
+    cmd = "cp $< $@",
+    visibility = ["//visibility:public"],
+)
+
 drake_cc_library(
     name = "package_map",
     srcs = ["package_map.cc"],
     hdrs = ["package_map.h"],
-    data = ["//:package.xml"],
+    data = [
+        ":drake_models.json",
+        ":package_downloader.py",
+        "//:package.xml",
+        "@drake_models//:package.xml",
+    ],
     visibility = ["//visibility:public"],
     interface_deps = [
         "//common:essential",
+        "//common:name_value",
     ],
     deps = [
-        "//common",
-        "//common:filesystem",
-        "@tinyxml2",
+        "//common:find_cache",
+        "//common:find_resource",
+        "//common:find_runfiles",
+        "//common:network_policy",
+        "//common:scope_exit",
+        "//common/yaml",
+        "@picosha2",
+        "@tinyxml2_internal//:tinyxml2",
     ],
 )
 
@@ -90,15 +115,31 @@ drake_cc_library(
     visibility = ["//visibility:private"],
     deps = [
         ":package_map",
-        ":scoped_names",
         "//common:diagnostic_policy",
         "//common:essential",
-        "//common:filesystem",
         "//geometry:proximity_properties",
         "//math:geometric_transform",
         "//multibody/plant",
+        "//multibody/tree:scoped_name",
         "@sdformat_internal//:sdformat",
-        "@tinyxml2",
+        "@tinyxml2_internal//:tinyxml2",
+    ],
+)
+
+drake_cc_library(
+    name = "detail_mesh_parser",
+    srcs = ["detail_mesh_parser.cc"],
+    hdrs = ["detail_mesh_parser.h"],
+    internal = True,
+    visibility = ["//visibility:private"],
+    deps = [
+        ":detail_make_model_name",
+        ":detail_parsing_workspace",
+        "//geometry/proximity:obj_to_surface_mesh",
+        "//multibody/plant",
+        "//multibody/tree:geometry_spatial_inertia",
+        "@fmt",
+        "@tinyobjloader",
     ],
 )
 
@@ -109,8 +150,17 @@ drake_cc_library(
     internal = True,
     visibility = ["//visibility:private"],
     deps = [
+        ":detail_misc",
         "//common:diagnostic_policy",
         "@sdformat_internal//:sdformat",
+    ],
+)
+
+drake_cc_googletest(
+    name = "detail_sdf_diagnostic_test",
+    deps = [
+        ":detail_sdf_diagnostic",
+        ":diagnostic_policy_test_base",
     ],
 )
 
@@ -145,7 +195,6 @@ drake_cc_library(
         ":detail_sdf_diagnostic",
         ":detail_sdf_geometry",
         ":detail_urdf_parser",
-        ":scoped_names",
         "//multibody/plant",
         "@sdformat_internal//:sdformat",
     ],
@@ -164,12 +213,12 @@ drake_cc_library(
     internal = True,
     visibility = ["//visibility:private"],
     deps = [
+        ":detail_make_model_name",
         ":detail_misc",
         ":detail_parsing_workspace",
         ":scoped_names",
-        "//common:filesystem",
         "@fmt",
-        "@tinyxml2",
+        "@tinyxml2_internal//:tinyxml2",
     ],
 )
 
@@ -180,11 +229,42 @@ drake_cc_library(
     internal = True,
     visibility = ["//visibility:private"],
     deps = [
+        ":detail_make_model_name",
         ":detail_misc",
-        ":scoped_names",
+        ":detail_parsing_workspace",
         "//multibody/plant",
         "@fmt",
-        "@tinyxml2",
+        "@tinyxml2_internal//:tinyxml2",
+    ],
+)
+
+drake_cc_library(
+    name = "detail_dmd_parser",
+    srcs = ["detail_dmd_parser.cc"],
+    hdrs = ["detail_dmd_parser.h"],
+    internal = True,
+    visibility = ["//visibility:private"],
+    deps = [
+        ":detail_make_model_name",
+        ":detail_misc",
+        ":detail_parsing_workspace",
+        ":model_directives",
+        ":model_instance_info",
+        ":scoped_names",
+        "//common/yaml",
+        "//multibody/plant",
+        "@fmt",
+    ],
+)
+
+drake_cc_library(
+    name = "detail_make_model_name",
+    srcs = ["detail_make_model_name.cc"],
+    hdrs = ["detail_make_model_name.h"],
+    internal = True,
+    visibility = ["//visibility:private"],
+    deps = [
+        ":detail_parsing_workspace",
     ],
 )
 
@@ -194,9 +274,26 @@ drake_cc_library(
     internal = True,
     visibility = ["//visibility:private"],
     deps = [
+        ":detail_misc",
         ":package_map",
         "//common:diagnostic_policy",
         "//multibody/plant",
+    ],
+)
+
+drake_cc_library(
+    name = "detail_select_parser",
+    srcs = ["detail_select_parser.cc"],
+    hdrs = ["detail_select_parser.h"],
+    internal = True,
+    visibility = ["//visibility:private"],
+    deps = [
+        ":detail_dmd_parser",
+        ":detail_mesh_parser",
+        ":detail_mujoco_parser",
+        ":detail_parsing_workspace",
+        ":detail_sdf_parser",
+        ":detail_urdf_parser",
     ],
 )
 
@@ -222,11 +319,8 @@ drake_cc_library(
         "//multibody/plant",
     ],
     deps = [
-        ":detail_mujoco_parser",
         ":detail_parsing_workspace",
-        ":detail_sdf_parser",
-        ":detail_urdf_parser",
-        "//common:filesystem",
+        ":detail_select_parser",
     ],
 )
 
@@ -264,12 +358,12 @@ drake_cc_library(
         "//multibody/plant",
     ],
     deps = [
+        ":detail_dmd_parser",
         ":detail_misc",
+        ":detail_parsing_workspace",
         ":scoped_names",
         "//common:diagnostic_policy",
-        "//common:filesystem",
         "//common:find_resource",
-        "//common/yaml",
     ],
 )
 
@@ -356,7 +450,6 @@ drake_cc_googletest(
     ] + _DM_CONTROL_MUJOCO_FILES,
     deps = [
         ":parser",
-        "//common:filesystem",
         "//common:find_resource",
         "//common/test_utilities",
     ],
@@ -377,9 +470,7 @@ drake_cc_googletest(
     ],
     deps = [
         ":process_model_directives",
-        ":scoped_names",
-        "//common:filesystem",
-        "//common/test_utilities:expect_throws_message",
+        "//common/test_utilities",
     ],
 )
 
@@ -391,7 +482,6 @@ drake_cc_googletest(
     deps = [
         ":parser",
         ":scoped_names",
-        "//common:filesystem",
         "//common:find_resource",
         "//common/test_utilities",
     ],
@@ -413,6 +503,35 @@ drake_cc_googletest(
 )
 
 drake_cc_googletest(
+    name = "detail_mesh_parser_test",
+    data = [
+        ":test_models",
+        "//geometry/render:test_models",
+    ],
+    deps = [
+        ":detail_mesh_parser",
+        ":diagnostic_policy_test_base",
+        "//common:find_resource",
+        "//common/test_utilities",
+    ],
+)
+
+drake_cc_googletest(
+    name = "detail_select_parser_test",
+    deps = [
+        ":detail_select_parser",
+        ":diagnostic_policy_test_base",
+    ],
+)
+
+drake_cc_googletest(
+    name = "detail_make_model_name_test",
+    deps = [
+        ":detail_make_model_name",
+    ],
+)
+
+drake_cc_googletest(
     name = "detail_sdf_parser_test",
     data = [
         ":test_models",
@@ -422,7 +541,6 @@ drake_cc_googletest(
     deps = [
         ":detail_sdf_parser",
         ":diagnostic_policy_test_base",
-        "//common:filesystem",
         "//common:find_resource",
         "//common/test_utilities",
     ],
@@ -439,7 +557,6 @@ drake_cc_googletest(
     deps = [
         ":detail_urdf_parser",
         ":diagnostic_policy_test_base",
-        "//common:filesystem",
         "//common:find_resource",
         "//common/test_utilities",
         "//multibody/benchmarks/acrobot",
@@ -449,9 +566,14 @@ drake_cc_googletest(
 
 drake_cc_googletest(
     name = "detail_mujoco_parser_test",
-    data = _DM_CONTROL_MUJOCO_FILES,
+    data = [
+        ":test_models",
+        "//geometry:test_obj_files",
+        "//geometry:test_stl_files",
+    ] + _DM_CONTROL_MUJOCO_FILES,
     deps = [
         ":detail_mujoco_parser",
+        ":diagnostic_policy_test_base",
         "//common:find_resource",
         "//common/test_utilities:eigen_matrix_compare",
         "//common/test_utilities:expect_throws_message",
@@ -465,7 +587,7 @@ drake_cc_googletest(
     ],
     deps = [
         ":detail_sdf_geometry",
-        "//common:filesystem",
+        ":diagnostic_policy_test_base",
         "//common/test_utilities:eigen_matrix_compare",
         "//common/test_utilities:expect_throws_message",
         "//math:geometric_transform",
@@ -485,6 +607,25 @@ drake_cc_googletest(
     ],
 )
 
+drake_py_library(
+    name = "package_downloader_lib",
+    testonly = True,
+    srcs = ["package_downloader.py"],
+)
+
+drake_py_unittest(
+    name = "package_downloader_test",
+    deps = [
+        ":package_downloader_lib",
+    ],
+)
+
+drake_py_unittest(
+    name = "package_downloader_stress_test",
+    data = ["package_downloader.py"],
+    tags = ["cpu:8"],
+)
+
 drake_cc_googletest(
     name = "package_map_test",
     data = [
@@ -492,9 +633,24 @@ drake_cc_googletest(
     ],
     deps = [
         ":package_map",
-        "//common:filesystem",
         "//common:find_resource",
+        "//common:scope_exit",
         "//common/test_utilities:expect_throws_message",
+    ],
+)
+
+drake_cc_googletest(
+    name = "package_map_remote_test",
+    data = [
+        ":test_models",
+    ],
+    deps = [
+        ":package_map",
+        "//common:find_cache",
+        "//common:find_resource",
+        "//common:scope_exit",
+        "//common/test_utilities:expect_throws_message",
+        "@picosha2",
     ],
 )
 
@@ -517,7 +673,6 @@ drake_cc_googletest(
     ],
     deps = [
         ":detail_misc",
-        "//common:filesystem",
         "//common/test_utilities",
     ],
 )
@@ -545,6 +700,16 @@ drake_cc_googletest(
         ":detail_misc",
         ":diagnostic_policy_test_base",
     ],
+)
+
+install_files(
+    name = "install",
+    dest = "share/drake/multibody/parsing",
+    files = [
+        "drake_models.json",
+        "package_downloader.py",
+    ],
+    visibility = ["//visibility:public"],
 )
 
 add_lint_tests()

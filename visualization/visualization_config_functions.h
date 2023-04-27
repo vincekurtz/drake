@@ -1,9 +1,15 @@
 #pragma once
 
+#include <memory>
+#include <utility>
 #include <vector>
 
+#include "drake/common/drake_deprecated.h"
 #include "drake/geometry/drake_visualizer_params.h"
+#include "drake/geometry/meshcat.h"
+#include "drake/geometry/meshcat_visualizer_params.h"
 #include "drake/geometry/scene_graph.h"
+#include "drake/multibody/meshcat/contact_visualizer_params.h"
 #include "drake/multibody/plant/multibody_plant.h"
 #include "drake/systems/framework/diagram_builder.h"
 #include "drake/systems/lcm/lcm_buses.h"
@@ -63,6 +69,10 @@ When provided, it must be a System that's been added to the the given `builder`.
 When not provided, visualizes the system named "scene_graph" in the given
 `builder`.
 
+@param[in] meshcat (Optional) A Meshcat object for visualization message
+publication. When not provided, a Meshcat object will be created unless
+`config.enable_meshcat_creation` is set to false.
+
 @param[in] lcm (Optional) The LCM interface used for visualization message
 publication. When not provided, uses the `config.lcm_bus` value to look up
 the appropriate interface from `lcm_buses`.
@@ -84,15 +94,45 @@ or else the provided `scene_graph` is non-null.
 @see drake::multibody::AddMultibodyPlant()
 @see drake::systems::lcm::ApplyLcmBusConfig() */
 void ApplyVisualizationConfig(
-    const VisualizationConfig& config,
-    systems::DiagramBuilder<double>* builder,
+    const VisualizationConfig& config, systems::DiagramBuilder<double>* builder,
     const systems::lcm::LcmBuses* lcm_buses = nullptr,
     const multibody::MultibodyPlant<double>* plant = nullptr,
-    const geometry::SceneGraph<double>* scene_graph = nullptr,
+    geometry::SceneGraph<double>* scene_graph = nullptr,
+    std::shared_ptr<geometry::Meshcat> meshcat = nullptr,
     lcm::DrakeLcmInterface* lcm = nullptr);
 
-/** Adds LCM visualization publishers to communicate to drake_visualizer
-and/or meldis, using all of the default configuration settings.
+#ifndef DRAKE_DOXYGEN_CXX
+// Deprecation shim to help interpret a scene_graph nullptr literal as mutable,
+// to avoid ambiguous overloaded function calls for users.
+// TODO(jwnimmer-tri) Remove this on 2023-09-01 upon completion of deprecation.
+inline void ApplyVisualizationConfig(
+    const VisualizationConfig& config, systems::DiagramBuilder<double>* builder,
+    const systems::lcm::LcmBuses* lcm_buses,
+    const multibody::MultibodyPlant<double>* plant,
+    std::nullptr_t /* scene_graph */,
+    std::shared_ptr<geometry::Meshcat> meshcat = nullptr,
+    lcm::DrakeLcmInterface* lcm = nullptr) {
+  ApplyVisualizationConfig(config, builder, lcm_buses, plant,
+                           static_cast<geometry::SceneGraph<double>*>(nullptr),
+                           std::move(meshcat), lcm);
+}
+#endif
+
+DRAKE_DEPRECATED("2023-09-01", "Pass a non-const SceneGraph pointer")
+void ApplyVisualizationConfig(
+    const VisualizationConfig& config, systems::DiagramBuilder<double>* builder,
+    const systems::lcm::LcmBuses* lcm_buses,
+    const multibody::MultibodyPlant<double>* plant,
+    const geometry::SceneGraph<double>* scene_graph,
+    std::shared_ptr<geometry::Meshcat> meshcat = nullptr,
+    lcm::DrakeLcmInterface* lcm = nullptr);
+
+/** Adds LCM visualization publishers to communicate to Meshcat,
+drake_visualizer and/or meldis, using all of the default configuration
+settings.
+
+@param meshcat An optional existing Meshcat instance. (If nullptr, then a
+meshcat instance will be created.)
 
 <dl><dt>Example</dt><dd>
 @code
@@ -122,13 +162,23 @@ Simulator<double> simulator(builder.Build());
 
 @see drake::visualization::ApplyVisualizationConfig()
 @see drake::multibody::AddMultibodyPlant() */
-void AddDefaultVisualization(systems::DiagramBuilder<double>* builder);
+void AddDefaultVisualization(
+    systems::DiagramBuilder<double>* builder,
+    std::shared_ptr<geometry::Meshcat> meshcat = nullptr);
 
 namespace internal {
 
-// (For unit testing only.)
+// (This function is declared in the header so that unit tests can call it.)
 std::vector<geometry::DrakeVisualizerParams>
-ConvertVisualizationConfigToParams(const VisualizationConfig&);
+ConvertVisualizationConfigToDrakeParams(const VisualizationConfig&);
+
+// (This function is declared in the header so that unit tests can call it.)
+std::vector<geometry::MeshcatVisualizerParams>
+ConvertVisualizationConfigToMeshcatParams(const VisualizationConfig&);
+
+// (This function is declared in the header so that unit tests can call it.)
+multibody::meshcat::ContactVisualizerParams
+ConvertVisualizationConfigToMeshcatContactParams(const VisualizationConfig&);
 
 }  // namespace internal
 }  // namespace visualization

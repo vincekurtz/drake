@@ -171,6 +171,7 @@ void SetSolution(
     MathematicalProgramResult* result) {
   ClpSolverDetails& solver_details =
       result->SetSolverDetailsType<ClpSolverDetails>();
+  solver_details.clp_version = CLP_VERSION;
   result->set_x_val(Eigen::Map<const Eigen::VectorXd>(model.getColSolution(),
                                                       prog.num_vars()));
   Eigen::Map<const Eigen::VectorXd> lambda(model.dualRowSolution(),
@@ -318,7 +319,9 @@ int ChooseScaling(const SolverOptions& options) {
 }
 }  // namespace
 
-bool ClpSolver::is_available() { return true; }
+bool ClpSolver::is_available() {
+  return true;
+}
 
 void ClpSolver::DoSolve(const MathematicalProgram& prog,
                         const Eigen::VectorXd& initial_guess,

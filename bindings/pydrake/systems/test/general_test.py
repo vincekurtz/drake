@@ -1,11 +1,10 @@
 # -*- coding: utf-8 -*-
 
-import pydrake.systems.framework as mut
+import pydrake.systems.framework
 
 import copy
 import gc
 from textwrap import dedent
-import warnings
 
 import unittest
 import numpy as np
@@ -13,18 +12,16 @@ import numpy as np
 from pydrake.autodiffutils import AutoDiffXd
 from pydrake.common import RandomGenerator
 from pydrake.common.test_utilities import numpy_compare
-from pydrake.common.test_utilities.deprecation import catch_drake_warnings
 from pydrake.common.value import AbstractValue, Value
 from pydrake.examples import PendulumPlant, RimlessWheel
 from pydrake.symbolic import Expression
 from pydrake.systems.analysis import (
     GetIntegrationSchemes,
-    InitializeParams,
     IntegratorBase, IntegratorBase_,
     PrintSimulatorStatistics,
     ResetIntegratorFromFlags,
     RungeKutta2Integrator,
-    SimulatorStatus, Simulator, Simulator_,
+    Simulator, Simulator_,
     )
 from pydrake.systems.framework import (
     BasicVector, BasicVector_,
@@ -52,7 +49,7 @@ from pydrake.systems.framework import (
     Subvector, Subvector_,
     Supervector, Supervector_,
     System, System_,
-    SystemVisitor, SystemVisitor_,
+    SystemVisitor,
     SystemBase,
     SystemOutput, SystemOutput_,
     VectorBase, VectorBase_,
@@ -61,7 +58,6 @@ from pydrake.systems.framework import (
     )
 from pydrake.systems.primitives import (
     Adder, Adder_,
-    AffineSystem,
     ConstantValueSource,
     ConstantVectorSource, ConstantVectorSource_,
     Integrator,
@@ -122,6 +118,7 @@ class TestGeneral(unittest.TestCase):
         self.assertEqual(u1.get_index(), 1)
         self.assertEqual(u1.size(), 10)
         self.assertIsNotNone(u1.ticket())
+        self.assertIsInstance(u1.Allocate(), Value[BasicVector])
         self.assertIs(u1.get_system(), system)
         y = system.GetOutputPort("sum")
         self.assertEqual(y.get_name(), "sum")
@@ -158,7 +155,7 @@ class TestGeneral(unittest.TestCase):
             context.get_continuous_state_vector(), VectorBase)
         self.assertIsInstance(
             context.get_mutable_continuous_state_vector(), VectorBase)
-        system.SetDefaultContext(context)
+        system.SetDefaultContext(context=context)
 
         # Check random context method.
         system.SetRandomContext(context=context, generator=RandomGenerator())
@@ -186,6 +183,7 @@ class TestGeneral(unittest.TestCase):
                 systemU = Adder_[U](3, 10)
                 contextU = systemU.CreateDefaultContext()
                 contextU.SetTime(0.5)
+                contextT.SetStateAndParametersFrom(contextU)
                 contextT.SetTimeStateAndParametersFrom(contextU)
                 if T == float:
                     self.assertEqual(contextT.get_time(), 0.5)
@@ -234,6 +232,8 @@ class TestGeneral(unittest.TestCase):
         context.SetDiscreteState(group_index=0, xd=3 * x)
         np.testing.assert_equal(
             context.get_discrete_state_vector().CopyToVector(), 3 * x)
+        # Just verify that the third overload is present.
+        context.SetDiscreteState(context.get_discrete_state())
 
         def check_abstract_value_zero(context, expected_value):
             # Check through Context, State, and AbstractValues APIs.
@@ -290,12 +290,17 @@ class TestGeneral(unittest.TestCase):
         system1 = LinearSystem(A=[1], B=[1], C=[1], D=[1], time_period=0.1)
         periodic_data = system1.GetUniquePeriodicDiscreteUpdateAttribute()
         self.assertIsInstance(periodic_data, PeriodicEventData)
-        self.assertIsInstance(periodic_data.Clone(), PeriodicEventData)
         periodic_data.period_sec()
         periodic_data.offset_sec()
+        self.assertTrue(copy.copy(periodic_data) is not periodic_data)
         is_diff_eq, period = system1.IsDifferenceEquationSystem()
         self.assertTrue(is_diff_eq)
         self.assertEqual(period, periodic_data.period_sec())
+        context = system1.CreateDefaultContext()
+        system1.get_input_port(0).FixValue(context, 0.0)
+        updated_discrete = system1.EvalUniquePeriodicDiscreteUpdate(context)
+        self.assertEqual(updated_discrete.num_groups(),
+                         context.get_discrete_state().num_groups())
 
         # Simple continuous-time system.
         system2 = LinearSystem(A=[1], B=[1], C=[1], D=[1], time_period=0.0)
@@ -354,6 +359,9 @@ class TestGeneral(unittest.TestCase):
         np.testing.assert_array_equal(discrete_values.get_mutable_value(), x)
         discrete_values[1] = 5.
         self.assertEqual(discrete_values[1], 5.)
+        vector = discrete_values.get_mutable_value()
+        vector[0] = 2.3
+        self.assertEqual(discrete_values[0], 2.3)
         discrete_values.SetFrom(DiscreteValues(BasicVector(3)))
 
     def test_instantiations(self):
@@ -434,72 +442,24 @@ class TestGeneral(unittest.TestCase):
             else:
                 self.assertEqual(u[0].Evaluate(), 1.)
 
-    def test_simulator_ctor(self):
-        # TODO(eric.cousineau): Move this to `analysis_test.py`.
-        # Tests a simple simulation for supported scalar types.
-        for T in [float, AutoDiffXd]:
-            # Create simple system.
-            system = ConstantVectorSource_[T]([1.])
-
-            def check_output(context):
-                # Check number of output ports and value for a given context.
-                output = system.AllocateOutput()
-                self.assertEqual(output.num_ports(), 1)
-                system.CalcOutput(context=context, outputs=output)
-                if T == float:
-                    value = output.get_vector_data(0).get_value()
-                    self.assertTrue(np.allclose([1], value))
-                elif T == AutoDiffXd:
-                    value = output.get_vector_data(0)._get_value_copy()
-                    # TODO(eric.cousineau): Define `isfinite` ufunc, if
-                    # possible, to use for `np.allclose`.
-                    self.assertEqual(value.shape, (1,))
-                    self.assertEqual(value[0], AutoDiffXd(1.))
-                else:
-                    raise RuntimeError("Bad T: {}".format(T))
-
-            # Create simulator with basic constructor.
-            simulator = Simulator_[T](system)
-            simulator.Initialize()
-            simulator.set_target_realtime_rate(0)
-            simulator.set_publish_every_time_step(True)
-            self.assertTrue(simulator.get_context() is
-                            simulator.get_mutable_context())
-            check_output(simulator.get_context())
-            simulator.Initialize()
-            simulator.AdvanceTo(1)
-            simulator.ResetStatistics()
-            simulator.AdvanceTo(2)
-
-            self.assertEqual(simulator.get_target_realtime_rate(), 0)
-            self.assertTrue(simulator.get_actual_realtime_rate() > 0.)
-
-            # Create simulator specifying context.
-            context = system.CreateDefaultContext()
-            context.SetTime(0.)
-
-            context.SetAccuracy(1e-4)
-            self.assertEqual(context.get_accuracy(), 1e-4)
-
-            # @note `simulator` now owns `context`.
-            simulator = Simulator_[T](system, context)
-            self.assertTrue(simulator.get_context() is context)
-            check_output(context)
-            simulator.AdvanceTo(1)
-            simulator.AdvancePendingEvents()
-
-            # Reuse simulator over the same time interval, without
-            # initialization events.
-            context.SetTime(0.)
-            params = InitializeParams(suppress_initialization_events=True)
-            simulator.Initialize(params)
-            simulator.AdvanceTo(1)
-
-            # Check repr while we're here.
-            self.assertEqual(repr(params), "".join([
-                "InitializeParams("
-                "suppress_initialization_events=True)"]))
-            copy.copy(params)
+    @numpy_compare.check_all_types
+    def test_port_output(self, T):
+        # TODO(eric.cousineau): Find better location for this testing.
+        system = ConstantVectorSource_[T]([1.])
+        context = system.CreateDefaultContext()
+        # Check number of output ports and value for a given context.
+        output = system.AllocateOutput()
+        self.assertEqual(output.num_ports(), 1)
+        system.CalcOutput(context=context, outputs=output)
+        if T == float:
+            value = output.get_vector_data(0).get_value()
+            self.assertTrue(np.allclose([1], value))
+        elif T == AutoDiffXd:
+            value = output.get_vector_data(0)._get_value_copy()
+            # TODO(eric.cousineau): Define `isfinite` ufunc, if
+            # possible, to use for `np.allclose`.
+            self.assertEqual(value.shape, (1,))
+            self.assertEqual(value[0], AutoDiffXd(1.))
 
     def test_copy(self):
         # Copy a context using `deepcopy` or `clone`.
@@ -575,6 +535,7 @@ class TestGeneral(unittest.TestCase):
 
         diagram = builder.Build()
         self.assertEqual(adder0.get_name(), "adder0")
+        self.assertTrue(diagram.HasSubsystemNamed("adder0"))
         self.assertEqual(diagram.GetSubsystemByName("adder0"), adder0)
         self.assertEqual(
             diagram.GetSystems(),
@@ -637,6 +598,7 @@ class TestGeneral(unittest.TestCase):
         simulator = Simulator(system)
         self.assertTrue(simulator.has_context())
         context_default = simulator.get_mutable_context()
+        self.assertIsInstance(context_default, Context)
         # WARNING: Once we call `simulator.reset_context()`, it will delete the
         # context it currently owns, which is `context_default` in this case.
         # BE CAREFUL IN SITUATIONS LIKE THIS!
@@ -648,39 +610,6 @@ class TestGeneral(unittest.TestCase):
         # WARNING: This will also invalidate `context`. Be careful!
         simulator.reset_context(None)
         self.assertFalse(simulator.has_context())
-
-    def test_simulator_integrator_manipulation(self):
-        # TODO(eric.cousineau): Move this to `analysis_test.py`.
-        system = ConstantVectorSource([1])
-
-        # Create simulator with basic constructor.
-        simulator = Simulator(system)
-        simulator.Initialize()
-        simulator.set_target_realtime_rate(0)
-
-        integrator = simulator.get_mutable_integrator()
-
-        target_accuracy = 1E-6
-        integrator.set_target_accuracy(target_accuracy)
-        self.assertEqual(integrator.get_target_accuracy(), target_accuracy)
-
-        maximum_step_size = 0.2
-        integrator.set_maximum_step_size(maximum_step_size)
-        self.assertEqual(integrator.get_maximum_step_size(), maximum_step_size)
-
-        minimum_step_size = 2E-2
-        integrator.set_requested_minimum_step_size(minimum_step_size)
-        self.assertEqual(integrator.get_requested_minimum_step_size(),
-                         minimum_step_size)
-
-        integrator.set_throw_on_minimum_step_size_violation(True)
-        self.assertTrue(integrator.get_throw_on_minimum_step_size_violation())
-
-        integrator.set_fixed_step_mode(True)
-        self.assertTrue(integrator.get_fixed_step_mode())
-
-        const_integrator = simulator.get_integrator()
-        self.assertTrue(const_integrator is integrator)
 
     def test_simulator_flags(self):
         # TODO(eric.cousineau): Move this to `analysis_test.py`.
@@ -828,7 +757,6 @@ class TestGeneral(unittest.TestCase):
     @numpy_compare.check_all_types
     def test_vector_input_port_fix(self, T):
         np_zeros = np.array([0.])
-        model_value = AbstractValue.Make(BasicVector(np_zeros))
         system = PassThrough_[T](len(np_zeros))
         context = system.CreateDefaultContext()
         input_port = system.get_input_port(0)
@@ -873,6 +801,18 @@ class TestGeneral(unittest.TestCase):
             # A RuntimeError occurs when the Context detects that the
             # type-erased Value objects are incompatible.
             input_port.FixValue(context, AbstractValue.Make("string"))
+
+    @numpy_compare.check_all_types
+    def test_allocate_input_vector(self, T):
+        system = PassThrough_[T](1)
+        value = system.AllocateInputVector(system.get_input_port())
+        self.assertIsInstance(value, BasicVector_[T])
+
+    @numpy_compare.check_all_types
+    def test_allocate_input_abstract(self, T):
+        system = PassThrough_[T](AbstractValue.Make("a"))
+        value = system.AllocateInputAbstract(system.get_input_port())
+        self.assertIsInstance(value, Value[str])
 
     def test_event_status(self):
         system = ZeroOrderHold(period_sec=0.1, vector_size=1)
@@ -937,12 +877,19 @@ class TestGeneral(unittest.TestCase):
     def test_diagram_api(self):
         def make_diagram():
             builder = DiagramBuilder()
+            self.assertTrue(builder.empty())
+            self.assertFalse(builder.already_built())
             adder1 = builder.AddNamedSystem("adder1", Adder(2, 2))
             adder2 = builder.AddNamedSystem("adder2", Adder(1, 2))
             builder.Connect(adder1.get_output_port(), adder2.get_input_port())
+            self.assertTrue(
+                builder.IsConnectedOrExported(port=adder2.get_input_port()))
             builder.ExportInput(adder1.get_input_port(0), "in0")
             builder.ExportInput(adder1.get_input_port(1), "in1")
             builder.ExportOutput(adder2.get_output_port(), "out")
+            self.assertTrue(builder.HasSubsystemNamed("adder1"))
+            builder.GetSubsystemByName(name="adder1")
+            builder.GetMutableSubsystemByName(name="adder2")
             self.assertEqual(len(builder.connection_map()), 1)
             diagram = builder.Build()
             return adder1, adder2, diagram

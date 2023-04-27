@@ -1,5 +1,3 @@
-# -*- python -*-
-
 load(
     "@drake//tools/skylark:drake_cc.bzl",
     "drake_cc_binary",
@@ -28,6 +26,7 @@ drake_cc_package_library(
         ":beam_model",
         ":beam_model_params",
         ":camera_config",
+        ":camera_config_functions",
         ":camera_info",
         ":color_palette",
         ":gyroscope",
@@ -83,6 +82,30 @@ drake_cc_library(
         "//common/schema:transform",
         "//geometry:rgba",
         "//geometry/render:render_camera",
+    ],
+)
+
+drake_cc_library(
+    name = "camera_config_functions",
+    srcs = ["camera_config_functions.cc"],
+    hdrs = ["camera_config_functions.h"],
+    interface_deps = [
+        ":camera_config",
+        "//geometry:scene_graph",
+        "//lcm:interface",
+        "//multibody/plant",
+        "//systems/framework:diagram_builder",
+        "//systems/lcm:lcm_buses",
+    ],
+    deps = [
+        ":camera_info",
+        ":rgbd_sensor",
+        ":sim_rgbd_sensor",
+        "//geometry/render_gl",
+        "//geometry/render_vtk",
+        "//math:geometric_transform",
+        "//multibody/parsing:scoped_names",
+        "//systems/lcm:lcm_config_functions",
     ],
 )
 
@@ -261,7 +284,6 @@ drake_cc_library(
         "//systems/framework",
     ],
     deps = [
-        "//common:filesystem",
         "@vtk//:vtkIOImage",
     ],
 )
@@ -284,7 +306,7 @@ drake_cc_library(
 
 drake_cc_googletest(
     name = "accelerometer_test",
-    data = ["//examples/pendulum:prod_models"],
+    data = ["//examples/pendulum:models"],
     deps = [
         ":accelerometer",
         "//common/test_utilities:eigen_matrix_compare",
@@ -321,6 +343,21 @@ drake_cc_googletest(
 )
 
 drake_cc_googletest(
+    name = "camera_config_functions_test",
+    tags = vtk_test_tags(),
+    deps = [
+        ":camera_config_functions",
+        ":image_to_lcm_image_array_t",
+        ":sim_rgbd_sensor",
+        "//common/test_utilities:expect_throws_message",
+        "//common/yaml:yaml_io",
+        "//geometry/render_gl",
+        "//lcm:drake_lcm",
+        "//systems/lcm:lcm_publisher_system",
+    ],
+)
+
+drake_cc_googletest(
     name = "camera_info_test",
     deps = [
         ":camera_info",
@@ -331,7 +368,7 @@ drake_cc_googletest(
 
 drake_cc_googletest(
     name = "gyroscope_test",
-    data = ["//examples/pendulum:prod_models"],
+    data = ["//examples/pendulum:models"],
     deps = [
         ":gyroscope",
         "//common/test_utilities:eigen_matrix_compare",
@@ -353,7 +390,6 @@ drake_cc_googletest(
     tags = vtk_test_tags(),
     deps = [
         ":image_writer",
-        "//common:filesystem",
         "//common:temp_directory",
         "//common/test_utilities",
         "@vtk//:vtkIOImage",

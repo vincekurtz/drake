@@ -387,7 +387,7 @@ class LInfNormCost : public Cost {
 /**
  * If z = Ax + b, implements a cost of the form:
  * (z_1^2 + z_2^2 + ... + z_{n-1}^2) / z_0.
- * Note that this cost is convex when we additonally constrain z_0 > 0. It is
+ * Note that this cost is convex when we additionally constrain z_0 > 0. It is
  * treated as a generic nonlinear objective by most solvers.
  *
  * @ingroup solver_evaluators
@@ -448,34 +448,66 @@ class PerspectiveQuadraticCost : public Cost {
  *
  * @ingroup solver_evaluators
  */
+// TODO(hongkai.dai):
+// MathematicalProgram::AddCost(EvaluatorCost<LinearConstraint>(...)) should
+// recognize that the compounded cost is linear.
 template <typename EvaluatorType = EvaluatorBase>
 class EvaluatorCost : public Cost {
  public:
   DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(EvaluatorCost)
 
   explicit EvaluatorCost(const std::shared_ptr<EvaluatorType>& evaluator)
-      : Cost(evaluator->num_vars()), evaluator_(evaluator) {
+      : Cost(evaluator->num_vars()),
+        evaluator_{evaluator},
+        a_{std::nullopt},
+        b_{0} {
     DRAKE_DEMAND(evaluator->num_outputs() == 1);
+  }
+
+  /**
+   * This cost computes a.dot(evaluator(x)) + b
+   * @pre a.rows() == evaluator->num_outputs()
+   */
+  EvaluatorCost(const std::shared_ptr<EvaluatorType>& evaluator,
+                const Eigen::Ref<const Eigen::VectorXd>& a, double b = 0)
+      : Cost(evaluator->num_vars()), evaluator_(evaluator), a_{a}, b_{b} {
+    DRAKE_DEMAND(evaluator->num_outputs() == a_->rows());
   }
 
  protected:
   const EvaluatorType& evaluator() const { return *evaluator_; }
+
   void DoEval(const Eigen::Ref<const Eigen::VectorXd>& x,
               Eigen::VectorXd* y) const override {
-    evaluator_->Eval(x, y);
+    this->DoEvalGeneric<double, double>(x, y);
   }
   void DoEval(const Eigen::Ref<const AutoDiffVecXd>& x,
               AutoDiffVecXd* y) const override {
-    evaluator_->Eval(x, y);
+    this->DoEvalGeneric<AutoDiffXd, AutoDiffXd>(x, y);
   }
 
   void DoEval(const Eigen::Ref<const VectorX<symbolic::Variable>>& x,
               VectorX<symbolic::Expression>* y) const override {
-    evaluator_->Eval(x, y);
+    this->DoEvalGeneric<symbolic::Variable, symbolic::Expression>(x, y);
   }
 
  private:
+  template <typename T, typename S>
+  void DoEvalGeneric(const Eigen::Ref<const VectorX<T>>& x,
+                     VectorX<S>* y) const {
+    if (a_.has_value()) {
+      VectorX<S> y_inner;
+      evaluator_->Eval(x, &y_inner);
+      y->resize(1);
+      (*y)(0) = a_->dot(y_inner) + b_;
+    } else {
+      evaluator_->Eval(x, y);
+    }
+  }
+
   std::shared_ptr<EvaluatorType> evaluator_;
+  std::optional<Eigen::VectorXd> a_;
+  double b_{};
 };
 
 /**

@@ -1,0 +1,67 @@
+load(
+    "@drake//tools/skylark:drake_cc.bzl",
+    "drake_cc_googletest",
+    "drake_cc_library",
+    "drake_cc_package_library",
+)
+load("//tools/lint:lint.bzl", "add_lint_tests")
+
+exports_files(["cspace_free_polytope.cc"])
+
+drake_cc_library(
+    name = "cspace_free_path",
+    srcs = ["cspace_free_path.cc"],
+    hdrs = ["cspace_free_path.h"],
+    deps = [
+        "//common/symbolic:monomial_util",
+        "//geometry/optimization:c_iris_collision_geometry",
+        "//geometry/optimization:c_iris_separating_plane",
+        "//geometry/optimization:cspace_free_polytope",
+        "//solvers:choose_best_solver",
+        "//solvers:mathematical_program",
+        "//solvers:mosek_solver",
+        "//solvers:solve",
+    ],
+)
+
+drake_cc_library(
+    name = "polynomial_positive_on_path",
+    srcs = ["polynomial_positive_on_path.cc"],
+    hdrs = ["polynomial_positive_on_path.h"],
+    deps = [
+        "//common/symbolic:monomial_util",
+        "//solvers:mathematical_program",
+    ],
+)
+
+drake_cc_library(
+    name = "c_iris_path_test_utilities",
+    testonly = 1,
+    hdrs = ["test/c_iris_path_test_utilities.h"],
+    deps = [
+        ":cspace_free_path",
+        "@gtest//:without_main",
+    ],
+)
+
+drake_cc_googletest(
+    name = "cspace_free_path_test",
+    deps = [
+        ":c_iris_path_test_utilities",
+        "//common/test_utilities:symbolic_test_util",
+        "//geometry/optimization:c_iris_test_utilities",
+        "//geometry/optimization:cspace_free_polytope",
+    ],
+)
+
+drake_cc_googletest(
+    name = "polynomial_positive_on_path_test",
+    deps = [
+        "//common/test_utilities:symbolic_test_util",
+        "//geometry/optimization/dev:polynomial_positive_on_path",
+        "//solvers:solve",
+    ],
+)
+
+# test
+add_lint_tests()

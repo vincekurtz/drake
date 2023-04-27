@@ -72,15 +72,59 @@ class TestPerception(unittest.TestCase):
         pc.normals()
         pc.mutable_normal(i=0)
         pc.normal(i=0)
+        pc.FlipNormalsTowardPoint(p_CP=[0, 0, 1])
         self.check_array(pc.mutable_rgbs(), np.uint8, (3, count))
         pc.rgbs()
         pc.mutable_rgb(i=0)
         pc.rgb(i=0)
+        # Test morphing fields after PointCloud creation.
+        rgb_pc = mut.PointCloud(new_size=count,
+                                fields=mut.Fields(mut.BaseField.kRGBs))
+        all_fields_pc = mut.PointCloud(new_size=count, fields=all_fields)
+        test_rgbs = [[1, 2, 3]]
+        all_fields_pc.mutable_rgbs().T[:] = test_rgbs
+        self.assertFalse((rgb_pc.rgbs().T == test_rgbs).all())
+        self.assertFalse(rgb_pc.has_xyzs())
+        rgb_pc = all_fields_pc
+        self.assertTrue((rgb_pc.rgbs().T == test_rgbs).all())
+        self.assertTrue(rgb_pc.has_xyzs())
+        self.assertTrue(rgb_pc.has_normals())
+        rgb_pc.SetFields(new_fields=mut.Fields(mut.BaseField.kNormals),
+                         skip_initialize=False)
+        self.assertFalse(rgb_pc.has_rgbs())
+        self.assertTrue(rgb_pc.has_normals())
         # - Check for none.
         with self.assertRaises(RuntimeError) as ex:
             mut.PointCloud(new_size=0, fields=mut.Fields(mut.BaseField.kNone))
         # Test Systems' value registration.
         self.assertIsInstance(AbstractValue.Make(pc), Value[mut.PointCloud])
+
+        pc = mut.PointCloud(new_size=2, fields=mut.Fields(mut.BaseField.kXYZs))
+        test_xyzs = [[1., 2., 3.], [4., 5., 6.]]
+        pc.mutable_xyzs().T[:] = test_xyzs
+        crop = pc.Crop(lower_xyz=[3, 4, 5], upper_xyz=[5, 6, 7])
+        self.assertEqual(crop.size(), 1)
+
+        pc_merged_1 = mut.Concatenate(clouds=[pc, pc_new])
+        pc_merged_2 = mut.Concatenate(clouds=[pc, pc_new])
+        self.assertEqual(pc_merged_1.size(), pc.size() + pc_new.size())
+        self.assertEqual(pc_merged_2.size(), pc.size() + pc_new.size())
+
+        pc_downsampled_1 = pc_merged_1.VoxelizedDownSample(voxel_size=2.0)
+        self.assertIsInstance(pc_downsampled_1, mut.PointCloud)
+
+        pc_downsampled_2 = pc_merged_2.VoxelizedDownSample(
+            voxel_size=2.0, parallelize=False)
+        self.assertIsInstance(pc_downsampled_2, mut.PointCloud)
+
+        self.assertFalse(pc_merged_1.has_normals())
+        pc_merged_1.EstimateNormals(radius=1, num_closest=50)
+        self.assertTrue(pc_merged_1.has_normals())
+
+        self.assertFalse(pc_merged_2.has_normals())
+        pc_merged_2.EstimateNormals(
+            radius=1, num_closest=50, parallelize=False)
+        self.assertTrue(pc_merged_2.has_normals())
 
     def test_depth_image_to_point_cloud_api(self):
         camera_info = CameraInfo(width=640, height=480, fov_y=np.pi / 4)

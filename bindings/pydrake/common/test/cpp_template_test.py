@@ -2,6 +2,7 @@ import sys
 from types import ModuleType
 import unittest
 
+import pydrake
 import pydrake.common.cpp_template as m
 from pydrake.common.test_utilities.pickle_compare import assert_pickle
 from pydrake.common.test_utilities.deprecation import catch_drake_warnings
@@ -42,6 +43,8 @@ class TestCppTemplate(unittest.TestCase):
         template = m.TemplateBase("BaseTpl")
         self.assertEqual(str(template), "<TemplateBase {}.BaseTpl>".format(
             _TEST_MODULE))
+
+        self.assertEqual(template.get_module_name(), _TEST_MODULE)
 
         # Single arguments.
         template.add_instantiation(int, 1)
@@ -96,6 +99,19 @@ class TestCppTemplate(unittest.TestCase):
             pickle_error = "can't pickle module objects"
         self.assertIn(pickle_error, str(cm.exception))
 
+    def test_base_negative(self):
+
+        class ParentScope:
+            pass
+
+        template = m.TemplateBase("NestedTemplate", scope=ParentScope)
+        with self.assertRaises(RuntimeError) as cm:
+            template.get_module_name()
+        self.assertIn(
+            "Unable to resolve `get_module_name` for a scope that is not a "
+            "module",
+            str(cm.exception))
+
     def test_deprecation(self):
         template = m.TemplateBase("BaseTpl")
         template.add_instantiation(int, 1)
@@ -124,10 +140,10 @@ class TestCppTemplate(unittest.TestCase):
         template.add_instantiation(float, DummyB)
 
         self.assertEqual(template[int], DummyA)
-        self.assertEqual(str(DummyA), "<class '{}.ClassTpl[int]'>".format(
+        self.assertEqual(str(DummyA), "<class '{}.ClassTpl𝓣int𝓤'>".format(
             _TEST_MODULE))
         self.assertEqual(template[float], DummyB)
-        self.assertEqual(str(DummyB), "<class '{}.ClassTpl[float]'>".format(
+        self.assertEqual(str(DummyB), "<class '{}.ClassTpl𝓣float𝓤'>".format(
             _TEST_MODULE))
 
         assert_pickle(self, template[int]())
@@ -192,7 +208,7 @@ class TestCppTemplate(unittest.TestCase):
         template.add_instantiation(float, dummy_b)
 
         self.assertEqual(template[int](), 1)
-        self.assertIn("<function func[int] ", str(template[int]))
+        self.assertIn("<function func𝓣int𝓤 ", str(template[int]))
         self.assertEqual(template[float](), 2)
         self.assertEqual(str(template), "<TemplateFunction {}.func>".format(
             _TEST_MODULE))
@@ -209,7 +225,7 @@ class TestCppTemplate(unittest.TestCase):
         self.assertTrue(DummyC.method.is_instantiation(DummyC.dummy_c))
         self.assertTrue(
             str(DummyC.method[int]).startswith(
-                "<function DummyC.method[int] at "),
+                "<function DummyC.method𝓣int𝓤 at "),
             str(DummyC.method[int]))
 
         obj = DummyC()
@@ -217,7 +233,7 @@ class TestCppTemplate(unittest.TestCase):
             str(obj.method).startswith(
                 "<bound TemplateMethod DummyC.method of "))
         self.assertIn(
-            "<bound method DummyC.method[int] of ",
+            "<bound method DummyC.method𝓣int𝓤 of ",
             str(obj.method[int]))
         self.assertEqual(obj.method[int](), (obj, 3))
         self.assertEqual(DummyC.method[int](obj), (obj, 3))
@@ -274,3 +290,7 @@ class TestCppTemplate(unittest.TestCase):
             template("hello")
         self.assertIn(
             "incompatible function arguments for template", str(cm.exception))
+
+    def test_documentation_flag_sanity(self):
+        # Only website builds should ever be setting this to true.
+        self.assertFalse(pydrake._is_building_documentation())

@@ -1,0 +1,43 @@
+load("//tools/skylark:drake_py.bzl", "drake_py_binary")
+load("//tools/lint:lint.bzl", "add_lint_tests")
+
+package(default_visibility = ["//visibility:private"])
+
+filegroup(
+    name = "models",
+    srcs = [
+        "bowl.sdf",
+        "pepper.sdf",
+        "table.sdf",
+        "@drake_models//:dishes/bowls/evo_bowl_no_mtl.obj",
+        "@drake_models//:veggies/bell_pepper_no_stem_color.png",
+        "@drake_models//:veggies/bell_pepper_no_stem_normal.png",
+        "@drake_models//:veggies/bell_pepper_no_stem_occlusion_roughness_metallic.png",  # noqa
+        "@drake_models//:veggies/yellow_bell_pepper_no_stem_low.mtl",
+        "@drake_models//:veggies/yellow_bell_pepper_no_stem_low.obj",
+        "@drake_models//:veggies/yellow_bell_pepper_no_stem_low.vtk",
+    ],
+    visibility = ["//:__pkg__"],
+)
+
+drake_py_binary(
+    name = "drop_pepper_py",
+    srcs = ["drop_pepper.py"],
+    add_test_rule = 1,
+    data = [
+        ":models",
+    ],
+    test_rule_args = [
+        "--simulation_time=0.01",
+        "--target_realtime_rate=0",
+    ],
+    # The debug test can be 100x slower than the release.
+    # The debug test takes about 90 seconds.
+    # The release test takes about 3 seconds.
+    test_rule_timeout = "moderate",
+    deps = [
+        "//bindings/pydrake",
+    ],
+)
+
+add_lint_tests()

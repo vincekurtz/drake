@@ -31,6 +31,13 @@ Object& Object::operator=(Object&& other) {
   other.ptr_ = nullptr;
   return *this;
 }
+
+Object Object::Clone() const {
+  py::object py_copy = py::module::import("copy").attr("deepcopy");
+  py::object copied = py_copy(to_pyobject<py::object>());
+  return from_pyobject(copied);
+}
+
 void Object::inc_ref() {
   py::handle(ptr_).inc_ref();
 }
@@ -67,11 +74,12 @@ void RegisterCommon(py::module m, py::object param_aliases) {
   RegisterType<double>(m, param_aliases, "float");
   RegisterType<float>(m, param_aliases, "np.float32");
   RegisterType<int>(m, param_aliases, "int");
+  RegisterType<int16_t>(m, param_aliases, "np.int16");
+  RegisterType<int64_t>(m, param_aliases, "np.int64");
   RegisterType<uint8_t>(m, param_aliases, "np.uint8");
   RegisterType<uint16_t>(m, param_aliases, "np.uint16");
-  RegisterType<int16_t>(m, param_aliases, "np.int16");
   RegisterType<uint32_t>(m, param_aliases, "np.uint32");
-  RegisterType<int64_t>(m, param_aliases, "np.int64");
+  RegisterType<uint64_t>(m, param_aliases, "np.uint64");
   // For supporting generic Python types.
   RegisterType<Object>(m, param_aliases, "object");
 }

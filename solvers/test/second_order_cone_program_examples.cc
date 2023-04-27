@@ -262,8 +262,8 @@ TestQPasSOCP::TestQPasSOCP() {
   prog_qp_.AddLinearConstraint(A_, b_lb_, b_ub_, x_qp_);
 }
 
-void TestQPasSOCP::SolveAndCheckSolution(
-    const SolverInterface& solver, double tol) {
+void TestQPasSOCP::SolveAndCheckSolution(const SolverInterface& solver,
+                                         double tol) {
   MathematicalProgramResult result;
   result = RunSolver(prog_socp_, solver);
   const auto& x_socp_value = result.GetSolution(x_socp_);
@@ -572,8 +572,7 @@ void TestSocpDualSolution1(const SolverInterface& solver,
 }
 
 void TestSocpDualSolution2(const SolverInterface& solver,
-                           const SolverOptions& solver_options, double tol,
-                           bool rotated_lorentz_cone_with_coefficient_two) {
+                           const SolverOptions& solver_options, double tol) {
   MathematicalProgram prog;
   auto x = prog.NewContinuousVariables<1>()(0);
   auto constraint1 = prog.AddRotatedLorentzConeConstraint(
@@ -585,15 +584,92 @@ void TestSocpDualSolution2(const SolverInterface& solver,
     MathematicalProgramResult result;
     solver.Solve(prog, {}, solver_options, &result);
     ASSERT_TRUE(result.is_success());
-    const Eigen::Vector3d constraint1_dual =
-        rotated_lorentz_cone_with_coefficient_two
-            ? Eigen::Vector3d(0.25, 0.5, 0.5)
-            : Eigen::Vector3d(0.5, 0.5, 0.5);
+    const Eigen::Vector3d constraint1_dual = Eigen::Vector3d(0.125, 0.5, 0.5);
     EXPECT_TRUE(CompareMatrices(result.GetDualSolution(constraint1),
                                 constraint1_dual, tol));
     // This Lorentz cone is not activated, hence its dual should be zero.
     EXPECT_TRUE(CompareMatrices(result.GetDualSolution(constraint2),
                                 Eigen::Vector2d(0, 0), tol));
+  }
+}
+
+void TestSocpDuplicatedVariable1(
+    const SolverInterface& solver,
+    const std::optional<SolverOptions>& solver_options, double tol) {
+  MathematicalProgram prog;
+  const auto x = prog.NewContinuousVariables<2>();
+  // Add the constraint that
+  // (1, x0, sqrt(3)*x1, -sqrt(3)*x0) is in the Lorentz cone.
+  Eigen::Matrix<double, 4, 3> A;
+  A.setZero();
+  A(1, 0) = 1;
+  A(2, 1) = std::sqrt(3);
+  A(3, 2) = -std::sqrt(3);
+  prog.AddLorentzConeConstraint(A, Eigen::Vector4d(1, 0, 0, 0),
+                                Vector3<symbolic::Variable>(x(0), x(1), x(0)));
+  prog.AddLinearCost(x(0) + x(1));
+  if (solver.available()) {
+    MathematicalProgramResult result;
+    solver.Solve(prog, std::nullopt, solver_options, &result);
+    EXPECT_TRUE(result.is_success());
+    const Eigen::Vector2d x_sol = result.GetSolution(x);
+    EXPECT_NEAR(4 * x_sol(0) * x_sol(0) + 3 * x_sol(1) * x_sol(1), 1, tol);
+  }
+}
+
+void TestSocpDuplicatedVariable2(
+    const SolverInterface& solver,
+    const std::optional<SolverOptions>& solver_options, double tol) {
+  MathematicalProgram prog;
+  // Intentionally create dummy variable to test that the constraint doesn't
+  // take all variables in `prog`.
+  auto dummy = prog.NewContinuousVariables<2>();
+  auto x = prog.NewContinuousVariables<2>();
+  // A * [x(0), x(1), x(0), x(1)] + b = [1; 2x(0); 3x(1)]
+  Eigen::Matrix<double, 3, 4> A;
+  // clang-format off
+  A << 1, 0, -1, 0,
+       3, 0, -1, 0,
+       2, 2, -2, 1;
+  // clang-format on
+  Eigen::Vector3d b(1, 0, 0);
+  prog.AddLorentzConeConstraint(A, b, {x, x});
+  prog.AddLinearCost(-x(0) - x(1));
+  if (solver.available()) {
+    MathematicalProgramResult result;
+    solver.Solve(prog, std::nullopt, solver_options, &result);
+    EXPECT_TRUE(result.is_success());
+    const auto x_sol = result.GetSolution(x);
+    // This expected solution is obtained by solving the equation
+    // 4x0²+9x1² = 1
+    // x0+x1= sqrt(13)/6
+    // where x0+x1=sqrt(13)/6 is obtained from the Jensen's inequality
+    // (4x0²+9x1²) * (1/4 + 1/9) >= (x0+x1)²
+    // Also by the fact
+    // (4x0²+9x1²) * (1/4 + 1/9) <= (1/4 + 1/9) = 13 / 36 = (sqrt(13)/6)²
+    // We obtain x + y <= sqrt(13)/6 and the bound is tight.
+    Eigen::Vector2d x_expected(3 * std::sqrt(13) / 26, 4 * std::sqrt(13) / 78);
+    EXPECT_TRUE(CompareMatrices(x_sol, x_expected, tol));
+  }
+}
+
+void TestDegenerateSOCP(const SolverInterface& solver) {
+  MathematicalProgram prog;
+  auto x = prog.NewContinuousVariables<3>();
+
+  // A * [x(0), x(1), x(2), x(1), x(2)] = [x(0); x(1)-x(1); x(2)-x(2)]
+  Eigen::Matrix<double, 3, 5> A;
+  A.setZero();
+  A(0, 0) = 1;
+  A.block<2, 2>(1, 1) = Eigen::Matrix2d::Identity();
+  A.block<2, 2>(1, 3) = -Eigen::Matrix2d::Identity();
+  prog.AddLorentzConeConstraint(A, Eigen::Vector3d::Zero(), {x, x.tail<2>()});
+  if (solver.available()) {
+    MathematicalProgramResult result;
+    solver.Solve(prog, std::nullopt, std::nullopt, &result);
+    EXPECT_TRUE(result.is_success());
+    const auto x_sol = result.GetSolution(x);
+    EXPECT_GE(x_sol(0), 0);
   }
 }
 }  // namespace test

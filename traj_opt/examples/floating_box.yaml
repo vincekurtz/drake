@@ -48,14 +48,3 @@ play_optimal_trajectory : true
 linesearch_plot_every_iteration : false
 print_debug_data : false
 save_solver_stats_csv : true
-
-# Contact model parameters
-F : 1.0         # force at delta meters of penetration
-delta : 0.05    # penetration distance with F newtons of normal force
-stiffness_exponent : 2      # Compliant law exponent.
-dissipation_exponent : 1.0  # Hunt & Crossley-like model. Law exponent.
-dissipation_velocity : 1e16 # Hunt & Crossley-like model parameter, in m/s.
-
-# Friction
-friction_coefficient : 0.0  # Coefficient of friction.
-stiction_velocity: 0.05     # Regularization velocity, in m/s.

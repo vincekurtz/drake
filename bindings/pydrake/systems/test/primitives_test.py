@@ -11,6 +11,7 @@ from pydrake.systems.framework import (
     BasicVector,
     DiagramBuilder,
     DiagramBuilder_,
+    InputPort,
     TriggerType,
     VectorBase,
 )
@@ -43,6 +44,7 @@ from pydrake.systems.primitives import (
     ObservabilityMatrix,
     PassThrough, PassThrough_,
     PerceptronActivationType,
+    PortSwitch, PortSwitch_,
     RandomSource,
     Saturation, Saturation_,
     SharedPointerSystem, SharedPointerSystem_,
@@ -95,6 +97,7 @@ class TestGeneral(unittest.TestCase):
         self._check_instantiations(Multiplexer_)
         self._check_instantiations(MultilayerPerceptron_)
         self._check_instantiations(PassThrough_)
+        self._check_instantiations(PortSwitch_)
         self._check_instantiations(Saturation_)
         self._check_instantiations(SharedPointerSystem_)
         self._check_instantiations(Sine_)
@@ -222,6 +225,32 @@ class TestGeneral(unittest.TestCase):
         system.configure_default_state(x0=np.array([1, 2]))
         system.configure_random_state(covariance=np.eye(2))
 
+    def test_linear_affine_system_empty_matrices(self):
+        # Confirm the default values for the system matrices in the
+        # constructor.
+        def CheckSizes(system, num_states, num_inputs, num_outputs):
+            self.assertEqual(system.num_continuous_states(), num_states)
+            self.assertEqual(system.num_inputs(), num_inputs)
+            self.assertEqual(system.num_outputs(), num_outputs)
+
+        # A constant vector system.
+        system = AffineSystem(y0=[2, 1])
+        CheckSizes(system, num_states=0, num_inputs=0, num_outputs=2)
+
+        # A matrix gain.
+        system = AffineSystem(D=np.eye(2))
+        CheckSizes(system, num_states=0, num_inputs=2, num_outputs=2)
+        system = LinearSystem(D=np.eye(2))
+        CheckSizes(system, num_states=0, num_inputs=2, num_outputs=2)
+
+        # Add an offset.
+        system = AffineSystem(D=np.eye(2), y0=[1, 2])
+        CheckSizes(system, num_states=0, num_inputs=2, num_outputs=2)
+
+        # An integrator.
+        system = LinearSystem(B=np.eye(2))
+        CheckSizes(system, num_states=2, num_inputs=2, num_outputs=0)
+
     def test_linear_system_zero_size(self):
         # Explicitly test #12633.
         num_x = 0
@@ -287,6 +316,14 @@ class TestGeneral(unittest.TestCase):
         output_value = output.get_data(0)
         compare_value(self, output_value, model_value)
 
+    def test_port_switch(self):
+        system = PortSwitch(vector_size=2)
+        a = system.DeclareInputPort(name="a")
+        system.DeclareInputPort(name="b")
+        context = system.CreateDefaultContext()
+        self.assertIsInstance(a, InputPort)
+        system.get_port_selector_input_port().FixValue(context, a.get_index())
+
     def test_first_order_low_pass_filter(self):
         filter1 = FirstOrderLowPassFilter(time_constant=3.0, size=4)
         self.assertEqual(filter1.get_time_constant(), 3.0)
@@ -350,6 +387,13 @@ class TestGeneral(unittest.TestCase):
         mytest(0.0, (2.0, 2.0))
         mytest(0.5, (2.5, 1.5))
         mytest(1.0, (3.0, 1.0))
+
+        ppt2 = PiecewisePolynomial.FirstOrderHold(
+            [0., 1.], [[4., 6.], [4., 2.]])
+        system.UpdateTrajectory(trajectory=ppt2)
+        mytest(0.0, (4.0, 4.0))
+        mytest(0.5, (5.0, 3.0))
+        mytest(1.0, (6.0, 2.0))
 
     def test_symbolic_vector_system(self):
         t = Variable("t")

@@ -1,18 +1,17 @@
 #pragma once
 
 #include <chrono>
-#include <iostream>
 #include <memory>
 #include <string>
 #include <thread>
 #include <vector>
 
 #include "drake/common/find_resource.h"
-#include "drake/geometry/drake_visualizer.h"
 #include "drake/geometry/scene_graph.h"
 #include "drake/multibody/parsing/parser.h"
 #include "drake/multibody/plant/multibody_plant.h"
 #include "drake/multibody/plant/multibody_plant_config_functions.h"
+#include "drake/systems/analysis/simulator.h"
 #include "drake/systems/framework/diagram_builder.h"
 #include "drake/traj_opt/examples/yaml_config.h"
 #include "drake/traj_opt/problem_definition.h"
@@ -22,7 +21,6 @@ namespace drake {
 namespace traj_opt {
 namespace examples {
 
-using geometry::DrakeVisualizerd;
 using geometry::SceneGraph;
 using multibody::AddMultibodyPlant;
 using multibody::MultibodyPlantConfig;
@@ -37,13 +35,32 @@ class TrajOptExample {
   virtual ~TrajOptExample() = default;
 
   /**
-   * Solve the optimizaiton problem, as defined by the parameters in the given
-   * YAML file.
+   * Run the example, either solving a single trajectory optimization problem or
+   * running MPC, as specified by the options in the YAML file.
    *
-   * @param options_file YAML file containing cost funciton definition, solver
+   * @param options_file YAML file containing cost function definition, solver
    * parameters, etc., with fields as defined in yaml_config.h.
    */
-  void SolveTrajectoryOptimization(const std::string options_file) const;
+  void RunExample(const std::string options_file) const;
+
+  /**
+   * Solve the optimization problem, as defined by the parameters in the given
+   * YAML file.
+   *
+   * @param options YAML options, incluidng cost function definition, solver
+   * parameters, etc.
+   * @return TrajectoryOptimizerSolution<double> the optimal trajectory
+   */
+  TrajectoryOptimizerSolution<double> SolveTrajectoryOptimization(
+      const TrajOptExampleParams& options) const;
+
+  /**
+   * Use the optimizer as an MPC controller in simulation.
+   *
+   * @param options YAML options, incluidng cost function definition, solver
+   * parameters, etc.
+   */
+  void RunModelPredictiveControl(const TrajOptExampleParams& options) const;
 
  private:
   /**
@@ -54,6 +71,18 @@ class TrajOptExample {
    * @param plant the MultibodyPlant that we'll add the system to.
    */
   virtual void CreatePlantModel(MultibodyPlant<double>*) const {}
+
+  /**
+   * Create a MultibodyPlant model of the system to use for simulation (i.e., to
+   * test MPC). The default behavior is to use the same model that we use for
+   * optimization.
+   *
+   * @param plant the MultibodyPlant that we'll add the system to.
+   */
+  virtual void CreatePlantModelForSimulation(
+      MultibodyPlant<double>* plant) const {
+    CreatePlantModel(plant);
+  }
 
   /**
    * Play back the given trajectory on the Drake visualizer
@@ -94,8 +123,8 @@ class TrajOptExample {
    * @return std::vector<VectorXd> vector that interpolates between start and
    * end.
    */
-  std::vector<VectorXd> MakeLinearInterpolation(const VectorXd start,
-                                                const VectorXd end,
+  std::vector<VectorXd> MakeLinearInterpolation(const VectorXd& start,
+                                                const VectorXd& end,
                                                 int N) const {
     std::vector<VectorXd> result;
     double lambda = 0;
@@ -105,6 +134,18 @@ class TrajOptExample {
     }
     return result;
   }
+
+  /**
+   * Normalize quaternions in the given sequence of generalized positions. This
+   * is useful for, for example, ensuring that the reference and initial guess
+   * contain valid quaternions.
+   *
+   * @param plant model of the system that we're optimizing over
+   * @param q sequence of generalized positions, including quaternion DoFs, that
+   * we'll normalize
+   */
+  void NormalizeQuaternions(const MultibodyPlant<double>& plant,
+                            std::vector<VectorXd>* q) const;
 };
 
 }  // namespace examples

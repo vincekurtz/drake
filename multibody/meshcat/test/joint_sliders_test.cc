@@ -33,8 +33,8 @@ class JointSlidersTest : public ::testing::Test {
 
   void Add(const std::string& resource_path,
            const std::string& model_name = {}) {
-    Parser parser(&plant_);
-    parser.AddModelFromFile(FindResourceOrThrow(resource_path), model_name);
+    Parser parser(&plant_, model_name);
+    parser.AddModels(FindResourceOrThrow(resource_path));
   }
 
   void AddAcrobot() {
@@ -118,8 +118,11 @@ TEST_F(JointSlidersTest, WideConstructorWithVectors) {
   const Eigen::Vector2d lower_limit(min_angle_1, min_angle_2);
   const Eigen::Vector2d upper_limit(max_angle_1, max_angle_2);
   const Eigen::Vector2d step(step_1, step_2);
-  const JointSliders dut(
-      meshcat_, &plant_, initial_value, lower_limit, upper_limit, step);
+  const std::vector<std::string> decrement_keycodes{"ArrowLeft", "ArrowDown"};
+  const std::vector<std::string> increment_keycodes{"ArrowRight", "ArrowUp"};
+  const JointSliders dut(meshcat_, &plant_, initial_value, lower_limit,
+                         upper_limit, step, decrement_keycodes,
+                         increment_keycodes);
   auto context = dut.CreateDefaultContext();
 
   // Sliders start at their initial value.
@@ -208,9 +211,11 @@ TEST_F(JointSlidersTest, DuplicatedJointNames) {
   // Add the sliders.
   const JointSliders<double> dut(meshcat_, &plant_);
 
+  // TODO(rpoyner-tri): We would probably prefer slashes for names nesting on
+  // sliders labels.
   // Confirm that the names are unique.
-  const std::string alpha = "/alpha";
-  const std::string bravo = "/bravo";
+  const std::string alpha = "/alpha::acrobot";
+  const std::string bravo = "/bravo::acrobot";
   EXPECT_EQ(meshcat_->GetSliderValue(kAcrobotJoint1 + alpha), 0.0);
   EXPECT_EQ(meshcat_->GetSliderValue(kAcrobotJoint2 + alpha), 0.0);
   EXPECT_EQ(meshcat_->GetSliderValue(kAcrobotJoint1 + bravo), 0.0);
@@ -272,13 +277,20 @@ TEST_F(JointSlidersTest, Destructor) {
 TEST_F(JointSlidersTest, Run) {
   // Add the acrobot visualizer and sliders.
   AddAcrobot();
+
+  Vector2d initial_value{0.12, 0.34};
   MeshcatVisualizer<double>::AddToBuilder(&builder_, scene_graph_, meshcat_);
-  auto* dut = builder_.AddSystem<JointSliders<double>>(meshcat_, &plant_);
+  auto* dut = builder_.AddSystem<JointSliders<double>>(meshcat_, &plant_,
+                                                       initial_value);
   auto diagram = builder_.Build();
 
   // Run for a while.
   const double timeout = 1.0;
-  dut->Run(*diagram, timeout);
+  Eigen::VectorXd q = dut->Run(*diagram, timeout);
+  EXPECT_TRUE(CompareMatrices(q, initial_value));
+
+  // Note: the stop button is deleted on timeout, so we cannot easily check
+  // that it was created correctly here.
 
   // Obtain the current pose of one shape.
   const std::string geometry_path = "visualizer/acrobot/Link1";
@@ -288,8 +300,9 @@ TEST_F(JointSlidersTest, Run) {
   // Set a non-default slider position.
   meshcat_->SetSliderValue(kAcrobotJoint1, 0.25);
 
-  // Run for a while.
-  dut->Run(*diagram, timeout);
+  // Run for a while (with a non-default stop_button_keycode).
+  q = dut->Run(*diagram, timeout, "KeyP");
+  EXPECT_TRUE(CompareMatrices(q, Vector2d{0.25, initial_value[1]}));
 
   // Check that the slider's transform had any effect, i.e., that the
   // MeshcatVisualizer::Publish was called.

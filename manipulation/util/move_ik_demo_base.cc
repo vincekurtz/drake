@@ -3,6 +3,7 @@
 #include <utility>
 
 #include "drake/common/drake_throw.h"
+#include "drake/common/fmt_eigen.h"
 #include "drake/manipulation/util/robot_plan_utils.h"
 #include "drake/multibody/parsing/parser.h"
 
@@ -10,7 +11,7 @@ namespace drake {
 namespace manipulation {
 namespace util {
 
-using planner::ConstraintRelaxingIk;
+using multibody::ConstraintRelaxingIk;
 
 MoveIkDemoBase::MoveIkDemoBase(std::string robot_description,
                                std::string base_link,
@@ -21,7 +22,7 @@ MoveIkDemoBase::MoveIkDemoBase(std::string robot_description,
       print_interval_(print_interval),
       plant_(0.0),
       constraint_relaxing_ik_(robot_description_, ik_link_) {
-  multibody::Parser(&plant_).AddModelFromFile(robot_description_);
+  multibody::Parser(&plant_).AddModels(robot_description_);
   plant_.WeldFrames(plant_.world_frame(),
                     plant_.GetBodyByName(base_link).body_frame());
   plant_.Finalize();
@@ -49,10 +50,9 @@ void MoveIkDemoBase::HandleStatus(
         plant_.EvalBodyPoseInWorld(
             *context_, plant_.GetBodyByName(ik_link_));
     const math::RollPitchYaw<double> rpy(current_link_pose.rotation());
-    drake::log()->info("{} at: {} {}",
-                       ik_link_,
-                       current_link_pose.translation().transpose(),
-                       rpy.vector().transpose());
+    drake::log()->info("{} at: {} {}", ik_link_,
+                       fmt_eigen(current_link_pose.translation().transpose()),
+                       fmt_eigen(rpy.vector().transpose()));
   }
 }
 

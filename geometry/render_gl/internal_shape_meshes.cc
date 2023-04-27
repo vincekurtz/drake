@@ -19,7 +19,7 @@
 
 namespace drake {
 namespace geometry {
-namespace render {
+namespace render_gl {
 namespace internal {
 
 using Eigen::Vector2d;
@@ -135,11 +135,6 @@ MeshData LoadMeshFromObj(std::istream* input_stream,
         const int position_index = shape_mesh.indices[v_index].vertex_index;
         const int norm_index = shape_mesh.indices[v_index].normal_index;
         const int uv_index = shape_mesh.indices[v_index].texcoord_index;
-        // TODO(SeanCurtis-TRI) PR 14656 changed parse semantics. This error
-        // condition appears to no longer be reachable (it no longer appears
-        // in the unit tests) and the condition that this detects won't trigger
-        // this helpful message. Either clean up this case or find a way to give
-        // this feedback under the new tinyobj.
         if (norm_index < 0) {
           throw std::runtime_error(
               fmt::format("Not all faces reference normals: {}", filename));
@@ -217,7 +212,7 @@ MeshData LoadMeshFromObj(const string& filename) {
 namespace {
 /* Creates a triangle mesh for a revolute surface. It is, essentially, a curve
  that is revolved around the z-axis. The revolute surface is discrete, so the
- curve is evaluted at fixed angular samples (determined by the
+ curve is evaluated at fixed angular samples (determined by the
  `rotate_sample_count`). The curve is defined implicitly and is sampled along
  its length a fixed number of times (determined by the `curve_sample_count`).
 
@@ -556,7 +551,7 @@ MeshData MakeUnitCylinder(int num_strips, int num_bands) {
   In the example above, we have 4 bands creating seven curve samples. Note that
   circles 0 and 1 have a z-value of 0.5 (the top of the unit cylinder) and
   circles 5 and 6 similarly have a z-value of -0.5 (the bottom of the unit
-  cylinder). The z-values of circles 2, 3, and 4 are uniformly distrubted
+  cylinder). The z-values of circles 2, 3, and 4 are uniformly distributed
   between the top and bottom.
   */
   DRAKE_DEMAND(num_strips >= 3);
@@ -1082,6 +1077,6 @@ MeshData MakeCapsule(int samples, double radius, double length) {
 }
 
 }  // namespace internal
-}  // namespace render
+}  // namespace render_gl
 }  // namespace geometry
 }  // namespace drake

@@ -12,6 +12,7 @@
 #include "drake/common/drake_assert.h"
 #include "drake/common/drake_copyable.h"
 #include "drake/common/eigen_types.h"
+#include "drake/common/fmt_ostream.h"
 #include "drake/common/polynomial.h"
 #include "drake/common/symbolic/expression.h"
 #include "drake/math/autodiff.h"
@@ -132,7 +133,7 @@ class EvaluatorBase {
    * the gradient as potentially non-zero.
    */
   const std::optional<std::vector<std::pair<int, int>>>&
-      gradient_sparsity_pattern() const {
+  gradient_sparsity_pattern() const {
     return gradient_sparsity_pattern_;
   }
 
@@ -385,3 +386,12 @@ class VisualizationCallback : public EvaluatorBase {
 
 }  // namespace solvers
 }  // namespace drake
+
+// TODO(jwnimmer-tri) Add a real formatter and deprecate the operator<<.
+namespace fmt {
+template <typename T>
+struct formatter<
+    T,
+    std::enable_if_t<std::is_base_of_v<drake::solvers::EvaluatorBase, T>, char>>
+    : drake::ostream_formatter {};
+}  // namespace fmt

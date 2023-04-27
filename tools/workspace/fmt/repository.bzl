@@ -1,5 +1,3 @@
-# -*- python -*-
-
 load("@drake//tools/workspace:os.bzl", "determine_os")
 load(
     "@drake//tools/workspace:github.bzl",
@@ -51,9 +49,6 @@ fmt_repository = repository_rule(
 load("@drake//tools/install:install.bzl", "install")
 install(name = "install")
             """,
-        ),
-        "extra_defines": attr.string_list(
-            default = ["FMT_DEPRECATED_OSTREAM=1"],
         ),
         # The remaining attributes are used only when we take the branch for
         # setup_github_repository in the above logic.

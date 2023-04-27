@@ -15,6 +15,8 @@
 #include "drake/common/autodiff.h"
 #include "drake/common/default_scalars.h"
 #include "drake/common/drake_assert.h"
+#include "drake/common/drake_throw.h"
+#include "drake/common/fmt_ostream.h"
 #include "drake/common/symbolic/expression.h"
 
 namespace drake {
@@ -25,7 +27,7 @@ namespace drake {
  * number of distinct Terms (variables raised to positive integer powers).
  *
  * Variables are identified by integer indices rather than symbolic names, but
- * an automatic facility is provided to covert variable names up to four
+ * an automatic facility is provided to convert variable names up to four
  * characters into unique integers, provided those variables are named using
  * only lowercase letters and the "@#_." characters followed by a number.  For
  * example, valid names include "dx4" and "m_x".
@@ -143,23 +145,15 @@ class Polynomial {
   /// Construct a single Monomial of the given coefficient and variable.
   Polynomial(const T& coeff, const VarType& v);
 
-  /// A legacy constructor for univariate polynomials:  Takes a vector
-  /// of coefficients for the constant, x, x**2, x**3... Monomials.
+  /// A constructor for univariate polynomials: takes a vector of coefficients
+  /// for the x**0, x**1, x**2, x**3... Monomials. All terms are always added,
+  /// even if a coefficient is zero.
   template <typename Derived>
-  explicit Polynomial(Eigen::MatrixBase<Derived> const& coefficients) {
-    VarType v = VariableNameToId("t");
-    for (int i = 0; i < coefficients.size(); i++) {
-      Monomial m;
-      m.coefficient = coefficients(i);
-      if (i > 0) {
-        Term t;
-        t.var = v;
-        t.power = i;
-        m.terms.push_back(t);
-      }
-      monomials_.push_back(m);
-    }
-    is_univariate_ = true;
+  explicit Polynomial(const Eigen::MatrixBase<Derived>& coefficients) {
+    DRAKE_THROW_UNLESS((coefficients.cols() == 1) ||
+                       (coefficients.rows() == 1) ||
+                       (coefficients.size() == 0));
+    *this = Polynomial(WithCoefficients{coefficients.template cast<T>()});
   }
 
   /// Returns the number of unique Monomials (and thus the number of
@@ -181,7 +175,7 @@ class Polynomial {
 
   const std::vector<Monomial>& GetMonomials() const;
 
-  Eigen::Matrix<T, Eigen::Dynamic, 1> GetCoefficients() const;
+  VectorX<T> GetCoefficients() const;
 
   /// Returns a set of all of the variables present in this Polynomial.
   std::set<VarType> GetVariables() const;
@@ -411,6 +405,7 @@ class Polynomial {
    */
   static Polynomial<T> FromExpression(const drake::symbolic::Expression& e);
 
+  // TODO(jwnimmer-tri) Rewrite this as a fmt::formatter specialization.
   friend std::ostream& operator<<(std::ostream& os, const Monomial& m) {
     //    if (m.coefficient == 0) return os;
 
@@ -436,6 +431,7 @@ class Polynomial {
     return os;
   }
 
+  // TODO(jwnimmer-tri) Rewrite this as a fmt::formatter specialization.
   friend std::ostream& operator<<(std::ostream& os, const Polynomial& poly) {
     if (poly.monomials_.empty()) {
       os << "0";
@@ -467,6 +463,13 @@ class Polynomial {
                            typename Polynomial<U>::PowerType n);
 
  private:
+  // A wrapper struct to help guide constructor overload resolution.
+  struct WithCoefficients {
+    Eigen::Ref<const VectorX<T>> value;
+  };
+
+  explicit Polynomial(const WithCoefficients& coefficients);
+
   /// The Monomial atoms of the Polynomial.
   std::vector<Monomial> monomials_;
 
@@ -494,6 +497,8 @@ Polynomial<T> pow(
   }
 }
 
+// TODO(jwnimmer-tri) Rewrite this as a fmt::formatter specialization,
+// most likely just fmt_eigen without anything extra.
 template <typename T, int Rows, int Cols>
 std::ostream& operator<<(
     std::ostream& os,
@@ -514,6 +519,16 @@ typedef Polynomial<double> Polynomiald;
 /// A column vector of polynomials; used in several optimization classes.
 typedef Eigen::Matrix<Polynomiald, Eigen::Dynamic, 1> VectorXPoly;
 }  // namespace drake
+
+// TODO(jwnimmer-tri) Add a real formatter and deprecate the operator<<.
+namespace fmt {
+template <typename T>
+struct formatter<drake::Polynomial<T>>
+    : drake::ostream_formatter {};
+template <>
+struct formatter<drake::Polynomial<double>::Monomial>
+    : drake::ostream_formatter {};
+}  // namespace fmt
 
 DRAKE_DECLARE_CLASS_TEMPLATE_INSTANTIATIONS_ON_DEFAULT_SCALARS(
     class drake::Polynomial)

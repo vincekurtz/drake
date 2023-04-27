@@ -4,6 +4,7 @@
 #include <list>
 #include <map>
 #include <memory>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <unordered_map>
@@ -115,7 +116,6 @@ class Constraint : public EvaluatorBase {
   /** Number of rows in the output constraint. */
   int num_constraints() const { return num_outputs(); }
 
-
  protected:
   /** Updates the lower bound.
    * @note if the users want to expose this method in a sub-class, do
@@ -164,10 +164,12 @@ class Constraint : public EvaluatorBase {
                                 const double tol) const {
     AutoDiffVecXd y(num_constraints());
     DoEval(x, &y);
-    auto get_value = [](const AutoDiffXd& v) { return v.value(); };
-    return
-        (y.array().unaryExpr(get_value) >= lower_bound_.array() - tol).all() &&
-        (y.array().unaryExpr(get_value) <= upper_bound_.array() + tol).all();
+    auto get_value = [](const AutoDiffXd& v) {
+      return v.value();
+    };
+    return (y.array().unaryExpr(get_value) >= lower_bound_.array() - tol)
+               .all() &&
+           (y.array().unaryExpr(get_value) <= upper_bound_.array() + tol).all();
   }
 
   virtual symbolic::Formula DoCheckSatisfied(
@@ -197,6 +199,16 @@ class QuadraticConstraint : public Constraint {
   static const int kNumConstraints = 1;
 
   /**
+   Whether the Hessian matrix is positive semidefinite, negative semidefinite,
+   or indefinite.
+   */
+  enum class HessianType {
+    kPositiveSemidefinite,
+    kNegativeSemidefinite,
+    kIndefinite,
+  };
+
+  /**
    * Construct a quadratic constraint.
    * @tparam DerivedQ The type for Q.
    * @tparam Derivedb The type for b.
@@ -204,15 +216,23 @@ class QuadraticConstraint : public Constraint {
    * @param b The linear coefficient.
    * @param lb The lower bound.
    * @param ub The upper bound.
+   * @param hessian_type (optional) Indicates the type of Hessian matrix Q0.
+   * If hessian_type is not std::nullopt, then the user guarantees the type of
+   * Q0. If hessian_type=std::nullopt, then QuadraticConstraint will check the
+   * type of Q0. To speed up the constructor, set hessian_type != std::nullopt
+   * if you can. If this type is set incorrectly, then the downstream code (for
+   * example the solver) will malfunction.
    */
   template <typename DerivedQ, typename Derivedb>
   QuadraticConstraint(const Eigen::MatrixBase<DerivedQ>& Q0,
                       const Eigen::MatrixBase<Derivedb>& b, double lb,
-                      double ub)
+                      double ub,
+                      std::optional<HessianType> hessian_type = std::nullopt)
       : Constraint(kNumConstraints, Q0.rows(), drake::Vector1d::Constant(lb),
                    drake::Vector1d::Constant(ub)),
         Q_((Q0 + Q0.transpose()) / 2),
         b_(b) {
+    UpdateHessianType(hessian_type);
     DRAKE_ASSERT(Q_.rows() == Q_.cols());
     DRAKE_ASSERT(Q_.cols() == b_.rows());
   }
@@ -225,15 +245,27 @@ class QuadraticConstraint : public Constraint {
 
   virtual const Eigen::VectorXd& b() const { return b_; }
 
+  [[nodiscard]] HessianType hessian_type() const { return hessian_type_; }
+
+  /** Returns if this quadratic constraint is convex. */
+  [[nodiscard]] bool is_convex() const;
+
   /**
    * Updates the quadratic and linear term of the constraint. The new
    * matrices need to have the same dimension as before.
    * @param new_Q new quadratic term
    * @param new_b new linear term
+   * @param hessian_type (optional) Indicates the type of Hessian matrix Q0.
+   * If hessian_type is not std::nullopt, then the user guarantees the type of
+   * Q0. If hessian_type=std::nullopt, then QuadraticConstraint will check the
+   * type of Q0. To speed up the constructor, set hessian_type != std::nullopt
+   * if you can.
    */
   template <typename DerivedQ, typename DerivedB>
-  void UpdateCoefficients(const Eigen::MatrixBase<DerivedQ>& new_Q,
-                          const Eigen::MatrixBase<DerivedB>& new_b) {
+  void UpdateCoefficients(
+      const Eigen::MatrixBase<DerivedQ>& new_Q,
+      const Eigen::MatrixBase<DerivedB>& new_b,
+      std::optional<HessianType> hessian_type = std::nullopt) {
     if (new_Q.rows() != new_Q.cols() || new_Q.rows() != new_b.rows() ||
         new_b.cols() != 1) {
       throw std::runtime_error("New constraints have invalid dimensions");
@@ -245,6 +277,7 @@ class QuadraticConstraint : public Constraint {
 
     Q_ = (new_Q + new_Q.transpose()) / 2;
     b_ = new_b;
+    UpdateHessianType(hessian_type);
   }
 
  private:
@@ -264,8 +297,12 @@ class QuadraticConstraint : public Constraint {
   std::ostream& DoDisplay(std::ostream&,
                           const VectorX<symbolic::Variable>&) const override;
 
+  // Updates hessian_type_ based on Q_;
+  void UpdateHessianType(std::optional<HessianType> hessian_type);
+
   Eigen::MatrixXd Q_;
   Eigen::VectorXd b_;
+  HessianType hessian_type_;
 };
 
 /**
@@ -666,9 +703,8 @@ class LinearEqualityConstraint : public LinearConstraint {
    * Overloads the constructor with a sparse matrix Aeq.
    * @pydrake_mkdoc_identifier{sparse_Aeq}
    */
-  LinearEqualityConstraint(
-      const Eigen::SparseMatrix<double>& Aeq,
-      const Eigen::Ref<const Eigen::VectorXd>& beq)
+  LinearEqualityConstraint(const Eigen::SparseMatrix<double>& Aeq,
+                           const Eigen::Ref<const Eigen::VectorXd>& beq)
       : LinearConstraint(Aeq, beq, beq) {}
 
   /**
@@ -694,9 +730,8 @@ class LinearEqualityConstraint : public LinearConstraint {
   /**
    * Overloads UpdateCoefficients but with a sparse A matrix.
    */
-  void UpdateCoefficients(
-      const Eigen::SparseMatrix<double>& Aeq,
-      const Eigen::Ref<const Eigen::VectorXd>& beq) {
+  void UpdateCoefficients(const Eigen::SparseMatrix<double>& Aeq,
+                          const Eigen::Ref<const Eigen::VectorXd>& beq) {
     LinearConstraint::UpdateCoefficients(Aeq, beq, beq);
   }
 

@@ -6,6 +6,7 @@
 #include <type_traits>
 #include <utility>
 
+#include "drake/common/drake_deprecated.h"
 #include "drake/common/hash.h"
 #include "drake/common/is_less_than_comparable.h"
 
@@ -26,6 +27,9 @@ namespace drake {
 /// constructor, copy constructor, copy assignment, move constructor, move
 /// assignment) is the same as whatever T provides .  All comparison operations
 /// (including equality, etc.) are always available.
+///
+/// To format this class for logging, include `<fmt/ranges.h>` (exactly the same
+/// as for `std::pair`).
 ///
 /// @tparam T A template type that provides `operator<`.
 template <class T>
@@ -102,16 +106,14 @@ struct SortedPair {
 
   /// @name Support for using SortedPair in structured bindings.
   //@{
-  template<std::size_t Index>
-  std::tuple_element_t<Index, SortedPair<T>>& get() {
+  template <size_t Index>
+  const T& get() const {
     if constexpr (Index == 0) return first_;
     if constexpr (Index == 1) return second_;
   }
-
-  template<std::size_t Index>
-  const std::tuple_element_t<Index, SortedPair<T>>& get() const {
-    if constexpr (Index == 0) return first_;
-    if constexpr (Index == 1) return second_;
+  template <std::size_t Index>
+  friend const T& get(const SortedPair<T>& self) {
+    return self.get<Index>();
   }
   //@}
 
@@ -120,9 +122,12 @@ struct SortedPair {
   T second_{};         // The second of the two objects, according to operator<.
 };
 
-/// Support writing a SortedPair to a stream (conditional on the support of
-/// writing the underlying type T to a stream).
 template <typename T>
+DRAKE_DEPRECATED("2023-06-01",
+    "Use fmt or spdlog for logging, not operator<<. "
+    "Add an #include <fmt/ranges.h> to format SortedPair as a range."
+    "See https://github.com/RobotLocomotion/drake/issues/17742 for background.")
+// TODO(jwnimmer-tri) On 2023-06-01 also remove the <ostream> include.
 inline std::ostream& operator<<(std::ostream& out, const SortedPair<T>& pair) {
   out << "(" << pair.first() << ", " << pair.second() << ")";
   return out;
@@ -207,7 +212,7 @@ struct tuple_size<drake::SortedPair<T>> : std::integral_constant<size_t, 2> {};
 
 template <size_t Index, typename T>
 struct tuple_element<Index, drake::SortedPair<T>> {
-  using type = T;
+  using type = const T;
 };
 
 }  // namespace std

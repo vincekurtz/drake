@@ -8,8 +8,6 @@
 #include <gflags/gflags.h>
 
 #include "drake/common/drake_assert.h"
-#include "drake/common/find_resource.h"
-#include "drake/geometry/drake_visualizer.h"
 #include "drake/geometry/scene_graph.h"
 #include "drake/lcm/drake_lcm.h"
 #include "drake/multibody/parsing/parser.h"
@@ -21,6 +19,7 @@
 #include "drake/systems/framework/diagram.h"
 #include "drake/systems/framework/diagram_builder.h"
 #include "drake/systems/primitives/constant_vector_source.h"
+#include "drake/visualization/visualization_config_functions.h"
 
 namespace drake {
 namespace examples {
@@ -56,15 +55,15 @@ void DoMain() {
   auto [plant, scene_graph] =
       multibody::AddMultibodyPlantSceneGraph(&builder, FLAGS_max_time_step);
 
-  std::string full_name;
-  if (FLAGS_use_right_hand)
-    full_name = FindResourceOrThrow("drake/manipulation/models/"
-      "allegro_hand_description/sdf/allegro_hand_description_right.sdf");
-  else
-    full_name = FindResourceOrThrow("drake/manipulation/models/"
-      "allegro_hand_description/sdf/allegro_hand_description_left.sdf");
-
-  multibody::Parser(&plant).AddModelFromFile(full_name);
+  std::string hand_url;
+  if (FLAGS_use_right_hand) {
+    hand_url = "package://drake/manipulation/models/"
+      "allegro_hand_description/sdf/allegro_hand_description_right.sdf";
+  } else {
+    hand_url = "package://drake/manipulation/models/"
+      "allegro_hand_description/sdf/allegro_hand_description_left.sdf";
+  }
+  multibody::Parser(&plant).AddModelsFromUrl(hand_url);
 
   // Weld the hand to the world frame
   const auto& joint_hand_root = plant.GetBodyByName("hand_root");
@@ -93,7 +92,8 @@ void DoMain() {
   builder.Connect(constant_source->get_output_port(),
                   plant.get_actuation_input_port());
 
-  geometry::DrakeVisualizerd::AddToBuilder(&builder, scene_graph);
+  visualization::AddDefaultVisualization(&builder);
+
   std::unique_ptr<systems::Diagram<double>> diagram = builder.Build();
 
   // Create a context for this system:

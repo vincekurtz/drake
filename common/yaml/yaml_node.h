@@ -1,6 +1,7 @@
 #pragma once
 
 #include <map>
+#include <optional>
 #include <ostream>
 #include <string>
 #include <string_view>
@@ -9,6 +10,7 @@
 #include <vector>
 
 #include "drake/common/drake_copyable.h"
+#include "drake/common/fmt_ostream.h"
 
 // Note that even though this file contains "class Node", the file is named
 // "yaml_node.h" not "node.h" to avoid conflict with "yaml-cpp/node/node.h".
@@ -52,6 +54,19 @@ enum class NodeType {
   // any type of node, in our implementation we limit keys to be only strings,
   // for better compatibility with other serialization formats such as JSON.
   kMapping,
+};
+
+/* Denotes one of the "JSON Schema" tags.
+See https://yaml.org/spec/1.2.2/#json-schema. */
+enum class JsonSchemaTag {
+  // https://yaml.org/spec/1.2.2/#null
+  kNull,
+  // https://yaml.org/spec/1.2.2/#boolean
+  kBool,
+  // https://yaml.org/spec/1.2.2/#integer
+  kInt,
+  // https://yaml.org/spec/1.2.2/#floating-point
+  kFloat,
 };
 
 /* Data type that represents a YAML node.  A Node can hold one of three
@@ -119,7 +134,11 @@ class Node final {
   /* Gets this node's YAML tag.
   See https://yaml.org/spec/1.2.2/#tags.
   By default (i.e., at construction time), the tag will be empty. */
-  const std::string& GetTag() const;
+  std::string_view GetTag() const;
+
+  /* Sets this node's YAML tag to one of the "JSON Schema" tags.
+  See https://yaml.org/spec/1.2.2/#json-schema. */
+  void SetTag(JsonSchemaTag);
 
   /* Sets this node's YAML tag.
   See https://yaml.org/spec/1.2.2/#tags.
@@ -127,17 +146,45 @@ class Node final {
   type nor value.  The caller is responsible for providing a valid tag. */
   void SetTag(std::string);
 
-  // https://yaml.org/spec/1.2.2/#floating-point
-  static constexpr std::string_view kTagFloat{"tag:yaml.org,2002:float"};
+  // https://yaml.org/spec/1.2.2/#null
+  static constexpr std::string_view kTagNull{"tag:yaml.org,2002:null"};
+
+  // https://yaml.org/spec/1.2.2/#boolean
+  static constexpr std::string_view kTagBool{"tag:yaml.org,2002:bool"};
 
   // https://yaml.org/spec/1.2.2/#integer
   static constexpr std::string_view kTagInt{"tag:yaml.org,2002:int"};
 
-  // https://yaml.org/spec/1.2.2/#null
-  static constexpr std::string_view kTagNull{"tag:yaml.org,2002:null"};
+  // https://yaml.org/spec/1.2.2/#floating-point
+  static constexpr std::string_view kTagFloat{"tag:yaml.org,2002:float"};
 
   // https://yaml.org/spec/1.2.2/#generic-string
   static constexpr std::string_view kTagStr{"tag:yaml.org,2002:str"};
+
+  /* Sets the filename where this Node was read from. A nullopt indicates that
+  the filename is not known. */
+  void SetFilename(std::optional<std::string> filename);
+
+  /* Gets the filename where this Node was read from. A nullopt indicates that
+  the filename is not known. */
+  const std::optional<std::string>& GetFilename() const;
+
+  /* An indication of where in a file or string this Node was read from.
+  The indexing is 1-based (the first character is line 1 column 1). */
+  struct Mark {
+    int line{};
+    int column{};
+
+    friend bool operator==(const Mark&, const Mark&);
+  };
+
+  /* Sets the line:column offset in the file or string where this Node was read
+  from. A nullopt indicates that the Node's position is unknown. */
+  void SetMark(std::optional<Mark> mark);
+
+  /* Gets the line:column offset in the file or string where this Node was read
+  from. A nullopt indicates that the Node's position is unknown. */
+  const std::optional<Mark>& GetMark() const;
 
   // @name Scalar-only Functions
   // These functions may only be called when IsScalar() is true;
@@ -236,11 +283,25 @@ class Node final {
   Node();
 
   using Variant = std::variant<ScalarData, SequenceData, MappingData>;
-
-  std::string tag_;
   Variant data_;
+
+  // The YAML tag is not required, but can be set to either a well-known enum or
+  // a bespoke string. The representation here is not canonical -- it's possible
+  // to set a string value that is equivalent to an enum's implied string.
+  std::variant<std::string, JsonSchemaTag> tag_;
+
+  std::optional<Mark> mark_;
+  std::optional<std::string> filename_;
 };
 
 }  // namespace internal
 }  // namespace yaml
 }  // namespace drake
+
+#ifndef DRAKE_DOXYGEN_CXX
+// TODO(jwnimmer-tri) Add a real formatter and deprecate the operator<<.
+namespace fmt {
+template <>
+struct formatter<drake::yaml::internal::Node> : drake::ostream_formatter {};
+}  // namespace fmt
+#endif

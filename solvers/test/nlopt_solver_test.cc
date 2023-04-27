@@ -41,6 +41,29 @@ GTEST_TEST(NloptSolverTest, TestNonconvexQP) {
     TestNonconvexQP(solver, false);
   }
 }
+
+GTEST_TEST(NloptSolverTest, SetAlgorithm) {
+  MathematicalProgram prog;
+  auto x = prog.NewContinuousVariables<2>();
+  prog.AddQuadraticCost(Eigen::Matrix2d::Identity(), Eigen::Vector2d::Ones(), x,
+                        true /*is_convex */);
+  prog.AddBoundingBoxConstraint(1, 2, x);
+  NloptSolver solver;
+  SolverOptions solver_options;
+  solver_options.SetOption(solver.id(), NloptSolver::AlgorithmName(),
+                           "LD_CCSAQ");
+  const auto result =
+      solver.Solve(prog, Eigen::VectorXd::Ones(2), solver_options);
+  ASSERT_TRUE(result.is_success());
+}
+
+TEST_F(QuadraticEqualityConstrainedProgram1, Test) {
+  NloptSolver solver;
+  if (solver.is_available()) {
+    CheckSolution(solver, Eigen::Vector2d(0.5, 0.8), std::nullopt, 1E-4,
+                  false /* check dual */);
+  }
+}
 }  // namespace test
 }  // namespace solvers
 }  // namespace drake

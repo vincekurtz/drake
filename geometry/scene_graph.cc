@@ -7,6 +7,7 @@
 #include <fmt/format.h>
 
 #include "drake/common/drake_assert.h"
+#include "drake/common/nice_type_name.h"
 #include "drake/geometry/geometry_instance.h"
 #include "drake/geometry/geometry_state.h"
 #include "drake/systems/framework/context.h"
@@ -195,23 +196,6 @@ GeometryId SceneGraph<T>::RegisterGeometry(
 }
 
 template <typename T>
-GeometryId SceneGraph<T>::RegisterGeometry(
-    SourceId source_id, GeometryId geometry_id,
-    std::unique_ptr<GeometryInstance> geometry) {
-  return model_.RegisterGeometryWithParent(source_id, geometry_id,
-                                           std::move(geometry));
-}
-
-template <typename T>
-GeometryId SceneGraph<T>::RegisterGeometry(
-    Context<T>* context, SourceId source_id, GeometryId geometry_id,
-    std::unique_ptr<GeometryInstance> geometry) const {
-  auto& g_state = mutable_geometry_state(context);
-  return g_state.RegisterGeometryWithParent(source_id, geometry_id,
-                                            std::move(geometry));
-}
-
-template <typename T>
 GeometryId SceneGraph<T>::RegisterAnchoredGeometry(
     SourceId source_id, std::unique_ptr<GeometryInstance> geometry) {
   return model_.RegisterAnchoredGeometry(source_id, std::move(geometry));
@@ -235,6 +219,21 @@ GeometryId SceneGraph<T>::RegisterDeformableGeometry(
 }
 
 template <typename T>
+void SceneGraph<T>::ChangeShape(
+    SourceId source_id, GeometryId geometry_id, const Shape& shape,
+    std::optional<math::RigidTransform<double>> X_FG) {
+  return model_.ChangeShape(source_id, geometry_id, shape, X_FG);
+}
+
+template <typename T>
+void SceneGraph<T>::ChangeShape(
+    Context<T>* context, SourceId source_id, GeometryId geometry_id,
+    const Shape& shape, std::optional<math::RigidTransform<double>> X_FG) {
+  auto& g_state = mutable_geometry_state(context);
+  return g_state.ChangeShape(source_id, geometry_id, shape, X_FG);
+}
+
+template <typename T>
 void SceneGraph<T>::RemoveGeometry(SourceId source_id, GeometryId geometry_id) {
   model_.RemoveGeometry(source_id, geometry_id);
 }
@@ -255,6 +254,16 @@ void SceneGraph<T>::AddRenderer(
 template <typename T>
 bool SceneGraph<T>::HasRenderer(const std::string& name) const {
   return model_.HasRenderer(name);
+}
+
+template <typename T>
+std::string SceneGraph<T>::GetRendererTypeName(const std::string& name) const {
+  const render::RenderEngine* engine = model_.GetRenderEngineByName(name);
+  if (engine == nullptr) {
+    return {};
+  }
+
+  return NiceTypeName::Get(*engine);
 }
 
 template <typename T>
@@ -527,13 +536,6 @@ const GeometryState<T>& SceneGraph<T>::geometry_state(
 }
 
 }  // namespace geometry
-
-namespace systems {
-namespace scalar_conversion {
-template <> struct Traits<geometry::SceneGraph> : public FromDoubleTraits {};
-}  // namespace scalar_conversion
-}  // namespace systems
-
 }  // namespace drake
 
 DRAKE_DEFINE_CLASS_TEMPLATE_INSTANTIATIONS_ON_DEFAULT_SCALARS(

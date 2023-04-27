@@ -1,5 +1,3 @@
-# -*- python -*-
-
 load("@drake//tools/workspace:github.bzl", "github_archive")
 
 def lcm_repository(
@@ -8,11 +6,13 @@ def lcm_repository(
     github_archive(
         name = name,
         repository = "lcm-proj/lcm",
-        # When upgrading this commit, check if the LCM maintainers have tagged
-        # a new version number; if so, then update the version numbers within
-        # the two lcm-*.cmake files in this directory to match.
-        commit = "91ce7a2ae46ad05f8a232f5fe32a06cccbead1c2",
-        sha256 = "8ea0076d2f2158fc750fec697b68c6903a9d70ccbe4e3f24240415a13445381f",  # noqa
+        upgrade_advice = """
+        When upgrading this commit, check if the LCM maintainers have tagged
+        a new version number; if so, then update the version numbers within
+        the two lcm-*.cmake files in this directory to match.
+        """,
+        commit = "ab70eaff2bf9e7da097ae3f6183da7c234a286f1",
+        sha256 = "21a93b77bc20025070c6cb9c2d1da30e85ede5d503570130822743768ee2c2ed",  # noqa
         build_file = ":package.BUILD.bazel",
         mirrors = mirrors,
     )

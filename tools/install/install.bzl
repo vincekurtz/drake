@@ -1,5 +1,3 @@
-# -*- python -*-
-
 load("//tools/skylark:py.bzl", "py_binary")
 load("@drake//tools/skylark:drake_java.bzl", "MainClassInfo")
 load("@drake//tools/skylark:drake_py.bzl", "drake_py_test")
@@ -841,7 +839,10 @@ def install_test(
         size = "medium",
         srcs = [src],
         timeout = "eternal",
-        deps = ["//tools/install:install_test_helper"],
+        deps = [
+            "//tools/install:install_test_helper",
+            "//tools/install:otool",
+        ],
         # The commands in our "list of commands" use unittest themselves, so we
         # do the same for our own test rig.  That means that both our rig and
         # the "list of commands" python programs must have a __main__ clause

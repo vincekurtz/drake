@@ -82,8 +82,7 @@ TEST_F(AutodiffTest, ExtractValue) {
   expected[1] = sin(v0_) + v1_;
   expected[2] = v0_ * v0_ + v1_ * v1_ * v1_;
   EXPECT_TRUE(
-      CompareMatrices(expected, values, 1e-10, MatrixCompareType::absolute))
-      << values;
+      CompareMatrices(expected, values, 1e-10, MatrixCompareType::absolute));
 }
 
 TEST_F(AutodiffTest, ExtractGradient) {
@@ -110,8 +109,7 @@ TEST_F(AutodiffTest, ExtractGradient) {
   expected(2, 1) = 3 * v1_ * v1_;
 
   EXPECT_TRUE(
-      CompareMatrices(expected, gradients, 1e-10, MatrixCompareType::absolute))
-      << gradients;
+      CompareMatrices(expected, gradients, 1e-10, MatrixCompareType::absolute));
 
   // Given an AutoDiff matrix with no derivatives, ExtractGradient() should
   // return a matrix with zero-length rows, or return with specified-length
@@ -457,6 +455,25 @@ GTEST_TEST(GetDerivativeSize, Test) {
   DRAKE_EXPECT_THROWS_MESSAGE(GetDerivativeSize(x),
                               ".* has size 3, while another entry has size 4");
 }
+
+GTEST_TEST(AutoDiffEqual, AreAutoDiffVecXdEqualTest) {
+  VectorX<AutoDiffXd> a(2), b(2), c(3);
+  a << 1, 2;
+  b << 3, 4;
+  c << 1, 2, 3;
+  EXPECT_FALSE(AreAutoDiffVecXdEqual(a, b));
+  EXPECT_FALSE(AreAutoDiffVecXdEqual(a, c));
+  b = a;
+  EXPECT_TRUE(AreAutoDiffVecXdEqual(a, b));
+  a[0].derivatives() = Eigen::Vector2d(1, 2);
+  b[0].derivatives() = Eigen::Vector3d(1, 2, 3);
+  EXPECT_FALSE(AreAutoDiffVecXdEqual(a, b));
+  b[0].derivatives() = Eigen::Vector2d(4, 5);
+  EXPECT_FALSE(AreAutoDiffVecXdEqual(a, b));
+  b[0].derivatives() = a[0].derivatives();
+  EXPECT_TRUE(AreAutoDiffVecXdEqual(a, b));
+}
+
 }  // namespace
 }  // namespace math
 }  // namespace drake

@@ -10,8 +10,13 @@
 #include <tuple>
 
 #include <Eigen/Eigenvalues>
+#include <drake_vendor/libqhullcpp/Coordinates.h>
+#include <drake_vendor/libqhullcpp/Qhull.h>
+#include <drake_vendor/libqhullcpp/QhullFacet.h>
+#include <drake_vendor/libqhullcpp/QhullFacetList.h>
 #include <fmt/format.h>
 
+#include "drake/geometry/optimization/vpolytope.h"
 #include "drake/math/matrix_util.h"
 #include "drake/math/rotation_matrix.h"
 #include "drake/solvers/gurobi_solver.h"
@@ -50,8 +55,8 @@ std::tuple<bool, solvers::MathematicalProgramResult> IsInfeasible(
 }
 
 // Checks if Ax ≤ b defines an empty set.
-bool IsEmpty(const Eigen::Ref<const MatrixXd>& A,
-             const Eigen::Ref<const VectorXd>& b) {
+bool DoIsEmpty(const Eigen::Ref<const MatrixXd>& A,
+               const Eigen::Ref<const VectorXd>& b) {
   solvers::MathematicalProgram prog;
   solvers::VectorXDecisionVariable x =
       prog.NewContinuousVariables(A.cols(), "x");
@@ -63,11 +68,15 @@ bool IsEmpty(const Eigen::Ref<const MatrixXd>& A,
  constraints in prog. This is done by solving a small linear program
  and modifying the coefficients of  `new_constraint` binding. This method may
  throw a runtime error if the constraints are ill-conditioned.
+ @param tol. We check if the prog already implies cᵀ x ≤ d + tol. If yes then we
+ think this constraint cᵀ x ≤ d is redundant. Larger tol means that we are less
+ strict on the containment.
  */
 bool IsRedundant(const Eigen::Ref<const MatrixXd>& c, double d,
                  solvers::MathematicalProgram* prog,
                  Binding<solvers::LinearConstraint>* new_constraint,
-                 Binding<solvers::LinearCost>* program_cost_binding) {
+                 Binding<solvers::LinearCost>* program_cost_binding,
+                 double tol) {
   // Ensures that prog is an LP.
   DRAKE_DEMAND(prog->GetAllConstraints().size() ==
                prog->GetAllLinearConstraints().size());
@@ -97,7 +106,7 @@ bool IsRedundant(const Eigen::Ref<const MatrixXd>& c, double d,
   // If -result.get_optimal_cost() > other.b()(i) then the inequality is
   // irredundant. Without this constant
   // IrredundantBallIntersectionContainsBothOriginal fails.
-  return !(polyhedron_is_empty || -result.get_optimal_cost() > d + 1E-9);
+  return !(polyhedron_is_empty || -result.get_optimal_cost() > d + tol);
 }
 
 }  // namespace
@@ -127,6 +136,27 @@ HPolyhedron::HPolyhedron(const QueryObject<double>& query_object,
   b_ = Ab_G.second - Ab_G.first * X_GE.translation();
 }
 
+HPolyhedron::HPolyhedron(const VPolytope& vpoly)
+    : ConvexSet(&ConvexSetCloner<HPolyhedron>, vpoly.ambient_dimension()) {
+  orgQhull::Qhull qhull;
+  qhull.runQhull("", vpoly.ambient_dimension(), vpoly.vertices().cols(),
+                 vpoly.vertices().data(), "");
+  if (qhull.qhullStatus() != 0) {
+    throw std::runtime_error(
+        fmt::format("Qhull terminated with status {} and  message:\n{}",
+                    qhull.qhullStatus(), qhull.qhullMessage()));
+  }
+  A_.resize(qhull.facetCount(), ambient_dimension_);
+  b_.resize(qhull.facetCount());
+  int facet_count = 0;
+  for (const auto& facet : qhull.facetList()) {
+    A_.row(facet_count) = Eigen::Map<Eigen::RowVectorXd>(
+        facet.outerplane().coordinates(), facet.dimension());
+    b_(facet_count) = -facet.outerplane().offset();
+    ++facet_count;
+  }
+}
+
 HPolyhedron::~HPolyhedron() = default;
 
 Hyperellipsoid HPolyhedron::MaximumVolumeInscribedEllipsoid() const {
@@ -138,15 +168,27 @@ Hyperellipsoid HPolyhedron::MaximumVolumeInscribedEllipsoid() const {
   // max log det (C).  This method also imposes C ≽ 0.
   prog.AddMaximizeLogDeterminantCost(C.cast<Expression>());
   // |aᵢC|₂ ≤ bᵢ - aᵢd, ∀i
-  // TODO(russt): We could potentially avoid Expression parsing here by using
-  // AddLorentzConeConstraint(A,b,vars), but it's nontrivial because of the
-  // duplicate entries in the symmetric matrix C.  E.g. the Lorentz cone A would
-  // not be simply block_diagonal(-A_.row(i), A_.row(i), ..., A_.row(i)).
-  VectorX<Expression> z(N + 1);
+  // Add this as A_lorentz * vars + b_lorentz in the Lorentz cone constraint.
+  // vars = [d; C.col(0); C.col(1); ...; C.col(n-1)]
+  // A_lorentz = block_diagonal(-A_.row(i), A_.row(i), ..., A_.row(i))
+  // b_lorentz = [b_(i); 0; ...; 0]
+  VectorX<symbolic::Variable> vars(C.rows() * C.cols() + d.rows());
+  vars.head(d.rows()) = d;
+  for (int i = 0; i < C.cols(); ++i) {
+    vars.segment(d.rows() + i * C.rows(), C.rows()) = C.col(i);
+  }
+
+  Eigen::MatrixXd A_lorentz =
+      Eigen::MatrixXd::Zero(1 + C.cols(), (1 + C.cols()) * C.rows());
+  Eigen::VectorXd b_lorentz = Eigen::VectorXd::Zero(1 + C.cols());
   for (int i = 0; i < b_.size(); ++i) {
-    z[0] = b_(i) - A_.row(i).dot(d);
-    z.tail(N) = C * A_.row(i).transpose();
-    prog.AddLorentzConeConstraint(z);
+    A_lorentz.setZero();
+    A_lorentz.block(0, 0, 1, A_.cols()) = -A_.row(i);
+    for (int j = 0; j < C.cols(); ++j) {
+      A_lorentz.block(j + 1, (j + 1) * C.cols(), 1, A_.cols()) = A_.row(i);
+    }
+    b_lorentz(0) = b_(i);
+    prog.AddLorentzConeConstraint(A_lorentz, b_lorentz, vars);
   }
   auto result = solvers::Solve(prog);
   if (!result.is_success()) {
@@ -210,16 +252,17 @@ HPolyhedron HPolyhedron::CartesianPower(int n) const {
 }
 
 HPolyhedron HPolyhedron::Intersection(const HPolyhedron& other,
-                                      bool check_for_redundancy) const {
+                                      bool check_for_redundancy,
+                                      double tol) const {
   if (check_for_redundancy) {
-    return this->DoIntersectionWithChecks(other);
+    return this->DoIntersectionWithChecks(other, tol);
   }
   return this->DoIntersectionNoChecks(other);
 }
 
 VectorXd HPolyhedron::UniformSample(
     RandomGenerator* generator,
-    const Eigen::Ref<Eigen::VectorXd>& previous_sample) const {
+    const Eigen::Ref<const Eigen::VectorXd>& previous_sample) const {
   std::normal_distribution<double> gaussian;
   // Choose a random direction.
   VectorXd direction(ambient_dimension());
@@ -227,7 +270,8 @@ VectorXd HPolyhedron::UniformSample(
     direction[i] = gaussian(*generator);
   }
   // Find max and min θ subject to
-  //   A(previous_sample + θ*direction) ≤ b.
+  //   A(previous_sample + θ*direction) ≤ b,
+  // aka ∀i, θ * (A * direction)[i] ≤ (b - A * previous_sample)[i].
   VectorXd line_b = b_ - A_ * previous_sample;
   VectorXd line_a = A_ * direction;
   double theta_max = std::numeric_limits<double>::infinity();
@@ -239,12 +283,14 @@ VectorXd HPolyhedron::UniformSample(
       theta_max = std::min(theta_max, line_b[i] / line_a[i]);
     }
   }
-  if (std::isinf(theta_max) || std::isinf(theta_min)) {
-    throw std::invalid_argument(
+  if (std::isinf(theta_max) || std::isinf(theta_min) || theta_max < theta_min) {
+    throw std::invalid_argument(fmt::format(
         "The Hit and Run algorithm failed to find a feasible point in the set. "
-        "The `previous_sample` must be in the set.");
+        "The `previous_sample` must be in the set.\nmax(A * previous_sample - "
+        "b) = {}",
+        (A_ * previous_sample - b_).maxCoeff()));
   }
-  // Now pick θ uniformly from [θ_min, θ_max].
+  // Now pick θ uniformly from [θ_min, θ_max).
   std::uniform_real_distribution<double> uniform_theta(theta_min, theta_max);
   const double theta = uniform_theta(*generator);
   // The new sample is previous_sample + θ * direction.
@@ -316,11 +362,11 @@ bool HPolyhedron::DoIsBounded() const {
   return result.is_success();
 }
 
-bool HPolyhedron::ContainedIn(const HPolyhedron& other) const {
+bool HPolyhedron::ContainedIn(const HPolyhedron& other, double tol) const {
   DRAKE_DEMAND(other.A().cols() == A_.cols());
   // `this` defines an empty set and therefore is contained in any `other`
   // HPolyhedron.
-  if (IsEmpty(A_, b_)) {
+  if (DoIsEmpty(A_, b_)) {
     return true;
   }
 
@@ -339,7 +385,8 @@ bool HPolyhedron::ContainedIn(const HPolyhedron& other) const {
     // If any of the constraints of `other` are irredundant then `this` is
     // not contained in `other`.
     if (!IsRedundant(other.A().row(i), other.b()(i), &prog,
-                     &redundant_constraint_binding, &program_cost_binding)) {
+                     &redundant_constraint_binding, &program_cost_binding,
+                     tol)) {
       return false;
     }
   }
@@ -358,8 +405,8 @@ HPolyhedron HPolyhedron::DoIntersectionNoChecks(
   return {A_intersect, b_intersect};
 }
 
-HPolyhedron HPolyhedron::DoIntersectionWithChecks(
-    const HPolyhedron& other) const {
+HPolyhedron HPolyhedron::DoIntersectionWithChecks(const HPolyhedron& other,
+                                                  double tol) const {
   DRAKE_DEMAND(other.A().cols() == A_.cols());
 
   Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> A(
@@ -389,11 +436,12 @@ HPolyhedron HPolyhedron::DoIntersectionWithChecks(
   int num_kept = A_.rows();
   for (int i = 0; i < other.A().rows(); ++i) {
     if (!IsRedundant(other.A().row(i), other.b()(i), &prog,
-                     &redundant_constraint_binding, &program_cost_binding)) {
+                     &redundant_constraint_binding, &program_cost_binding,
+                     tol)) {
       A.row(num_kept) = other.A().row(i);
       b.row(num_kept) = other.b().row(i);
       ++num_kept;
-      if (IsEmpty(A.topRows(num_kept), b.topRows(num_kept))) {
+      if (DoIsEmpty(A.topRows(num_kept), b.topRows(num_kept))) {
         return {A.topRows(num_kept), b.topRows(num_kept)};
       }
     }
@@ -401,7 +449,24 @@ HPolyhedron HPolyhedron::DoIntersectionWithChecks(
   return {A.topRows(num_kept), b.topRows(num_kept)};
 }
 
-HPolyhedron HPolyhedron::ReduceInequalities() const {
+HPolyhedron HPolyhedron::ReduceInequalities(double tol) const {
+  const std::set<int> redundant_indices = FindRedundant(tol);
+  const int num_vars = A_.cols();
+
+  MatrixXd A_new(A_.rows() - redundant_indices.size(), num_vars);
+  VectorXd b_new(A_new.rows());
+  int i = 0;
+  for (int j = 0; j < A_.rows(); ++j) {
+    if (redundant_indices.count(j) == 0) {
+      A_new.row(i) = A_.row(j);
+      b_new.row(i) = b_.row(j);
+      ++i;
+    }
+  }
+  return {A_new, b_new};
+}
+
+std::set<int> HPolyhedron::FindRedundant(double tol) const {
   const int num_inequalities = A_.rows();
   const int num_vars = A_.cols();
 
@@ -426,36 +491,40 @@ HPolyhedron HPolyhedron::ReduceInequalities() const {
                                b_.row(i), x);
     }
 
-    // Constraint to check redundant.
-    Binding<solvers::LinearConstraint> redundant_constraint_binding =
-        prog.AddLinearConstraint(A_.row(excluded_index),
-                                 VectorXd::Constant(1, -kInf),
-                                 b_.row(excluded_index) + VectorXd::Ones(1), x);
-
-    // Construct cost binding for prog.
-    Binding<solvers::LinearCost> program_cost_binding =
-        prog.AddLinearCost(-A_.row(excluded_index), 0, x);
-
-    // The current inequality is redundant.
+    // First we check whether the current index defines an empty set. If it
+    // does, then any new constraint is already redundant. This check is
+    // expected before calling IsRedundant.
     if (std::get<0>(IsInfeasible(prog))) {
       kept_indices.erase(excluded_index);
-    } else if (IsRedundant(A_.row(excluded_index), b_(excluded_index), &prog,
-                           &redundant_constraint_binding,
-                           &program_cost_binding)) {
-      kept_indices.erase(excluded_index);
+    } else {
+      // Constraint to check redundant.
+      Binding<solvers::LinearConstraint> redundant_constraint_binding =
+          prog.AddLinearConstraint(
+              A_.row(excluded_index), VectorXd::Constant(1, -kInf),
+              b_.row(excluded_index) + VectorXd::Ones(1), x);
+
+      // Construct cost binding for prog.
+      Binding<solvers::LinearCost> program_cost_binding =
+          prog.AddLinearCost(-A_.row(excluded_index), 0, x);
+
+      // The current inequality is redundant.
+      if (IsRedundant(A_.row(excluded_index), b_(excluded_index), &prog,
+                      &redundant_constraint_binding, &program_cost_binding,
+                      tol)) {
+        kept_indices.erase(excluded_index);
+      }
     }
   }
-
-  MatrixXd A_new(kept_indices.size(), num_vars);
-  VectorXd b_new(kept_indices.size());
-  int i = 0;
-  for (const int ind : kept_indices) {
-    A_new.row(i) = A_.row(ind);
-    b_new.row(i) = b_.row(ind);
-    ++i;
+  std::set<int> redundant_indices;
+  for (int i = 0; i < num_inequalities; ++i) {
+    if (kept_indices.count(i) == 0) {
+      redundant_indices.emplace(i);
+    }
   }
-  return {A_new, b_new};
+  return redundant_indices;
 }
+
+bool HPolyhedron::IsEmpty() const { return DoIsEmpty(A_, b_); }
 
 bool HPolyhedron::DoPointInSet(const Eigen::Ref<const VectorXd>& x,
                                double tol) const {
@@ -518,13 +587,6 @@ HPolyhedron::DoToShapeWithPose() const {
       "class (to support in-memory mesh data, or file I/O).");
 }
 
-void HPolyhedron::ImplementGeometry(const HalfSpace&, void* data) {
-  auto* Ab = static_cast<std::pair<MatrixXd, VectorXd>*>(data);
-  // z <= 0.0.
-  Ab->first = Eigen::RowVector3d{0.0, 0.0, 1.0};
-  Ab->second = Vector1d{0.0};
-}
-
 void HPolyhedron::ImplementGeometry(const Box& box, void* data) {
   Eigen::Matrix<double, 6, 3> A;
   A << Eigen::Matrix3d::Identity(), -Eigen::Matrix3d::Identity();
@@ -536,6 +598,13 @@ void HPolyhedron::ImplementGeometry(const Box& box, void* data) {
   auto* Ab = static_cast<std::pair<MatrixXd, VectorXd>*>(data);
   Ab->first = A;
   Ab->second = b;
+}
+
+void HPolyhedron::ImplementGeometry(const HalfSpace&, void* data) {
+  auto* Ab = static_cast<std::pair<MatrixXd, VectorXd>*>(data);
+  // z <= 0.0.
+  Ab->first = Eigen::RowVector3d{0.0, 0.0, 1.0};
+  Ab->second = Vector1d{0.0};
 }
 
 HPolyhedron HPolyhedron::PontryaginDifference(const HPolyhedron& other) const {

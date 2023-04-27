@@ -135,10 +135,10 @@ TEST_F(YamlWriteArchiveDefaultsTest, Nulls) {
 // Arrays differing in their values are not erased.
 TEST_F(YamlWriteArchiveDefaultsTest, DifferentArrays) {
   ArrayStruct data;
-  data.value = { 1.0, 2.0, 3.0 };
+  data.value = {1.0, 2.0, 3.0};
 
   ArrayStruct defaults;
-  defaults.value = { 0.0, 0.0, 0.0 };
+  defaults.value = {0.0, 0.0, 0.0};
 
   EXPECT_EQ(SaveDataWithoutDefaults(data, defaults), R"""(doc:
   value: [1.0, 2.0, 3.0]
@@ -148,10 +148,10 @@ TEST_F(YamlWriteArchiveDefaultsTest, DifferentArrays) {
 // Vectors differing in size (but sharing a prefix) are not erased.
 TEST_F(YamlWriteArchiveDefaultsTest, DifferentSizeVectors) {
   VectorStruct data;
-  data.value = { 1.0, 2.0, 3.0 };
+  data.value = {1.0, 2.0, 3.0};
 
   VectorStruct defaults;
-  defaults.value = { 1.0, 2.0 };
+  defaults.value = {1.0, 2.0};
 
   EXPECT_EQ(SaveDataWithoutDefaults(data, defaults), R"""(doc:
   value: [1.0, 2.0, 3.0]
@@ -200,7 +200,7 @@ TEST_F(YamlWriteArchiveDefaultsTest, DifferentMapValues) {
 )""");
 }
 
-// In the ununsual case that the user provided two different schemas to
+// In the unusual case that the user provided two different schemas to
 // subtract, we notice the discrepancy without throwing any exceptions.
 // This test case serves to help achieve code coverage; we do not intend
 // for users to necessarily depend on this behavior.
@@ -216,7 +216,7 @@ TEST_F(YamlWriteArchiveDefaultsTest, DifferentSchemas) {
 )""");
 }
 
-// In the ununsual case that the user provided two different (but similar)
+// In the unusual case that the user provided two different (but similar)
 // schemas to subtract, we notice the discrepancy without throwing any
 // exceptions.  This test case serves to help achieve code coverage; we do not
 // intend for users to necessarily depend on this behavior.  Here, we do

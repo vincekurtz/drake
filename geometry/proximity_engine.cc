@@ -1,6 +1,7 @@
 #include "drake/geometry/proximity_engine.h"
 
 #include <algorithm>
+#include <filesystem>
 #include <limits>
 #include <string>
 #include <tuple>
@@ -9,7 +10,7 @@
 #include <utility>
 #include <vector>
 
-#include <fcl/fcl.h>
+#include <drake_vendor/fcl/fcl.h>
 #include <fmt/format.h>
 
 #include "drake/common/default_scalars.h"
@@ -23,8 +24,11 @@
 #include "drake/geometry/proximity/find_collision_candidates_callback.h"
 #include "drake/geometry/proximity/hydroelastic_callback.h"
 #include "drake/geometry/proximity/hydroelastic_internal.h"
+#include "drake/geometry/proximity/make_mesh_from_vtk.h"
 #include "drake/geometry/proximity/obj_to_surface_mesh.h"
 #include "drake/geometry/proximity/penetration_as_point_pair_callback.h"
+#include "drake/geometry/proximity/volume_to_surface_mesh.h"
+#include "drake/geometry/proximity/vtk_to_volume_mesh.h"
 #include "drake/geometry/read_obj.h"
 #include "drake/geometry/utilities.h"
 
@@ -47,6 +51,16 @@ using std::vector;
 using symbolic::Expression;
 
 namespace {
+
+// Drake compiles FCL using hidden symbol visibility. To avoid visibility
+// complaints from the compiler, we need to use hidden subclasses for any
+// FCL data types used as member fields of ProximityEngine::Impl. Note
+// that FCL Objects on the stack are fine without worrying about hidden;
+// it's only Impl member fields that cause trouble.
+class FclDynamicAABBTreeCollisionManager
+    : public fcl::DynamicAABBTreeCollisionManager<double> {};
+class MapGeometryIdToFclCollisionObject
+    : public unordered_map<GeometryId, unique_ptr<CollisionObjectd>> {};
 
 // Returns a copy of the given fcl collision geometry; throws an exception for
 // unsupported collision geometry types. This supplements the *missing* cloning
@@ -434,12 +448,38 @@ class ProximityEngine<T>::Impl : public ShapeReifier {
         shape, data.id, data.properties, data.X_WG);
   }
 
-  void ImplementGeometry(const Sphere& sphere, void* user_data) override {
+  void ImplementGeometry(const Box& box, void* user_data) override {
+    auto fcl_box = make_shared<fcl::Boxd>(box.size());
+    TakeShapeOwnership(fcl_box, user_data);
+    ProcessHydroelastic(box, user_data);
+    ProcessGeometriesForDeformableContact(box, user_data);
+  }
+
+  void ImplementGeometry(const Capsule& capsule, void* user_data) override {
     // Note: Using `shared_ptr` because of FCL API requirements.
-    auto fcl_sphere = make_shared<fcl::Sphered>(sphere.radius());
-    TakeShapeOwnership(fcl_sphere, user_data);
-    ProcessHydroelastic(sphere, user_data);
-    ProcessGeometriesForDeformableContact(sphere, user_data);
+    auto fcl_capsule =
+        make_shared<fcl::Capsuled>(capsule.radius(), capsule.length());
+    TakeShapeOwnership(fcl_capsule, user_data);
+    ProcessHydroelastic(capsule, user_data);
+    ProcessGeometriesForDeformableContact(capsule, user_data);
+  }
+
+  void ImplementGeometry(const Convex& convex, void* user_data) override {
+    // Don't bother triangulating; Convex supports polygons.
+    const auto [vertices, faces, num_faces] =
+        ReadObjFile(convex.filename(), convex.scale(), false /* triangulate */);
+
+    // Create fcl::Convex.
+    auto fcl_convex = make_shared<fcl::Convexd>(vertices, num_faces, faces);
+
+    TakeShapeOwnership(fcl_convex, user_data);
+    ProcessHydroelastic(convex, user_data);
+    ProcessGeometriesForDeformableContact(convex, user_data);
+
+    // TODO(DamrongGuoy): Per f2f with SeanCurtis-TRI, we want ProximityEngine
+    // to own vertices and face by a map from filename.  This way we won't have
+    // to read the same file again and again when we create multiple Convex
+    // objects from the same file.
   }
 
   void ImplementGeometry(const Cylinder& cylinder, void* user_data) override {
@@ -469,56 +509,70 @@ class ProximityEngine<T>::Impl : public ShapeReifier {
     ProcessGeometriesForDeformableContact(half_space, user_data);
   }
 
-  void ImplementGeometry(const Box& box, void* user_data) override {
-    auto fcl_box = make_shared<fcl::Boxd>(box.size());
-    TakeShapeOwnership(fcl_box, user_data);
-    ProcessHydroelastic(box, user_data);
-    ProcessGeometriesForDeformableContact(box, user_data);
-  }
-
-  void ImplementGeometry(const Capsule& capsule, void* user_data) override {
-    // Note: Using `shared_ptr` because of FCL API requirements.
-    auto fcl_capsule =
-        make_shared<fcl::Capsuled>(capsule.radius(), capsule.length());
-    TakeShapeOwnership(fcl_capsule, user_data);
-    ProcessHydroelastic(capsule, user_data);
-    ProcessGeometriesForDeformableContact(capsule, user_data);
-  }
-
   void ImplementGeometry(const Mesh& mesh, void* user_data) override {
-    // Don't bother triangulating; we're going to throw the faces out.
-    const auto [vertices, face_ptr, num_faces] =
-        ReadObjFile(mesh.filename(), mesh.scale(), false /* triangulate */);
-    unused(face_ptr, num_faces);
+    const ReifyData& data = *static_cast<ReifyData*>(user_data);
+    const HydroelasticType type = data.properties.GetPropertyOrDefault(
+        kHydroGroup, kComplianceType, HydroelasticType::kUndefined);
+
+    // We process hydroelastic geometry first, so we have access to mesh
+    // vertices that we will pass to FCL later without reading the mesh
+    // file again.
+    ProcessHydroelastic(mesh, user_data);
+    shared_ptr<const std::vector<Vector3d>> shared_verts;
+    if (type == HydroelasticType::kSoft) {
+      shared_verts = make_shared<const std::vector<Vector3d>>(
+          ConvertVolumeToSurfaceMesh(
+              hydroelastic_geometries_.soft_geometry(data.id).mesh())
+              .vertices());
+    } else if (type == HydroelasticType::kRigid) {
+      shared_verts = make_shared<const std::vector<Vector3d>>(
+          hydroelastic_geometries_.rigid_geometry(data.id).mesh().vertices());
+    } else {
+      std::string extension =
+          std::filesystem::path(mesh.filename()).extension();
+      std::transform(extension.begin(), extension.end(), extension.begin(),
+                     [](unsigned char c) { return std::tolower(c); });
+      if (extension != ".obj") {
+        throw std::runtime_error(
+            fmt::format("ProximityEngine: expect an Obj file for "
+                        "non-hydroelastics but get {} file ({}) instead.",
+                        extension, mesh.filename()));
+      }
+      // TODO(SeanCurtis-TRI) Add a troubleshooting entry to give more helpful
+      //  advice.
+
+      // Don't bother triangulating; we're ignoring the faces.
+      std::tie(shared_verts, std::ignore, std::ignore) =
+          ReadObjFile(mesh.filename(), mesh.scale(), false /* triangulate */);
+    }
 
     // Note: the strategy here is to use an *invalid* fcl::Convex shape for the
     // mesh. A minimum condition for "invalid" is that the convex specification
     // contains vertices that are not referenced by a face. Passing zero faces
-    // will accomplish that.
-    auto fcl_convex =
-        make_shared<fcl::Convexd>(vertices, 0, make_shared<std::vector<int>>());
+    // will accomplish that. GJK asks Convex for a "supporting vertex" in a
+    // particular direction. "Invalid" Convex instances find that vertex by
+    // doing a linear search through all vertices. "Valid" looking instances
+    // walk around an explicitly defined convex hull. We can't easily create a
+    // valid convex hull, so we create an obviously invalid one to force FCL to
+    // search all vertices as a guarantee for correctness.
+    auto fcl_convex = make_shared<fcl::Convexd>(
+        shared_verts, 0, make_shared<std::vector<int>>());
     TakeShapeOwnership(fcl_convex, user_data);
-    // The actual mesh is used for hydroelastic representation.
-    ProcessHydroelastic(mesh, user_data);
+
+    // TODO(DamrongGuoy):  Right now ProcessGeometriesForDeformableContact()
+    //  will call deformable::Geometries::MaybeAddRigidGeometry(), which will
+    //  add the geometry only when its proximity property has
+    //  (kHydroGroup, kRezHint). We should make exception for Mesh since it
+    //  doesn't need resolution hint.
     ProcessGeometriesForDeformableContact(mesh, user_data);
   }
 
-  void ImplementGeometry(const Convex& convex, void* user_data) override {
-    // Don't bother triangulating; Convex supports polygons.
-    const auto [vertices, faces, num_faces] =
-        ReadObjFile(convex.filename(), convex.scale(), false /* triangulate */);
-
-    // Create fcl::Convex.
-    auto fcl_convex = make_shared<fcl::Convexd>(vertices, num_faces, faces);
-
-    TakeShapeOwnership(fcl_convex, user_data);
-    ProcessHydroelastic(convex, user_data);
-    ProcessGeometriesForDeformableContact(convex, user_data);
-
-    // TODO(DamrongGuoy): Per f2f with SeanCurtis-TRI, we want ProximityEngine
-    // to own vertices and face by a map from filename.  This way we won't have
-    // to read the same file again and again when we create multiple Convex
-    // objects from the same file.
+  void ImplementGeometry(const Sphere& sphere, void* user_data) override {
+    // Note: Using `shared_ptr` because of FCL API requirements.
+    auto fcl_sphere = make_shared<fcl::Sphered>(sphere.radius());
+    TakeShapeOwnership(fcl_sphere, user_data);
+    ProcessHydroelastic(sphere, user_data);
+    ProcessGeometriesForDeformableContact(sphere, user_data);
   }
 
   std::vector<SignedDistancePair<T>> ComputeSignedDistancePairwiseClosestPoints(
@@ -549,8 +603,8 @@ class ProximityEngine<T>::Impl : public ShapeReifier {
     std::vector<SignedDistancePair<T>> witness_pairs;
     double max_distance = std::numeric_limits<double>::infinity();
     // All these quantities are aliased in the callback data.
-    shape_distance::CallbackData<T> data{&collision_filter_, &X_WGs,
-                                         max_distance, &witness_pairs};
+    shape_distance::CallbackData<T> data{nullptr, &X_WGs, max_distance,
+                                         &witness_pairs};
     data.request.enable_nearest_points = true;
     data.request.enable_signed_distance = true;
     data.request.gjk_solver_type = fcl::GJKSolverType::GST_LIBCCD;
@@ -574,11 +628,9 @@ class ProximityEngine<T>::Impl : public ShapeReifier {
     CollisionObjectd* object_B = find_geometry(id_B);
     shape_distance::Callback<T>(object_A, object_B, &data, max_distance);
 
-    if (witness_pairs.size() == 0) {
-      throw std::runtime_error(fmt::format(
-          "The geometry pair ({}, {}) does not support a signed distance query",
-          id_A, id_B));
-    }
+    // If the callback didn't throw, it returned an actual value.
+    DRAKE_DEMAND(witness_pairs.size() > 0);
+
     return witness_pairs[0];
   }
 
@@ -717,11 +769,10 @@ class ProximityEngine<T>::Impl : public ShapeReifier {
     std::sort(point_pairs->begin(), point_pairs->end(), OrderPointPair<T>);
   }
 
-  void ComputeDeformableRigidContact(
-      std::vector<DeformableRigidContact<double>>* deformable_contact_data)
-      const {
-    geometries_for_deformable_contact_.ComputeDeformableRigidContact(
-        deformable_contact_data);
+  void ComputeDeformableContact(
+      DeformableContact<double>* deformable_contact) const {
+    *deformable_contact =
+        geometries_for_deformable_contact_.ComputeDeformableContact();
   }
 
   // Testing utilities
@@ -864,16 +915,16 @@ class ProximityEngine<T>::Impl : public ShapeReifier {
 
   // The BVH of all dynamic geometries; this depends on *all* inputs.
   // TODO(SeanCurtis-TRI): Ultimately, this should probably be a cache entry.
-  fcl::DynamicAABBTreeCollisionManager<double> dynamic_tree_;
+  FclDynamicAABBTreeCollisionManager dynamic_tree_;
 
   // All of the *dynamic* collision elements (spanning all sources).
-  unordered_map<GeometryId, unique_ptr<CollisionObjectd>> dynamic_objects_;
+  MapGeometryIdToFclCollisionObject dynamic_objects_;
 
   // The tree containing all of the anchored geometry.
-  fcl::DynamicAABBTreeCollisionManager<double> anchored_tree_;
+  FclDynamicAABBTreeCollisionManager anchored_tree_;
 
   // All of the *anchored* collision elements (spanning *all* sources).
-  unordered_map<GeometryId, unique_ptr<CollisionObjectd>> anchored_objects_;
+  MapGeometryIdToFclCollisionObject anchored_objects_;
 
   // The mechanism for dictating collision filtering.
   CollisionFilter collision_filter_;
@@ -1086,9 +1137,9 @@ ProximityEngine<T>::ComputeContactSurfacesWithFallback(
 template <typename T>
 template <typename T1>
 typename std::enable_if_t<std::is_same_v<T1, double>, void>
-ProximityEngine<T>::ComputeDeformableRigidContact(
-    std::vector<DeformableRigidContact<T>>* deformable_rigid_contact) const {
-  impl_->ComputeDeformableRigidContact(deformable_rigid_contact);
+ProximityEngine<T>::ComputeDeformableContact(
+    DeformableContact<T>* deformable_contact) const {
+  impl_->ComputeDeformableContact(deformable_contact);
 }
 
 template <typename T>
@@ -1134,8 +1185,8 @@ DRAKE_DEFINE_FUNCTION_TEMPLATE_INSTANTIATIONS_ON_DEFAULT_NONSYMBOLIC_SCALARS(
     (&ProximityEngine<T>::template ComputeContactSurfaces<T>,
      &ProximityEngine<T>::template ComputeContactSurfacesWithFallback<T>))
 
-template void ProximityEngine<double>::ComputeDeformableRigidContact<double>(
-    std::vector<DeformableRigidContact<double>>*) const;
+template void ProximityEngine<double>::ComputeDeformableContact<double>(
+    DeformableContact<double>*) const;
 
 }  // namespace internal
 }  // namespace geometry

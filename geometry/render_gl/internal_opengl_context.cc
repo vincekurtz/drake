@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -18,7 +19,7 @@
 
 namespace drake {
 namespace geometry {
-namespace render {
+namespace render_gl {
 namespace internal {
 
 namespace {
@@ -51,9 +52,18 @@ GLXContext glXCreateContextAttribsARB(
           dpy, config, share_context, direct, attrib_list);
 }
 
+// Returns the GL_VENDOR bytes as a std::string.
+std::string GetGlVendor() {
+  std::stringstream result;
+  for (const GLubyte* iter = glGetString(GL_VENDOR); *iter != 0; ++iter) {
+    result << static_cast<char>(*iter);
+  }
+  return result.str();
+}
+
 void GlDebugCallback(GLenum, GLenum type, GLuint, GLenum severity, GLsizei,
                      const GLchar* message, const void*) {
-  const char* output =
+  constexpr const char* output =
       "GL CALLBACK: {:s} type = 0x{:x}, severity = 0x{:x}, message = {:s}";
   if (type == GL_DEBUG_TYPE_ERROR) {
     drake::log()->error(output, "** GL_ERROR **", type, severity, message);
@@ -166,7 +176,7 @@ class OpenGlContext::Impl {
 
     // Enable debug.
     if (debug) {
-      drake::log()->info("Vendor: {}", glGetString(GL_VENDOR));
+      drake::log()->info("Vendor: {}", GetGlVendor());
       glEnable(GL_DEBUG_OUTPUT);
       glDebugMessageCallback(GlDebugCallback, 0);
     }
@@ -316,6 +326,6 @@ GLint OpenGlContext::max_allowable_texture_size() {
 }
 
 }  // namespace internal
-}  // namespace render
+}  // namespace render_gl
 }  // namespace geometry
 }  // namespace drake

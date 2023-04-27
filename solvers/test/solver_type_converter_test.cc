@@ -18,14 +18,10 @@ std::optional<SolverType> successor(std::optional<SolverType> solver_type) {
     case SolverType::kClp:
       return SolverType::kCsdp;
     case SolverType::kCsdp:
-      return SolverType::kDReal;
-    case SolverType::kDReal:
       return SolverType::kEqualityConstrainedQP;
     case SolverType::kEqualityConstrainedQP:
       return SolverType::kGurobi;
     case SolverType::kGurobi:
-      return SolverType::kIbex;
-    case SolverType::kIbex:
       return SolverType::kIpopt;
     case SolverType::kIpopt:
       return SolverType::kLinearSystem;
@@ -52,8 +48,7 @@ std::optional<SolverType> successor(std::optional<SolverType> solver_type) {
 GTEST_TEST(SolverId, RoundTrip) {
   // Iterate over all known solver types.
   int iterations = 0;
-  for (auto solver_type = successor(std::nullopt);
-       solver_type != std::nullopt;
+  for (auto solver_type = successor(std::nullopt); solver_type != std::nullopt;
        solver_type = successor(solver_type)) {
     ++iterations;
 
@@ -69,7 +64,7 @@ GTEST_TEST(SolverId, RoundTrip) {
   }
 
   // This should track the number of SolverType values, if we add any.
-  EXPECT_EQ(iterations, 15);
+  EXPECT_EQ(iterations, 13);
 }
 
 }  // namespace

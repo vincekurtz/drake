@@ -2,19 +2,18 @@
 
 #include <unistd.h>
 
+#include <filesystem>
 #include <regex>
 #include <string>
 #include <utility>
 #include <vector>
 
-#include "fmt/ostream.h"
+#include <fmt/format.h>
 #include <vtkImageData.h>
 #include <vtkNew.h>
 #include <vtkPNGWriter.h>
 #include <vtkSmartPointer.h>
 #include <vtkTIFFWriter.h>
-
-#include "drake/common/filesystem.h"
 
 namespace drake {
 namespace systems {
@@ -177,6 +176,49 @@ const InputPort<double>& ImageWriter::DeclareImageInputPort(
   return port;
 }
 
+const InputPort<double>& ImageWriter::DeclareImageInputPort(
+    PixelType pixel_type, std::string port_name, std::string file_name_format,
+    double publish_period, double start_time) {
+  switch (pixel_type) {
+    case PixelType::kRgb8U:
+      break;
+    case PixelType::kBgr8U:
+      break;
+    case PixelType::kRgba8U: {
+      return this->template DeclareImageInputPort<PixelType::kRgba8U>(
+          std::move(port_name), std::move(file_name_format), publish_period,
+          start_time);
+    }
+    case PixelType::kBgra8U:
+      break;
+    case PixelType::kDepth16U: {
+      return this->template DeclareImageInputPort<PixelType::kDepth16U>(
+          std::move(port_name), std::move(file_name_format), publish_period,
+          start_time);
+    }
+    case PixelType::kDepth32F: {
+      return this->template DeclareImageInputPort<PixelType::kDepth32F>(
+          std::move(port_name), std::move(file_name_format), publish_period,
+          start_time);
+    }
+    case PixelType::kLabel16I: {
+      return this->template DeclareImageInputPort<PixelType::kLabel16I>(
+          std::move(port_name), std::move(file_name_format), publish_period,
+          start_time);
+    }
+    case PixelType::kGrey8U: {
+      return this->template DeclareImageInputPort<PixelType::kGrey8U>(
+          std::move(port_name), std::move(file_name_format), publish_period,
+          start_time);
+    }
+    case PixelType::kExpr:
+      break;
+  }
+  throw std::logic_error(fmt::format(
+      "ImageWriter::DeclareImageInputPort does not support pixel_type={}",
+      static_cast<int>(pixel_type)));
+}
+
 template <PixelType kPixelType>
 void ImageWriter::WriteImage(const Context<double>& context, int index) const {
   const auto& port = get_input_port(index);
@@ -195,7 +237,7 @@ std::string ImageWriter::MakeFileName(const std::string& format,
 
   int64_t u_time = static_cast<int64_t>(time * 1e6 + 0.5);
   int m_time = static_cast<int>(time * 1e3 + 0.5);
-  return fmt::format(format, fmt::arg("port_name", port_name),
+  return fmt::format(fmt_runtime(format), fmt::arg("port_name", port_name),
                      fmt::arg("image_type", labels_.at(pixel_type)),
                      fmt::arg("time_double", time),
                      fmt::arg("time_usec", u_time),
@@ -233,9 +275,9 @@ std::string ImageWriter::DirectoryFromFormat(const std::string& format,
 
 ImageWriter::FolderState ImageWriter::ValidateDirectory(
     const std::string& file_path_str) {
-  filesystem::path file_path(file_path_str);
-  if (filesystem::exists(file_path)) {
-    if (filesystem::is_directory(file_path)) {
+  std::filesystem::path file_path(file_path_str);
+  if (std::filesystem::exists(file_path)) {
+    if (std::filesystem::is_directory(file_path)) {
       if (::access(file_path.string().c_str(), W_OK) == 0) {
         return FolderState::kValid;
       } else {

@@ -1,6 +1,8 @@
 #include "pybind11/pybind11.h"
 #include "pybind11/stl.h"
 
+#include "drake/bindings/pydrake/common/deprecation_pybind.h"
+#include "drake/bindings/pydrake/common/serialize_pybind.h"
 #include "drake/bindings/pydrake/documentation_pybind.h"
 #include "drake/bindings/pydrake/pydrake_pybind.h"
 #include "drake/multibody/parsing/package_map.h"
@@ -23,16 +25,33 @@ PYBIND11_MODULE(parsing, m) {
   using namespace drake::multibody;
   constexpr auto& doc = pydrake_doc.drake.multibody;
 
+  py::module::import("pydrake.common.schema");
+
   // PackageMap
   {
     using Class = PackageMap;
     constexpr auto& cls_doc = doc.PackageMap;
     py::class_<Class> cls(m, "PackageMap", cls_doc.doc);
+    {
+      using Nested = PackageMap::RemoteParams;
+      constexpr auto& nested_doc = cls_doc.RemoteParams;
+      py::class_<Nested> nested(cls, "RemoteParams", nested_doc.doc);
+      nested.def(ParamInit<Nested>());
+      nested.def("ToJson", &Nested::ToJson, nested_doc.ToJson.doc);
+      DefAttributesUsingSerialize(&nested, nested_doc);
+      DefReprUsingSerialize(&nested);
+      DefCopyAndDeepCopy(&nested);
+    }
     cls  // BR
         .def(py::init<>(), cls_doc.ctor.doc)
+        .def(py::init<const Class&>(), py::arg("other"), "Copy constructor")
         .def("Add", &Class::Add, py::arg("package_name"),
             py::arg("package_path"), cls_doc.Add.doc)
         .def("AddMap", &Class::AddMap, py::arg("other_map"), cls_doc.AddMap.doc)
+        .def("AddPackageXml", &Class::AddPackageXml, py::arg("filename"),
+            cls_doc.AddPackageXml.doc)
+        .def("AddRemote", &Class::AddRemote, py::arg("package_name"),
+            py::arg("params"))
         .def("Contains", &Class::Contains, py::arg("package_name"),
             cls_doc.Contains.doc)
         .def("Remove", &Class::Remove, py::arg("package_name"),
@@ -48,44 +67,159 @@ PYBIND11_MODULE(parsing, m) {
               return self.GetPath(package_name);
             },
             py::arg("package_name"), cls_doc.GetPath.doc)
-        .def("AddPackageXml", &Class::AddPackageXml, py::arg("filename"),
-            cls_doc.AddPackageXml.doc)
         .def("PopulateFromFolder", &Class::PopulateFromFolder, py::arg("path"),
             cls_doc.PopulateFromFolder.doc)
         .def("PopulateFromEnvironment", &Class::PopulateFromEnvironment,
             py::arg("environment_variable"),
             cls_doc.PopulateFromEnvironment.doc)
-        .def("PopulateFromRosPackagePath", &Class::PopulateFromRosPackagePath)
+        .def("PopulateFromRosPackagePath", &Class::PopulateFromRosPackagePath,
+            cls_doc.PopulateFromRosPackagePath.doc)
         .def_static("MakeEmpty", &Class::MakeEmpty, cls_doc.MakeEmpty.doc);
+    DefCopyAndDeepCopy(&cls);
   }
 
   // Parser
   {
     using Class = Parser;
     constexpr auto& cls_doc = doc.Parser;
-    py::class_<Class>(m, "Parser", cls_doc.doc)
-        .def(py::init<MultibodyPlant<double>*, SceneGraph<double>*>(),
+    auto cls = py::class_<Class>(m, "Parser", cls_doc.doc);
+    cls  // BR
+        .def(py::init<MultibodyPlant<double>*, SceneGraph<double>*,
+                 std::string_view>(),
             py::arg("plant"), py::arg("scene_graph") = nullptr,
-            cls_doc.ctor.doc)
+            py::arg("model_name_prefix") = "",
+            cls_doc.ctor.doc_3args_plant_scene_graph_model_name_prefix)
+        .def(py::init<MultibodyPlant<double>*, std::string_view>(),
+            py::arg("plant"), py::arg("model_name_prefix"),
+            cls_doc.ctor.doc_2args_plant_model_name_prefix)
         .def("plant", &Class::plant, py_rvp::reference_internal,
             cls_doc.plant.doc)
         .def("package_map", &Class::package_map, py_rvp::reference_internal,
             cls_doc.package_map.doc)
+        // TODO(rpoyner-tri): deprecate on or after 2023-01.
         .def("AddAllModelsFromFile", &Class::AddAllModelsFromFile,
             py::arg("file_name"), cls_doc.AddAllModelsFromFile.doc)
+        .def(
+            "AddModels",
+            // Pybind11 won't implicitly convert strings to
+            // std::filesystem::path, but C++ will. Use a lambda to avoid wider
+            // disruptions in python bindings.
+            [](Parser& self, const std::string& file_name) {
+              return self.AddModels(file_name);
+            },
+            py::arg("file_name"), cls_doc.AddModels.doc)
+        .def("AddModelsFromUrl", &Class::AddModelsFromUrl, py::arg("url"),
+            cls_doc.AddModelsFromUrl.doc)
+        .def("AddModelsFromString", &Class::AddModelsFromString,
+            py::arg("file_contents"), py::arg("file_type"),
+            cls_doc.AddModelsFromString.doc)
+        // Overload AddModels(url=) for some sugar.
+        .def("AddModels", &Class::AddModelsFromUrl, py::kw_only(),
+            py::arg("url"), cls_doc.AddModelsFromUrl.doc)
+        // Overload AddModels(file_contents=, file_type=) for some sugar.
+        .def("AddModels", &Class::AddModelsFromString, py::kw_only(),
+            py::arg("file_contents"), py::arg("file_type"),
+            cls_doc.AddModelsFromString.doc)
         .def("AddModelFromFile", &Class::AddModelFromFile, py::arg("file_name"),
             py::arg("model_name") = "", cls_doc.AddModelFromFile.doc)
-        .def("AddModelFromString", &Class::AddModelFromString,
-            py::arg("file_contents"), py::arg("file_type"),
-            py::arg("model_name") = "", cls_doc.AddModelFromString.doc)
         .def("SetStrictParsing", &Class::SetStrictParsing,
-            cls_doc.SetStrictParsing.doc);
+            cls_doc.SetStrictParsing.doc)
+        .def("SetAutoRenaming", &Class::SetAutoRenaming, py::arg("value"),
+            cls_doc.SetAutoRenaming.doc)
+        .def("GetAutoRenaming", &Class::GetAutoRenaming,
+            cls_doc.GetAutoRenaming.doc);
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+    cls  // BR
+        .def("AddModelFromString",
+            WrapDeprecated(cls_doc.AddModelFromString.doc_deprecated,
+                &Class::AddModelFromString),
+            py::arg("file_contents"), py::arg("file_type"),
+            py::arg("model_name") = "",
+            cls_doc.AddModelFromString.doc_deprecated);
+#pragma GCC diagnostic pop
   }
 
   // Model Directives
   {
+    using Class = parsing::AddWeld;
+    constexpr auto& cls_doc = doc.parsing.AddWeld;
+    py::class_<Class> cls(m, "AddWeld", cls_doc.doc);
+    cls.def(ParamInit<Class>());
+    DefAttributesUsingSerialize(&cls, cls_doc);
+    DefReprUsingSerialize(&cls);
+    DefCopyAndDeepCopy(&cls);
+  }
+
+  {
+    using Class = parsing::AddModel;
+    constexpr auto& cls_doc = doc.parsing.AddModel;
+    py::class_<Class> cls(m, "AddModel", cls_doc.doc);
+    cls.def(ParamInit<Class>());
+    DefAttributesUsingSerialize(&cls, cls_doc);
+    DefReprUsingSerialize(&cls);
+    DefCopyAndDeepCopy(&cls);
+  }
+
+  {
+    using Class = parsing::AddModelInstance;
+    constexpr auto& cls_doc = doc.parsing.AddModelInstance;
+    py::class_<Class> cls(m, "AddModelInstance", cls_doc.doc);
+    cls.def(ParamInit<Class>());
+    DefAttributesUsingSerialize(&cls, cls_doc);
+    DefReprUsingSerialize(&cls);
+    DefCopyAndDeepCopy(&cls);
+  }
+
+  {
+    using Class = parsing::AddFrame;
+    constexpr auto& cls_doc = doc.parsing.AddFrame;
+    py::class_<Class> cls(m, "AddFrame", cls_doc.doc);
+    cls.def(ParamInit<Class>());
+    DefAttributesUsingSerialize(&cls, cls_doc);
+    DefReprUsingSerialize(&cls);
+    DefCopyAndDeepCopy(&cls);
+  }
+
+  {
+    using Class = parsing::AddCollisionFilterGroup;
+    constexpr auto& cls_doc = doc.parsing.AddCollisionFilterGroup;
+    py::class_<Class> cls(m, "AddCollisionFilterGroup", cls_doc.doc);
+    cls.def(ParamInit<Class>());
+    DefAttributesUsingSerialize(&cls, cls_doc);
+    DefReprUsingSerialize(&cls);
+    DefCopyAndDeepCopy(&cls);
+  }
+
+  {
+    using Class = parsing::AddDirectives;
+    constexpr auto& cls_doc = doc.parsing.AddDirectives;
+    py::class_<Class> cls(m, "AddDirectives", cls_doc.doc);
+    cls.def(ParamInit<Class>());
+    DefAttributesUsingSerialize(&cls, cls_doc);
+    DefReprUsingSerialize(&cls);
+    DefCopyAndDeepCopy(&cls);
+  }
+
+  {
+    using Class = parsing::ModelDirective;
+    constexpr auto& cls_doc = doc.parsing.ModelDirective;
+    py::class_<Class> cls(m, "ModelDirective", cls_doc.doc);
+    cls.def(ParamInit<Class>());
+    DefAttributesUsingSerialize(&cls, cls_doc);
+    DefReprUsingSerialize(&cls);
+    DefCopyAndDeepCopy(&cls);
+  }
+
+  {
     using Class = parsing::ModelDirectives;
-    py::class_<Class>(m, "ModelDirectives", doc.parsing.ModelDirectives.doc);
+    constexpr auto& cls_doc = doc.parsing.ModelDirectives;
+    py::class_<Class> cls(m, "ModelDirectives", cls_doc.doc);
+    cls.def(ParamInit<Class>());
+    DefAttributesUsingSerialize(&cls, cls_doc);
+    DefReprUsingSerialize(&cls);
+    DefCopyAndDeepCopy(&cls);
   }
 
   m.def("LoadModelDirectives", &parsing::LoadModelDirectives,
@@ -109,17 +243,6 @@ PYBIND11_MODULE(parsing, m) {
         .def_readonly("X_PC", &Class::X_PC, cls_doc.X_PC.doc)
         .def_readonly("model_instance", &Class::model_instance,
             cls_doc.model_instance.doc);
-  }
-
-  // Individual directives are not bound here (they are generally loaded from
-  // yaml rather than constructed explicitly), but some downstream users use
-  // this type as a return value which requires an explicit binding.
-  {
-    using Class = drake::multibody::parsing::AddFrame;
-    constexpr auto& cls_doc = doc.parsing.AddFrame;
-    py::class_<Class>(m, "AddFrame")
-        .def_readonly("name", &Class::name, cls_doc.name.doc)
-        .def_readonly("X_PF", &Class::X_PF, cls_doc.X_PF.doc);
   }
 
   m.def("ProcessModelDirectives",
@@ -146,8 +269,14 @@ PYBIND11_MODULE(parsing, m) {
       py::keep_alive<0, 1>(),  // `return` keeps `plant` alive.
       doc.parsing.GetScopedFrameByName.doc);
 
-  m.def("GetScopedFrameName", &parsing::GetScopedFrameName, py::arg("plant"),
-      py::arg("frame"), doc.parsing.GetScopedFrameName.doc);
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+  m.def("GetScopedFrameName",
+      WrapDeprecated(doc.parsing.GetScopedFrameName.doc_deprecated,
+          &parsing::GetScopedFrameName),
+      py::arg("plant"), py::arg("frame"),
+      doc.parsing.GetScopedFrameName.doc_deprecated);
+#pragma GCC diagnostic push
 }
 
 }  // namespace pydrake

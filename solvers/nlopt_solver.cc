@@ -332,24 +332,49 @@ T GetOptionValueWithDefault(const std::unordered_map<std::string, T>& options,
   }
   return it->second;
 }
+
+nlopt::algorithm GetNloptAlgorithm(const SolverOptions& merged_options) {
+  const auto& options_str = merged_options.GetOptionsStr(NloptSolver::id());
+  auto it = options_str.find(NloptSolver::AlgorithmName());
+  if (it == options_str.end()) {
+    // Use SLSQP for default;
+    return nlopt::algorithm::LD_SLSQP;
+  } else {
+    const std::string& requested_algorithm = it->second;
+    for (int i = 0; i < nlopt::algorithm::NUM_ALGORITHMS; ++i) {
+      if (requested_algorithm ==
+          nlopt_algorithm_to_string(static_cast<nlopt_algorithm>(i))) {
+        return static_cast<nlopt::algorithm>(i);
+      }
+    }
+    throw std::runtime_error(fmt::format(
+        "Unknown NLopt algorithm {}, please check "
+        "nlopt_algorithm_to_string() function "
+        "github.com/stevengj/nlopt/blob/master/src/api/general.c for "
+        "all supported algorithm names",
+        it->second));
+  }
+}
 }  // anonymous namespace
 
-bool NloptSolver::is_available() { return true; }
+bool NloptSolver::is_available() {
+  return true;
+}
 
-void NloptSolver::DoSolve(
-    const MathematicalProgram& prog,
-    const Eigen::VectorXd& initial_guess,
-    const SolverOptions& merged_options,
-    MathematicalProgramResult* result) const {
+void NloptSolver::DoSolve(const MathematicalProgram& prog,
+                          const Eigen::VectorXd& initial_guess,
+                          const SolverOptions& merged_options,
+                          MathematicalProgramResult* result) const {
   if (!prog.GetVariableScaling().empty()) {
     static const logging::Warn log_once(
-      "NloptSolver doesn't support the feature of variable scaling.");
+        "NloptSolver doesn't support the feature of variable scaling.");
   }
 
   const int nx = prog.num_vars();
 
   // Load the algo to use and the size.
-  nlopt::opt opt(nlopt::LD_SLSQP, nx);
+  const nlopt::algorithm algorithm = GetNloptAlgorithm(merged_options);
+  nlopt::opt opt(algorithm, nx);
 
   std::vector<double> x(initial_guess.size());
   for (size_t i = 0; i < x.size(); i++) {
@@ -402,6 +427,10 @@ void NloptSolver::DoSolve(
   // TODO(sam.creasey): Missing test coverage for generic constraints
   // with >1 output.
   for (const auto& c : prog.generic_constraints()) {
+    WrapConstraint(prog, c, constraint_tol, &opt, &wrapped_vector);
+  }
+
+  for (const auto& c : prog.quadratic_constraints()) {
     WrapConstraint(prog, c, constraint_tol, &opt, &wrapped_vector);
   }
 
@@ -465,6 +494,7 @@ void NloptSolver::DoSolve(
         constraint_test(prog.bounding_box_constraints());
         constraint_test(prog.linear_constraints());
         constraint_test(prog.linear_equality_constraints());
+        constraint_test(prog.quadratic_constraints());
         constraint_test(prog.lorentz_cone_constraints());
         constraint_test(prog.rotated_lorentz_cone_constraints());
 
@@ -491,7 +521,9 @@ void NloptSolver::DoSolve(
         }
         break;
       }
-      default: { result->set_solution_result(SolutionResult::kUnknownError); }
+      default: {
+        result->set_solution_result(SolutionResult::kUnknownError);
+      }
     }
   } catch (std::invalid_argument&) {
     result->set_solution_result(SolutionResult::kInvalidInput);

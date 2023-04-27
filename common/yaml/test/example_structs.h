@@ -10,12 +10,18 @@
 #include <vector>
 
 #include <Eigen/Core>
+#include <fmt/ostream.h>
 
+#include "drake/common/fmt_eigen.h"
 #include "drake/common/name_value.h"
 
 namespace drake {
 namespace yaml {
 namespace test {
+
+// These data structures are the C++ flavor of the Python test classes at
+//  drake/bindings/pydrake/common/test/yaml_typed_test.py
+// and should be roughly kept in sync with the code in that file.
 
 // A value used in the test data below to include a default (placeholder) value
 // when initializing struct data members.
@@ -81,9 +87,7 @@ struct ArrayStruct {
     a->Visit(DRAKE_NVP(value));
   }
 
-  ArrayStruct() {
-    value.fill(kNominalDouble);
-  }
+  ArrayStruct() { value.fill(kNominalDouble); }
 
   explicit ArrayStruct(const std::array<double, 3>& value_in)
       : value(value_in) {}
@@ -97,9 +101,7 @@ struct VectorStruct {
     a->Visit(DRAKE_NVP(value));
   }
 
-  VectorStruct() {
-    value.resize(1, kNominalDouble);
-  }
+  VectorStruct() { value.resize(1, kNominalDouble); }
 
   explicit VectorStruct(const std::vector<double>& value_in)
       : value(value_in) {}
@@ -113,9 +115,7 @@ struct NonPodVectorStruct {
     a->Visit(DRAKE_NVP(value));
   }
 
-  NonPodVectorStruct() {
-    value.resize(1, {"kNominalDouble"});
-  }
+  NonPodVectorStruct() { value.resize(1, {"kNominalDouble"}); }
 
   std::vector<StringStruct> value;
 };
@@ -126,9 +126,7 @@ struct MapStruct {
     a->Visit(DRAKE_NVP(value));
   }
 
-  MapStruct() {
-    value["kNominalDouble"] = kNominalDouble;
-  }
+  MapStruct() { value["kNominalDouble"] = kNominalDouble; }
 
   explicit MapStruct(const std::map<std::string, double>& value_in)
       : value(value_in) {}
@@ -142,9 +140,7 @@ struct UnorderedMapStruct {
     a->Visit(DRAKE_NVP(value));
   }
 
-  UnorderedMapStruct() {
-    value["kNominalDouble"] = kNominalDouble;
-  }
+  UnorderedMapStruct() { value["kNominalDouble"] = kNominalDouble; }
 
   explicit UnorderedMapStruct(
       const std::unordered_map<std::string, double>& value_in)
@@ -159,9 +155,7 @@ struct OptionalStruct {
     a->Visit(DRAKE_NVP(value));
   }
 
-  OptionalStruct() {
-    value = kNominalDouble;
-  }
+  OptionalStruct() { value = kNominalDouble; }
 
   explicit OptionalStruct(const double value_in)
       : OptionalStruct(std::optional<double>(value_in)) {}
@@ -178,8 +172,7 @@ struct OptionalStructNoDefault {
     a->Visit(DRAKE_NVP(value));
   }
 
-  OptionalStructNoDefault()
-      : value(std::nullopt) {}
+  OptionalStructNoDefault() : value(std::nullopt) {}
 
   explicit OptionalStructNoDefault(const double value_in)
       : OptionalStructNoDefault(std::optional<double>(value_in)) {}
@@ -226,24 +219,25 @@ bool operator==(const EigenStruct<Rows, Cols>& a,
 
 using EigenVecStruct = EigenStruct<Eigen::Dynamic, 1>;
 using EigenVec3Struct = EigenStruct<3, 1>;
+using EigenVecUpTo3Struct = EigenStruct<Eigen::Dynamic, 1, 3, 1>;
 using EigenMatrixStruct = EigenStruct<Eigen::Dynamic, Eigen::Dynamic>;
 using EigenMatrix34Struct = EigenStruct<3, 4>;
 using EigenMatrix00Struct = EigenStruct<0, 0>;
 using EigenMatrixUpTo6Struct =
     EigenStruct<Eigen::Dynamic, Eigen::Dynamic, 6, 6>;
 
-using Variant4 = std::variant<
-    std::string, double, DoubleStruct, EigenVecStruct>;
+using Variant4 =
+    std::variant<std::string, double, DoubleStruct, EigenVecStruct>;
 
 std::ostream& operator<<(std::ostream& os, const Variant4& value) {
   if (value.index() == 0) {
-    os << "std::string{" << std::get<0>(value) << "}";
+    fmt::print(os, "std::string{{{}}}", std::get<0>(value));
   } else if (value.index() == 1) {
-    os << "double{" << std::get<1>(value) << "}";
+    fmt::print(os, "double{{{}}}", std::get<1>(value));
   } else if (value.index() == 2) {
-    os << "DoubleStruct{" << std::get<2>(value).value << "}";
+    fmt::print(os, "DoubleStruct{{{}}}", std::get<2>(value).value);
   } else {
-    os << "EigenVecStruct{" << std::get<3>(value).value << "}";
+    fmt::print(os, "EigenVecStruct{{{}}}", fmt_eigen(std::get<3>(value).value));
   }
   return os;
 }
@@ -254,12 +248,9 @@ struct VariantStruct {
     a->Visit(DRAKE_NVP(value));
   }
 
-  VariantStruct() {
-    value = kNominalDouble;
-  }
+  VariantStruct() { value = kNominalDouble; }
 
-  explicit VariantStruct(const Variant4& value_in)
-      : value(value_in) {}
+  explicit VariantStruct(const Variant4& value_in) : value(value_in) {}
 
   Variant4 value;
 };

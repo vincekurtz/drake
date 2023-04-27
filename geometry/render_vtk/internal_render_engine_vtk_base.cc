@@ -16,16 +16,16 @@
 #include <vtkPolyDataAlgorithm.h>
 #include <vtkStreamingDemandDrivenPipeline.h>
 
+#include "drake/common/fmt_eigen.h"
 #include "drake/common/scope_exit.h"
 
 namespace drake {
 namespace geometry {
-namespace render {
-
-using Eigen::Vector2d;
-
+namespace render_vtk {
+namespace internal {
 namespace {
 
+using Eigen::Vector2d;
 using Eigen::Vector3d;
 
 // TODO(SeanCurtis-TRI): The semantics of this textured box needs to be
@@ -69,8 +69,9 @@ class DrakeCubeSource : public vtkPolyDataAlgorithm {
   /* VTK boilerplate to support printing the source.  */
   void PrintSelf(std::ostream& os, vtkIndent indent) override {
     this->Superclass::PrintSelf(os, indent);
-    os << indent << "Size: " << size_.transpose() << "\n";
-    os << indent << "UV Scale: " << uv_scale_.transpose() << "\n";
+    os << indent << fmt::format("Size: {}\n", fmt_eigen(size_.transpose()));
+    os << indent
+       << fmt::format("UV Scale: {}\n", fmt_eigen(uv_scale_.transpose()));
   }
 
   /* Set the size of the box along each of its principal axes.
@@ -308,6 +309,7 @@ void TransformToDrakeCylinder(vtkTransform* transform,
   transform_filter->Update();
 }
 
-}  // namespace render
+}  // namespace internal
+}  // namespace render_vtk
 }  // namespace geometry
 }  // namespace drake

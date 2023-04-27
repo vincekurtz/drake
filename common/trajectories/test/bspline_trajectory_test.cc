@@ -29,9 +29,9 @@ namespace drake {
 namespace trajectories {
 
 using common::CallPython;
-using math::ExtractGradient;
 using math::BsplineBasis;
 using math::ComputeNumericalGradient;
+using math::ExtractGradient;
 using math::KnotVectorType;
 using math::NumericalGradientMethod;
 using math::NumericalGradientOption;
@@ -88,12 +88,12 @@ TYPED_TEST(BsplineTrajectoryTests, ConstructorTest) {
   EXPECT_EQ(trajectory.end_time(), expected_end_time);
   // Use std::equal (not EXPECT_EQ) to deal with symbolic::Formula.
   const auto& traj_control_points = trajectory.control_points();
-  EXPECT_TRUE(std::equal(
-      traj_control_points.begin(), traj_control_points.end(),
-      expected_control_points.begin(), expected_control_points.end(),
-      [](const auto& traj_matrix, const auto& expected_matrix) {
-        return (traj_matrix - expected_matrix).norm() == 0.0;
-      }));
+  EXPECT_TRUE(
+      std::equal(traj_control_points.begin(), traj_control_points.end(),
+                 expected_control_points.begin(), expected_control_points.end(),
+                 [](const auto& traj_matrix, const auto& expected_matrix) {
+                   return (traj_matrix - expected_matrix).norm() == 0.0;
+                 }));
 
   // Verify that construction from BsplineBasis<double> works.
   std::vector<double> knots_double{};
@@ -118,10 +118,9 @@ TYPED_TEST(BsplineTrajectoryTests, ValueTest) {
                                        trajectory.end_time() + 0.1);
   for (int k = 0; k < num_times; ++k) {
     MatrixX<T> value = trajectory.value(t(k));
-    using std::max;
-    using std::min;
-    T t_clamped = min(max(t(k), trajectory.start_time()),
-                      trajectory.end_time());
+    using std::clamp;
+    const T t_clamped =
+        clamp(t(k), trajectory.start_time(), trajectory.end_time());
     MatrixX<T> expected_value = trajectory.basis().EvaluateCurve(
         trajectory.control_points(), t_clamped);
     EXPECT_TRUE(CompareMatrices(value, expected_value,
@@ -165,8 +164,8 @@ TYPED_TEST(BsplineTrajectoryTests, MakeDerivativeTest) {
   // Verify that MakeDerivative() returns 0 matrix for derivative of order
   // higher than basis degree
   derivative_trajectory = trajectory.MakeDerivative(trajectory.basis().order());
-  MatrixX<T> expected_derivative = MatrixX<T>::Zero(trajectory.rows(),
-                                                    trajectory.cols());
+  MatrixX<T> expected_derivative =
+      MatrixX<T>::Zero(trajectory.rows(), trajectory.cols());
   for (int k = 0; k < num_times; ++k) {
     MatrixX<T> derivative = derivative_trajectory->value(t(k));
     EXPECT_TRUE(CompareMatrices(derivative, expected_derivative, 0.0));
@@ -191,6 +190,16 @@ TYPED_TEST(BsplineTrajectoryTests, EvalDerivativeTest) {
       double tolerance = 1e-14;
       EXPECT_TRUE(CompareMatrices(derivative, expected_derivative, tolerance));
     }
+  }
+
+  // Verify that evaluating outside the time interval gets clamped.
+  for (int o = 0; o < trajectory.basis().order(); ++o) {
+    EXPECT_TRUE(CompareMatrices(
+        trajectory.EvalDerivative(trajectory.start_time() - 1, o),
+        trajectory.EvalDerivative(trajectory.start_time(), o)));
+    EXPECT_TRUE(
+        CompareMatrices(trajectory.EvalDerivative(trajectory.end_time() + 1, o),
+                        trajectory.EvalDerivative(trajectory.end_time(), o)));
   }
 }
 
@@ -342,6 +351,7 @@ const char* const good = R"""(
 GTEST_TEST(BsplineTrajectorySerializeTests, GoodTest) {
   const int kOrder{2};
   const std::vector<double> knots{0., 1., 1.5, 1.6, 2.};
+  // clang-format off
   const std::vector<MatrixX<double>> control_points{
       (MatrixX<double>(2, 3) << 0.0, 0.1, 0.2,
                                 0.3, 0.4, 0.5).finished(),
@@ -350,12 +360,10 @@ GTEST_TEST(BsplineTrajectorySerializeTests, GoodTest) {
       (MatrixX<double>(2, 3) << 2.0, 2.1, 2.2,
                                 2.3, 2.4, 2.5).finished(),
   };
+  // clang-format on
   const auto dut = LoadYamlString<BsplineTrajectory<double>>(good);
-  EXPECT_EQ(
-      dut,
-      BsplineTrajectory<double>(
-          BsplineBasis<double>(kOrder, knots),
-          control_points));
+  EXPECT_EQ(dut, BsplineTrajectory<double>(BsplineBasis<double>(kOrder, knots),
+                                           control_points));
 }
 
 const char* const not_enough_control_points = R"""(
@@ -371,9 +379,9 @@ const char* const not_enough_control_points = R"""(
       - [1.3, 1.4, 1.5]
 )""";
 GTEST_TEST(BsplineTrajectorySerializeTests, NotEnoughControlPointsTest) {
-    DRAKE_EXPECT_THROWS_MESSAGE(
+  DRAKE_EXPECT_THROWS_MESSAGE(
       LoadYamlString<BsplineTrajectory<double>>(not_enough_control_points),
-      ".*CheckInvariants.*");
+      ".*num_basis_functions.*");
 }
 
 }  // namespace trajectories

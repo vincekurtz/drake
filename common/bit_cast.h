@@ -1,12 +1,26 @@
 #pragma once
 
+#ifdef __cpp_lib_bit_cast
+
+#include <bit>
+
+namespace drake {
+namespace internal {
+
+using std::bit_cast;
+
+}  // namespace internal
+}  // namespace drake
+
+#else  // __cpp_lib_bit_cast
+
 #include <cstring>
 #include <type_traits>
 
 namespace drake {
 namespace internal {
 
-/** Implements C++20 https://en.cppreference.com/w/cpp/numeric/bit_cast (but
+/* Implements C++20 https://en.cppreference.com/w/cpp/numeric/bit_cast (but
 without the overload resolution guards, which are not necessary in our case.)
 (Once all of Drake's supported platforms offer std::bit_cast, we can remove
 this function in lieu of the std one.) */
@@ -23,3 +37,5 @@ To bit_cast(const From& from) noexcept {
 
 }  // namespace internal
 }  // namespace drake
+
+#endif  // __cpp_lib_bit_cast

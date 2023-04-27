@@ -26,8 +26,9 @@ class AcrobotExample : public TrajOptExample {
 }  // namespace drake
 
 int main() {
-  drake::traj_opt::examples::acrobot::AcrobotExample acrobot_example;
-  acrobot_example.SolveTrajectoryOptimization(
-      "drake/traj_opt/examples/acrobot.yaml");
+  drake::traj_opt::examples::acrobot::AcrobotExample example;
+  const std::string yaml_file = "drake/traj_opt/examples/acrobot.yaml";
+  example.RunExample(yaml_file);
+
   return 0;
 }

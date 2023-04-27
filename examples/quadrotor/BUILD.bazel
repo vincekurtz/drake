@@ -1,31 +1,32 @@
-# -*- python -*-
-
 load(
     "//tools/skylark:drake_cc.bzl",
     "drake_cc_binary",
     "drake_cc_googletest",
     "drake_cc_library",
 )
+load("//tools/skylark:drake_data.bzl", "models_filegroup")
 load("//tools/install:install_data.bzl", "install_data")
 load("//tools/lint:lint.bzl", "add_lint_tests")
-load("//tools/workspace:forward_files.bzl", "forward_files")
-load("//tools/workspace/models_internal:files.bzl", "skydio_2_mesh_files")
 
-package(
-    default_visibility = [
-        "//visibility:public",
-    ],
-)
+package(default_visibility = ["//visibility:public"])
 
-_SKYDIO_2_MESHES = forward_files(
-    srcs = ["@models_internal//:" + x for x in skydio_2_mesh_files()],
-    dest_prefix = "",
-    strip_prefix = "@models_internal//:skydio_2/",
+models_filegroup(
+    name = "glob_models",
     visibility = ["//visibility:private"],
 )
 
 install_data(
-    extra_prod_models = _SKYDIO_2_MESHES,
+    name = "install_data",
+    data = [":glob_models"],
+)
+
+filegroup(
+    name = "models",
+    srcs = [
+        ":glob_models",
+        "@drake_models//:skydio_2/skydio_2_1000_poly.mtl",
+        "@drake_models//:skydio_2/skydio_2_1000_poly.obj",
+    ],
 )
 
 drake_cc_library(
@@ -47,7 +48,6 @@ drake_cc_library(
     hdrs = ["quadrotor_geometry.h"],
     data = [":models"],
     deps = [
-        "//common:find_resource",
         "//geometry:scene_graph",
         "//math:geometric_transform",
         "//multibody/parsing",
@@ -69,14 +69,13 @@ drake_cc_binary(
     deps = [
         ":quadrotor_plant",
         "//common:add_text_logging_gflags",
-        "//common:find_resource",
-        "//geometry:drake_visualizer",
         "//multibody/parsing",
         "//multibody/plant",
         "//systems/analysis:simulator",
         "//systems/analysis:simulator_gflags",
         "//systems/framework:diagram",
         "//systems/primitives:constant_vector_source",
+        "//visualization:visualization_config_functions",
         "@gflags",
     ],
 )
@@ -92,7 +91,6 @@ drake_cc_binary(
     deps = [
         ":quadrotor_geometry",
         ":quadrotor_plant",
-        "//common:find_resource",
         "//common:is_approx_equal_abstol",
         "//geometry:drake_visualizer",
         "//lcm",
@@ -116,7 +114,6 @@ drake_cc_googletest(
     data = [":models"],
     deps = [
         ":quadrotor_plant",
-        "//common:find_resource",
         "//common/test_utilities:eigen_matrix_compare",
         "//multibody/parsing",
         "//multibody/plant",

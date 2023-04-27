@@ -1,17 +1,15 @@
 #include "drake/multibody/parsing/detail_urdf_geometry.h"
 
+#include <filesystem>
 #include <iomanip>
 #include <memory>
-#include <ostream>
 #include <set>
 #include <sstream>
 #include <stdexcept>
 
-#include <fmt/format.h>
-
 #include "drake/common/diagnostic_policy.h"
 #include "drake/common/drake_assert.h"
-#include "drake/common/filesystem.h"
+#include "drake/common/fmt_eigen.h"
 #include "drake/common/text_logging.h"
 #include "drake/geometry/geometry_roles.h"
 #include "drake/geometry/proximity_properties.h"
@@ -89,7 +87,7 @@ UrdfMaterial AddMaterialToMaterialMap(
       auto mat_descrip = [](const UrdfMaterial& mat) {
         std::string rgb_string =
             mat.rgba.has_value()
-                ? fmt::format("RGBA: {}", mat.rgba->transpose())
+                ? fmt::format("RGBA: {}", fmt_eigen(mat.rgba->transpose()))
                 : "RGBA: None";
         std::string map_string =
             mat.diffuse_map.has_value()
@@ -134,6 +132,18 @@ UrdfMaterial ParseMaterial(const TinyXml2Diagnostic& diagnostic,
     return {};
   }
 
+  const XMLElement* drake_diffuse_map_node =
+      node->FirstChildElement("drake:diffuse_map");
+  if (drake_diffuse_map_node) {
+    // Error condition: #2: an SDFormat-specific Drake extension,
+    // <drake:diffuse_map>, specified in a URDF.
+    diagnostic.Error(*node,
+                     "<drake:diffuse_map> is not supported in URDF. See "
+                     "https://drake.mit.edu/doxygen_cxx/group__multibody__parsing.html#tag_drake_diffuse_map"  // NOLINT
+                     " for more details.");
+    return {};
+  }
+
   // Test for texture information.
   std::optional<std::string> texture_path;
   const XMLElement* texture_node = node->FirstChildElement("texture");
@@ -166,7 +176,7 @@ UrdfMaterial ParseMaterial(const TinyXml2Diagnostic& diagnostic,
 
   if (!rgba && !texture_path) {
     if (!name.empty() && materials->find(name) == materials->end()) {
-      // Error condition: #2: name with no properties has not been previously
+      // Error condition: #3: name with no properties has not been previously
       // defined.
       diagnostic.Error(
           *node, fmt::format("Material '{}' not previously defined, but has no"
@@ -178,7 +188,7 @@ UrdfMaterial ParseMaterial(const TinyXml2Diagnostic& diagnostic,
   UrdfMaterial material{rgba, texture_path};
 
   if (!name.empty()) {
-    // Error condition: #3.
+    // Error condition: #4.
     // If a name is *required*, then simply matching names should lead to an
     // error.
     material = AddMaterialToMaterialMap(
@@ -356,32 +366,51 @@ std::unique_ptr<geometry::Shape> ParseGeometry(
   return {};
 }
 
-// The goal here is to invent a name that will be unique within the enclosing
-// body (i.e., link). To be as useful as possible, we'll use the shape name as
-// the geometry name, and then tack on a number if necessary to be unique.
-//
-// TODO(jwnimmer-tri) The "tack on a number" heuristic might fail if the user
-// mixes named and unnamed geometry within the same link and they happen to
-// use the shape name. We should probably try to handle this in the outer
-// parsing loop during ParseBody (by detecting the name collision). For now,
-// though, that doesn't seem worth dealing with yet.
-std::string MakeDefaultGeometryName(
-    const drake::internal::DiagnosticPolicy& policy,
-    const geometry::Shape& shape,
-    const std::unordered_set<std::string>& geometry_names,
-    int numeric_suffix_limit) {
-  const std::string shape_name = geometry::ShapeName(shape).name();
-  if (geometry_names.count(shape_name) == 0) {
-    return shape_name;
+// The goal here is to choose a name that will be unique within the enclosing
+// body (i.e., link). If the name is already unique, we return it unchanged.
+// Otherwise, we'll try to tack on a number until it is unique (or we run out
+// of numbers). If no name was given, we'll choose a default based on the
+// shape name with a uniqueifying integer tacked on.
+std::optional<std::string> ParseGeometryName(
+    const char* visual_or_collision, const TinyXml2Diagnostic& diagnostic,
+    const tinyxml2::XMLElement* node, const geometry::Shape& shape,
+    std::unordered_set<std::string>* geometry_names,
+    int numeric_name_suffix_limit) {
+  auto policy = diagnostic.MakePolicyForNode(node);
+
+  // Start with either the given xml name, or else the name of the shape type.
+  bool explicitly_named = false;
+  std::string result;
+  if (ParseStringAttribute(node, "name", &result)) {
+    explicitly_named = true;
+  } else {
+    result = geometry::ShapeName(shape).name();
   }
-  for (int i = 1; i < numeric_suffix_limit; ++i) {
-    std::string guess = fmt::format("{}{}", shape_name, i);
-    if (geometry_names.count(guess) == 0) {
-      return guess;
+
+  // Check if we need to salt it.
+  if (geometry_names->count(result) > 0) {
+    for (int i = 1;; ++i) {
+      if (i >= numeric_name_suffix_limit) {
+        policy.Error(fmt::format("Too many geometries with identical name '{}'",
+                                 result));
+        return {};
+      }
+      std::string guess = fmt::format("{}_{}", result, i);
+      if (geometry_names->count(guess) == 0) {
+        if (explicitly_named) {
+          policy.Warning(fmt::format(
+              "{} name '{}' has already been used, renaming to '{}' instead",
+              visual_or_collision, result, guess));
+        }
+        result = guess;
+        break;
+      }
     }
   }
-  policy.Error("Too many identical geometries with default names.");
-  return {};
+
+  // Success.
+  geometry_names->insert(result);
+  return result;
 }
 
 }  // namespace
@@ -467,20 +496,15 @@ std::optional<geometry::GeometryInstance> ParseVisual(
     properties.AddProperty("renderer", "accepting", std::move(accepting_names));
   }
 
-  std::string geometry_name;
-  if (!ParseStringAttribute(node, "name", &geometry_name)) {
-    geometry_name = MakeDefaultGeometryName(diagnostic.MakePolicyForNode(node),
-                                            *shape, *geometry_names,
-                                            numeric_name_suffix_limit);
-    if (geometry_name.empty()) {
-      // Error should already have been emitted.
-      return {};
-    }
+  std::optional<std::string> geometry_name =
+      ParseGeometryName("visual", diagnostic, node, *shape, geometry_names,
+                        numeric_name_suffix_limit);
+  if (!geometry_name) {
+    return {};
   }
-  geometry_names->insert(geometry_name);
 
   auto instance = geometry::GeometryInstance(T_element_to_link,
-                                             std::move(shape), geometry_name);
+                                             std::move(shape), *geometry_name);
   instance.set_illustration_properties(properties);
   return instance;
 }
@@ -703,20 +727,15 @@ std::optional<geometry::GeometryInstance> ParseCollision(
     }
   }
 
-  std::string geometry_name;
-  if (!ParseStringAttribute(node, "name", &geometry_name)) {
-    geometry_name = MakeDefaultGeometryName(diagnostic.MakePolicyForNode(node),
-                                            *shape, *geometry_names,
-                                            numeric_name_suffix_limit);
-    if (geometry_name.empty()) {
-      // Error should already have been emitted.
-      return {};
-    }
+  std::optional<std::string> geometry_name =
+      ParseGeometryName("collision", diagnostic, node, *shape, geometry_names,
+                        numeric_name_suffix_limit);
+  if (!geometry_name) {
+    return {};
   }
-  geometry_names->insert(geometry_name);
 
   geometry::GeometryInstance instance(T_element_to_link, std::move(shape),
-                                      geometry_name);
+                                      *geometry_name);
   instance.set_proximity_properties(std::move(props));
   return instance;
 }

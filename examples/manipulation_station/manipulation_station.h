@@ -55,6 +55,7 @@ enum class Setup { kNone, kManipulationClass, kClutterClearing, kPlanarIiwa };
 /// - iiwa_feedforward_torque (optional)
 /// - wsg_position
 /// - wsg_force_limit (optional)
+/// - <b style="color:orange">applied_spatial_force (optional)</b>
 /// output_ports:
 /// - iiwa_position_commanded
 /// - iiwa_position_measured
@@ -129,7 +130,7 @@ enum class Setup { kNone, kManipulationClass, kClutterClearing, kPlanarIiwa };
 /// ManipulationStation<double> station;
 /// Parser parser(&station.get_mutable_multibody_plant(),
 ///                &station.get_mutable_scene_graph());
-/// parser.AddModelFromFile("my.sdf", "my_model");
+/// parser.AddModels("my.sdf");
 /// ...
 /// // coming soon -- sugar API for adding additional objects.
 /// station.Finalize()

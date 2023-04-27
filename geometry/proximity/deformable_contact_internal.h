@@ -8,7 +8,7 @@
 #include "drake/geometry/geometry_ids.h"
 #include "drake/geometry/proximity/deformable_contact_geometries.h"
 #include "drake/geometry/proximity/volume_mesh.h"
-#include "drake/geometry/query_results/deformable_rigid_contact.h"
+#include "drake/geometry/query_results/deformable_contact.h"
 #include "drake/geometry/shape_specification.h"
 
 namespace drake {
@@ -102,11 +102,8 @@ class Geometries final : public ShapeReifier {
   /* For each registered deformable geometry, computes the contact data of it
    with respect to all registered rigid geometries. Assumes the vertex positions
    and poses of all registered deformable and rigid geometries are up to date.
-   The results are sorted according to deformable id.
-   @pre deformable_rigid_contact != nullptr. */
-  void ComputeDeformableRigidContact(
-      std::vector<DeformableRigidContact<double>>* deformable_rigid_contact)
-      const;
+  */
+  DeformableContact<double> ComputeDeformableContact() const;
 
  private:
   friend class GeometriesTester;
@@ -118,15 +115,15 @@ class Geometries final : public ShapeReifier {
     const ProximityProperties& properties;
   };
 
-  void ImplementGeometry(const Sphere& sphere, void* user_data) override;
-  void ImplementGeometry(const Cylinder& cylinder, void* user_data) override;
   void ImplementGeometry(const Box& box, void* user_data) override;
   void ImplementGeometry(const Capsule& capsule, void* user_data) override;
-  void ImplementGeometry(const Ellipsoid& ellipsoid, void* user_data) override;
-  void ImplementGeometry(const Mesh& mesh, void* user_data) override;
   void ImplementGeometry(const Convex& convex, void* user_data) override;
+  void ImplementGeometry(const Cylinder& cylinder, void* user_data) override;
+  void ImplementGeometry(const Ellipsoid& ellipsoid, void* user_data) override;
   void ImplementGeometry(const HalfSpace& half_space, void* user_data) override;
+  void ImplementGeometry(const Mesh& mesh, void* user_data) override;
   void ImplementGeometry(const MeshcatCone& cone, void* user_data) override;
+  void ImplementGeometry(const Sphere& sphere, void* user_data) override;
 
   /* Makes a rigid (non-deformable) geometry from a supported shape type using
    the given `data`. */

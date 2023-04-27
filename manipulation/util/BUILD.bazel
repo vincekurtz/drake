@@ -1,5 +1,3 @@
-# -*- python -*-
-
 load(
     "@drake//tools/skylark:drake_cc.bzl",
     "drake_cc_binary",
@@ -31,28 +29,13 @@ drake_cc_package_library(
     visibility = ["//visibility:public"],
     deps = [
         ":apply_driver_configs",
+        ":make_arm_controller_model",
         ":move_ik_demo_base",
         ":moving_average_filter",
+        ":robot_plan_interpolator",
         ":robot_plan_utils",
         ":zero_force_driver",
         ":zero_force_driver_functions",
-    ],
-)
-
-drake_py_binary(
-    name = "geometry_inspector",
-    srcs = ["geometry_inspector.py"],
-    deps = [
-        ":show_model",
-        "//bindings/pydrake",
-    ],
-)
-
-drake_py_unittest(
-    name = "geometry_inspector_test",
-    data = [
-        ":geometry_inspector",
-        "//multibody/benchmarks/acrobot:models",
     ],
 )
 
@@ -67,7 +50,7 @@ drake_cc_library(
     deps = [
         ":robot_plan_utils",
         "//lcmtypes:robot_plan",
-        "//manipulation/planner:constraint_relaxing_ik",
+        "//multibody/inverse_kinematics:constraint_relaxing_ik",
         "//multibody/parsing",
         "//multibody/plant",
     ],
@@ -125,13 +108,34 @@ drake_cc_library(
     ],
 )
 
+drake_cc_library(
+    name = "make_arm_controller_model",
+    srcs = ["make_arm_controller_model.cc"],
+    hdrs = ["make_arm_controller_model.h"],
+    deps = [
+        "//math:geometric_transform",
+        "//multibody/parsing",
+        "//multibody/plant",
+    ],
+)
+
+drake_cc_library(
+    name = "robot_plan_interpolator",
+    srcs = ["robot_plan_interpolator.cc"],
+    hdrs = ["robot_plan_interpolator.h"],
+    deps = [
+        "//common/trajectories:piecewise_polynomial",
+        "//lcmtypes:robot_plan",
+        "//multibody/parsing",
+        "//systems/framework:leaf_system",
+    ],
+)
+
 drake_py_binary(
     name = "show_model",
     srcs = ["show_model.py"],
-    deps = [
-        ":module_py",
-        "//bindings/pydrake",
-    ],
+    data = ["//manipulation/models/jaco_description:models"],
+    deps = ["//bindings/pydrake"],
 )
 
 drake_py_binary(
@@ -189,12 +193,53 @@ drake_cc_googletest(
 drake_cc_googletest(
     name = "zero_force_driver_functions_test",
     data = [
-        "//manipulation/models/wsg_50_description:prod_models",
+        "//manipulation/models/wsg_50_description:models",
     ],
     deps = [
         ":zero_force_driver_functions",
         "//multibody/parsing",
         "//systems/analysis:simulator",
+    ],
+)
+
+drake_cc_googletest(
+    name = "make_arm_controller_model_test",
+    data = [
+        ":test/iiwa7_wsg.dmd.yaml",
+        "//manipulation/models/iiwa_description:models",
+        "//manipulation/models/wsg_50_description:models",
+    ],
+    deps = [
+        ":make_arm_controller_model",
+        "//common:find_resource",
+        "//common/test_utilities:eigen_matrix_compare",
+        "//math:geometric_transform",
+        "//multibody/parsing:parser",
+        "//multibody/parsing:process_model_directives",
+        "//multibody/plant",
+        "//systems/framework:diagram_builder",
+        "//systems/primitives:shared_pointer_system",
+    ],
+)
+
+drake_cc_googletest(
+    name = "robot_plan_interpolator_test",
+    data = [
+        "//examples/kuka_iiwa_arm:models",
+        "//manipulation/models/iiwa_description:models",
+    ],
+    deps = [
+        ":robot_plan_interpolator",
+        "//common:find_resource",
+        "//systems/framework",
+    ],
+)
+
+filegroup(
+    name = "test_directives",
+    testonly = True,
+    srcs = [
+        ":test/iiwa7_wsg.dmd.yaml",
     ],
 )
 
@@ -204,16 +249,6 @@ filegroup(
         ":test/simple_nested_model.sdf",
         ":test/simple_world_with_two_models.sdf",
     ],
-)
-
-drake_py_unittest(
-    name = "show_model_test",
-    data = [
-        ":show_model",
-        ":test_models",
-        "//multibody/benchmarks/acrobot:models",
-    ],
-    deps = ["@bazel_tools//tools/python/runfiles"],
 )
 
 drake_py_unittest(

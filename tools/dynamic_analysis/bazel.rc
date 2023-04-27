@@ -217,7 +217,7 @@ build:ubsan_everything --test_timeout=120,600,1800,7200
 
 ### Memcheck build. ###
 build:memcheck --build_tests_only
-build:memcheck --copt -g
+build:memcheck --copt -gdwarf-4
 # https://sourceforge.net/p/valgrind/mailman/valgrind-developers/?viewmonth=201806&viewday=11&style=flat
 build:memcheck --copt -O2
 build:memcheck --copt=-DNDEBUG                # Disable third-party asserts.
@@ -231,14 +231,14 @@ build:memcheck --test_tag_filters=-gurobi,-mosek,-snopt,-lint,-no_memcheck,-no_v
 # Slowdown factor can range from 5-100.
 # See http://valgrind.org/info/about.html
 build:memcheck --test_timeout=1500,7500,22500,90000  # 25x
-test:memcheck --test_env=VALGRIND_OPTS
+build:memcheck --test_env=VALGRIND_OPTS
 
 ### Memcheck everything build. ###
 build:memcheck_everything --build_tests_only
 build:memcheck_everything --define=WITH_GUROBI=ON
 build:memcheck_everything --define=WITH_MOSEK=ON
 build:memcheck_everything --define=WITH_SNOPT=ON
-build:memcheck_everything --copt -g
+build:memcheck_everything --copt -gdwarf-4
 # https://sourceforge.net/p/valgrind/mailman/valgrind-developers/?viewmonth=201806&viewday=11&style=flat
 build:memcheck_everything --copt -O2
 build:memcheck_everything --copt=-DNDEBUG                # Disable third-party asserts.
