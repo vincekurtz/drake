@@ -97,7 +97,7 @@ drake_cc_binary(
     add_test_rule = 1,
     data = [
         ":atlas.yaml",
-        ":atlas.urdf",
+        ":models",
         "//examples/atlas:models",
     ],
     deps = [

@@ -52,22 +52,22 @@ q_guess : [1,0,0,0,
            0,0,-0.5,1.0,-0.5,0]
 
 # Cost Weights
-Qq : [1e+1,1e+1,1e+1,1e+1,          # base orientation
-      1e+0,1e+0,1e+0,               # base position
-      0e0,0e0,0e0,                  # torso
-      0e0,0e0,0e0,0e0,0e0,0e0,0e0,  # left arm
-      0e0,                          # head
-      0e0,0e0,0e0,0e0,0e0,0e0,0e0,  # right arm
-      0e0,0e0,0e0,0e0,0e0,0e0,      # left leg
-      0e0,0e0,0e0,0e0,0e0,0e0]      # right leg
-Qv : [1e1,1e1,1e1,
-      1e1,1e1,1e1,
-      1e1,1e1,1e1,
-      1e1,1e1,1e1,1e1,1e1,1e1,1e1,
-      1e1,
-      1e1,1e1,1e1,1e1,1e1,1e1,1e1,
-      1e1,1e1,1e1,1e1,1e1,1e1,
-      1e1,1e1,1e1,1e1,1e1,1e1]
+Qq : [1, 1, 1, 1,          # base orientation
+      1, 1, 1,             # base position
+      0.1, 0.1, 0.1,             # torso
+      0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, # left arm
+      0.1,                   # head
+      0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, # right arm
+      0.1, 0.1, 0.1, 0.1, 0.1, 0.1,    # left leg
+      0.1, 0.1, 0.1, 0.1, 0.1, 0.1]    # right leg
+Qv : [0.1,0.1,0.1,
+      0.1,0.1,0.1,
+      0.1,0.1,0.1,
+      0.1,0.1,0.1,0.1,0.1,0.1,0.1,
+      0.1,
+      0.1,0.1,0.1,0.1,0.1,0.1,0.1,
+      0.1,0.1,0.1,0.1,0.1,0.1,
+      0.1,0.1,0.1,0.1,0.1,0.1]
 R : [1e+3,1e+3,1e+3,
      1e+3,1e+3,1e+3,
      1e0,1e0,1e0,
@@ -77,37 +77,33 @@ R : [1e+3,1e+3,1e+3,
      1e0,1e0,1e0,1e0,1e0,1e0,
      1e0,1e0,1e0,1e0,1e0,1e0]
 
-Qfq : [1e+1,1e+1,1e+1,1e+1,          # base orientation
-       1e+0,1e+0,1e+0,               # base position
-       0e0,0e0,0e0,                  # torso
-       0e0,0e0,0e0,0e0,0e0,0e0,0e0,  # left arm
-       0e0,                          # head
-       0e0,0e0,0e0,0e0,0e0,0e0,0e0,  # right arm
-       0e0,0e0,0e0,0e0,0e0,0e0,      # left leg
-       0e0,0e0,0e0,0e0,0e0,0e0]      # right leg
-Qfv : [1e-1,1e-1,1e-1,
-       1e-1,1e-1,1e-1,
-       1e-1,1e-1,1e-1,
-       1e-1,1e-1,1e-1,1e-1,1e-1,1e-1,1e-1,
-       1e-1,
-       1e-1,1e-1,1e-1,1e-1,1e-1,1e-1,1e-1,
-       1e-1,1e-1,1e-1,1e-1,1e-1,1e-1,
-       1e-1,1e-1,1e-1,1e-1,1e-1,1e-1]
+Qfq : [1, 1, 1, 1,          # base orientation
+       1, 1, 1,               # base position
+       0.1,0.1,0.1,                  # torso
+       0.1,0.1,0.1,0.1,0.1,0.1,0.1,  # left arm
+       0.1,                          # head
+       0.1,0.1,0.1,0.1,0.1,0.1,0.1,  # right arm
+       0.1,0.1,0.1,0.1,0.1,0.1,      # left leg
+       0.1,0.1,0.1,0.1,0.1,0.1]      # right leg
+Qfv : [0.1,0.1,0.1,
+       0.1,0.1,0.1,
+       0.1,0.1,0.1,
+       0.1,0.1,0.1,0.1,0.1,0.1,0.1,
+       0.1,
+       0.1,0.1,0.1,0.1,0.1,0.1,0.1,
+       0.1,0.1,0.1,0.1,0.1,0.1,
+       0.1,0.1,0.1,0.1,0.1,0.1]
 
 # Problem definition parameters
-time_step : 0.05    # Discretization timestep (seconds)
-num_steps : 40      # number of timesteps
+time_step : 0.10    # Discretization timestep (seconds)
+num_steps : 20      # number of timesteps
 
 # Solver parameters
-max_iters : 500           # maximum Gauss-Newton iterations
+max_iters : 100           # maximum Gauss-Newton iterations
 method : "trust_region"     # solver method, {linesearch, trust_region}
-tolerances:
-  rel_cost_reduction: 1e-6
-  abs_cost_reduction: 1e-12
-  rel_gradient_along_dq: 1e-6
-  abs_gradient_along_dq: 1e-12
-  rel_state_change: 1e-6
-  abs_state_change: 1e-12
+scaling : true
+equality_constraints : false
+num_threads : 4
 
 # Method used to compute gradients of inverse dynamics, one of
 # {forward_differences, central_differences, central_differences4, autodiff}
@@ -124,12 +120,37 @@ print_debug_data : false
 save_solver_stats_csv : true
 
 # Contact model parameters
-F : 100.0       # force at delta meters of penetration
+F : 10.0       # force at delta meters of penetration
 delta : 0.01  # penetration distance with F newtons of normal force
-stiffness_exponent : 2      # Compliant law exponent.
-dissipation_exponent : 1.0  # Hunt & Crossley-like model. Law exponent.
 dissipation_velocity : 0.01  # Hunt & Crossley-like model parameter, in m/s.
+smoothing_factor : 10.0
+force_at_a_distance : true
 
 # Friction
 friction_coefficient : 1.0  # Coefficient of friction.
 stiction_velocity: 0.01     # Regularization velocity, in m/s.
+
+# MPC parameters
+mpc : true
+mpc_iters : 1
+controller_frequency : 0.1
+sim_time : 2.0
+sim_time_step : 1e-4
+sim_realtime_rate : 1.0
+feed_forward : true
+Kp : [0, 0, 0, 0,
+      0, 0, 0, 
+      500, 500, 500, 
+      500, 500, 500, 500, 500, 500, 500, 
+      500, 
+      500, 500, 500, 500, 500, 500, 500, 
+      500, 500, 500, 500, 500, 500, 
+      500, 500, 500, 500, 500, 500]
+Kd : [0, 0, 0, 
+      0, 0, 0, 
+      5, 5, 5, 
+      5, 5, 5, 5, 5, 5, 5, 
+      5, 
+      5, 5, 5, 5, 5, 5, 5, 
+      5, 5, 5, 5, 5, 5, 
+      5, 5, 5, 5, 5, 5]

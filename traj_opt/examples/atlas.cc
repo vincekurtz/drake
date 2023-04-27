@@ -28,7 +28,7 @@ class AtlasExample : public TrajOptExample {
 
     // Add the atlas model
     std::string urdf_file =
-        FindResourceOrThrow("drake/traj_opt/examples/atlas.urdf");
+        FindResourceOrThrow("drake/traj_opt/examples/models/atlas.urdf");
     Parser(plant).AddAllModelsFromFile(urdf_file);
 
     // Turn off gravity
@@ -40,7 +40,7 @@ class AtlasExample : public TrajOptExample {
                                   Box(25, 25, 10), "ground", green);
     plant->RegisterCollisionGeometry(plant->world_body(), X_ground,
                                      Box(25, 25, 10), "ground",
-                                     CoulombFriction<double>());
+                                     CoulombFriction<double>(1.0, 1.0));
   }
 };
 
@@ -51,6 +51,6 @@ class AtlasExample : public TrajOptExample {
 
 int main() {
   drake::traj_opt::examples::atlas::AtlasExample example;
-  example.SolveTrajectoryOptimization("drake/traj_opt/examples/atlas.yaml");
+  example.RunExample("drake/traj_opt/examples/atlas.yaml");
   return 0;
 }
