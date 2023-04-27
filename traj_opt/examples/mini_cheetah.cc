@@ -31,9 +31,9 @@ class MiniCheetahExample : public TrajOptExample {
     // Add collision with the ground
     RigidTransformd X_ground(Vector3d(0.0, 0.0, -5.0));
     plant->RegisterVisualGeometry(plant->world_body(), X_ground,
-                                  Box(25, 25, 10), "ground", green);
+                                  Box(5, 5, 10), "ground", green);
     plant->RegisterCollisionGeometry(plant->world_body(), X_ground,
-                                     Box(25, 25, 10), "ground",
+                                     Box(5, 5, 10), "ground",
                                      CoulombFriction<double>(0.5, 0.5));
   }
 };
