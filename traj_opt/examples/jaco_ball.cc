@@ -104,7 +104,7 @@ class JacoBallExample : public TrajOptExample {
     // feed-forward torques and (2) compensate for the fact that the planner's
     // contact model allows force at a distance.
     const double mass = 0.3;
-    const double radius = 0.065;
+    const double radius = 0.063;
     ModelInstanceIndex ball_idx = plant->AddModelInstance("ball");
     const SpatialInertia<double> I(mass, Vector3d::Zero(),
                                    UnitInertia<double>::SolidSphere(radius));
