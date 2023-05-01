@@ -56,7 +56,7 @@ Qfv: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0,
 
 # Problem definition parameters
 time_step : 0.05    # Discretization timestep (seconds)
-num_steps : 10      # number of timesteps
+num_steps : 20      # number of timesteps
 
 # Solver parameters
 max_iters : 0              # maximum Gauss-Newton iterations
@@ -108,8 +108,8 @@ stiction_velocity: 0.05      # Regularization velocity, in m/s.
 # MPC parameters
 mpc : true
 mpc_iters : 2
-controller_frequency : 20.0
-sim_time : 10
+controller_frequency : 15.0
+sim_time : 30
 sim_time_step : 5e-3
 sim_realtime_rate : 0.0
 feed_forward : false
