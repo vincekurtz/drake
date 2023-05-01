@@ -545,5 +545,12 @@ Later edited by hand to:
       <child>nub_link</child>
       <parent>j2s7s300_link_7</parent>
     </joint>
+    <!-- ignore self-collisions -->
+    <drake:collision_filter_group name="all">
+      <drake:member>j2s7s300_link_6</drake:member>
+      <drake:member>j2s7s300_link_7</drake:member>
+      <drake:member>nub_link</drake:member>
+      <drake:ignored_collision_filter_group>all</drake:ignored_collision_filter_group>
+    </drake:collision_filter_group>
   </model>
 </sdf>
