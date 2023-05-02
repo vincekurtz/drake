@@ -23,7 +23,7 @@ using multibody::Parser;
  */
 class MiniCheetahExample : public TrajOptExample {
   void CreatePlantModel(MultibodyPlant<double>* plant) const {
-    const Vector4<double> green(0.3, 0.6, 0.4, 0.5);
+    const Vector4<double> green(0.3, 0.6, 0.4, 1.0);
 
     // Add the robot
     std::string urdf_file = FindResourceOrThrow(
@@ -39,13 +39,17 @@ class MiniCheetahExample : public TrajOptExample {
                                      CoulombFriction<double>(0.5, 0.5));
 
     // Add some extra terrain
-    RigidTransformd X_terrain(RollPitchYawd(M_PI_2, 0, 0),
-                              Vector3d(2.0, 0.0, -0.9));
-    plant->RegisterVisualGeometry(plant->world_body(), X_terrain,
-                                  Cylinder(1, 25), "hill", green);
-    plant->RegisterCollisionGeometry(plant->world_body(), X_terrain,
-                                     Cylinder(1, 25), "hill",
-                                     CoulombFriction<double>(0.5, 0.5));
+    for (int i=0; i<2; ++i) {
+      const double px = 2.0 + static_cast<double>(i);
+      const std::string name = "hill_" + std::to_string(i);
+      const RigidTransformd X_hill(RollPitchYawd(M_PI_2, 0, 0),
+                             Vector3d(px, 0.0, -0.9));
+      plant->RegisterVisualGeometry(plant->world_body(), X_hill,
+                                    Cylinder(1, 25), name, green);
+      plant->RegisterCollisionGeometry(plant->world_body(), X_hill,
+                                       Cylinder(1, 25), name,
+                                       CoulombFriction<double>(0.5, 0.5));
+    }
   }
 };
 
