@@ -11,7 +11,9 @@ namespace mini_cheetah {
 
 using Eigen::Vector3d;
 using geometry::Box;
+using geometry::Cylinder;
 using math::RigidTransformd;
+using math::RollPitchYawd;
 using multibody::CoulombFriction;
 using multibody::MultibodyPlant;
 using multibody::Parser;
@@ -31,9 +33,18 @@ class MiniCheetahExample : public TrajOptExample {
     // Add collision with the ground
     RigidTransformd X_ground(Vector3d(0.0, 0.0, -5.0));
     plant->RegisterVisualGeometry(plant->world_body(), X_ground,
-                                  Box(5, 5, 10), "ground", green);
+                                  Box(25, 25, 10), "ground", green);
     plant->RegisterCollisionGeometry(plant->world_body(), X_ground,
-                                     Box(5, 5, 10), "ground",
+                                     Box(25, 25, 10), "ground",
+                                     CoulombFriction<double>(0.5, 0.5));
+
+    // Add some extra terrain
+    RigidTransformd X_terrain(RollPitchYawd(M_PI_2, 0, 0),
+                              Vector3d(2.0, 0.0, -0.9));
+    plant->RegisterVisualGeometry(plant->world_body(), X_terrain,
+                                  Cylinder(1, 25), "hill", green);
+    plant->RegisterCollisionGeometry(plant->world_body(), X_terrain,
+                                     Cylinder(1, 25), "hill",
                                      CoulombFriction<double>(0.5, 0.5));
   }
 };
