@@ -157,7 +157,7 @@
     <child link="spinner"/>
     <origin xyz="1.5 0 1.0"/>
     <axis xyz="0 1 0"/>
-    <dynamics damping="0.0"/>
+    <dynamics damping="0.1"/>
   </joint>
 
   <!-- Actuators for the fingers-->
