@@ -99,7 +99,7 @@ friction_coefficient : 0.5  # Coefficient of friction.
 stiction_velocity: 0.01    # Regularization velocity, in m/s.
 
 # MPC parameters
-mpc : true
+mpc : false
 mpc_iters : 2
 controller_frequency : 100
 sim_time : 15
