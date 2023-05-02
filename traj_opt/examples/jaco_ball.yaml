@@ -31,7 +31,7 @@ q_guess : [1.57, 2.0, 0.0, 4.4, 0.0, 2.4, 0.0,
 
 # Cost Weights
 Qq: [0, 0, 0, 0, 0, 0, 0,
-     1e-4, 0, 0, 0,
+     1e-3, 0, 0, 0,
      1, 1, 1]
 Qv: [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1,
      0.1, 0.1, 0.1,
@@ -41,18 +41,18 @@ R: [0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01,
     10, 10, 10]
 
 Qfq: [0, 0, 0, 0, 0, 0, 0,
-      1e-4, 0, 0, 0,
+      1e-3, 0, 0, 0,
       10, 10, 10]
-Qfv: [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1,
+Qfv: [1, 1, 1, 1, 1, 1, 1,
       0.1, 0.1, 0.1,
       0.1, 0.1, 0.1]
 
 # Problem definition parameters
-time_step : 0.1   # Discretization timestep (seconds)
-num_steps : 10    # number of timesteps
+time_step : 0.05   # Discretization timestep (seconds)
+num_steps : 10     # number of timesteps
 
 # Solver parameters
-max_iters : 0              # maximum Gauss-Newton iterations
+max_iters : 0               # maximum Gauss-Newton iterations
 method : "trust_region"     # solver method, {linesearch, trust_region}
 scaling : true
 equality_constraints : true

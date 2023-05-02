@@ -424,6 +424,39 @@ Later edited by hand to:
           <izz>1</izz>
         </inertia>
       </inertial>
+      <visual name='j2s7s300_link_7_contact_visual'>
+        <pose>0 0 0.01 0 0 0</pose>
+        <geometry>
+          <sphere>
+            <radius>0.03275</radius>
+          </sphere>
+        </geometry>
+        <material>
+          <diffuse>0 1 0 1</diffuse>
+        </material>
+      </visual>
+      <collision name='j2s7s300_link_7_contact'>
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <sphere>
+            <radius>0.03275</radius>
+          </sphere>
+        </geometry>
+        <surface>
+          <friction>
+          <ode>
+            <mu>0.5</mu>
+            <mu2>0.5</mu2>
+          </ode>
+          </friction>
+        </surface>
+        <drake:proximity_properties>
+          <drake:compliant_hydroelastic/>
+          <drake:mesh_resolution_hint>0.01</drake:mesh_resolution_hint>
+          <drake:hydroelastic_modulus>5e7</drake:hydroelastic_modulus>
+          <drake:hunt_crossley_dissipation>1.25</drake:hunt_crossley_dissipation>
+        </drake:proximity_properties>
+      </collision>
     </link>
     <joint name='j2s7s300_joint_7' type='revolute'>
       <child>j2s7s300_link_7</child>
@@ -512,5 +545,12 @@ Later edited by hand to:
       <child>nub_link</child>
       <parent>j2s7s300_link_7</parent>
     </joint>
+    <!-- ignore self-collisions -->
+    <drake:collision_filter_group name="all">
+      <drake:member>j2s7s300_link_6</drake:member>
+      <drake:member>j2s7s300_link_7</drake:member>
+      <drake:member>nub_link</drake:member>
+      <drake:ignored_collision_filter_group>all</drake:ignored_collision_filter_group>
+    </drake:collision_filter_group>
   </model>
 </sdf>
