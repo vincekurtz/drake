@@ -39,11 +39,11 @@ class MiniCheetahExample : public TrajOptExample {
                                      CoulombFriction<double>(0.5, 0.5));
 
     // Add some extra terrain
-    for (int i=0; i<2; ++i) {
+    for (int i = 0; i < 2; ++i) {
       const double px = 2.0 + static_cast<double>(i);
       const std::string name = "hill_" + std::to_string(i);
       const RigidTransformd X_hill(RollPitchYawd(M_PI_2, 0, 0),
-                             Vector3d(px, 0.0, -0.9));
+                                   Vector3d(px, 0.0, -0.9));
       plant->RegisterVisualGeometry(plant->world_body(), X_hill,
                                     Cylinder(1, 25), name, green);
       plant->RegisterCollisionGeometry(plant->world_body(), X_hill,
