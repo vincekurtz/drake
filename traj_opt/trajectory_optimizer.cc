@@ -317,7 +317,7 @@ void TrajectoryOptimizer<T>::CalcContactForceContribution(
   if (params_.force_at_a_distance) {
     const double k = F / delta;
     const double eps = sqrt(std::numeric_limits<double>::epsilon());
-    threshold = -sigma / k * log(exp(eps/sigma) - 1.0);
+    threshold = -sigma / k * log(exp(eps / sigma) - 1.0);
   }
 
   // Get signed distance pairs
@@ -671,9 +671,9 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsFiniteDiff(
 
   // Allocate small perturbations to q, v, and a at each time step
   const double eps = sqrt(std::numeric_limits<double>::epsilon());
-  std::vector<T> dq_is(num_steps()+1);
-  std::vector<T> dv_is(num_steps()+1);
-  std::vector<T> da_is(num_steps()+1);
+  std::vector<T> dq_is(num_steps() + 1);
+  std::vector<T> dv_is(num_steps() + 1);
+  std::vector<T> da_is(num_steps() + 1);
 
 #if defined(_OPENMP)
 #pragma omp parallel for num_threads(params_.num_threads)
@@ -717,7 +717,7 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsFiniteDiff(
       a_eps_t = a[t];
     }
     a_eps_tm = a[t - 1];
-      
+
     // Get a context for this time step
     Context<T>& context_t = GetMutablePlantContext(state, t);
 
@@ -780,7 +780,7 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsFiniteDiff(
       plant().SetPositions(&context_t, q[t + 2]);
       plant().SetVelocities(&context_t, v[t + 2]);
       plant().CalcMassMatrix(context_t, &M);
-      dtau_dqm[t+1] = 1 / time_step() / time_step() * M * Nplus[t+1];
+      dtau_dqm[t + 1] = 1 / time_step() / time_step() * M * Nplus[t + 1];
     }
   }
 }
