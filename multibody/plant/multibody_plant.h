@@ -17,7 +17,6 @@
 #include "drake/common/default_scalars.h"
 #include "drake/common/nice_type_name.h"
 #include "drake/common/random.h"
-#include "drake/common/scope_exit.h"
 #include "drake/geometry/scene_graph.h"
 #include "drake/math/rigid_transform.h"
 #include "drake/multibody/contact_solvers/contact_solver_results.h"
@@ -883,8 +882,6 @@ class MultibodyPlant : public internal::MultibodyTreeSystem<T> {
     visual_geometries_.emplace_back();
     DRAKE_DEMAND(collision_geometries_.size() == body.index());
     collision_geometries_.emplace_back();
-    DRAKE_DEMAND(X_WB_default_list_.size() == body.index());
-    X_WB_default_list_.emplace_back();
     RegisterRigidBodyWithSceneGraph(body);
     return body;
   }
@@ -2338,17 +2335,13 @@ class MultibodyPlant : public internal::MultibodyTreeSystem<T> {
     this->ValidateContext(context);
     this->ValidateCreatedForThisSystem(state);
     internal_tree().SetDefaultState(context, state);
-    for (const BodyIndex& index : GetFloatingBaseBodies()) {
-      SetFreeBodyPose(
-          context, state, internal_tree().get_body(index),
-          X_WB_default_list_[index].template cast<T>());
-    }
   }
 
   /// Assigns random values to all elements of the state, by drawing samples
   /// independently for each joint/free body (coming soon: and then
   /// solving a mathematical program to "project" these samples onto the
-  /// registered system constraints).
+  /// registered system constraints). If a random distribution is not specified
+  /// for a joint/free body, the default state is used.
   ///
   /// @see @ref stochastic_systems
   void SetRandomState(const systems::Context<T>& context,
@@ -2658,23 +2651,25 @@ class MultibodyPlant : public internal::MultibodyTreeSystem<T> {
   }
 
   /// Sets the default pose of `body`. If `body.is_floating()` is true, this
-  /// will affect subsequent calls to SetDefaultState(); otherwise, this value
-  /// is effectively ignored.
+  /// will affect subsequent calls to SetDefaultState(); otherwise, the only
+  /// effect of the call is that the value will be echoed back in
+  /// GetDefaultFreeBodyPose().
   /// @param[in] body
   ///   Body whose default pose will be set.
   /// @param[in] X_WB
   ///   Default pose of the body.
-  void SetDefaultFreeBodyPose(
-      const Body<T>& body, const math::RigidTransform<double>& X_WB) {
-    X_WB_default_list_[body.index()] = X_WB;
+  void SetDefaultFreeBodyPose(const Body<T>& body,
+                              const math::RigidTransform<double>& X_WB) {
+    this->mutable_tree().SetDefaultFreeBodyPose(body, X_WB);
   }
 
-  /// Gets the default pose of `body` as set by SetDefaultFreeBodyPose().
+  /// Gets the default pose of `body` as set by SetDefaultFreeBodyPose(). If no
+  /// pose is specified for the body, returns the identity pose.
   /// @param[in] body
   ///   Body whose default pose will be retrieved.
-  const math::RigidTransform<double>& GetDefaultFreeBodyPose(
+  math::RigidTransform<double> GetDefaultFreeBodyPose(
       const Body<T>& body) const {
-    return X_WB_default_list_.at(body.index());
+    return internal_tree().GetDefaultFreeBodyPose(body);
   }
 
   /// Sets `context` to store the spatial velocity `V_WB` of a given `body` B in
@@ -4686,7 +4681,6 @@ class MultibodyPlant : public internal::MultibodyTreeSystem<T> {
     systems::CacheIndex spatial_contact_forces_continuous;
     systems::CacheIndex discrete_contact_pairs;
     systems::CacheIndex joint_locking_data;
-    systems::CacheIndex non_contact_forces_evaluation_in_progress;
   };
 
   // Constructor to bridge testing from MultibodyTree to MultibodyPlant.
@@ -4824,20 +4818,6 @@ class MultibodyPlant : public internal::MultibodyTreeSystem<T> {
   void CalcNonContactForces(const drake::systems::Context<T>& context,
                             bool discrete,
                             MultibodyForces<T>* forces) const;
-
-  // Due to issue #12786, we cannot mark the calculation of non-contact forces
-  // (and the acceleration it induces) dependent on the MultibodyPlant's inputs,
-  // as it should. However, by removing this dependency, we run the risk of an
-  // undetected algebraic loop. We use this function to guard against such
-  // algebraic loop. In particular, calling this function immediately upon
-  // entering the calculation of non-contact forces sets a flag indicating the
-  // calculation of non-contact forces is in progress. Then, this function
-  // returns a ScopeExit which turns off the flag when going out of scope at the
-  // end of the non-contact forces calculation. If this function is called again
-  // while the flag is on, it means that an algebraic loop exists and an
-  // exception is thrown.
-  [[nodiscard]] ScopeExit ThrowIfNonContactForceInProgress(
-      const systems::Context<T>& context) const;
 
   // Collects up forces from input ports (actuator, generalized, and spatial
   // forces) and contact forces (from compliant contact models). Does not
@@ -5383,10 +5363,6 @@ class MultibodyPlant : public internal::MultibodyTreeSystem<T> {
 
   // All MultibodyPlant cache indexes are stored in cache_indexes_.
   CacheIndexes cache_indexes_;
-
-  // Vector (with size num_bodies()) of default poses for each body. This is
-  // only used if Body::is_floating() is true.
-  std::vector<math::RigidTransform<double>> X_WB_default_list_;
 
   // Whether to apply collsion filters to adjacent bodies at Finalize().
   bool adjacent_bodies_collision_filters_{

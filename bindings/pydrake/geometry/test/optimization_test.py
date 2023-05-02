@@ -378,6 +378,7 @@ class TestGeometryOptimization(unittest.TestCase):
         options.termination_threshold = 0.1
         options.relative_termination_threshold = 0.01
         options.random_seed = 1314
+        options.starting_ellipse = mut.Hyperellipsoid.MakeUnitBall(3)
         self.assertNotIn("object at 0x", repr(options))
         region = mut.Iris(
             obstacles=obstacles, sample=[2, 3.4, 5],
@@ -450,8 +451,12 @@ class TestGeometryOptimization(unittest.TestCase):
         options.solver = ClpSolver()
         options.solver_options = SolverOptions()
         options.solver_options.SetOption(ClpSolver.id(), "scaling", 2)
+        options.rounding_solver_options = SolverOptions()
+        options.rounding_solver_options.SetOption(ClpSolver.id(), "dual", 0)
         self.assertIn("scaling",
                       options.solver_options.GetOptions(ClpSolver.id()))
+        self.assertIn(
+            "dual", options.rounding_solver_options.GetOptions(ClpSolver.id()))
         self.assertIn("convex_relaxation", repr(options))
 
         spp = mut.GraphOfConvexSets()

@@ -287,7 +287,6 @@ MultibodyPlant<T>::MultibodyPlant(
   // it less brittle.
   visual_geometries_.emplace_back();  // Entries for the "world" body.
   collision_geometries_.emplace_back();
-  X_WB_default_list_.emplace_back();
   // Add the world body to the graph.
   multibody_graph_.AddBody(world_body().name(), world_body().model_instance());
   DeclareSceneGraphPorts();
@@ -396,7 +395,6 @@ MultibodyPlant<T>::MultibodyPlant(const MultibodyPlant<U>& other)
 
     // cache_indexes_ is set in DeclareCacheEntries() in
     // DeclareStateCacheAndPorts() in FinalizePlantOnly().
-    X_WB_default_list_ = other.X_WB_default_list_;
 
     adjacent_bodies_collision_filters_ =
         other.adjacent_bodies_collision_filters_;
@@ -1341,20 +1339,6 @@ void MultibodyPlant<T>::SetDefaultPositions(
     joint.set_default_positions(
         q.segment(joint.position_start(), joint.num_positions()));
   }
-  for (BodyIndex i : GetFloatingBaseBodies()) {
-    const Body<T>& body = get_body(i);
-    RigidTransform<double> X_WB;
-    const int pos = body.floating_positions_start();
-    if (body.has_quaternion_dofs()) {
-      X_WB = RigidTransform<double>(
-          Eigen::Quaternion<double>(q[pos], q[pos + 1], q[pos + 2], q[pos + 3]),
-          q.segment(pos + 4, 3));
-    } else {
-      X_WB = RigidTransform<double>(
-          math::RollPitchYaw<double>(q.segment(pos, 3)), q.segment(pos + 3, 3));
-    }
-    SetDefaultFreeBodyPose(body, X_WB);
-  }
 }
 
 template <typename T>
@@ -1370,21 +1354,6 @@ void MultibodyPlant<T>::SetDefaultPositions(ModelInstanceIndex model_instance,
     Joint<T>& joint = get_mutable_joint(i);
     joint.set_default_positions(
         q.segment(joint.position_start(), joint.num_positions()));
-  }
-  for (BodyIndex i : GetBodyIndices(model_instance)) {
-    const Body<T>& body = get_body(i);
-    if (!body.is_floating()) continue;
-    RigidTransform<double> X_WB;
-    const int pos = body.floating_positions_start();
-    if (body.has_quaternion_dofs()) {
-      X_WB = RigidTransform<double>(
-          Eigen::Quaternion<double>(q[pos], q[pos + 1], q[pos + 2], q[pos + 3]),
-          q.segment(pos + 4, 3));
-    } else {
-      X_WB = RigidTransform<double>(
-          math::RollPitchYaw<double>(q.segment(pos, 3)), q.segment(pos + 3, 3));
-    }
-    SetDefaultFreeBodyPose(body, X_WB);
   }
 }
 
@@ -2473,60 +2442,23 @@ void MultibodyPlant<T>::CalcNonContactForces(
   this->ValidateContext(context);
   DRAKE_DEMAND(forces != nullptr);
   DRAKE_DEMAND(forces->CheckHasRightSizeForModel(*this));
-
-  const ScopeExit guard = ThrowIfNonContactForceInProgress(context);
-
-  // Compute forces applied through force elements. Note that this resets
-  // forces to empty so must come first.
-  CalcForceElementsContribution(context, forces);
-
-  AddInForcesFromInputPorts(context, forces);
-
-  // Only discrete models support joint limits.
   if (discrete) {
-    AddJointLimitsPenaltyForces(context, forces);
+    discrete_update_manager_->CalcNonContactForces(
+        context, /* include joint limit penalty forces */ true, forces);
+    return;
   } else {
+    // Compute forces applied through force elements. Note that this resets
+    // forces to empty so must come first.
+    CalcForceElementsContribution(context, forces);
+    AddInForcesFromInputPorts(context, forces);
+    // Only discrete models support joint limits. We log a warning if joint
+    // limits are set.
     auto& warning = joint_limits_parameters_.pending_warning_message;
     if (!warning.empty()) {
       drake::log()->warn(warning);
       warning.clear();
     }
   }
-}
-template <typename T>
-ScopeExit MultibodyPlant<T>::ThrowIfNonContactForceInProgress(
-    const systems::Context<T>& context) const {
-  // To overcame issue #12786, we use this additional cache entry
-  // to detect algebraic loops.
-  systems::CacheEntryValue& value =
-      this->get_cache_entry(
-              cache_indexes_.non_contact_forces_evaluation_in_progress)
-          .get_mutable_cache_entry_value(context);
-  bool& evaluation_in_progress = value.GetMutableValueOrThrow<bool>();
-  if (evaluation_in_progress) {
-    const char* error_message =
-        "Algebraic loop detected. This situation is caused when connecting "
-        "the input of your MultibodyPlant to the output of a feedback system "
-        "which is an algebraic function of a feedthrough output of the "
-        "plant. Ways to remedy this: 1. Revisit the model for your feedback "
-        "system. Consider if its output can be written in terms of other "
-        "inputs. 2. Break the algebraic loop by adding state to the "
-        "controller, typically to 'remember' a previous input. 3. Break the "
-        "algebraic loop by adding a zero-order hold system between the "
-        "output of the plant and your feedback system. This effectively "
-        "delays the input signal to the controller.";
-    throw std::runtime_error(error_message);
-  }
-  // Mark the start of the computation. If within an algebraic
-  // loop, pulling from the plant's input ports during the
-  // computation will trigger the recursive evaluation of this
-  // method and the exception above will be thrown.
-  evaluation_in_progress = true;
-  // If the exception above is triggered, we will leave this method and the
-  // computation will no longer be "in progress". We use a scoped guard so
-  // that we have a chance to mark it as such when we leave this scope.
-  return ScopeExit(
-      [&evaluation_in_progress]() { evaluation_in_progress = false; });
 }
 
 template <typename T>
@@ -2819,17 +2751,6 @@ void MultibodyPlant<T>::DeclareStateCacheAndPorts() {
                                   &MultibodyPlant<T>::CopyContactResultsOutput,
                                   {contact_results_cache_entry.ticket()})
                               .get_index();
-
-  // See ThrowIfNonContactForceInProgress().
-  const auto& non_contact_forces_evaluation_in_progress =
-      this->DeclareCacheEntry(
-          "Evaluation of non-contact forces and accelerations is in progress.",
-          // N.B. This flag is set to true only when the computation is in
-          // progress. Therefore its default value is `false`.
-          systems::ValueProducer(false, &systems::ValueProducer::NoopCalc),
-          {systems::System<T>::nothing_ticket()});
-  cache_indexes_.non_contact_forces_evaluation_in_progress =
-      non_contact_forces_evaluation_in_progress.cache_index();
 
   // Let external model managers declare their state, cache and ports in
   // `this` MultibodyPlant.
