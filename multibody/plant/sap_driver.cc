@@ -23,6 +23,7 @@ using drake::math::RotationMatrix;
 using drake::multibody::contact_solvers::internal::ContactSolverResults;
 using drake::multibody::contact_solvers::internal::ExtractNormal;
 using drake::multibody::contact_solvers::internal::ExtractTangent;
+using drake::multibody::contact_solvers::internal::MatrixBlock;
 using drake::multibody::contact_solvers::internal::SapConstraint;
 using drake::multibody::contact_solvers::internal::SapContactProblem;
 using drake::multibody::contact_solvers::internal::SapFrictionConeConstraint;
@@ -37,8 +38,11 @@ namespace multibody {
 namespace internal {
 
 template <typename T>
-SapDriver<T>::SapDriver(const CompliantContactManager<T>* manager)
-    : manager_(manager) {
+SapDriver<T>::SapDriver(const CompliantContactManager<T>* manager,
+                        double near_rigid_threshold)
+    : manager_(manager), near_rigid_threshold_(near_rigid_threshold) {
+  DRAKE_DEMAND(manager != nullptr);
+  DRAKE_DEMAND(near_rigid_threshold >= 0.0);
   // Collect joint damping coefficients into a vector.
   joint_damping_ = VectorX<T>::Zero(plant().num_velocities());
   for (JointIndex j(0); j < plant().num_joints(); ++j) {
@@ -128,7 +132,9 @@ void SapDriver<T>::CalcFreeMotionVelocities(const systems::Context<T>& context,
   // TODO(amcastro-tri): Implement free-motion velocities update based on the
   // theta-method, as in the SAP paper.
   const VectorX<T>& vdot0 =
-      manager().EvalAccelerationsDueToNonContactForcesCache(context).get_vdot();
+      manager()
+          .EvalAccelerationsDueToNonConstraintForcesCache(context)
+          .get_vdot();
   const double dt = this->plant().time_step();
   const VectorX<T>& x0 =
       context.get_discrete_state(manager().multibody_state_index()).value();
@@ -159,7 +165,6 @@ std::vector<RotationMatrix<T>> SapDriver<T>::AddContactConstraints(
   // Parameters used by SAP to estimate regularization, see [Castro et al.,
   // 2021].
   // TODO(amcastro-tri): consider exposing these parameters.
-  constexpr double beta = 1.0;
   constexpr double sigma = 1.0e-3;
 
   const std::vector<DiscreteContactPair<T>>& contact_pairs =
@@ -183,6 +188,14 @@ std::vector<RotationMatrix<T>> SapDriver<T>::AddContactConstraints(
     const T phi = contact_kinematics[icontact].phi;
     const auto& jacobian_blocks = contact_kinematics[icontact].jacobian;
 
+    // Stiffness equal to infinity is used to indicate a rigid contact. Since
+    // SAP is inherently compliant, we must use the "near rigid regime"
+    // approximation, with near rigid parameter equal to 1.0.
+    // TODO(amcastrot-tri): This is mostly for deformables, consider exposing
+    // this parameter.
+    const double beta = (stiffness == std::numeric_limits<double>::infinity())
+                            ? 1.0
+                            : near_rigid_threshold_;
     const typename SapFrictionConeConstraint<T>::Parameters parameters{
         friction, stiffness, dissipation_time_scale, beta, sigma};
 
@@ -621,17 +634,21 @@ void SapDriver<T>::PackContactSolverResults(
   for (int i = 0; i < num_contacts; ++i) {
     const SapConstraint<T>& c = problem.get_constraint(i);
     {
-      const MatrixX<T>& Jic = c.first_clique_jacobian();
+      const MatrixBlock<T>& Jic = c.first_clique_jacobian();
       const auto impulse = contact_impulses.template segment<3>(3 * i);
-      AddCliqueContribution(context, c.first_clique(),
-                            Jic.transpose() * impulse, &tau_contact);
+      VectorX<T> tau_clique = VectorX<T>::Zero(Jic.cols());
+      Jic.TransposeAndMultiplyAndAddTo(impulse, &tau_clique);
+      AddCliqueContribution(context, c.first_clique(), tau_clique,
+                            &tau_contact);
     }
 
     if (c.num_cliques() == 2) {
-      const MatrixX<T>& Jic = c.second_clique_jacobian();
+      const MatrixBlock<T>& Jic = c.second_clique_jacobian();
       const auto impulse = contact_impulses.template segment<3>(3 * i);
-      AddCliqueContribution(context, c.second_clique(),
-                            Jic.transpose() * impulse, &tau_contact);
+      VectorX<T> tau_clique = VectorX<T>::Zero(Jic.cols());
+      Jic.TransposeAndMultiplyAndAddTo(impulse, &tau_clique);
+      AddCliqueContribution(context, c.second_clique(), tau_clique,
+                            &tau_contact);
     }
   }
   tau_contact /= time_step;
@@ -710,7 +727,10 @@ void SapDriver<T>::CalcContactSolverResults(
         "     extremely large mass ratios. Revise your model and consider "
         "     whether very small objects can be removed or welded to larger "
         "     objects in the model."
-        "  4. Some other cause. You may want to use Stack Overflow (#drake "
+        "  4. Ill-conditioning could be alleviated via SAP's near rigid "
+        "     parameter. Refer to "
+        "     MultibodyPlant::set_sap_near_rigid_threshold() for details."
+        "  5. Some other cause. You may want to use Stack Overflow (#drake "
         "     tag) to request some assistance.",
         context.get_time());
     throw std::runtime_error(msg);

@@ -458,6 +458,7 @@ GTEST_TEST(TrajectoryOptimizerTest, PendulumSwingup) {
   SolverParameters solver_params;
   solver_params.max_iterations = 20;
   solver_params.verbose = false;
+  solver_params.check_convergence = true;
   solver_params.convergence_tolerances.rel_cost_reduction = 1e-5;
   TrajectoryOptimizer<double> optimizer(diagram.get(), &plant, opt_prob,
                                         solver_params);
@@ -1236,9 +1237,12 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcCost) {
   const double dt = 1e-2;
 
   // Set up an (empty) system model
-  MultibodyPlant<double> plant(dt);
+  DiagramBuilder<double> builder;
+  MultibodyPlantConfig config;
+  config.time_step = dt;
+  auto [plant, scene_graph] = multibody::AddMultibodyPlant(config, &builder);
   plant.Finalize();
-  auto context = plant.CreateDefaultContext();
+  auto diagram = builder.Build();
 
   // Set up the optimization problem
   ProblemDefinition opt_prob;
@@ -1268,7 +1272,7 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcCost) {
   v.push_back(Vector2d(-0.1, 0.0));
 
   // Compute the cost and compare with the true value
-  TrajectoryOptimizer<double> optimizer(&plant, context.get(), opt_prob);
+  TrajectoryOptimizer<double> optimizer(diagram.get(), &plant, opt_prob);
   TrajectoryOptimizerWorkspace<double> workspace(num_steps, plant);
   double L =
       TrajectoryOptimizerTester::CalcCost(optimizer, q, v, tau, &workspace);
@@ -1370,17 +1374,22 @@ GTEST_TEST(TrajectoryOptimizerTest, CalcVelocities) {
   const int num_steps = 5;
   const double dt = 1e-2;
 
-  // Create a TrajectoryOptimizer object
-  MultibodyPlant<double> plant(dt);
+  // Create an empty plant model
+  DiagramBuilder<double> builder;
+  MultibodyPlantConfig config;
+  config.time_step = dt;
+  auto [plant, scene_graph] = multibody::AddMultibodyPlant(config, &builder);
   plant.Finalize();
-  auto context = plant.CreateDefaultContext();
+  auto diagram = builder.Build();
+
+  // Create a TrajectoryOptimizer object
   ProblemDefinition opt_prob;
   opt_prob.q_init = Vector2d(0.1, 0.2);
   opt_prob.v_init = Vector2d(0.5 / dt, 1.5 / dt);
   opt_prob.num_steps = num_steps;
   opt_prob.q_nom.resize(num_steps + 1);
   opt_prob.v_nom.resize(num_steps + 1);
-  TrajectoryOptimizer<double> optimizer(&plant, context.get(), opt_prob);
+  TrajectoryOptimizer<double> optimizer(diagram.get(), &plant, opt_prob);
 
   // Construct a std::vector of generalized positions (q)
   // where q(t) = [0.1 + 0.5*t]

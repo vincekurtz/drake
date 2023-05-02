@@ -159,11 +159,6 @@ class QueryObject {
   /** Reports the position of the frame indicated by `frame_id` relative to its
    parent frame. If the frame was registered with the world frame as its parent
    frame, this value will be identical to that returned by GetPoseInWorld().
-   <!-- 2023-04-01 Remove this note when we're done deprecating
-    SGI::GetPoseInParent(). -->
-   @note This is analogous to but distinct from
-   SceneGraphInspector::GetPoseInParent(). In this case, the pose will *always*
-   be relative to another frame.
    @throws std::exception if the frame `frame_id` is not valid.  */
   const math::RigidTransform<T>& GetPoseInParent(FrameId frame_id) const;
 
@@ -267,9 +262,9 @@ class QueryObject {
    | Convex    | throwsᵉ | throwsᵉ  | throwsᵉ |  ░░░░░░░  |   ░░░░░░   |   ░░░░░░   |  ░░░░░  |  ░░░░░  |
    | Cylinder  | throwsᵉ | throwsᵉ  | throwsᵉ |  throwsᵉ  |   ░░░░░░   |   ░░░░░░   |  ░░░░░  |  ░░░░░  |
    | Ellipsoid | throwsᵉ | throwsᵉ  | throwsᵉ |  throwsᵉ  |   throwsᵉ  |   ░░░░░░   |  ░░░░░  |  ░░░░░  |
-   | HalfSpace | throwsᵉ | throwsᵉ  | throwsᵉ |  throwsᵉ  |   throwsᵉ  |   throwsᵉ  |  ░░░░░  |  ░░░░░  |
+   | HalfSpace | throwsᵉ | throwsᵉ  | throwsᵉ |  throwsᵉ  |   throwsᵉ  |   throwsᵃ  |  ░░░░░  |  ░░░░░  |
    | Mesh      |    ᵇ    |    ᵇ     |    ᵇ    |     ᵇ     |      ᵇ     |     ᵇ      |    ᵇ    |  ░░░░░  |
-   | Sphere    | throwsᵉ | throwsᵉ  | throwsᵉ |  throwsᵉ  |   throwsᵉ  |    throwsᵉ  |    ᵇ    | throwsᵉ |
+   | Sphere    | throwsᵉ | throwsᵉ  | throwsᵉ |  throwsᵉ  |   throwsᵉ  |   throwsᵉ  |    ᵇ    | throwsᵉ |
    __*Table 3*__: Support for `T` = @ref drake::symbolic::Expression.
 
    - ᵃ Penetration depth between two HalfSpace instances has no meaning; either
@@ -545,7 +540,7 @@ class QueryObject {
    | Cylinder  | throwsᵇ |  throwsᵇ | throwsᵇ |  throwsᵇ  |   ░░░░░░   |   ░░░░░░   |  ░░░░░  |  ░░░░░  |
    | Ellipsoid | throwsᵇ |  throwsᵇ | throwsᵇ |  throwsᵇ  |  throwsᵇ   |   ░░░░░░   |  ░░░░░  |  ░░░░░  |
    | HalfSpace | throwsᵃ |  throwsᵃ | throwsᵃ |  throwsᵃ  |  throwsᵃ   |   throwsᵃ  |  ░░░░░  |  ░░░░░  |
-   | Mesh      |    ᶜ    |    ᶜ     |    ᶜ    |     ᶜ     |      ᶜ     |      ᵃ     |    ᶜ    |  ░░░░░  |
+   | Mesh      |    ᶜ    |    ᶜ     |    ᶜ    |     ᶜ     |      ᶜ     |   throwsᵃ  |    ᶜ    |  ░░░░░  |
    | Sphere    |  2e-15  |  throwsᵇ | throwsᵇ |  throwsᵇ  |  throwsᵇ   |    2e-15   |    ᶜ    |  5e-15  |
    __*Table 5*__: Worst observed error (in m) for 2mm penetration/separation
    between geometries approximately 20cm in size for `T` =
@@ -558,9 +553,9 @@ class QueryObject {
    | Convex    | throwsᵈ | throwsᵈ  | throwsᵈ |  ░░░░░░░  |   ░░░░░░   |   ░░░░░░   |  ░░░░░  |  ░░░░░  |
    | Cylinder  | throwsᵈ | throwsᵈ  | throwsᵈ |  throwsᵈ  |   ░░░░░░   |   ░░░░░░   |  ░░░░░  |  ░░░░░  |
    | Ellipsoid | throwsᵈ | throwsᵈ  | throwsᵈ |  throwsᵈ  |   throwsᵈ  |   ░░░░░░   |  ░░░░░  |  ░░░░░  |
-   | HalfSpace | throwsᵈ | throwsᵈ  | throwsᵈ |  throwsᵈ  |   throwsᵈ  |   throwsᵈ  |  ░░░░░  |  ░░░░░  |
-   | Mesh      |    ᵇ    |    ᵇ     |    ᵇ    |     ᵇ     |      ᵇ     |     ᵇ      |    ᵇ    |  ░░░░░  |
-   | Sphere    | throwsᵈ | throwsᵈ  | throwsᵈ |  throwsᵈ  |   throwsᵈ  |    throwsᵈ  |    ᵇ    | throwsᵈ |
+   | HalfSpace | throwsᵃ | throwsᵃ  | throwsᵃ |  throwsᵃ  |   throwsᵃ  |   throwsᵃ  |  ░░░░░  |  ░░░░░  |
+   | Mesh      |    ᶜ    |    ᶜ     |    ᶜ    |     ᶜ     |      ᶜ     |   throwsᵃ  |    ᶜ    |  ░░░░░  |
+   | Sphere    | throwsᵈ | throwsᵈ  | throwsᵈ |  throwsᵈ  |   throwsᵈ  |   throwsᵈ  |    ᶜ    | throwsᵈ |
    __*Table 6*__: Support for `T` = @ref drake::symbolic::Expression.
 
    - ᵃ We don't currently support queries between HalfSpace and any other shape
@@ -600,6 +595,11 @@ class QueryObject {
    indicated by id. This function has the same restrictions on scalar report
    as ComputeSignedDistancePairwiseClosestPoints().
 
+   @note This query is unique among the distance queries in that it doesn't
+   respect collision filters. As long as the geometry ids refer to geometries
+   with proximity roles, signed distance can be computed (subject to supported
+   scalar tables above).
+
    <h3>Characterizing the returned values</h3>
 
    This method merely exercises the same mechanisms as
@@ -609,11 +609,10 @@ class QueryObject {
 
    @throws std::exception if either geometry id is invalid (e.g., doesn't refer
                           to an existing geometry, lacking proximity role,
-                          etc.), the pair (A, B) has been marked as filtered, or
-                          otherwise unsupported as indicated by the the scalar
-                          support table.
+                          etc.), the pair is unsupported as indicated by the
+                          scalar support table.
    @warning For Mesh shapes, their convex hulls are used in this query. It is
-            *not* computationally efficient or particularly accurate.  */
+            _not_ computationally efficient or particularly accurate.  */
   SignedDistancePair<T> ComputeSignedDistancePairClosestPoints(
       GeometryId geometry_id_A, GeometryId geometry_id_B) const;
 

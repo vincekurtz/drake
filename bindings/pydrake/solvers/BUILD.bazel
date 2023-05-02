@@ -10,7 +10,6 @@ load(
 )
 load(
     "@drake//tools/skylark:pybind.bzl",
-    "add_pybind_coverage_data",
     "drake_pybind_library",
     "get_drake_py_installs",
     "get_pybind_package_info",
@@ -79,21 +78,6 @@ drake_pybind_library(
     ],
     py_srcs = [
         "_extra.py",
-        "augmented_lagrangian.py",
-        "branch_and_bound.py",
-        "clp.py",
-        "csdp.py",
-        "gurobi.py",
-        "ipopt.py",
-        "mathematicalprogram.py",
-        "mixed_integer_optimization_util.py",
-        "mixed_integer_rotation_constraint.py",
-        "mosek.py",
-        "nlopt.py",
-        "osqp.py",
-        "scs.py",
-        "sdpa_free_format.py",
-        "snopt.py",
     ],
 )
 
@@ -263,7 +247,5 @@ drake_py_unittest(
         "//bindings/pydrake/common/test_utilities",
     ],
 )
-
-add_pybind_coverage_data()
 
 add_lint_tests_pydrake()

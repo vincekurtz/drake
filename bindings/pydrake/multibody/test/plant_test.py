@@ -724,8 +724,12 @@ class TestPlant(unittest.TestCase):
             density=1000, a=0.2, b=0.3, c=0.4)
         SpatialInertia.SolidSphereWithDensity(
             density=1000, radius=0.5)
+        SpatialInertia.SolidSphereWithMass(
+            mass=2, radius=0.5)
         SpatialInertia.HollowSphereWithDensity(
             area_density=2, radius=0.5)
+        SpatialInertia.HollowSphereWithMass(
+            mass=2, radius=0.5)
         spatial_inertia = SpatialInertia(
             mass=2.5, p_PScm_E=[0.1, -0.2, 0.3],
             G_SP_E=UnitInertia(Ixx=2.0, Iyy=2.3, Izz=2.4))
@@ -1227,13 +1231,42 @@ class TestPlant(unittest.TestCase):
         # Test existence of context resetting methods.
         plant.SetDefaultState(context, state=context.get_mutable_state())
 
-        # Test existence of default free body pose setting.
-        body = plant.GetBodyByName("Link1")
-        X_WB_default = RigidTransform_[float]()
-        plant.SetDefaultFreeBodyPose(body=body, X_WB=X_WB_default)
-        numpy_compare.assert_float_equal(
-            plant.GetDefaultFreeBodyPose(body=body).GetAsMatrix4(),
-            X_WB_default.GetAsMatrix4())
+        self.assertEqual(
+            plant.GetPositionNames(add_model_instance_prefix=False,
+                                   always_add_suffix=False),
+            ["ShoulderJoint", "ElbowJoint"])
+        self.assertEqual(
+            plant.GetPositionNames(model_instance=instance,
+                                   add_model_instance_prefix=False,
+                                   always_add_suffix=False),
+            ["ShoulderJoint", "ElbowJoint"])
+        self.assertEqual(
+            plant.GetVelocityNames(model_instance=instance,
+                                   add_model_instance_prefix=False,
+                                   always_add_suffix=False),
+            ["ShoulderJoint", "ElbowJoint"])
+        self.assertEqual(
+            plant.GetVelocityNames(add_model_instance_prefix=False,
+                                   always_add_suffix=False),
+            ["ShoulderJoint", "ElbowJoint"])
+        self.assertEqual(
+            plant.GetStateNames(add_model_instance_prefix=False), [
+                                    "ShoulderJoint_q", "ElbowJoint_q",
+                                    "ShoulderJoint_w", "ElbowJoint_w"
+                                ])
+        self.assertEqual(
+            plant.GetStateNames(model_instance=instance,
+                                add_model_instance_prefix=False), [
+                                    "ShoulderJoint_q", "ElbowJoint_q",
+                                    "ShoulderJoint_w", "ElbowJoint_w"
+                                ])
+        self.assertEqual(
+            plant.GetActuatorNames(add_model_instance_prefix=False),
+            ["ElbowJoint"])
+        self.assertEqual(
+            plant.GetActuatorNames(model_instance=instance,
+                                   add_model_instance_prefix=False),
+            ["ElbowJoint"])
 
         # Test existence of limits.
         self.assertEqual(plant.GetPositionLowerLimits().shape, (nq,))
@@ -1244,6 +1277,18 @@ class TestPlant(unittest.TestCase):
         self.assertEqual(plant.GetAccelerationUpperLimits().shape, (nv,))
         self.assertEqual(plant.GetEffortLowerLimits().shape, (nu,))
         self.assertEqual(plant.GetEffortUpperLimits().shape, (nu,))
+
+    @numpy_compare.check_all_types
+    def test_default_free_body_pose(self, T):
+        plant = MultibodyPlant_[T](0.0)
+        body = plant.AddRigidBody("body", SpatialInertia_[float]())
+        plant.Finalize()
+        # Test existence of default free body pose setting.
+        X_WB_default = RigidTransform_[float]()
+        plant.SetDefaultFreeBodyPose(body=body, X_WB=X_WB_default)
+        numpy_compare.assert_float_equal(
+            plant.GetDefaultFreeBodyPose(body=body).GetAsMatrix4(),
+            X_WB_default.GetAsMatrix4())
 
     @numpy_compare.check_all_types
     def test_port_access(self, T):
@@ -2414,6 +2459,8 @@ class TestPlant(unittest.TestCase):
         for model in models:
             plant.set_discrete_contact_solver(model)
             self.assertEqual(plant.get_discrete_contact_solver(), model)
+        plant.get_sap_near_rigid_threshold()
+        plant.set_sap_near_rigid_threshold(near_rigid_threshold=0.03)
 
     def test_contact_surface_representation(self):
         for time_step in [0.0, 0.1]:
@@ -2740,6 +2787,7 @@ class TestPlant(unittest.TestCase):
 
         geometry_id = dut.GetGeometryId(body_id)
         self.assertEqual(dut.GetBodyId(geometry_id), body_id)
+        dut.SetWallBoundaryCondition(body_id, [1, 1, -1], [0, 0, 1])
 
         # Verify that a body has been added to the model.
         self.assertEqual(dut.num_bodies(), 1)

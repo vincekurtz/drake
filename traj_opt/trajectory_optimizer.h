@@ -18,6 +18,7 @@
 #include "drake/traj_opt/trajectory_optimizer_state.h"
 #include "drake/traj_opt/trajectory_optimizer_workspace.h"
 #include "drake/traj_opt/velocity_partials.h"
+#include "drake/traj_opt/warm_start.h"
 
 namespace drake {
 namespace systems {
@@ -36,27 +37,6 @@ using systems::Diagram;
 template <typename T>
 class TrajectoryOptimizer {
  public:
-  /**
-   * Construct a new Trajectory Optimizer object.
-   *
-   * @param plant A model of the system that we're trying to find an optimal
-   *              trajectory for.
-   * @param context A context for the plant, used to perform various multibody
-   *                dynamics computations. Should be part of a larger Diagram
-   *                context, and be connected to a scene graph.
-   * @param prob Problem definition, including cost, initial and target states,
-   *             etc.
-   * @param params solver parameters, including max iterations, linesearch
-   *               method, etc.
-   */
-  // TODO(amcastro-tri): Get rid of this constructor. Favor the new construction
-  // below so that we can cache the context at each time step in the state.
-  // In particular, context only gets used for
-  // CalcInverseDynamicsPartialsFiniteDiff().
-  TrajectoryOptimizer(const MultibodyPlant<T>* plant, Context<T>* context,
-                      const ProblemDefinition& prob,
-                      const SolverParameters& params = SolverParameters{});
-
   /**
    * Construct a new Trajectory Optimizer object.
    *
@@ -114,6 +94,14 @@ class TrajectoryOptimizer {
   const MultibodyPlant<T>& plant() const { return *plant_; }
 
   /**
+   * Convienience function to get a const reference to the system diagram that
+   * contains the multibody plant that we are optimizing over.
+   *
+   * @return const Diagram<T>&, the system diagram.
+   */
+  const Diagram<T>& diagram() const { return *diagram_; }
+
+  /**
    * Create a state object which contains the decision variables (generalized
    * positions at each timestep), along with a cache of other things that are
    * computed from positions, such as velocities, accelerations, forces, and
@@ -123,11 +111,7 @@ class TrajectoryOptimizer {
    */
   TrajectoryOptimizerState<T> CreateState() const {
     INSTRUMENT_FUNCTION("Creates state object with caching.");
-    if (diagram_ != nullptr) {
-      return TrajectoryOptimizerState<T>(num_steps(), *diagram_, plant(),
-                                         num_equality_constraints());
-    }
-    return TrajectoryOptimizerState<T>(num_steps(), plant(),
+    return TrajectoryOptimizerState<T>(num_steps(), diagram(), plant(),
                                        num_equality_constraints());
   }
 
@@ -184,6 +168,23 @@ class TrajectoryOptimizer {
                    TrajectoryOptimizerSolution<T>* solution,
                    TrajectoryOptimizerStats<T>* stats,
                    ConvergenceReason* reason = nullptr) const;
+
+  /**
+   * Solve the optimization with a full warm-start, including both an initial
+   * guess and optimizer parameters like the trust region radius.
+   *
+   * @note this is only used for the trust-region method
+   *
+   * @param warm_start Container for the initial guess, optimizer state, etc.
+   * @param solution Optimal solution, including velocities and torques
+   * @param stats timing and other iteration-specific statistics
+   * @param reason convergence reason, if applicable
+   * @return SolverFlag
+   */
+  SolverFlag SolveFromWarmStart(WarmStart* warm_start,
+                                TrajectoryOptimizerSolution<T>* solution,
+                                TrajectoryOptimizerStats<T>* stats,
+                                ConvergenceReason* reason = nullptr) const;
 
   // The following evaluator functions get data from the state's cache, and
   // update it if necessary.
@@ -460,8 +461,19 @@ class TrajectoryOptimizer {
   void ResetInitialConditions(const VectorXd& q_init, const VectorXd& v_init) {
     DRAKE_DEMAND(q_init.size() == plant().num_positions());
     DRAKE_DEMAND(v_init.size() == plant().num_velocities());
+    DRAKE_DEMAND(params_.q_nom_relative_to_q_init.size() ==
+                 plant().num_positions());
+    // Reset the initial conditions
     prob_.q_init = q_init;
     prob_.v_init = v_init;
+
+    // Update the nominal trajectory for those DoFs that are relative to the
+    // initial condition
+    const VectorXd q_init_old = prob_.q_nom[0];
+    const VectorXd selector = params_.q_nom_relative_to_q_init.cast<double>();
+    for (VectorXd& qt_nom : prob_.q_nom) {
+      qt_nom += selector.cwiseProduct(q_init - q_init_old);
+    }
   }
 
  private:
@@ -1153,6 +1165,11 @@ SolverFlag TrajectoryOptimizer<double>::SolveWithLinesearch(
 template <>
 SolverFlag TrajectoryOptimizer<double>::SolveWithTrustRegion(
     const std::vector<VectorXd>&, TrajectoryOptimizerSolution<double>*,
+    TrajectoryOptimizerStats<double>*, ConvergenceReason*) const;
+
+template <>
+SolverFlag TrajectoryOptimizer<double>::SolveFromWarmStart(
+    WarmStart*, TrajectoryOptimizerSolution<double>*,
     TrajectoryOptimizerStats<double>*, ConvergenceReason*) const;
 
 }  // namespace traj_opt

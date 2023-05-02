@@ -163,7 +163,7 @@ PYBIND11_MODULE(primitives, m) {
     DefineTemplateClassWithDefault<DiscreteDerivative<T>, LeafSystem<T>>(
         m, "DiscreteDerivative", GetPyParam<T>(), doc.DiscreteDerivative.doc)
         .def(py::init<int, double, bool>(), py::arg("num_inputs"),
-            py::arg("time_step"), py::arg("suppress_initial_transient") = false,
+            py::arg("time_step"), py::arg("suppress_initial_transient") = true,
             doc.DiscreteDerivative.ctor.doc)
         .def("time_step", &DiscreteDerivative<T>::time_step,
             doc.DiscreteDerivative.time_step.doc)
@@ -386,7 +386,7 @@ PYBIND11_MODULE(primitives, m) {
         Diagram<T>>(m, "StateInterpolatorWithDiscreteDerivative",
         GetPyParam<T>(), doc.StateInterpolatorWithDiscreteDerivative.doc)
         .def(py::init<int, double, bool>(), py::arg("num_positions"),
-            py::arg("time_step"), py::arg("suppress_initial_transient") = false,
+            py::arg("time_step"), py::arg("suppress_initial_transient") = true,
             doc.StateInterpolatorWithDiscreteDerivative.ctor.doc)
         .def("suppress_initial_transient",
             &StateInterpolatorWithDiscreteDerivative<
@@ -762,6 +762,12 @@ PYBIND11_MODULE(primitives, m) {
 
   m.def("IsObservable", &IsObservable, py::arg("sys"),
       py::arg("threshold") = std::nullopt, doc.IsObservable.doc);
+
+  m.def("IsStabilizable", &IsStabilizable, py::arg("sys"),
+      py::arg("threshold") = std::nullopt, doc.IsStabilizable.doc);
+
+  m.def("IsDetectable", &IsDetectable, py::arg("sys"),
+      py::arg("threshold") = std::nullopt, doc.IsDetectable.doc);
 }  // NOLINT(readability/fn_size)
 
 }  // namespace pydrake

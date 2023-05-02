@@ -61,6 +61,19 @@ Toyota Research Institute-->
             <length>0.16</length>
           </capsule>
         </geometry>
+        <surface>
+          <friction>
+            <ode>
+              <mu>0.5</mu>
+              <mu2>0.5</mu2>
+            </ode>
+          </friction>
+        </surface>
+        <drake:proximity_properties>
+          <drake:rigid_hydroelastic/>
+          <drake:mesh_resolution_hint>0.05</drake:mesh_resolution_hint>
+          <drake:hunt_crossley_dissipation>1.0</drake:hunt_crossley_dissipation>
+        </drake:proximity_properties>
       </collision>
     </link>
 
@@ -87,6 +100,19 @@ Toyota Research Institute-->
             <length>0.16</length>
           </capsule>
         </geometry>
+        <surface>
+          <friction>
+            <ode>
+              <mu>0.5</mu>
+              <mu2>0.5</mu2>
+            </ode>
+          </friction>
+        </surface>
+        <drake:proximity_properties>
+          <drake:rigid_hydroelastic/>
+          <drake:mesh_resolution_hint>0.05</drake:mesh_resolution_hint>
+          <drake:hunt_crossley_dissipation>1.0</drake:hunt_crossley_dissipation>
+        </drake:proximity_properties>
       </collision>      
       <visual name="cap_upper_R">
         <pose>0.1 0 0.06 0 1.5708 0</pose>
@@ -105,6 +131,19 @@ Toyota Research Institute-->
             <length>0.16</length>
           </capsule>
         </geometry>
+        <surface>
+          <friction>
+            <ode>
+              <mu>0.5</mu>
+              <mu2>0.5</mu2>
+            </ode>
+          </friction>
+        </surface>
+        <drake:proximity_properties>
+          <drake:rigid_hydroelastic/>
+          <drake:mesh_resolution_hint>0.05</drake:mesh_resolution_hint>
+          <drake:hunt_crossley_dissipation>1.0</drake:hunt_crossley_dissipation>
+        </drake:proximity_properties>
       </collision>      
       <visual name="cap_lower">
         <pose>0 0.005 -0.06 0 1.5708 0</pose>
@@ -126,6 +165,19 @@ Toyota Research Institute-->
             <length>0.175</length>
           </capsule>
         </geometry>
+        <surface>
+          <friction>
+            <ode>
+              <mu>0.5</mu>
+              <mu2>0.5</mu2>
+            </ode>
+          </friction>
+        </surface>
+        <drake:proximity_properties>
+          <drake:rigid_hydroelastic/>
+          <drake:mesh_resolution_hint>0.05</drake:mesh_resolution_hint>
+          <drake:hunt_crossley_dissipation>1.0</drake:hunt_crossley_dissipation>
+        </drake:proximity_properties>
       </collision>
       <visual name="cap_lower_neck">
         <pose>0 0 0.15 0 0 0</pose>
@@ -144,6 +196,19 @@ Toyota Research Institute-->
             <length>0.03</length>
           </capsule>
         </geometry>
+        <surface>
+          <friction>
+            <ode>
+              <mu>0.5</mu>
+              <mu2>0.5</mu2>
+            </ode>
+          </friction>
+        </surface>
+        <drake:proximity_properties>
+          <drake:rigid_hydroelastic/>
+          <drake:mesh_resolution_hint>0.05</drake:mesh_resolution_hint>
+          <drake:hunt_crossley_dissipation>1.0</drake:hunt_crossley_dissipation>
+        </drake:proximity_properties>
       </collision>    
     </link>    
 
@@ -178,6 +243,19 @@ Toyota Research Institute-->
             <length>0.09</length>
           </capsule>
         </geometry>
+        <surface>
+          <friction>
+            <ode>
+              <mu>0.5</mu>
+              <mu2>0.5</mu2>
+            </ode>
+          </friction>
+        </surface>
+        <drake:proximity_properties>
+          <drake:rigid_hydroelastic/>
+          <drake:mesh_resolution_hint>0.05</drake:mesh_resolution_hint>
+          <drake:hunt_crossley_dissipation>1.0</drake:hunt_crossley_dissipation>
+        </drake:proximity_properties>
       </collision>
       <visual name="cap_upper_neck">
         <pose>0 0 -0.14 0 0 0</pose>
@@ -196,6 +274,19 @@ Toyota Research Institute-->
             <length>0.03</length>
           </capsule>
         </geometry>
+        <surface>
+          <friction>
+            <ode>
+              <mu>0.5</mu>
+              <mu2>0.5</mu2>
+            </ode>
+          </friction>
+        </surface>
+        <drake:proximity_properties>
+          <drake:rigid_hydroelastic/>
+          <drake:mesh_resolution_hint>0.05</drake:mesh_resolution_hint>
+          <drake:hunt_crossley_dissipation>1.0</drake:hunt_crossley_dissipation>
+        </drake:proximity_properties>
       </collision>
     </link>
 
@@ -221,6 +312,19 @@ Toyota Research Institute-->
             <length>0.28</length>
           </capsule>
         </geometry>
+        <surface>
+          <friction>
+            <ode>
+              <mu>0.5</mu>
+              <mu2>0.5</mu2>
+            </ode>
+          </friction>
+        </surface>
+        <drake:proximity_properties>
+          <drake:rigid_hydroelastic/>
+          <drake:mesh_resolution_hint>0.05</drake:mesh_resolution_hint>
+          <drake:hunt_crossley_dissipation>1.0</drake:hunt_crossley_dissipation>
+        </drake:proximity_properties>
       </collision>     
     </link>    
 
@@ -246,6 +350,19 @@ Toyota Research Institute-->
             <length>0.25</length>
           </capsule>
         </geometry>
+        <surface>
+          <friction>
+            <ode>
+              <mu>0.5</mu>
+              <mu2>0.5</mu2>
+            </ode>
+          </friction>
+        </surface>
+        <drake:proximity_properties>
+          <drake:rigid_hydroelastic/>
+          <drake:mesh_resolution_hint>0.05</drake:mesh_resolution_hint>
+          <drake:hunt_crossley_dissipation>1.0</drake:hunt_crossley_dissipation>
+        </drake:proximity_properties>
       </collision>    
     </link>
 
@@ -269,6 +386,19 @@ Toyota Research Institute-->
             <radius>0.04</radius>
           </sphere>
         </geometry>
+        <surface>
+          <friction>
+            <ode>
+              <mu>0.5</mu>
+              <mu2>0.5</mu2>
+            </ode>
+          </friction>
+        </surface>
+        <drake:proximity_properties>
+          <drake:rigid_hydroelastic/>
+          <drake:mesh_resolution_hint>0.05</drake:mesh_resolution_hint>
+          <drake:hunt_crossley_dissipation>1.0</drake:hunt_crossley_dissipation>
+        </drake:proximity_properties>
       </collision>
     </link>
 
@@ -294,6 +424,19 @@ Toyota Research Institute-->
             <length>0.28</length>
           </capsule>
         </geometry>
+        <surface>
+          <friction>
+            <ode>
+              <mu>0.5</mu>
+              <mu2>0.5</mu2>
+            </ode>
+          </friction>
+        </surface>
+        <drake:proximity_properties>
+          <drake:rigid_hydroelastic/>
+          <drake:mesh_resolution_hint>0.05</drake:mesh_resolution_hint>
+          <drake:hunt_crossley_dissipation>1.0</drake:hunt_crossley_dissipation>
+        </drake:proximity_properties>
       </collision>
     </link>    
 
@@ -319,6 +462,19 @@ Toyota Research Institute-->
             <length>0.25</length>
           </capsule>
         </geometry>
+        <surface>
+          <friction>
+            <ode>
+              <mu>0.5</mu>
+              <mu2>0.5</mu2>
+            </ode>
+          </friction>
+        </surface>
+        <drake:proximity_properties>
+          <drake:rigid_hydroelastic/>
+          <drake:mesh_resolution_hint>0.05</drake:mesh_resolution_hint>
+          <drake:hunt_crossley_dissipation>1.0</drake:hunt_crossley_dissipation>
+        </drake:proximity_properties>
       </collision>
     </link>
 
@@ -342,6 +498,19 @@ Toyota Research Institute-->
             <radius>0.04</radius>
           </sphere>
         </geometry>
+        <surface>
+          <friction>
+            <ode>
+              <mu>0.5</mu>
+              <mu2>0.5</mu2>
+            </ode>
+          </friction>
+        </surface>
+        <drake:proximity_properties>
+          <drake:rigid_hydroelastic/>
+          <drake:mesh_resolution_hint>0.05</drake:mesh_resolution_hint>
+          <drake:hunt_crossley_dissipation>1.0</drake:hunt_crossley_dissipation>
+        </drake:proximity_properties>
       </collision>
     </link>
 

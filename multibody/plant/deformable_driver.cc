@@ -1,5 +1,6 @@
 #include "drake/multibody/plant/deformable_driver.h"
 
+#include <limits>
 #include <memory>
 #include <string>
 #include <unordered_set>
@@ -18,7 +19,9 @@ using drake::geometry::GeometryId;
 using drake::geometry::internal::ContactParticipation;
 using drake::geometry::internal::DeformableContact;
 using drake::geometry::internal::DeformableContactSurface;
+using drake::multibody::contact_solvers::internal::Block3x3SparseMatrix;
 using drake::multibody::contact_solvers::internal::ContactSolverResults;
+using drake::multibody::contact_solvers::internal::MatrixBlock;
 using drake::multibody::contact_solvers::internal::PartialPermutation;
 using drake::multibody::fem::FemModel;
 using drake::multibody::fem::FemState;
@@ -242,12 +245,12 @@ void DeformableDriver<T>::AppendDiscreteContactPairs(
 
   for (const DeformableContactSurface<double>& surface :
        deformable_contact.contact_surfaces()) {
-    /* We use an arbitrarily large stiffness as the default stiffness so that
-     the contact is in near-rigid regime and the compliance is only used as
-     stabilization. */
-    const double default_contact_stiffness = 1.0e12;
-    const T k = GetCombinedPointContactStiffness(
-        surface.id_A(), surface.id_B(), default_contact_stiffness, inspector);
+    /* While our discrete solvers might model constraints as compliant, an
+    infinite stiffness indicates to use the stiffest approximation possible
+    without sacrifycing numerical conditioning. SAP will use the "near rigid"
+    regime approximation in this case. */
+    const T k = std::numeric_limits<double>::infinity();
+
     // TODO(xuchenhan-tri): Currently, body_B is guaranteed to be
     // non-deformable. When we support deformable vs. deformable contact, we
     // need to update this logic for retrieving body names.
@@ -312,8 +315,6 @@ void DeformableDriver<T>::AppendContactKinematics(
     const TreeIndex clique_index_A(tree_topology.num_trees() + index_A);
     const ContactParticipation& participation =
         deformable_contact.contact_participation(id_A);
-    Matrix3X<T> Jv_v_WAc_W =
-        Matrix3X<T>::Zero(3, participation.num_vertices_in_contact() * 3);
     const PartialPermutation& vertex_permutation =
         EvalVertexPermutation(context, id_A);
     /* For now, body B is guaranteed to be rigid. */
@@ -354,10 +355,13 @@ void DeformableDriver<T>::AppendContactKinematics(
           math::RotationMatrix<T>::MakeFromOneUnitVector(nhat_W, kZAxis);
       const math::RotationMatrix<T> R_CW = R_WC.transpose();
       /* Calculate the jacobian block for the body A. */
-      Jv_v_WAc_W.setZero();
+      Block3x3SparseMatrix<T> negative_Jv_v_WAc_C(
+          1, participation.num_vertices_in_contact());
       Vector4<int> participating_vertices =
           surface.contact_vertex_indexes_A()[i];
       const Vector4<T>& b = surface.barycentric_coordinates_A()[i];
+      std::vector<typename Block3x3SparseMatrix<T>::Triplet> triplets;
+      triplets.reserve(4);
       for (int v = 0; v < 4; ++v) {
         const bool vertex_under_bc = num_bcs[participating_vertices(v)] > 0;
         /* Map indexes to the permuted domain. */
@@ -368,13 +372,15 @@ void DeformableDriver<T>::AppendContactKinematics(
            v₃ are the velocities of the vertices forming the tetrahedron
            containing the contact point and the b's are their corresponding
            barycentric weights. */
-          Jv_v_WAc_W.template middleCols<3>(3 * participating_vertices(v)) =
-              b(v) * Matrix3<T>::Identity();
+          triplets.emplace_back(0, participating_vertices(v),
+                                -b(v) * R_CW.matrix());
         }
+        negative_Jv_v_WAc_C.SetFromTriplets(triplets);
         /* If the vertex is under bc, the corresponding jacobain block is zero
          because the vertex doesn't contribute to the contact velocity. */
       }
-      jacobian_blocks.emplace_back(clique_index_A, -R_CW.matrix() * Jv_v_WAc_W);
+      jacobian_blocks.emplace_back(
+          clique_index_A, MatrixBlock<T>(std::move(negative_Jv_v_WAc_C)));
 
       /* Calculate the jacobian block for the rigid body B if it's not static.
        */
@@ -391,7 +397,7 @@ void DeformableDriver<T>::AppendContactKinematics(
             R_CW.matrix() * Jv_v_WBc_W.middleCols(
                                 tree_topology.tree_velocities_start(tree_index),
                                 tree_topology.num_tree_velocities(tree_index));
-        jacobian_blocks.emplace_back(tree_index, std::move(J));
+        jacobian_blocks.emplace_back(tree_index, MatrixBlock<T>(std::move(J)));
       }
       result->emplace_back(surface.signed_distances()[i],
                            std::move(jacobian_blocks), std::move(R_WC));

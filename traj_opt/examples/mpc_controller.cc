@@ -18,7 +18,10 @@ ModelPredictiveController::ModelPredictiveController(
       nv_(plant->num_velocities()),
       nu_(plant->num_actuators()),
       B_(plant->MakeActuationMatrix()),
-      optimizer_(diagram, plant, prob, params) {
+      optimizer_(diagram, plant, prob, params),
+      warm_start_(optimizer_.num_steps(), optimizer_.diagram(),
+                  optimizer_.plant(), optimizer_.num_equality_constraints(),
+                  warm_start_solution.q, params.Delta0) {
   // Abstract-valued discrete state stores an optimal trajectory
   StoredTrajectory initial_guess_traj;
   StoreOptimizerSolution(warm_start_solution, 0.0, &initial_guess_traj);
@@ -40,6 +43,7 @@ ModelPredictiveController::ModelPredictiveController(
 EventStatus ModelPredictiveController::UpdateAbstractState(
     const Context<double>& context, State<double>* state) const {
   std::cout << "Resolving at t=" << context.get_time() << std::endl;
+
   // Get the latest initial condition
   const VectorXd& x0 = EvalVectorInput(context, state_input_port_)->value();
   const auto& q0 = x0.topRows(nq_);
@@ -53,12 +57,13 @@ EventStatus ModelPredictiveController::UpdateAbstractState(
   std::vector<VectorXd> q_guess(num_steps_, VectorXd(nq_));
   UpdateInitialGuess(stored_trajectory, context.get_time(), &q_guess);
   q_guess[0] = q0;  // guess must be consistent with the initial condition
+  warm_start_.state.set_q(q_guess);
 
   // Solve the trajectory optimization problem from the new initial condition
   optimizer_.ResetInitialConditions(q0, v0);
   TrajectoryOptimizerStats<double> stats;
   TrajectoryOptimizerSolution<double> solution;
-  optimizer_.Solve(q_guess, &solution, &stats);
+  optimizer_.SolveFromWarmStart(&warm_start_, &solution, &stats);
 
   // Store the result in the discrete state
   StoreOptimizerSolution(solution, context.get_time(), &stored_trajectory);

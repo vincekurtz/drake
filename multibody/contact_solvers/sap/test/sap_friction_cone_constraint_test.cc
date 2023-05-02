@@ -45,7 +45,7 @@ GTEST_TEST(SapFrictionConeConstraint, SingleCliqueConstraint) {
   const double mu = 0.5;
   const double stiffness = 1.0e5;
   const double dissipation_time_scale = 0.01;
-  const double beta = 0.1;
+  const double beta = 0.0;
   const double sigma = 1.0e-4;
   const int clique = 12;
   const double phi0 = -2.5e-3;
@@ -57,7 +57,7 @@ GTEST_TEST(SapFrictionConeConstraint, SingleCliqueConstraint) {
   EXPECT_EQ(c.first_clique(), clique);
   EXPECT_THROW(c.second_clique(), std::exception);
   EXPECT_EQ(c.constraint_function(), Vector3d(0., 0., phi0));
-  EXPECT_EQ(c.first_clique_jacobian(), J32);
+  EXPECT_EQ(c.first_clique_jacobian().MakeDenseMatrix(), J32);
   EXPECT_THROW(c.second_clique_jacobian(), std::exception);
   EXPECT_EQ(c.mu(), mu);
   EXPECT_EQ(c.parameters().mu, mu);
@@ -71,7 +71,7 @@ GTEST_TEST(SapFrictionConeConstraint, TwoCliquesConstraint) {
   const double mu = 0.5;
   const double stiffness = 1.0e5;
   const double dissipation_time_scale = 0.01;
-  const double beta = 0.1;
+  const double beta = 0.0;
   const double sigma = 1.0e-4;
   const int clique0 = 12;
   const int clique1 = 13;
@@ -85,8 +85,8 @@ GTEST_TEST(SapFrictionConeConstraint, TwoCliquesConstraint) {
   EXPECT_EQ(c.first_clique(), clique0);
   EXPECT_EQ(c.second_clique(), clique1);
   EXPECT_EQ(c.constraint_function(), Vector3d(0., 0., phi0));
-  EXPECT_EQ(c.first_clique_jacobian(), J32);
-  EXPECT_EQ(c.second_clique_jacobian(), J34);
+  EXPECT_EQ(c.first_clique_jacobian().MakeDenseMatrix(), J32);
+  EXPECT_EQ(c.second_clique_jacobian().MakeDenseMatrix(), J34);
   EXPECT_EQ(c.mu(), mu);
   EXPECT_EQ(c.parameters().mu, mu);
   EXPECT_EQ(c.parameters().stiffness, stiffness);
@@ -344,7 +344,7 @@ GTEST_TEST(SapFrictionConeConstraint, SingleCliqueConstraintClone) {
   EXPECT_EQ(clone->first_clique(), clique);
   EXPECT_THROW(clone->second_clique(), std::exception);
   EXPECT_EQ(clone->constraint_function(), Vector3d(0., 0., phi0));
-  EXPECT_EQ(clone->first_clique_jacobian(), J32);
+  EXPECT_EQ(clone->first_clique_jacobian().MakeDenseMatrix(), J32);
   EXPECT_THROW(clone->second_clique_jacobian(), std::exception);
   EXPECT_EQ(clone->mu(), mu);
   EXPECT_EQ(clone->parameters().mu, mu);
@@ -374,8 +374,8 @@ GTEST_TEST(SapFrictionConeConstraint, TwoCliquesConstraintClone) {
   EXPECT_EQ(clone->first_clique(), clique0);
   EXPECT_EQ(clone->second_clique(), clique1);
   EXPECT_EQ(clone->constraint_function(), Vector3d(0., 0., phi0));
-  EXPECT_EQ(clone->first_clique_jacobian(), J32);
-  EXPECT_EQ(clone->second_clique_jacobian(), J34);
+  EXPECT_EQ(clone->first_clique_jacobian().MakeDenseMatrix(), J32);
+  EXPECT_EQ(clone->second_clique_jacobian().MakeDenseMatrix(), J34);
   EXPECT_EQ(clone->mu(), mu);
   EXPECT_EQ(clone->parameters().mu, mu);
   EXPECT_EQ(clone->parameters().stiffness, stiffness);

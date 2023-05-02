@@ -54,13 +54,26 @@
             <size>0.0408 0.113 0.095</size>
           </box>
         </geometry>
+        <surface>
+          <friction>
+            <ode>
+              <mu>0.1</mu>   <!-- reducing friction in the palm allows the ball to rotate more easily -->
+              <mu2>0.1</mu2>
+            </ode>
+          </friction>
+        </surface>
+        <drake:proximity_properties>
+          <drake:rigid_hydroelastic/>
+          <drake:mesh_resolution_hint>0.01</drake:mesh_resolution_hint>
+          <drake:hunt_crossley_dissipation>1.0</drake:hunt_crossley_dissipation>
+        </drake:proximity_properties>
       </collision>
       <visual name="hand_root_fixed_joint_lump__palm_link_visual">
         <pose>0 0 0.095 -1.5708 0 0</pose>
         <geometry>
           <mesh>
             <scale>1 1 1</scale>
-            <uri>package://drake/manipulation/models/allegro_hand_description/meshes/base_link_left.obj</uri>
+            <uri>package://drake_models/allegro_hand_description/meshes/base_link_left.obj</uri>
           </mesh>
         </geometry>
       </visual>
@@ -85,12 +98,25 @@
             <radius>0.015</radius>
           </sphere>
         </geometry>
+        <surface>
+          <friction>
+            <ode>
+              <mu>1.0</mu>
+              <mu2>1.0</mu2>
+            </ode>
+          </friction>
+        </surface>
+        <drake:proximity_properties>
+          <drake:rigid_hydroelastic/>
+          <drake:mesh_resolution_hint>0.01</drake:mesh_resolution_hint>
+          <drake:hunt_crossley_dissipation>1.0</drake:hunt_crossley_dissipation>
+        </drake:proximity_properties>
       </collision>
       <visual name="link_8_visual">
         <geometry>
           <mesh>
             <scale>1 1 1</scale>
-            <uri>package://drake/manipulation/models/allegro_hand_description/meshes/link_0.0.obj</uri>
+            <uri>package://drake_models/allegro_hand_description/meshes/link_0.0.obj</uri>
           </mesh>
         </geometry>
       </visual>
@@ -130,12 +156,25 @@
             <radius>0.015</radius>
           </sphere>
         </geometry>
+        <surface>
+          <friction>
+            <ode>
+              <mu>1.0</mu>
+              <mu2>1.0</mu2>
+            </ode>
+          </friction>
+        </surface>
+        <drake:proximity_properties>
+          <drake:rigid_hydroelastic/>
+          <drake:mesh_resolution_hint>0.01</drake:mesh_resolution_hint>
+          <drake:hunt_crossley_dissipation>1.0</drake:hunt_crossley_dissipation>
+        </drake:proximity_properties>
       </collision>
       <visual name="link_9_visual">
         <geometry>
           <mesh>
             <scale>1 1 1</scale>
-            <uri>package://drake/manipulation/models/allegro_hand_description/meshes/link_1.0.obj</uri>
+            <uri>package://drake_models/allegro_hand_description/meshes/link_1.0.obj</uri>
           </mesh>
         </geometry>
       </visual>
@@ -175,12 +214,25 @@
             <radius>0.015</radius>
           </sphere>
         </geometry>
+        <surface>
+          <friction>
+            <ode>
+              <mu>1.0</mu>
+              <mu2>1.0</mu2>
+            </ode>
+          </friction>
+        </surface>
+        <drake:proximity_properties>
+          <drake:rigid_hydroelastic/>
+          <drake:mesh_resolution_hint>0.01</drake:mesh_resolution_hint>
+          <drake:hunt_crossley_dissipation>1.0</drake:hunt_crossley_dissipation>
+        </drake:proximity_properties>
       </collision>
       <visual name="link_10_visual">
         <geometry>
           <mesh>
             <scale>1 1 1</scale>
-            <uri>package://drake/manipulation/models/allegro_hand_description/meshes/link_2.0.obj</uri>
+            <uri>package://drake_models/allegro_hand_description/meshes/link_2.0.obj</uri>
           </mesh>
         </geometry>
       </visual>
@@ -220,6 +272,19 @@
             <radius>0.015</radius>
           </sphere>
         </geometry>
+        <surface>
+          <friction>
+            <ode>
+              <mu>1.0</mu>
+              <mu2>1.0</mu2>
+            </ode>
+          </friction>
+        </surface>
+        <drake:proximity_properties>
+          <drake:rigid_hydroelastic/>
+          <drake:mesh_resolution_hint>0.01</drake:mesh_resolution_hint>
+          <drake:hunt_crossley_dissipation>1.0</drake:hunt_crossley_dissipation>
+        </drake:proximity_properties>
       </collision>
       <collision name="link_11_tip_collision_1">
         <pose>0 0 0.0267 0 0 0</pose>
@@ -228,12 +293,25 @@
             <radius>0.012</radius>
           </sphere>
         </geometry>
+        <surface>
+          <friction>
+            <ode>
+              <mu>1.0</mu>
+              <mu2>1.0</mu2>
+            </ode>
+          </friction>
+        </surface>
+        <drake:proximity_properties>
+          <drake:rigid_hydroelastic/>
+          <drake:mesh_resolution_hint>0.01</drake:mesh_resolution_hint>
+          <drake:hunt_crossley_dissipation>1.0</drake:hunt_crossley_dissipation>
+        </drake:proximity_properties>
       </collision>
       <visual name="link_11_visual">
         <geometry>
           <mesh>
             <scale>1 1 1</scale>
-            <uri>package://drake/manipulation/models/allegro_hand_description/meshes/link_3.0.obj</uri>
+            <uri>package://drake_models/allegro_hand_description/meshes/link_3.0.obj</uri>
           </mesh>
         </geometry>
       </visual>
@@ -242,7 +320,7 @@
         <geometry>
           <mesh>
             <scale>1 1 1</scale>
-            <uri>package://drake/manipulation/models/allegro_hand_description/meshes/link_3.0_tip.obj</uri>
+            <uri>package://drake_models/allegro_hand_description/meshes/link_3.0_tip.obj</uri>
           </mesh>
         </geometry>
       </visual>
@@ -282,13 +360,26 @@
             <radius>0.015</radius>
           </sphere>
         </geometry>
+        <surface>
+          <friction>
+            <ode>
+              <mu>1.0</mu>
+              <mu2>1.0</mu2>
+            </ode>
+          </friction>
+        </surface>
+        <drake:proximity_properties>
+          <drake:rigid_hydroelastic/>
+          <drake:mesh_resolution_hint>0.01</drake:mesh_resolution_hint>
+          <drake:hunt_crossley_dissipation>1.0</drake:hunt_crossley_dissipation>
+        </drake:proximity_properties>
       </collision>
       <visual name="link_12_visual">
         <pose>0 0 0 3.14159 0 0</pose>
         <geometry>
           <mesh>
             <scale>1 1 1</scale>
-            <uri>package://drake/manipulation/models/allegro_hand_description/meshes/link_12.0_left.obj</uri>
+            <uri>package://drake_models/allegro_hand_description/meshes/link_12.0_left.obj</uri>
           </mesh>
         </geometry>
       </visual>
@@ -325,7 +416,7 @@
         <geometry>
           <mesh>
             <scale>1 1 1</scale>
-            <uri>package://drake/manipulation/models/allegro_hand_description/meshes/link_13.0.obj</uri>
+            <uri>package://drake_models/allegro_hand_description/meshes/link_13.0.obj</uri>
           </mesh>
         </geometry>
       </visual>
@@ -365,12 +456,25 @@
             <radius>0.015</radius>
           </sphere>
         </geometry>
+        <surface>
+          <friction>
+            <ode>
+              <mu>1.0</mu>
+              <mu2>1.0</mu2>
+            </ode>
+          </friction>
+        </surface>
+        <drake:proximity_properties>
+          <drake:rigid_hydroelastic/>
+          <drake:mesh_resolution_hint>0.01</drake:mesh_resolution_hint>
+          <drake:hunt_crossley_dissipation>1.0</drake:hunt_crossley_dissipation>
+        </drake:proximity_properties>
       </collision>
       <visual name="link_14_visual">
         <geometry>
           <mesh>
             <scale>1 1 1</scale>
-            <uri>package://drake/manipulation/models/allegro_hand_description/meshes/link_14.0.obj</uri>
+            <uri>package://drake_models/allegro_hand_description/meshes/link_14.0.obj</uri>
           </mesh>
         </geometry>
       </visual>
@@ -411,6 +515,19 @@
             <radius>0.015</radius>
           </sphere>
         </geometry>
+        <surface>
+          <friction>
+            <ode>
+              <mu>1.0</mu>
+              <mu2>1.0</mu2>
+            </ode>
+          </friction>
+        </surface>
+        <drake:proximity_properties>
+          <drake:rigid_hydroelastic/>
+          <drake:mesh_resolution_hint>0.01</drake:mesh_resolution_hint>
+          <drake:hunt_crossley_dissipation>1.0</drake:hunt_crossley_dissipation>
+        </drake:proximity_properties>
       </collision>
       <collision name="link_15_tip_collision_1">
         <pose>0 0 0.0423 0 0 0</pose>
@@ -419,12 +536,25 @@
             <radius>0.012</radius>
           </sphere>
         </geometry>
+        <surface>
+          <friction>
+            <ode>
+              <mu>1.0</mu>
+              <mu2>1.0</mu2>
+            </ode>
+          </friction>
+        </surface>
+        <drake:proximity_properties>
+          <drake:rigid_hydroelastic/>
+          <drake:mesh_resolution_hint>0.01</drake:mesh_resolution_hint>
+          <drake:hunt_crossley_dissipation>1.0</drake:hunt_crossley_dissipation>
+        </drake:proximity_properties>
       </collision>
       <visual name="link_15_visual">
         <geometry>
           <mesh>
             <scale>1 1 1</scale>
-            <uri>package://drake/manipulation/models/allegro_hand_description/meshes/link_15.0.obj</uri>
+            <uri>package://drake_models/allegro_hand_description/meshes/link_15.0.obj</uri>
           </mesh>
         </geometry>
       </visual>
@@ -433,7 +563,7 @@
         <geometry>
           <mesh>
             <scale>1 1 1</scale>
-            <uri>package://drake/manipulation/models/allegro_hand_description/meshes/link_15.0_tip.obj</uri>
+            <uri>package://drake_models/allegro_hand_description/meshes/link_15.0_tip.obj</uri>
           </mesh>
         </geometry>
       </visual>
@@ -473,12 +603,25 @@
             <radius>0.015</radius>
           </sphere>
         </geometry>
+        <surface>
+          <friction>
+            <ode>
+              <mu>1.0</mu>
+              <mu2>1.0</mu2>
+            </ode>
+          </friction>
+        </surface>
+        <drake:proximity_properties>
+          <drake:rigid_hydroelastic/>
+          <drake:mesh_resolution_hint>0.01</drake:mesh_resolution_hint>
+          <drake:hunt_crossley_dissipation>1.0</drake:hunt_crossley_dissipation>
+        </drake:proximity_properties>
       </collision>
       <visual name="link_4_visual">
         <geometry>
           <mesh>
             <scale>1 1 1</scale>
-            <uri>package://drake/manipulation/models/allegro_hand_description/meshes/link_0.0.obj</uri>
+            <uri>package://drake_models/allegro_hand_description/meshes/link_0.0.obj</uri>
           </mesh>
         </geometry>
       </visual>
@@ -518,12 +661,25 @@
             <radius>0.015</radius>
           </sphere>
         </geometry>
+        <surface>
+          <friction>
+            <ode>
+              <mu>1.0</mu>
+              <mu2>1.0</mu2>
+            </ode>
+          </friction>
+        </surface>
+        <drake:proximity_properties>
+          <drake:rigid_hydroelastic/>
+          <drake:mesh_resolution_hint>0.01</drake:mesh_resolution_hint>
+          <drake:hunt_crossley_dissipation>1.0</drake:hunt_crossley_dissipation>
+        </drake:proximity_properties>
       </collision>
       <visual name="link_5_visual">
         <geometry>
           <mesh>
             <scale>1 1 1</scale>
-            <uri>package://drake/manipulation/models/allegro_hand_description/meshes/link_1.0.obj</uri>
+            <uri>package://drake_models/allegro_hand_description/meshes/link_1.0.obj</uri>
           </mesh>
         </geometry>
       </visual>
@@ -563,12 +719,25 @@
             <radius>0.015</radius>
           </sphere>
         </geometry>
+        <surface>
+          <friction>
+            <ode>
+              <mu>1.0</mu>
+              <mu2>1.0</mu2>
+            </ode>
+          </friction>
+        </surface>
+        <drake:proximity_properties>
+          <drake:rigid_hydroelastic/>
+          <drake:mesh_resolution_hint>0.01</drake:mesh_resolution_hint>
+          <drake:hunt_crossley_dissipation>1.0</drake:hunt_crossley_dissipation>
+        </drake:proximity_properties>
       </collision>
       <visual name="link_6_visual">
         <geometry>
           <mesh>
             <scale>1 1 1</scale>
-            <uri>package://drake/manipulation/models/allegro_hand_description/meshes/link_2.0.obj</uri>
+            <uri>package://drake_models/allegro_hand_description/meshes/link_2.0.obj</uri>
           </mesh>
         </geometry>
       </visual>
@@ -608,6 +777,19 @@
             <radius>0.015</radius>
           </sphere>
         </geometry>
+        <surface>
+          <friction>
+            <ode>
+              <mu>1.0</mu>
+              <mu2>1.0</mu2>
+            </ode>
+          </friction>
+        </surface>
+        <drake:proximity_properties>
+          <drake:rigid_hydroelastic/>
+          <drake:mesh_resolution_hint>0.01</drake:mesh_resolution_hint>
+          <drake:hunt_crossley_dissipation>1.0</drake:hunt_crossley_dissipation>
+        </drake:proximity_properties>
       </collision>
       <collision name="link_7_tip_collision_1">
         <pose>0 0 0.0267 0 0 0</pose>
@@ -616,12 +798,25 @@
             <radius>0.012</radius>
           </sphere>
         </geometry>
+        <surface>
+          <friction>
+            <ode>
+              <mu>1.0</mu>
+              <mu2>1.0</mu2>
+            </ode>
+          </friction>
+        </surface>
+        <drake:proximity_properties>
+          <drake:rigid_hydroelastic/>
+          <drake:mesh_resolution_hint>0.01</drake:mesh_resolution_hint>
+          <drake:hunt_crossley_dissipation>1.0</drake:hunt_crossley_dissipation>
+        </drake:proximity_properties>
       </collision>
       <visual name="link_7_visual">
         <geometry>
           <mesh>
             <scale>1 1 1</scale>
-            <uri>package://drake/manipulation/models/allegro_hand_description/meshes/link_3.0.obj</uri>
+            <uri>package://drake_models/allegro_hand_description/meshes/link_3.0.obj</uri>
           </mesh>
         </geometry>
       </visual>
@@ -630,7 +825,7 @@
         <geometry>
           <mesh>
             <scale>1 1 1</scale>
-            <uri>package://drake/manipulation/models/allegro_hand_description/meshes/link_3.0_tip.obj</uri>
+            <uri>package://drake_models/allegro_hand_description/meshes/link_3.0_tip.obj</uri>
           </mesh>
         </geometry>
       </visual>
@@ -670,12 +865,25 @@
             <radius>0.015</radius>
           </sphere>
         </geometry>
+        <surface>
+          <friction>
+            <ode>
+              <mu>1.0</mu>
+              <mu2>1.0</mu2>
+            </ode>
+          </friction>
+        </surface>
+        <drake:proximity_properties>
+          <drake:rigid_hydroelastic/>
+          <drake:mesh_resolution_hint>0.01</drake:mesh_resolution_hint>
+          <drake:hunt_crossley_dissipation>1.0</drake:hunt_crossley_dissipation>
+        </drake:proximity_properties>
       </collision>
       <visual name="link_0_visual">
         <geometry>
           <mesh>
             <scale>1 1 1</scale>
-            <uri>package://drake/manipulation/models/allegro_hand_description/meshes/link_0.0.obj</uri>
+            <uri>package://drake_models/allegro_hand_description/meshes/link_0.0.obj</uri>
           </mesh>
         </geometry>
       </visual>
@@ -715,12 +923,25 @@
             <radius>0.015</radius>
           </sphere>
         </geometry>
+        <surface>
+          <friction>
+            <ode>
+              <mu>1.0</mu>
+              <mu2>1.0</mu2>
+            </ode>
+          </friction>
+        </surface>
+        <drake:proximity_properties>
+          <drake:rigid_hydroelastic/>
+          <drake:mesh_resolution_hint>0.01</drake:mesh_resolution_hint>
+          <drake:hunt_crossley_dissipation>1.0</drake:hunt_crossley_dissipation>
+        </drake:proximity_properties>
       </collision>
       <visual name="link_1_visual">
         <geometry>
           <mesh>
             <scale>1 1 1</scale>
-            <uri>package://drake/manipulation/models/allegro_hand_description/meshes/link_1.0.obj</uri>
+            <uri>package://drake_models/allegro_hand_description/meshes/link_1.0.obj</uri>
           </mesh>
         </geometry>
       </visual>
@@ -760,12 +981,25 @@
             <radius>0.015</radius>
           </sphere>
         </geometry>
+        <surface>
+          <friction>
+            <ode>
+              <mu>1.0</mu>
+              <mu2>1.0</mu2>
+            </ode>
+          </friction>
+        </surface>
+        <drake:proximity_properties>
+          <drake:rigid_hydroelastic/>
+          <drake:mesh_resolution_hint>0.01</drake:mesh_resolution_hint>
+          <drake:hunt_crossley_dissipation>1.0</drake:hunt_crossley_dissipation>
+        </drake:proximity_properties>
       </collision>
       <visual name="link_2_visual">
         <geometry>
           <mesh>
             <scale>1 1 1</scale>
-            <uri>package://drake/manipulation/models/allegro_hand_description/meshes/link_2.0.obj</uri>
+            <uri>package://drake_models/allegro_hand_description/meshes/link_2.0.obj</uri>
           </mesh>
         </geometry>
       </visual>
@@ -805,6 +1039,19 @@
             <radius>0.015</radius>
           </sphere>
         </geometry>
+        <surface>
+          <friction>
+            <ode>
+              <mu>1.0</mu>
+              <mu2>1.0</mu2>
+            </ode>
+          </friction>
+        </surface>
+        <drake:proximity_properties>
+          <drake:rigid_hydroelastic/>
+          <drake:mesh_resolution_hint>0.01</drake:mesh_resolution_hint>
+          <drake:hunt_crossley_dissipation>1.0</drake:hunt_crossley_dissipation>
+        </drake:proximity_properties>
       </collision>
       <collision name="link_3_tip_collision_1">
         <pose>0 0 0.0267 0 0 0</pose>
@@ -813,12 +1060,25 @@
             <radius>0.012</radius>
           </sphere>
         </geometry>
+        <surface>
+          <friction>
+            <ode>
+              <mu>1.0</mu>
+              <mu2>1.0</mu2>
+            </ode>
+          </friction>
+        </surface>
+        <drake:proximity_properties>
+          <drake:rigid_hydroelastic/>
+          <drake:mesh_resolution_hint>0.01</drake:mesh_resolution_hint>
+          <drake:hunt_crossley_dissipation>1.0</drake:hunt_crossley_dissipation>
+        </drake:proximity_properties>
       </collision>
       <visual name="link_3_visual">
         <geometry>
           <mesh>
             <scale>1 1 1</scale>
-            <uri>package://drake/manipulation/models/allegro_hand_description/meshes/link_3.0.obj</uri>
+            <uri>package://drake_models/allegro_hand_description/meshes/link_3.0.obj</uri>
           </mesh>
         </geometry>
       </visual>
@@ -827,7 +1087,7 @@
         <geometry>
           <mesh>
             <scale>1 1 1</scale>
-            <uri>package://drake/manipulation/models/allegro_hand_description/meshes/link_3.0_tip.obj</uri>
+            <uri>package://drake_models/allegro_hand_description/meshes/link_3.0_tip.obj</uri>
           </mesh>
         </geometry>
       </visual>

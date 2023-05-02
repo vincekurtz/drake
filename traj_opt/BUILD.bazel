@@ -29,6 +29,7 @@ drake_cc_package_library(
         ":trajectory_optimizer_state",
         ":trajectory_optimizer_workspace",
         ":velocity_partials",
+        ":warm_start",
     ],
 )
 
@@ -81,6 +82,7 @@ drake_cc_library(
         ":trajectory_optimizer_state",
         ":trajectory_optimizer_workspace",
         ":velocity_partials",
+        ":warm_start",
         "//common:essential",
         "//common:profiler",
         "//geometry:scene_graph_inspector",
@@ -115,6 +117,18 @@ drake_cc_library(
         "solver_parameters.h",
     ],
     deps = [":convergence_criteria_tolerances"],
+)
+
+drake_cc_library(
+    name = "warm_start",
+    hdrs = [
+        "warm_start.h",
+    ],
+    deps = [
+        ":trajectory_optimizer_state",
+        "//common:essential",
+        "//multibody/plant",
+    ],
 )
 
 drake_cc_library(

@@ -80,22 +80,24 @@ struct SolverParameters {
         PreconditionerType::kIncompleteCholesky};
   };
 
+  // Flag for whether we should check for convergence, along with default
+  // tolerances for the convergence check
+  bool check_convergence = false;
   ConvergenceCriteriaTolerances convergence_tolerances;
 
   SolverParameters() = default;
 
   // Which overall optimization strategy to use - linesearch or trust region
-  // TODO(vincekurtz): better name for this?
-  SolverMethod method = SolverMethod::kTrustRegion;
+  SolverMethod method{SolverMethod::kTrustRegion};
 
   // Which linesearch strategy to use
-  LinesearchMethod linesearch_method = LinesearchMethod::kArmijo;
+  LinesearchMethod linesearch_method{LinesearchMethod::kArmijo};
 
   // Maximum number of Gauss-Newton iterations
-  int max_iterations = 100;
+  int max_iterations{100};
 
   // Maximum number of linesearch iterations
-  int max_linesearch_iterations = 50;
+  int max_linesearch_iterations{50};
 
   GradientsMethod gradients_method{kForwardDifferences};
 
@@ -109,11 +111,11 @@ struct SolverParameters {
   bool normalize_quaternions{false};
 
   // Flag for whether to print out iteration data
-  bool verbose = true;
+  bool verbose{true};
 
   // Flag for whether to print (and compute) additional slow-to-compute
   // debugging info, like the condition number, at each iteration
-  bool print_debug_data = false;
+  bool print_debug_data{false};
 
   // Only for debugging. When `true`, the computation with sparse algebra is
   // checked against a dense LDLT computation. This is an expensive check and
@@ -125,7 +127,7 @@ struct SolverParameters {
   // later plotting). This saves a file called "linesearch_data_[k].csv" for
   // each iteration, where k is the iteration number. This file can then be
   // found somewhere in drake/bazel-out/.
-  bool linesearch_plot_every_iteration = false;
+  bool linesearch_plot_every_iteration{false};
 
   // Flag for whether to add a proximal operator term,
   //
@@ -133,57 +135,61 @@ struct SolverParameters {
   //
   // to the cost, where q_{k-1} are the decision variables at iteration {k-1}
   // and H_{k-1} is the Hessian at iteration k-1.
-  bool proximal_operator = false;
+  bool proximal_operator{false};
 
   // Scale factor for the proximal operator cost
-  double rho_proximal = 1e-8;
+  double rho_proximal{1e-8};
 
   // Contact model parameters
   // TODO(vincekurtz): this is definitely the wrong place to specify the contact
   // model - figure out the right place and put these parameters there
-  double F = 1.0;       // force (in Newtons) at delta meters of penetration
-  double delta = 0.01;  // penetration distance at which we apply F newtons
+  double F{1.0};       // force (in Newtons) at delta meters of penetration
+  double delta{0.01};  // penetration distance at which we apply F newtons
   double dissipation_velocity{0.1};  // Hunt-Crossley velocity, in m/s.
-  double stiction_velocity{1.0e-2};  // Regularization of stiction, in m/s.
-  double friction_coefficient{1.0};  // Coefficient of friction.
+  double stiction_velocity{0.05};    // Regularization of stiction, in m/s.
+  double friction_coefficient{0.5};  // Coefficient of friction.
 
-  bool force_at_a_distance{false};  // whether to allow force at a distance
-  double smoothing_factor{0.01};    // force at a distance smoothing
+  bool force_at_a_distance{true};  // whether to allow force at a distance
+  double smoothing_factor{1.0};    // force at a distance smoothing
 
   // Flags for making a contour plot with the first two decision variables.
-  bool save_contour_data = false;
-  double contour_q1_min = 0.0;
-  double contour_q1_max = 1.0;
-  double contour_q2_min = 0.0;
-  double contour_q2_max = 1.0;
+  bool save_contour_data{false};
+  double contour_q1_min{0.0};
+  double contour_q1_max{1.0};
+  double contour_q2_min{0.0};
+  double contour_q2_max{1.0};
 
   // Flags for making line plots with the first decision variable
-  bool save_lineplot_data = false;
-  double lineplot_q_min = 0.0;
-  double lineplot_q_max = 1.0;
+  bool save_lineplot_data{false};
+  double lineplot_q_min{0.0};
+  double lineplot_q_max{1.0};
 
   // Flag for choosing between the exact Hessian (autodiff, very slow) and a
   // Gauss-Newton approximation
-  bool exact_hessian = false;
+  bool exact_hessian{false};
 
   // Flag for rescaling the Hessian, for better numerical conditioning
-  bool scaling = true;
+  bool scaling{true};
 
   // Method to use for rescaling the Hessian (and thus reshaping the Hessian)
   ScalingMethod scaling_method{ScalingMethod::kDoubleSqrt};
 
   // Parameter for activating hard equality constraints on unactuated DoFs
-  bool equality_constraints = false;
+  bool equality_constraints{true};
 
   // Initial and maximum trust region radius
   // N.B. these have very different units depending on whether scaling is used.
   // These defaults are reasonable when scaling=true: without scaling a smaller
   // trust region radius is more appropriate.
-  double Delta0 = 1e-1;
-  double Delta_max = 1e5;
+  double Delta0{1e-1};
+  double Delta_max{1e5};
 
   // Number of cpu threads for parallel computation of derivatives
-  int num_threads = 1;
+  int num_threads{1};
+
+  // Indicator for which DoFs the nominal trajectory is defined as relative to
+  // the initial condition. Useful for locomotion or continuous rotation tasks.
+  VectorX<bool> q_nom_relative_to_q_init;
 };
 
 }  // namespace traj_opt

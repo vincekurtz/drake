@@ -11,13 +11,14 @@
 
 #include "drake/common/eigen_types.h"
 #include "drake/common/find_resource.h"
+#include "drake/common/find_runfiles.h"
 #include "drake/common/temp_directory.h"
+#include "drake/common/test_utilities/diagnostic_policy_test_base.h"
 #include "drake/common/test_utilities/eigen_matrix_compare.h"
 #include "drake/common/test_utilities/expect_no_throw.h"
 #include "drake/common/test_utilities/expect_throws_message.h"
 #include "drake/geometry/geometry_roles.h"
 #include "drake/multibody/parsing/detail_path_utils.h"
-#include "drake/multibody/parsing/test/diagnostic_policy_test_base.h"
 #include "drake/multibody/tree/ball_rpy_joint.h"
 #include "drake/multibody/tree/linear_bushing_roll_pitch_yaw.h"
 #include "drake/multibody/tree/planar_joint.h"
@@ -683,8 +684,8 @@ TEST_F(UrdfParserTest, DoublePendulum) {
 // `package://` syntax internally to the URDF (at least for packages which are
 // successfully found in the same directory at the URDF.
 TEST_F(UrdfParserTest, TestAtlasMinimalContact) {
-  std::string full_name = FindResourceOrThrow(
-      "drake/examples/atlas/urdf/atlas_minimal_contact.urdf");
+  const std::string full_name = FindRunfile(
+      "drake_models/atlas/atlas_minimal_contact.urdf").abspath;
   AddModelFromUrdfFile(full_name, "");
   for (int k = 0; k < 30; k++) {
     EXPECT_THAT(TakeWarning(), MatchesRegex(".*safety_controller.*ignored.*"));
@@ -715,8 +716,8 @@ TEST_F(UrdfParserTest, TestAddWithQuaternionFloatingDof) {
 }
 
 TEST_F(UrdfParserTest, TestRegisteredSceneGraph) {
-  const std::string full_name = FindResourceOrThrow(
-      "drake/examples/atlas/urdf/atlas_minimal_contact.urdf");
+  const std::string full_name = FindRunfile(
+      "drake_models/atlas/atlas_minimal_contact.urdf").abspath;
   // Test that registration with scene graph results in visual geometries.
   AddModelFromUrdfFile(full_name, "");
   // Mostly ignore warnings here; they are tested in detail elsewhere.
@@ -1206,7 +1207,7 @@ TEST_F(UrdfParserTest, PointMass) {
   EXPECT_TRUE(body.default_rotational_inertia().get_products().isZero());
 }
 
-TEST_F(UrdfParserTest, BadInertia) {
+TEST_F(UrdfParserTest, BadInertiaFormats) {
   // Test various mis-formatted inputs.
   constexpr const char* base = R"""(
     <robot name='point_mass'>
@@ -1247,36 +1248,57 @@ TEST_F(UrdfParserTest, BadInertia) {
   EXPECT_THAT(TakeError(), MatchesRegex(".*Expected single value.*izz.*"));
 }
 
-// TODO(rpoyner-tri): these tests don't test the parser but rather error
-// behavior of underlying implementation components. Consider moving or
-// removing them.
-class ZeroMassNonZeroInertiaTest : public UrdfParserTest {
- public:
-  void ParseZeroMassNonZeroInertia() {
-    AddModelFromUrdfString(R"""(
-<robot name='bad'>
-  <link name='bad'>
-    <inertial>
-      <mass value="0"/>
-      <inertia ixx="1" ixy="0" ixz="0" iyy="1" iyz="0" izz="1"/>
-    </inertial>
-  </link>
-</robot>)""", "");
-  }
-};
+TEST_F(UrdfParserTest, BadInertiaValues) {
+  // Test various invalid input values.
+  constexpr const char* base = R"""(
+    <robot name='test'>
+      <link name='test'>
+        <inertial>
+          <mass {}/>
+          <inertia {}/>
+        </inertial>
+      </link>
+    </robot>)""";
 
-TEST_F(ZeroMassNonZeroInertiaTest, ExceptionType) {
-  // Test that attempt to parse links with zero mass and non-zero inertia fails.
-  if (!::drake::kDrakeAssertIsArmed) {
-    EXPECT_THROW(ParseZeroMassNonZeroInertia(), std::runtime_error);
-  }
-}
+  const int num_builtin_models = plant_.num_model_instances();
 
-TEST_F(ZeroMassNonZeroInertiaTest, Message) {
+  // Absurd rotational inertia values.
+  AddModelFromUrdfString(
+      fmt::format(base, "value='1'",
+                  "ixx='1' ixy='4' ixz='9' iyy='16' iyz='25' izz='36'"), "a");
+  EXPECT_THAT(TakeWarning(), MatchesRegex(".*rot.*inertia.*"));
+  // Test some inertia values found in the wild.
+  AddModelFromUrdfString(
+      fmt::format(
+          base, "value='0.038'",
+          "ixx='4.30439933333e-05' ixy='9.57068e-06' ixz='5.1205e-06' "
+          "iyy='1.44451933333e-05' iyz='1.342825e-05' izz='4.30439933333e-05'"),
+      "b");
+  EXPECT_THAT(TakeWarning(), MatchesRegex(".*rot.*inertia.*"));
+  // Negative mass.
+  AddModelFromUrdfString(
+      fmt::format(base, "value='-1'",
+                  "ixx='1' ixy='0' ixz='0' iyy='1' iyz='0' izz='1'"), "c");
+  EXPECT_THAT(TakeWarning(), MatchesRegex(".*mass > 0.*"));
   // Test that attempt to parse links with zero mass and non-zero inertia fails.
-  const std::string expected_message = ".*condition 'mass > 0' failed.";
-  DRAKE_EXPECT_THROWS_MESSAGE(
-      ParseZeroMassNonZeroInertia(), expected_message);
+  AddModelFromUrdfString(
+      fmt::format(base, "value='0'",
+                  "ixx='1' ixy='0' ixz='0' iyy='1' iyz='0' izz='1'"), "d");
+  EXPECT_THAT(TakeWarning(), MatchesRegex(".*mass > 0.*"));
+
+  plant_.Finalize();
+  // Do some basic sanity checking on the plausible mass and inertia generated
+  // when warnings are issued.
+  for (ModelInstanceIndex k(num_builtin_models);
+       k < plant_.num_model_instances(); ++k) {
+    SCOPED_TRACE(fmt::format("model instance {}", k));
+    const auto& body = dynamic_cast<const RigidBody<double>&>(
+        plant_.GetBodyByName("test", k));
+    const double mass = body.default_mass();
+    EXPECT_GT(mass, 0);
+    EXPECT_TRUE(std::isfinite(mass));
+    EXPECT_TRUE(body.default_rotational_inertia().CouldBePhysicallyValid());
+  }
 }
 
 TEST_F(UrdfParserTest, BushingParsing) {

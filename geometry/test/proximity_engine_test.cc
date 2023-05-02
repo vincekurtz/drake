@@ -906,7 +906,7 @@ GTEST_TEST(ProximityEngineTests, SignedDistancePairClosestPoint) {
                     "a signed distance query", bad_id));
   }
 
-  // Case: the pair is filtered.
+  // Case: the distance is evaluated even though the pair is filtered.
   {
     // I know the GeometrySet only has id_A and id_B, so I'll construct the
     // extracted set by hand.
@@ -916,10 +916,8 @@ GTEST_TEST(ProximityEngineTests, SignedDistancePairClosestPoint) {
     engine.collision_filter().Apply(
         CollisionFilterDeclaration().ExcludeWithin(GeometrySet{id_A, id_B}),
         extract_ids, false /* is_invariant */);
-    DRAKE_EXPECT_THROWS_MESSAGE(
-        engine.ComputeSignedDistancePairClosestPoints(id_A, id_B, X_WGs),
-        fmt::format("The geometry pair \\({}, {}\\) does not support a signed "
-                    "distance query", id_A, id_B));
+    EXPECT_NO_THROW(
+        engine.ComputeSignedDistancePairClosestPoints(id_A, id_B, X_WGs));
   }
 }
 
@@ -4336,7 +4334,7 @@ GTEST_TEST(ProximityEngineTests,
   DRAKE_EXPECT_THROWS_MESSAGE(
       engine.ComputeSignedDistancePairwiseClosestPoints(X_WGs, kInf),
       "Signed distance queries between shapes 'Box' and 'Box' are not "
-      "supported for scalar type drake::AutoDiffXd");
+      "supported for scalar type drake::AutoDiffXd.*");
 }
 
 // Tests that an unsupported geometry causes the engine to throw.
@@ -4355,15 +4353,15 @@ GTEST_TEST(ProximityEngineTests, ExpressionUnsupported) {
   DRAKE_EXPECT_THROWS_MESSAGE(
       engine.ComputeSignedDistancePairwiseClosestPoints(X_WGs, kInf),
       "Signed distance queries between shapes 'Box' and 'Box' are not "
-      "supported for scalar type drake::symbolic::Expression");
+      "supported for scalar type drake::symbolic::Expression.*");
   DRAKE_EXPECT_THROWS_MESSAGE(
       engine.ComputeSignedDistancePairClosestPoints(id1, id2, X_WGs),
       "Signed distance queries between shapes 'Box' and 'Box' are not "
-      "supported for scalar type drake::symbolic::Expression");
+      "supported for scalar type drake::symbolic::Expression.*");
   DRAKE_EXPECT_THROWS_MESSAGE(
       engine.ComputePointPairPenetration(X_WGs),
       "Penetration queries between shapes 'Box' and 'Box' are not supported "
-      "for scalar type drake::symbolic::Expression");
+      "for scalar type drake::symbolic::Expression.*");
 }
 
 // Test fixture for deformable contact.

@@ -84,7 +84,7 @@ GTEST_TEST(SphereShapeDistance, FallbackSupport) {
       CalcDistanceFallback<AutoDiffXd>(obj_a, obj_b, request,
                                        &distance_pair_ad),
       "Signed distance queries between shapes .+ and .+ are not supported for "
-      "scalar type .*AutoDiffXd");
+      "scalar type .*AutoDiffXd.*");
 }
 // TODO(SeanCurtis-TRI): Create a more general test framework when we have
 //  shape-shape primitives that *aren't* covered by the point-shape tests.
@@ -689,6 +689,12 @@ GTEST_TEST(Callback, RespectCollisionFiltering) {
   threshold = std::numeric_limits<double>::max();
   Callback<double>(&sphere_A, &sphere_B, &data, threshold);
   EXPECT_EQ(results.size(), 0u);
+
+  // However, if we explicitly request collision filters be ignored, it will do
+  // so.
+  data.collision_filter = nullptr;
+  Callback<double>(&sphere_A, &sphere_B, &data, threshold);
+  EXPECT_EQ(results.size(), 1u);
 }
 
 // Confirms that regardless of the order of the two objects, the result always

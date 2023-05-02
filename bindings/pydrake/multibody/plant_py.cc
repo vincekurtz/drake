@@ -972,6 +972,14 @@ void DoScalarDependentDefinitions(py::module m, T) {
             py::arg("contact_solver"), cls_doc.set_discrete_contact_solver.doc)
         .def("get_discrete_contact_solver", &Class::get_discrete_contact_solver,
             cls_doc.get_discrete_contact_solver.doc)
+        .def("set_sap_near_rigid_threshold",
+            &Class::set_sap_near_rigid_threshold,
+            py::arg("near_rigid_threshold") =
+                MultibodyPlantConfig{}.sap_near_rigid_threshold,
+            cls_doc.set_sap_near_rigid_threshold.doc)
+        .def("get_sap_near_rigid_threshold",
+            &Class::get_sap_near_rigid_threshold,
+            cls_doc.get_sap_near_rigid_threshold.doc)
         .def_static("GetDefaultContactSurfaceRepresentation",
             &Class::GetDefaultContactSurfaceRepresentation,
             py::arg("time_step"),
@@ -1146,7 +1154,54 @@ void DoScalarDependentDefinitions(py::module m, T) {
             [](const Class* self, const Context<T>& context, State<T>* state) {
               self->SetDefaultState(context, state);
             },
-            py::arg("context"), py::arg("state"), cls_doc.SetDefaultState.doc);
+            py::arg("context"), py::arg("state"), cls_doc.SetDefaultState.doc)
+        .def("GetPositionNames",
+            overload_cast_explicit<std::vector<std::string>, bool, bool>(
+                &Class::GetPositionNames),
+            py::arg("add_model_instance_prefix") = false,
+            py::arg("always_add_suffix") = true,
+            cls_doc.GetPositionNames.doc_2args)
+        .def("GetPositionNames",
+            overload_cast_explicit<std::vector<std::string>, ModelInstanceIndex,
+                bool, bool>(&Class::GetPositionNames),
+            py::arg("model_instance"),
+            py::arg("add_model_instance_prefix") = false,
+            py::arg("always_add_suffix") = true,
+            cls_doc.GetPositionNames.doc_3args)
+        .def("GetVelocityNames",
+            overload_cast_explicit<std::vector<std::string>, bool, bool>(
+                &Class::GetVelocityNames),
+            py::arg("add_model_instance_prefix") = false,
+            py::arg("always_add_suffix") = true,
+            cls_doc.GetVelocityNames.doc_2args)
+        .def("GetVelocityNames",
+            overload_cast_explicit<std::vector<std::string>, ModelInstanceIndex,
+                bool, bool>(&Class::GetVelocityNames),
+            py::arg("model_instance"),
+            py::arg("add_model_instance_prefix") = false,
+            py::arg("always_add_suffix") = true,
+            cls_doc.GetVelocityNames.doc_3args)
+        .def("GetStateNames",
+            overload_cast_explicit<std::vector<std::string>, bool>(
+                &Class::GetStateNames),
+            py::arg("add_model_instance_prefix") = false,
+            cls_doc.GetStateNames.doc_1args)
+        .def("GetStateNames",
+            overload_cast_explicit<std::vector<std::string>, ModelInstanceIndex,
+                bool>(&Class::GetStateNames),
+            py::arg("model_instance"),
+            py::arg("add_model_instance_prefix") = false,
+            cls_doc.GetStateNames.doc_2args)
+        .def("GetActuatorNames",
+            overload_cast_explicit<std::vector<std::string>, bool>(
+                &Class::GetActuatorNames),
+            py::arg("add_model_instance_prefix"),
+            cls_doc.GetActuatorNames.doc_1args)
+        .def("GetActuatorNames",
+            overload_cast_explicit<std::vector<std::string>, ModelInstanceIndex,
+                bool>(&Class::GetActuatorNames),
+            py::arg("model_instance"), py::arg("add_model_instance_prefix"),
+            cls_doc.GetActuatorNames.doc_2args);
   }
 
   {
@@ -1442,6 +1497,9 @@ PYBIND11_MODULE(plant, m) {
         .def("RegisterDeformableBody", &Class::RegisterDeformableBody,
             py::arg("geometry_instance"), py::arg("config"),
             py::arg("resolution_hint"), cls_doc.RegisterDeformableBody.doc)
+        .def("SetWallBoundaryCondition", &Class::SetWallBoundaryCondition,
+            py::arg("id"), py::arg("p_WQ"), py::arg("n_W"),
+            cls_doc.SetWallBoundaryCondition.doc)
         .def("GetDiscreteStateIndex", &Class::GetDiscreteStateIndex,
             py::arg("id"), cls_doc.GetDiscreteStateIndex.doc)
         .def("GetReferencePositions", &Class::GetReferencePositions,

@@ -5,7 +5,6 @@ load(
 )
 load(
     "@drake//tools/skylark:pybind.bzl",
-    "add_pybind_coverage_data",
     "drake_pybind_library",
     "get_drake_py_installs",
     "get_pybind_package_info",
@@ -55,7 +54,11 @@ drake_pybind_library(
         "//bindings/pydrake/systems:framework_py",
         "//bindings/pydrake/systems:lcm_py",
     ],
-    py_srcs = ["_geometry_extra.py"],
+    py_srcs = [
+        "_geometry_extra.py",
+        # 2023-08-01 Remove this source file upon completion of deprecation.
+        "render.py",
+    ],
 )
 
 install(
@@ -158,6 +161,12 @@ drake_py_unittest(
     ],
 )
 
-add_pybind_coverage_data()
+drake_py_unittest(
+    name = "render_deprecation_test",
+    deps = [
+        ":geometry",
+        "//bindings/pydrake/common/test_utilities:deprecation_py",
+    ],
+)
 
 add_lint_tests_pydrake()

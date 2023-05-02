@@ -65,13 +65,11 @@ class TwoBodiesTest : public ::testing::TestWithParam<TestConfig> {
     // problem.
     const double mass = 1.5;
     const double radius = 0.1;
-    const SpatialInertia<double> M_Bo =
-        SpatialInertia<double>::MakeFromCentralInertia(
-            mass, Vector3d::Zero(),
-            UnitInertia<double>::SolidSphere(radius) * mass);
+    const SpatialInertia<double> M_BBcm =
+        SpatialInertia<double>::SolidSphereWithMass(mass, radius);
 
-    bodyA_ = &plant_.AddRigidBody("A", M_Bo);
-    bodyB_ = &plant_.AddRigidBody("B", M_Bo);
+    bodyA_ = &plant_.AddRigidBody("A", M_BBcm);
+    bodyB_ = &plant_.AddRigidBody("B", M_BBcm);
     if (anchor_bodyA) {
       plant_.WeldFrames(plant_.world_frame(), bodyA_->body_frame());
     }
@@ -190,7 +188,7 @@ TEST_P(TwoBodiesTest, ConfirmConstraintProperties) {
   //        = [-[p_BQ]ₓ [I]] ⋅ V_WB - [-[p_AP]ₓ [I]] ⋅ V_WA
   //        = J_B ⋅ V_WB - J_A ⋅ V_WA
   if (expected_num_cliques == 1) {
-    const MatrixXd& J = constraint->first_clique_jacobian();
+    const MatrixXd& J = constraint->first_clique_jacobian().MakeDenseMatrix();
     // clang-format off
       const MatrixXd J_expected =
         (MatrixXd(3, 6) <<         0,  p_BQ_(2), -p_BQ_(1), 1, 0, 0,
@@ -199,7 +197,7 @@ TEST_P(TwoBodiesTest, ConfirmConstraintProperties) {
     // clang-format on
     EXPECT_TRUE(CompareMatrices(J, J_expected));
   } else {
-    const MatrixXd& Ja = constraint->first_clique_jacobian();
+    const MatrixXd& Ja = constraint->first_clique_jacobian().MakeDenseMatrix();
     // clang-format off
     const MatrixXd Ja_expected =
       -(MatrixXd(3, 6) <<         0,  p_AP_(2), -p_AP_(1), 1, 0, 0,
@@ -208,7 +206,7 @@ TEST_P(TwoBodiesTest, ConfirmConstraintProperties) {
     // clang-format on
     EXPECT_TRUE(CompareMatrices(Ja, Ja_expected));
 
-    const MatrixXd& Jb = constraint->second_clique_jacobian();
+    const MatrixXd& Jb = constraint->second_clique_jacobian().MakeDenseMatrix();
     // clang-format off
       const MatrixXd Jb_expected =
         (MatrixXd(3, 6) <<         0,  p_BQ_(2), -p_BQ_(1), 1, 0, 0,

@@ -25,6 +25,7 @@ using drake::geometry::GeometryId;
 using drake::geometry::PenetrationAsPointPair;
 using drake::math::RotationMatrix;
 using drake::multibody::contact_solvers::internal::ContactSolverResults;
+using drake::multibody::contact_solvers::internal::MatrixBlock;
 using drake::multibody::internal::DiscreteContactPair;
 using drake::multibody::internal::MultibodyTreeTopology;
 using drake::systems::Context;
@@ -34,8 +35,9 @@ namespace multibody {
 namespace internal {
 
 template <typename T>
-AccelerationsDueToExternalForcesCache<T>::AccelerationsDueToExternalForcesCache(
-    const MultibodyTreeTopology& topology)
+AccelerationsDueNonConstraintForcesCache<
+    T>::AccelerationsDueNonConstraintForcesCache(const MultibodyTreeTopology&
+                                                     topology)
     : forces(topology.num_bodies(), topology.num_velocities()),
       abic(topology),
       Zb_Bo_W(topology.num_bodies()),
@@ -116,26 +118,26 @@ void CompliantContactManager<T>::DoDeclareCacheEntries() {
   cache_indexes_.contact_kinematics =
       contact_kinematics_cache_entry.cache_index();
 
-  // Accelerations due to non-contact forces.
-  // We cache non-contact forces, ABA forces and accelerations into a
-  // AccelerationsDueToExternalForcesCache.
-  AccelerationsDueToExternalForcesCache<T> non_contact_forces_accelerations(
-      this->internal_tree().get_topology());
-  const auto& non_contact_forces_accelerations_cache_entry =
+  // Accelerations due to non-constraint forces.
+  // We cache non-contact forces, ABA forces and accelerations into an
+  // AccelerationsDueNonConstraintForcesCache.
+  AccelerationsDueNonConstraintForcesCache<T>
+      non_constraint_forces_accelerations(this->internal_tree().get_topology());
+  const auto base_cache_indices = DiscreteUpdateManager<T>::cache_indexes();
+  const auto& discrete_input_port_forces_cache_entry =
+      plant().get_cache_entry(base_cache_indices.discrete_input_port_forces);
+  const auto& non_constraint_forces_accelerations_cache_entry =
       this->DeclareCacheEntry(
-          "Non-contact forces accelerations.",
+          "Non-constraint forces and induced accelerations.",
           systems::ValueProducer(
-              this, non_contact_forces_accelerations,
+              this, non_constraint_forces_accelerations,
               &CompliantContactManager<
-                  T>::CalcAccelerationsDueToNonContactForcesCache),
-          // Due to issue #12786, we cannot properly mark this entry dependent
-          // on inputs. CalcAccelerationsDueToNonContactForcesCache() uses
-          // CacheIndexes::non_contact_forces_evaluation_in_progress to guard
-          // against algebraic loops.
+                  T>::CalcAccelerationsDueToNonConstraintForcesCache),
           {systems::System<T>::xd_ticket(),
-           systems::System<T>::all_parameters_ticket()});
-  cache_indexes_.non_contact_forces_accelerations =
-      non_contact_forces_accelerations_cache_entry.cache_index();
+           systems::System<T>::all_parameters_ticket(),
+           discrete_input_port_forces_cache_entry.ticket()});
+  cache_indexes_.non_constraint_forces_accelerations =
+      non_constraint_forces_accelerations_cache_entry.cache_index();
 
   if constexpr (std::is_same_v<T, double>) {
     if (deformable_driver_ != nullptr) {
@@ -230,7 +232,7 @@ CompliantContactManager<T>::CalcContactKinematics(
                       Jv_AcBc_W.middleCols(
                           tree_topology().tree_velocities_start(treeA_index),
                           tree_topology().num_tree_velocities(treeA_index));
-      jacobian_blocks.emplace_back(treeA_index, std::move(J));
+      jacobian_blocks.emplace_back(treeA_index, MatrixBlock<T>(std::move(J)));
     }
 
     // Tree B contribution to contact Jacobian Jv_W_AcBc_C.
@@ -241,7 +243,7 @@ CompliantContactManager<T>::CalcContactKinematics(
                       Jv_AcBc_W.middleCols(
                           tree_topology().tree_velocities_start(treeB_index),
                           tree_topology().num_tree_velocities(treeB_index));
-      jacobian_blocks.emplace_back(treeB_index, std::move(J));
+      jacobian_blocks.emplace_back(treeB_index, MatrixBlock<T>(std::move(J)));
     }
 
     contact_kinematics.emplace_back(point_pair.phi0, std::move(jacobian_blocks),
@@ -547,27 +549,17 @@ void CompliantContactManager<T>::
 }
 
 template <typename T>
-void CompliantContactManager<T>::CalcNonContactForcesExcludingJointLimits(
-    const systems::Context<T>& context, MultibodyForces<T>* forces) const {
-  DRAKE_DEMAND(forces != nullptr);
-  DRAKE_DEMAND(forces->CheckHasRightSizeForModel(plant()));
-  // Compute forces applied through force elements. Note that this resets
-  // forces to empty so must come first.
-  this->CalcForceElementsContribution(context, forces);
-  this->AddInForcesFromInputPorts(context, forces);
-}
-
-template <typename T>
-void CompliantContactManager<T>::CalcAccelerationsDueToNonContactForcesCache(
+void CompliantContactManager<T>::CalcAccelerationsDueToNonConstraintForcesCache(
     const systems::Context<T>& context,
-    AccelerationsDueToExternalForcesCache<T>* forward_dynamics_cache) const {
+    AccelerationsDueNonConstraintForcesCache<T>* forward_dynamics_cache) const {
   DRAKE_DEMAND(forward_dynamics_cache != nullptr);
-  ScopeExit guard = this->ThrowIfNonContactForceInProgress(context);
 
-  // N.B. Joint limits are modeled as constraints. Therefore here we only add
-  // all other external forces.
-  CalcNonContactForcesExcludingJointLimits(context,
-                                           &forward_dynamics_cache->forces);
+  // We exclude joint limit penalties here as dictated by the contract of the
+  // function. This function is used for SAP (not TAMSI) which models joint
+  // limits as constraints.
+  this->CalcNonContactForces(context,
+                             /* include joint limit penalty forces */ false,
+                             &forward_dynamics_cache->forces);
 
   // Our goal is to compute accelerations from the Newton-Euler equations:
   //   M⋅v̇ = k(x)
@@ -626,11 +618,11 @@ CompliantContactManager<T>::EvalDiscreteContactPairs(
 
 template <typename T>
 const multibody::internal::AccelerationKinematicsCache<T>&
-CompliantContactManager<T>::EvalAccelerationsDueToNonContactForcesCache(
+CompliantContactManager<T>::EvalAccelerationsDueToNonConstraintForcesCache(
     const systems::Context<T>& context) const {
   return plant()
-      .get_cache_entry(cache_indexes_.non_contact_forces_accelerations)
-      .template Eval<AccelerationsDueToExternalForcesCache<T>>(context)
+      .get_cache_entry(cache_indexes_.non_constraint_forces_accelerations)
+      .template Eval<AccelerationsDueNonConstraintForcesCache<T>>(context)
       .ac;
 }
 
@@ -969,7 +961,10 @@ void CompliantContactManager<T>::ExtractModelInfo() {
       // plant to symbolic and perform other supported queries such as
       // introspection and kinematics.
       if constexpr (!std::is_same_v<T, symbolic::Expression>) {
-        sap_driver_ = std::make_unique<SapDriver<T>>(this);
+        const double near_rigid_threshold =
+            plant().get_sap_near_rigid_threshold();
+        sap_driver_ =
+            std::make_unique<SapDriver<T>>(this, near_rigid_threshold);
       }
       break;
     case DiscreteContactSolver::kTamsi:

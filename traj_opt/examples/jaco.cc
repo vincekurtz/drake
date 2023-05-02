@@ -60,11 +60,12 @@ class JacoExample : public TrajOptExample {
     // Add a jaco arm, including gravity, with rigid hydroelastic contact
     std::string robot_file = FindResourceOrThrow(
         "drake/traj_opt/examples/models/j2s7s300_arm_hydro_collision.sdf");
-    Parser(plant).AddModelFromFile(robot_file);
+    ModelInstanceIndex jaco = Parser(plant).AddModelFromFile(robot_file);
     RigidTransformd X_jaco(RollPitchYaw<double>(0, 0, M_PI_2),
                            Vector3d(0, 0.27, 0.11));
     plant->WeldFrames(plant->world_frame(), plant->GetFrameByName("base"),
                       X_jaco);
+    plant->disable_gravity(jaco);
 
     // Add a manipuland with compliant hydroelastic contact
     std::string manipuland_file = FindResourceOrThrow(
@@ -82,9 +83,9 @@ class JacoExample : public TrajOptExample {
                                   Box(1.5, 1.5, 1), "table", tan);
 
     ProximityProperties ground_proximity;
-    AddContactMaterial({}, {}, CoulombFriction<double>(0.5, 0.5),
+    AddContactMaterial(3.0, {}, CoulombFriction<double>(0.5, 0.5),
                        &ground_proximity);
-    AddCompliantHydroelasticProperties(0.1, 5e7, &ground_proximity);
+    AddCompliantHydroelasticProperties(0.1, 5e6, &ground_proximity);
     plant->RegisterCollisionGeometry(plant->world_body(), X_ground,
                                      Box(25, 25, 1), "ground",
                                      ground_proximity);

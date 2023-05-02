@@ -69,13 +69,11 @@ class TwoBodiesTest : public ::testing::TestWithParam<TestConfig> {
     // problem.
     const double mass = 1.5;
     const double radius = 0.1;
-    const SpatialInertia<double> M_Bo =
-        SpatialInertia<double>::MakeFromCentralInertia(
-            mass, Vector3d::Zero(),
-            UnitInertia<double>::SolidSphere(radius) * mass);
+    const SpatialInertia<double> M_BBcm =
+        SpatialInertia<double>::SolidSphereWithMass(mass, radius);
 
-    bodyA_ = &plant_.AddRigidBody("A", M_Bo);
-    bodyB_ = &plant_.AddRigidBody("B", M_Bo);
+    bodyA_ = &plant_.AddRigidBody("A", M_BBcm);
+    bodyB_ = &plant_.AddRigidBody("B", M_BBcm);
     if (anchor_bodyA) {
       plant_.WeldFrames(plant_.world_frame(), bodyA_->body_frame());
     }
@@ -197,17 +195,19 @@ TEST_P(TwoBodiesTest, ConfirmConstraintProperties) {
     // velocities first, followed by translational velocities (and the
     // relative positions of the bodies).
     if (expected_num_cliques == 1) {
-      const MatrixXd& J = constraint->first_clique_jacobian();
+      const MatrixXd& J = constraint->first_clique_jacobian().MakeDenseMatrix();
       const MatrixXd J_expected =
           (MatrixXd(1, 6) << 0, 0, 0, 1, 0, 0).finished();
       EXPECT_TRUE(CompareMatrices(J, J_expected));
     } else {
-      const MatrixXd& Ja = constraint->first_clique_jacobian();
+      const MatrixXd& Ja =
+          constraint->first_clique_jacobian().MakeDenseMatrix();
       const MatrixXd Ja_expected =
           (MatrixXd(1, 6) << 0, 0, 0, -1, 0, 0).finished();
       EXPECT_TRUE(CompareMatrices(Ja, Ja_expected));
 
-      const MatrixXd& Jb = constraint->second_clique_jacobian();
+      const MatrixXd& Jb =
+          constraint->second_clique_jacobian().MakeDenseMatrix();
       const MatrixXd Jb_expected =
           (MatrixXd(1, 6) << 0, 0, 0, 1, 0, 0).finished();
       EXPECT_TRUE(CompareMatrices(Jb, Jb_expected));
