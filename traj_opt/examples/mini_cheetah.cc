@@ -11,7 +11,9 @@ namespace mini_cheetah {
 
 using Eigen::Vector3d;
 using geometry::Box;
+using geometry::Cylinder;
 using math::RigidTransformd;
+using math::RollPitchYawd;
 using multibody::CoulombFriction;
 using multibody::MultibodyPlant;
 using multibody::Parser;
@@ -21,7 +23,7 @@ using multibody::Parser;
  */
 class MiniCheetahExample : public TrajOptExample {
   void CreatePlantModel(MultibodyPlant<double>* plant) const {
-    const Vector4<double> green(0.3, 0.6, 0.4, 0.5);
+    const Vector4<double> green(0.3, 0.6, 0.4, 1.0);
 
     // Add the robot
     std::string urdf_file = FindResourceOrThrow(
@@ -31,10 +33,23 @@ class MiniCheetahExample : public TrajOptExample {
     // Add collision with the ground
     RigidTransformd X_ground(Vector3d(0.0, 0.0, -5.0));
     plant->RegisterVisualGeometry(plant->world_body(), X_ground,
-                                  Box(5, 5, 10), "ground", green);
+                                  Box(25, 25, 10), "ground", green);
     plant->RegisterCollisionGeometry(plant->world_body(), X_ground,
-                                     Box(5, 5, 10), "ground",
+                                     Box(25, 25, 10), "ground",
                                      CoulombFriction<double>(0.5, 0.5));
+
+    // Add some extra terrain
+    for (int i = 0; i < 2; ++i) {
+      const double px = 2.0 + static_cast<double>(i);
+      const std::string name = "hill_" + std::to_string(i);
+      const RigidTransformd X_hill(RollPitchYawd(M_PI_2, 0, 0),
+                                   Vector3d(px, 0.0, -0.9));
+      plant->RegisterVisualGeometry(plant->world_body(), X_hill,
+                                    Cylinder(1, 25), name, green);
+      plant->RegisterCollisionGeometry(plant->world_body(), X_hill,
+                                       Cylinder(1, 25), name,
+                                       CoulombFriction<double>(0.5, 0.5));
+    }
   }
 };
 

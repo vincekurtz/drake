@@ -20,8 +20,8 @@ q_nom_start : [ 1.0, 0.0, 0.0, 0.0,
            0.0,-0.8, 1.6,
            0.0,-0.8, 1.6,
            0.0,-0.8, 1.6]
-q_nom_end : [ 1.0, 0.0, 0.0, 0.0,
-           0.5, 0.0, 0.29,
+q_nom_end : [ 0.7, 0.0, 0.0, 0.3,
+           0.3, 0.2, 0.29,
            0.0,-0.8, 1.6,
            0.0,-0.8, 1.6,
            0.0,-0.8, 1.6,
@@ -43,8 +43,8 @@ q_guess : [ 1.0, 0.0, 0.0, 0.0,
            0.0,-0.8, 1.6]
 
 # Cost Weights
-Qq : [2, 2, 2, 2,
-      5, 5, 5,
+Qq : [10, 10, 10, 10,
+      10, 10, 10,
       0, 0, 0,
       0, 0, 0,
       0, 0, 0,
@@ -64,7 +64,7 @@ R : [100, 100, 100,
      0.01, 0.01, 0.01,
      0.01, 0.01, 0.01]
 
-Qfq : [5, 5, 5, 5,
+Qfq : [10, 10, 10, 10,
       10, 10, 10,
       1, 1, 1,
       1, 1, 1,
@@ -135,8 +135,8 @@ stiction_velocity: 0.5     # Regularization velocity, in m/s.
 # MPC parameters
 mpc : false
 mpc_iters : 1
-controller_frequency : 50
-sim_time : 15
+controller_frequency : 60
+sim_time : 30
 sim_time_step : 1e-3
 sim_realtime_rate : 0.0
 feed_forward : true
