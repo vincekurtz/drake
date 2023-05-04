@@ -57,8 +57,10 @@ void TrajOptExample::RunModelPredictiveControl(
   const int nv = plant.num_velocities();
   const int nu = plant.num_actuators();
 
-  // Connect to the visualizer
-  visualization::AddDefaultVisualization(&builder);
+  // Connect to the Meshcat visualizer
+  MeshcatVisualizerParams params;
+  params.delete_on_initialization_event = false;
+  MeshcatVisualizerd::AddToBuilder(&builder, scene_graph, meshcat_, params);
 
   // Create a system model for the controller
   DiagramBuilder<double> ctrl_builder;
@@ -143,12 +145,17 @@ void TrajOptExample::RunModelPredictiveControl(
       diagram->GetMutableSubsystemContext(plant, diagram_context.get());
 
   // Run the simulation
+
   plant.SetPositions(&plant_context, options.q_init);
   plant.SetVelocities(&plant_context, options.v_init);
   systems::Simulator<double> simulator(*diagram, std::move(diagram_context));
   simulator.set_target_realtime_rate(options.sim_realtime_rate);
   simulator.Initialize();
+  
+  meshcat_->StartRecording();
   simulator.AdvanceTo(options.sim_time);
+  meshcat_->StopRecording();
+  meshcat_->PublishRecording();
 
   // Print profiling info
   std::cout << TableOfAverages() << std::endl;
@@ -280,7 +287,7 @@ TrajectoryOptimizerSolution<double> TrajOptExample::SolveTrajectoryOptimization(
 void TrajOptExample::PlayBackTrajectory(const std::vector<VectorXd>& q,
                                         const double time_step) const {
   // Create a system diagram that includes the plant and is connected to
-  // the Drake visualizer
+  // the meshcat visualizer
   DiagramBuilder<double> builder;
   MultibodyPlantConfig config;
   config.time_step = time_step;
@@ -289,7 +296,6 @@ void TrajOptExample::PlayBackTrajectory(const std::vector<VectorXd>& q,
   CreatePlantModel(&plant);
   plant.Finalize();
 
-  //visualization::AddDefaultVisualization(&builder);
   MeshcatVisualizerParams params;
   params.delete_on_initialization_event = false;
   MeshcatVisualizerd::AddToBuilder(&builder, scene_graph, meshcat_, params);
