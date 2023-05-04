@@ -18,6 +18,7 @@ using mpc::Interpolator;
 using mpc::ModelPredictiveController;
 using pd_plus::PdPlusController;
 using systems::DiscreteTimeDelay;
+using geometry::MeshcatAnimation;
 
 void TrajOptExample::RunExample(const std::string options_file) const {
   // Load parameters from file
@@ -58,9 +59,8 @@ void TrajOptExample::RunModelPredictiveControl(
   const int nu = plant.num_actuators();
 
   // Connect to the Meshcat visualizer
-  MeshcatVisualizerParams params;
-  params.delete_on_initialization_event = false;
-  MeshcatVisualizerd::AddToBuilder(&builder, scene_graph, meshcat_, params);
+  auto& visualizer =
+      MeshcatVisualizerd::AddToBuilder(&builder, scene_graph, meshcat_);
 
   // Create a system model for the controller
   DiagramBuilder<double> ctrl_builder;
@@ -144,18 +144,19 @@ void TrajOptExample::RunModelPredictiveControl(
   systems::Context<double>& plant_context =
       diagram->GetMutableSubsystemContext(plant, diagram_context.get());
 
-  // Run the simulation
-
+  // Set up the simulation
   plant.SetPositions(&plant_context, options.q_init);
   plant.SetVelocities(&plant_context, options.v_init);
   systems::Simulator<double> simulator(*diagram, std::move(diagram_context));
   simulator.set_target_realtime_rate(options.sim_realtime_rate);
   simulator.Initialize();
-  
-  meshcat_->StartRecording();
+
+  // Run the simulation, recording the result for later playback in MeshCat  
+  MeshcatAnimation* animation = visualizer.StartRecording();
+  animation->set_autoplay(false);
   simulator.AdvanceTo(options.sim_time);
-  meshcat_->StopRecording();
-  meshcat_->PublishRecording();
+  visualizer.StopRecording();
+  visualizer.PublishRecording();
 
   // Print profiling info
   std::cout << TableOfAverages() << std::endl;
@@ -296,9 +297,8 @@ void TrajOptExample::PlayBackTrajectory(const std::vector<VectorXd>& q,
   CreatePlantModel(&plant);
   plant.Finalize();
 
-  MeshcatVisualizerParams params;
-  params.delete_on_initialization_event = false;
-  MeshcatVisualizerd::AddToBuilder(&builder, scene_graph, meshcat_, params);
+  auto& visualizer =
+      MeshcatVisualizerd::AddToBuilder(&builder, scene_graph, meshcat_);
 
   auto diagram = builder.Build();
   std::unique_ptr<systems::Context<double>> diagram_context =
@@ -309,8 +309,11 @@ void TrajOptExample::PlayBackTrajectory(const std::vector<VectorXd>& q,
   const VectorXd u = VectorXd::Zero(plant.num_actuators());
   plant.get_actuation_input_port().FixValue(&plant_context, u);
 
+  // Set up a recording for later playback in Meshcat
+  MeshcatAnimation* animation = visualizer.StartRecording();
+  animation->set_autoplay(false);
+
   // Step through q, setting the plant positions at each step accordingly
-  meshcat_->StartRecording();
   const int N = q.size();
   for (int t = 0; t < N; ++t) {
     diagram_context->SetTime(t * time_step);
@@ -321,8 +324,8 @@ void TrajOptExample::PlayBackTrajectory(const std::vector<VectorXd>& q,
     // TODO(vincekurtz): add realtime rate option?
     std::this_thread::sleep_for(std::chrono::duration<double>(time_step));
   }
-  meshcat_->StopRecording();
-  meshcat_->PublishRecording();
+  visualizer.StopRecording();
+  visualizer.PublishRecording();
 }
 
 void TrajOptExample::SetProblemDefinition(const TrajOptExampleParams& options,
