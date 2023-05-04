@@ -8,6 +8,9 @@
 
 #include "drake/common/find_resource.h"
 #include "drake/geometry/scene_graph.h"
+#include "drake/geometry/meshcat.h"
+#include <drake/geometry/meshcat_visualizer.h>
+#include <drake/geometry/meshcat_visualizer_params.h>
 #include "drake/multibody/parsing/parser.h"
 #include "drake/multibody/plant/multibody_plant.h"
 #include "drake/multibody/plant/multibody_plant_config_functions.h"
@@ -21,6 +24,9 @@ namespace drake {
 namespace traj_opt {
 namespace examples {
 
+using geometry::Meshcat;
+using geometry::MeshcatVisualizerd;
+using geometry::MeshcatVisualizerParams;
 using geometry::SceneGraph;
 using multibody::AddMultibodyPlant;
 using multibody::MultibodyPlantConfig;
@@ -32,6 +38,8 @@ using systems::DiagramBuilder;
  */
 class TrajOptExample {
  public:
+  TrajOptExample() : meshcat_(std::make_shared<Meshcat>()) {};
+
   virtual ~TrajOptExample() = default;
 
   /**
@@ -146,6 +154,11 @@ class TrajOptExample {
    */
   void NormalizeQuaternions(const MultibodyPlant<double>& plant,
                             std::vector<VectorXd>* q) const;
+
+  /**
+   * Meshcat instance used for visualization;
+   */
+  std::shared_ptr<Meshcat> meshcat_;
 };
 
 }  // namespace examples

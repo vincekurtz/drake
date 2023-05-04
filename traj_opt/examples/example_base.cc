@@ -289,7 +289,10 @@ void TrajOptExample::PlayBackTrajectory(const std::vector<VectorXd>& q,
   CreatePlantModel(&plant);
   plant.Finalize();
 
-  visualization::AddDefaultVisualization(&builder);
+  //visualization::AddDefaultVisualization(&builder);
+  MeshcatVisualizerParams params;
+  params.delete_on_initialization_event = false;
+  MeshcatVisualizerd::AddToBuilder(&builder, scene_graph, meshcat_, params);
 
   auto diagram = builder.Build();
   std::unique_ptr<systems::Context<double>> diagram_context =
@@ -301,6 +304,7 @@ void TrajOptExample::PlayBackTrajectory(const std::vector<VectorXd>& q,
   plant.get_actuation_input_port().FixValue(&plant_context, u);
 
   // Step through q, setting the plant positions at each step accordingly
+  meshcat_->StartRecording();
   const int N = q.size();
   for (int t = 0; t < N; ++t) {
     diagram_context->SetTime(t * time_step);
@@ -311,6 +315,8 @@ void TrajOptExample::PlayBackTrajectory(const std::vector<VectorXd>& q,
     // TODO(vincekurtz): add realtime rate option?
     std::this_thread::sleep_for(std::chrono::duration<double>(time_step));
   }
+  meshcat_->StopRecording();
+  meshcat_->PublishRecording();
 }
 
 void TrajOptExample::SetProblemDefinition(const TrajOptExampleParams& options,
