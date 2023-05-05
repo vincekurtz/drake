@@ -15,7 +15,7 @@ class AcrobotExample : public TrajOptExample {
  public:
   AcrobotExample() {
     // Set the camera viewpoint
-    std::vector<double> p = {0.0, 1.0,-5.0};
+    std::vector<double> p = {0.0, 1.0, -5.0};
     meshcat_->SetProperty("/Cameras/default/rotated/<object>", "position", p);
   }
 

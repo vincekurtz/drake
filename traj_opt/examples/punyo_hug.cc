@@ -30,7 +30,7 @@ class PunyoHugExample : public TrajOptExample {
  public:
   PunyoHugExample() {
     // Set the camera viewpoint
-    std::vector<double> p = {0.0, 1.0,-3.0};
+    std::vector<double> p = {0.0, 1.0, -3.0};
     meshcat_->SetProperty("/Cameras/default/rotated/<object>", "position", p);
   }
 

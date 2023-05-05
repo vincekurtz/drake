@@ -5,11 +5,11 @@
 #include <thread>
 #include <utility>
 
+#include "drake/geometry/meshcat_visualizer.h"
 #include "drake/systems/primitives/discrete_time_delay.h"
 #include "drake/traj_opt/examples/mpc_controller.h"
 #include "drake/traj_opt/examples/pd_plus_controller.h"
 #include "drake/visualization/visualization_config_functions.h"
-#include "drake/geometry/meshcat_visualizer.h"
 
 namespace drake {
 namespace traj_opt {
@@ -132,8 +132,7 @@ void TrajOptExample::RunModelPredictiveControl(
                   pd->get_nominal_state_input_port());
   builder.Connect(interpolator->get_control_output_port(),
                   pd->get_nominal_control_input_port());
-  builder.Connect(plant.get_state_output_port(),
-                  pd->get_state_input_port());
+  builder.Connect(plant.get_state_output_port(), pd->get_state_input_port());
   builder.Connect(pd->get_control_output_port(),
                   plant.get_actuation_input_port());
 
@@ -155,7 +154,7 @@ void TrajOptExample::RunModelPredictiveControl(
   simulator.set_target_realtime_rate(options.sim_realtime_rate);
   simulator.Initialize();
 
-  // Run the simulation, recording the result for later playback in MeshCat  
+  // Run the simulation, recording the result for later playback in MeshCat
   MeshcatAnimation* animation = visualizer.StartRecording();
   animation->set_autoplay(false);
   simulator.AdvanceTo(options.sim_time);

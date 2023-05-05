@@ -25,7 +25,7 @@ class MiniCheetahExample : public TrajOptExample {
  public:
   MiniCheetahExample() {
     // Set the camera viewpoint
-    std::vector<double> p = {5.0, 1.0,-5.0};
+    std::vector<double> p = {5.0, 1.0, -5.0};
     meshcat_->SetProperty("/Cameras/default/rotated/<object>", "position", p);
   }
 

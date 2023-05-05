@@ -4,8 +4,6 @@
 #include "drake/multibody/plant/multibody_plant.h"
 #include "drake/traj_opt/examples/example_base.h"
 
-#include <iostream> //debug
-
 namespace drake {
 namespace traj_opt {
 namespace examples {
