@@ -22,6 +22,14 @@ using multibody::Parser;
  * A model of the MIT mini cheetah quadruped.
  */
 class MiniCheetahExample : public TrajOptExample {
+ public:
+  MiniCheetahExample() {
+    // Set the camera viewpoint
+    std::vector<double> p = {5.0, 1.0,-5.0};
+    meshcat_->SetProperty("/Cameras/default/rotated/<object>", "position", p);
+  }
+
+ private:
   void CreatePlantModel(MultibodyPlant<double>* plant) const {
     const Vector4<double> green(0.3, 0.6, 0.4, 1.0);
 

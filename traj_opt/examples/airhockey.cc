@@ -27,6 +27,14 @@ using multibody::SpatialInertia;
 using multibody::UnitInertia;
 
 class AirHockeyExample : public TrajOptExample {
+ public:
+  AirHockeyExample() {
+    // Set the camera viewpoint
+    std::vector<double> p = {0.0, 2.0, 0.5};
+    meshcat_->SetProperty("/Cameras/default/rotated/<object>", "position", p);
+  }
+
+ private:
   void CreatePlantModel(MultibodyPlant<double>* plant) const final {
     // Colors that we'll use
     const Vector4<double> red(0.9, 0.1, 0.0, 1.0);

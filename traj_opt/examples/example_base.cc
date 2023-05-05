@@ -24,23 +24,6 @@ using mpc::ModelPredictiveController;
 using pd_plus::PdPlusController;
 using systems::DiscreteTimeDelay;
 
-TrajOptExample::TrajOptExample() {
-  // Set the default camera viewpoint.
-  // To specialize this for a particular example, an easy procedure is
-  // something like the following:
-  //
-  //  1) Open MeshCat and navigate to a viewpoint that looks good
-  //  2) Open the javascript console (ctrl-shift-I)
-  //  3) Copy the value of `viewer.camera.matrix.elements`, a 4x4 matrix
-  //  4) Use this matrix to construct a RigidTransform, as below
-  //
-  Matrix4d viewer_matrix;
-  viewer_matrix << 1, 0, 0, 0, 0, 0.9486832980505138, -0.31622776601683794, 0,
-      0, 0.31622776601683794, 0.9486832980505138, 0, 0, 1, 3, 1;
-  const RigidTransformd X(viewer_matrix.transpose());
-  meshcat_->SetTransform("/Cameras/default/rotated/<object>", X);
-}
-
 void TrajOptExample::RunExample(const std::string options_file) const {
   // Load parameters from file
   TrajOptExampleParams default_options;

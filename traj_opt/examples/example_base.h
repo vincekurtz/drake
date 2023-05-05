@@ -34,13 +34,6 @@ using systems::DiagramBuilder;
  */
 class TrajOptExample {
  public:
-  /**
-   * Constructor for the example.
-   *
-   * Starts a meshcat server for visualization and sets a default camera
-   * viewpoint. This camera pose can be modified for each particular example.
-   */
-  TrajOptExample();
   virtual ~TrajOptExample() = default;
 
   /**

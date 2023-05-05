@@ -27,6 +27,14 @@ using multibody::SpatialInertia;
 using multibody::UnitInertia;
 
 class PunyoHugExample : public TrajOptExample {
+ public:
+  PunyoHugExample() {
+    // Set the camera viewpoint
+    std::vector<double> p = {0.0, 1.0,-3.0};
+    meshcat_->SetProperty("/Cameras/default/rotated/<object>", "position", p);
+  }
+
+ private:
   void CreatePlantModel(MultibodyPlant<double>* plant) const final {
     const Vector4<double> blue(0.1, 0.3, 0.5, 1.0);
     const Vector4<double> green(0.3, 0.6, 0.4, 1.0);
