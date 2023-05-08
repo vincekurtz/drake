@@ -161,6 +161,13 @@ void TrajOptExample::RunModelPredictiveControl(
   visualizer.StopRecording();
   visualizer.PublishRecording();
 
+  if (options.save_mpc_result_as_static_html) {
+    std::ofstream data_file;
+    data_file.open(options.static_html_filename);
+    data_file << meshcat_->StaticHtml();
+    data_file.close();
+  }
+
   // Print profiling info
   std::cout << TableOfAverages() << std::endl;
 }
