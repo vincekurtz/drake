@@ -5,6 +5,7 @@
 #include <thread>
 #include <utility>
 
+#include "drake/common/fmt_eigen.h"
 #include "drake/geometry/meshcat_visualizer.h"
 #include "drake/systems/primitives/discrete_time_delay.h"
 #include "drake/traj_opt/examples/mpc_controller.h"
@@ -242,7 +243,8 @@ TrajectoryOptimizerSolution<double> TrajOptExample::SolveTrajectoryOptimization(
     }
   }
   std::cout << std::endl;
-  std::cout << "Max torques: " << tau_max.transpose() << std::endl;
+  std::cout << fmt::format("Max torques: {}", fmt_eigen(tau_max.transpose()))
+            << std::endl;
 
   // Report maximum actuated and unactuated torques
   // TODO(vincekurtz): deal with the fact that B is not well-defined for some
@@ -268,14 +270,20 @@ TrajectoryOptimizerSolution<double> TrajOptExample::SolveTrajectoryOptimization(
 
   // Report desired and final state
   std::cout << std::endl;
-  std::cout << "q_nom[T] : " << opt_prob.q_nom[options.num_steps].transpose()
+  std::cout << fmt::format(
+                   "q_nom[T] : {}",
+                   fmt_eigen(opt_prob.q_nom[options.num_steps].transpose()))
             << std::endl;
-  std::cout << "q[T]     : " << solution.q[options.num_steps].transpose()
+  std::cout << fmt::format("q[T]     : {}",
+                           fmt_eigen(solution.q[options.num_steps].transpose()))
             << std::endl;
   std::cout << std::endl;
-  std::cout << "v_nom[T] : " << opt_prob.v_nom[options.num_steps].transpose()
+  std::cout << fmt::format(
+                   "v_nom[T] : {}",
+                   fmt_eigen(opt_prob.v_nom[options.num_steps].transpose()))
             << std::endl;
-  std::cout << "v[T]     : " << solution.v[options.num_steps].transpose()
+  std::cout << fmt::format("v[T]     : {}",
+                           fmt_eigen(solution.v[options.num_steps].transpose()))
             << std::endl;
 
   // Print speed profiling info
