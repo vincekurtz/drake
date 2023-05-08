@@ -35,7 +35,8 @@ GTEST_TEST(PentaDiagonalToPetscMatrixTest, ReconstructDense) {
   const MatrixXd dense_from_pentadiagonal = A.MakeDense();
   const MatrixXd dense_from_petsc = Apetsc->MakeDenseMatrix();
 
-  std::cout << fmt::format("{}", fmt_eigen(dense_from_pentadiagonal)) << std::endl;
+  std::cout << fmt::format("{}", fmt_eigen(dense_from_pentadiagonal))
+            << std::endl;
   std::cout << fmt::format("{}", fmt_eigen(dense_from_petsc)) << std::endl;
 
   const double kTolerance = std::numeric_limits<double>::epsilon() * size;
