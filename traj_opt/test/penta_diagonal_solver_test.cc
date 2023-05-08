@@ -5,6 +5,7 @@
 
 #include <gtest/gtest.h>
 
+#include "drake/common/fmt_eigen.h"
 #include "drake/common/test_utilities/eigen_matrix_compare.h"
 #include "drake/multibody/fem/petsc_symmetric_block_sparse_matrix.h"
 #include "drake/traj_opt/penta_diagonal_matrix.h"
@@ -222,9 +223,12 @@ GTEST_TEST(PentaDiagonalMatrixTest, SolvePentaDiagonal) {
   const auto ldlt = Hdense.ldlt();
   const VectorXd x_ldlt = ldlt.solve(b);
   steady_clock::time_point end = steady_clock::now();
-  std::cout << "D(ldlt): " << ldlt.vectorD().transpose() << std::endl;
-  std::cout << "P(ldlt):\n"
-            << ldlt.transpositionsP().indices().transpose() << std::endl;
+  std::cout << fmt::format("D(ldlt): {}", fmt_eigen(ldlt.vectorD().transpose()))
+            << std::endl;
+  std::cout << fmt::format(
+                   "P(ldlt):\n{}",
+                   fmt_eigen(ldlt.transpositionsP().indices().transpose()))
+            << std::endl;
   double wall_clock_time = std::chrono::duration<double>(end - start).count();
   fmt::print("LDLT.\n  Wall clock: {:.4g} seconds. error: {}\n",
              wall_clock_time, (x_ldlt - x_gt).norm() / x_gt.norm());
