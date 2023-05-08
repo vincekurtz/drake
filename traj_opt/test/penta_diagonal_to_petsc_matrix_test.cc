@@ -5,6 +5,7 @@
 
 #include <gtest/gtest.h>
 
+#include "drake/common/fmt_eigen.h"
 #include "drake/common/test_utilities/eigen_matrix_compare.h"
 #include "drake/traj_opt/penta_diagonal_matrix.h"
 #define PRINT_VARn(a) std::cout << #a ":\n" << a << std::endl;
@@ -34,8 +35,8 @@ GTEST_TEST(PentaDiagonalToPetscMatrixTest, ReconstructDense) {
   const MatrixXd dense_from_pentadiagonal = A.MakeDense();
   const MatrixXd dense_from_petsc = Apetsc->MakeDenseMatrix();
 
-  PRINT_VARn(dense_from_pentadiagonal);
-  PRINT_VARn(dense_from_petsc);
+  std::cout << fmt::format("{}", fmt_eigen(dense_from_pentadiagonal)) << std::endl;
+  std::cout << fmt::format("{}", fmt_eigen(dense_from_petsc)) << std::endl;
 
   const double kTolerance = std::numeric_limits<double>::epsilon() * size;
   EXPECT_TRUE(CompareMatrices(dense_from_petsc, dense_from_pentadiagonal,
