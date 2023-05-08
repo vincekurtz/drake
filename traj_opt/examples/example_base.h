@@ -68,7 +68,7 @@ class TrajOptExample {
   /**
    * Meshcat instance used for visualization.
    *
-   * N.B. Derivived classes will need to access this to chance the default
+   * N.B. Derivived classes will need to access this to change the default
    * camera pose.
    */
   std::shared_ptr<Meshcat> meshcat_ = std::make_shared<Meshcat>();
