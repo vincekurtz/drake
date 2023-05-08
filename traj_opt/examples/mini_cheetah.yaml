@@ -136,7 +136,7 @@ stiction_velocity: 0.5     # Regularization velocity, in m/s.
 mpc : false
 mpc_iters : 1
 controller_frequency : 60
-sim_time : 30
+sim_time : 20
 sim_time_step : 1e-3
 sim_realtime_rate : 0.0
 feed_forward : true
@@ -152,3 +152,5 @@ Kd : [0, 0, 0,
       2, 2, 2,
       2, 2, 2,
       2, 2, 2]
+save_mpc_result_as_static_html : false
+static_html_filename : "/tmp/mini_cheetah_mpc.html"

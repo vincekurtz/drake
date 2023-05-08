@@ -20,8 +20,16 @@ using multibody::Parser;
  * A simple planar hopper, inspired by https://youtu.be/uWADBSmHebA?t=893.
  */
 class HopperExample : public TrajOptExample {
+ public:
+  HopperExample() {
+    // Set the camera viewpoint
+    std::vector<double> p = {1.0, 0.5, 1.5};
+    meshcat_->SetProperty("/Cameras/default/rotated/<object>", "position", p);
+  }
+
+ private:
   void CreatePlantModel(MultibodyPlant<double>* plant) const {
-    const Vector4<double> green(0.3, 0.6, 0.4, 0.5);
+    const Vector4<double> green(0.3, 0.6, 0.4, 1.0);
 
     // Add a hopper
     std::string urdf_file =

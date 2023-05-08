@@ -12,6 +12,14 @@ using multibody::MultibodyPlant;
 using multibody::Parser;
 
 class AcrobotExample : public TrajOptExample {
+ public:
+  AcrobotExample() {
+    // Set the camera viewpoint
+    std::vector<double> p = {0.0, 1.0, -5.0};
+    meshcat_->SetProperty("/Cameras/default/rotated/<object>", "position", p);
+  }
+
+ private:
   void CreatePlantModel(MultibodyPlant<double>* plant) const {
     const std::string urdf_file =
         FindResourceOrThrow("drake/examples/acrobot/Acrobot_no_collision.urdf");

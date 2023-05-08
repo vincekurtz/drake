@@ -22,6 +22,14 @@ using multibody::MultibodyPlant;
 using multibody::Parser;
 
 class JacoExample : public TrajOptExample {
+ public:
+  JacoExample() {
+    // Set the camera viewpoint
+    std::vector<double> p = {1.5, 0.5, 0.0};
+    meshcat_->SetProperty("/Cameras/default/rotated/<object>", "position", p);
+  }
+
+ private:
   void CreatePlantModel(MultibodyPlant<double>* plant) const final {
     // Add a jaco arm without gravity
     std::string robot_file = FindResourceOrThrow(

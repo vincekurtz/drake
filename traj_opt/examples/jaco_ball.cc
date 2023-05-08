@@ -27,6 +27,14 @@ using multibody::SpatialInertia;
 using multibody::UnitInertia;
 
 class JacoBallExample : public TrajOptExample {
+ public:
+  JacoBallExample() {
+    // Set the camera viewpoint
+    std::vector<double> p = {1.5, 0.5, 0.0};
+    meshcat_->SetProperty("/Cameras/default/rotated/<object>", "position", p);
+  }
+
+ private:
   void CreatePlantModel(MultibodyPlant<double>* plant) const final {
     const Vector4<double> blue(0.1, 0.3, 0.5, 0.8);
     const Vector4<double> black(0.0, 0.0, 0.0, 0.5);

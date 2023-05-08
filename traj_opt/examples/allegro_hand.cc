@@ -32,9 +32,17 @@ using multibody::SpatialInertia;
 using multibody::UnitInertia;
 
 class AllegroHandExample : public TrajOptExample {
+ public:
+  AllegroHandExample() {
+    // Set the camera viewpoint
+    std::vector<double> p = {0.3, 0.5, 0.0};
+    meshcat_->SetProperty("/Cameras/default/rotated/<object>", "position", p);
+  }
+
+ private:
   void CreatePlantModel(MultibodyPlant<double>* plant) const final {
-    const Vector4<double> blue(0.1, 0.3, 0.5, 0.8);
-    const Vector4<double> black(0.0, 0.0, 0.0, 0.5);
+    const Vector4<double> blue(0.2, 0.3, 0.6, 1.0);
+    const Vector4<double> black(0.0, 0.0, 0.0, 1.0);
 
     // Add a model of the hand
     std::string sdf_file =
@@ -82,8 +90,8 @@ class AllegroHandExample : public TrajOptExample {
 
   void CreatePlantModelForSimulation(
       MultibodyPlant<double>* plant) const final {
-    const Vector4<double> blue(0.1, 0.3, 0.5, 0.8);
-    const Vector4<double> black(0.0, 0.0, 0.0, 0.5);
+    const Vector4<double> blue(0.2, 0.3, 0.6, 1.0);
+    const Vector4<double> black(0.0, 0.0, 0.0, 1.0);
 
     // Add a model of the hand
     std::string sdf_file =

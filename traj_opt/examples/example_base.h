@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "drake/common/find_resource.h"
+#include "drake/geometry/meshcat.h"
 #include "drake/geometry/scene_graph.h"
 #include "drake/multibody/parsing/parser.h"
 #include "drake/multibody/plant/multibody_plant.h"
@@ -21,6 +22,7 @@ namespace drake {
 namespace traj_opt {
 namespace examples {
 
+using geometry::Meshcat;
 using geometry::SceneGraph;
 using multibody::AddMultibodyPlant;
 using multibody::MultibodyPlantConfig;
@@ -61,6 +63,15 @@ class TrajOptExample {
    * parameters, etc.
    */
   void RunModelPredictiveControl(const TrajOptExampleParams& options) const;
+
+ protected:
+  /**
+   * Meshcat instance used for visualization.
+   *
+   * N.B. Derivived classes will need to access this to change the default
+   * camera pose.
+   */
+  std::shared_ptr<Meshcat> meshcat_ = std::make_shared<Meshcat>();
 
  private:
   /**

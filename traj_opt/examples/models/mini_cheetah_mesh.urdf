@@ -128,7 +128,7 @@
         </inertial>
         <visual>
             <geometry>
-                <mesh filename="meshes/mini_lower_link_.stl"/>
+                <mesh filename="meshes/mini_lower_link.obj"/>
             </geometry>
             <origin rpy="0.0 3.141592 0.0" xyz="0.0 0.0 0.0"/>
         </visual>
@@ -236,7 +236,7 @@
         </inertial>
         <visual>
             <geometry>
-                <mesh filename="meshes/mini_lower_link_.stl"/>
+                <mesh filename="meshes/mini_lower_link.obj"/>
             </geometry>
             <origin rpy="0.0 3.141592 0.0" xyz="0.0 0.0 0.0"/>
         </visual>
@@ -344,7 +344,7 @@
         </inertial>
         <visual>
             <geometry>
-                <mesh filename="meshes/mini_lower_link_.stl"/>
+                <mesh filename="meshes/mini_lower_link.obj"/>
             </geometry>
             <origin rpy="0.0 3.141592 0.0" xyz="0.0 0.0 0.0"/>
         </visual>
@@ -452,7 +452,7 @@
         </inertial>
         <visual>
             <geometry>
-                <mesh filename="meshes/mini_lower_link_.stl"/>
+                <mesh filename="meshes/mini_lower_link.obj"/>
             </geometry>
             <origin rpy="0.0 3.141592 0.0" xyz="0 0 0"/>
         </visual>

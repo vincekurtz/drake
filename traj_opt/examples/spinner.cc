@@ -9,10 +9,20 @@ namespace traj_opt {
 namespace examples {
 namespace spinner {
 
+using Eigen::Matrix4d;
+using math::RigidTransformd;
 using multibody::MultibodyPlant;
 using multibody::Parser;
 
 class SpinnerExample : public TrajOptExample {
+ public:
+  SpinnerExample() {
+    // Set the camera viewpoint
+    std::vector<double> p = {3.0, 1.0, 1.0};
+    meshcat_->SetProperty("/Cameras/default/rotated/<object>", "position", p);
+  }
+
+ private:
   void CreatePlantModel(MultibodyPlant<double>* plant) const final {
     // N.B. geometry of the spinner is chosen via gflags rather than yaml so
     // that we can use the same yaml format for all of the examples, without
