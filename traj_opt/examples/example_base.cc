@@ -204,6 +204,12 @@ TrajectoryOptimizerSolution<double> TrajOptExample::SolveTrajectoryOptimization(
       opt_prob.q_init, options.q_guess, opt_prob.num_steps + 1);
   NormalizeQuaternions(plant, &q_guess);
 
+  // N.B. This should always be the case, and is checked by the solver. However,
+  // sometimes floating point + normalization stuff makes q_guess != q_init, so
+  // we'll just doubly enforce that here
+  DRAKE_DEMAND((q_guess[0] - opt_prob.q_init).norm() < 1e-8);
+  q_guess[0] = opt_prob.q_init;
+
   // Visualize the target trajectory and initial guess, if requested
   if (options.play_target_trajectory) {
     PlayBackTrajectory(opt_prob.q_nom, options.time_step);
