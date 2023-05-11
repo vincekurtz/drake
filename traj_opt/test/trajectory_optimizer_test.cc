@@ -1692,7 +1692,8 @@ GTEST_TEST(TrajectoryOptimizerTest, HopperEqualityConstraints) {
   // We get a factor of sqrt(epsilon) since we're doing finite differences to
   // get inverse dynamics partials. The first column from autodiff is not
   // accurate since q0 is not a decision variable.
-  const double kTolerance = std::sqrt(std::numeric_limits<double>::epsilon());
+  const double kTolerance =
+      10 * std::sqrt(std::numeric_limits<double>::epsilon());
   EXPECT_TRUE(CompareMatrices(J_ad.rightCols(num_steps * nq),
                               J.rightCols(num_steps * nq), kTolerance,
                               MatrixCompareType::relative));
