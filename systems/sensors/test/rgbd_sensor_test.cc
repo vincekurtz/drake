@@ -39,7 +39,6 @@ using math::RigidTransformd;
 using math::RollPitchYawd;
 using std::make_pair;
 using std::make_unique;
-using std::move;
 using std::unique_ptr;
 using std::vector;
 using systems::Context;
@@ -484,7 +483,7 @@ GTEST_TEST(RgbdSensorDiscrete, ImageHold) {
   RgbdSensor* sensor_raw = sensor.get();
   const double kPeriod = 0.1;
   const bool include_render_port = true;
-  RgbdSensorDiscrete discrete_sensor(move(sensor), kPeriod,
+  RgbdSensorDiscrete discrete_sensor(std::move(sensor), kPeriod,
                                      include_render_port);
 
   // This tests very *explicit* knowledge of what the wiring should be. As such,

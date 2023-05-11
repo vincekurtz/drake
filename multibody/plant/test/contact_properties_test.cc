@@ -21,7 +21,6 @@ using geometry::SourceId;
 using geometry::Sphere;
 using math::RigidTransformd;
 using std::make_unique;
-using std::move;
 using std::unique_ptr;
 
 const CoulombFriction<double> kMuA(1.0, 1.0);
@@ -60,10 +59,10 @@ class ContactPropertiesTest : public ::testing::Test {
     unique_ptr<GeometryInstance> geometry_D = MakeGeometryInstance(
         "D", kMuD, std::nullopt, kNegativeTauD, std::nullopt);
 
-    g_A_ = scene_graph_.RegisterGeometry(s_id, f_id, move(geometry_A));
-    g_B_ = scene_graph_.RegisterGeometry(s_id, f_id, move(geometry_B));
-    g_C_ = scene_graph_.RegisterGeometry(s_id, f_id, move(geometry_C));
-    g_D_ = scene_graph_.RegisterGeometry(s_id, f_id, move(geometry_D));
+    g_A_ = scene_graph_.RegisterGeometry(s_id, f_id, std::move(geometry_A));
+    g_B_ = scene_graph_.RegisterGeometry(s_id, f_id, std::move(geometry_B));
+    g_C_ = scene_graph_.RegisterGeometry(s_id, f_id, std::move(geometry_C));
+    g_D_ = scene_graph_.RegisterGeometry(s_id, f_id, std::move(geometry_D));
 
     scene_graph_ad_ = dynamic_pointer_cast<SceneGraph<AutoDiffXd>>(
         scene_graph_.ToAutoDiffXd());
@@ -116,7 +115,7 @@ class ContactPropertiesTest : public ::testing::Test {
       props.AddProperty(geometry::internal::kHydroGroup,
                         geometry::internal::kComplianceType, *compliance_type);
     }
-    result->set_proximity_properties(move(props));
+    result->set_proximity_properties(std::move(props));
     return result;
   }
 

@@ -17,10 +17,11 @@ namespace internal {
 
 using Eigen::Vector2d;
 using Eigen::Vector3d;
+using geometry::internal::RenderMesh;
+using geometry::internal::LoadRenderMeshFromObj;
 using math::RigidTransformd;
 using std::make_shared;
 using std::make_unique;
-using std::move;
 using std::string;
 using std::unique_ptr;
 using std::unordered_map;
@@ -207,7 +208,7 @@ class DefaultTextureColorShader final : public ShaderProgram {
     if (!texture_id.has_value()) return std::nullopt;
 
     const bool has_tex_coord = properties.GetPropertyOrDefault(
-        kInternalGroup, kHasTexCoordProperty, MeshData::kHasTexCoordDefault);
+        kInternalGroup, kHasTexCoordProperty, RenderMesh::kHasTexCoordDefault);
 
     if (!has_tex_coord) {
       // TODO(eric.cousineau): How to carry mesh name along?
@@ -405,7 +406,7 @@ class DefaultLabelShader final : public ShaderProgram {
   */
   explicit DefaultLabelShader(
       std::function<Vector4<float>(const PerceptionProperties&)> label_encoder)
-      : ShaderProgram(), label_encoder_(move(label_encoder)) {
+      : ShaderProgram(), label_encoder_(std::move(label_encoder)) {
     LoadFromSources(kVertexShader, kFragmentShader);
     encoded_label_loc_ = GetUniformLocation("encoded_label");
   }
@@ -513,7 +514,7 @@ void RenderEngineGl::ImplementGeometry(const Box& box, void* user_data) {
 void RenderEngineGl::ImplementGeometry(const Capsule& capsule,
                                        void* user_data) {
   const int resolution = 50;
-  MeshData mesh_data =
+  RenderMesh mesh_data =
       MakeCapsule(resolution, capsule.radius(), capsule.length());
 
   OpenGlGeometry geometry = CreateGlGeometry(mesh_data);
@@ -826,7 +827,7 @@ OpenGlGeometry RenderEngineGl::GetSphere() {
     const int kLatitudeBands = 50;
     const int kLongitudeBands = 50;
 
-    MeshData mesh_data =
+    RenderMesh mesh_data =
         MakeLongLatUnitSphere(kLongitudeBands, kLatitudeBands);
 
     sphere_ = CreateGlGeometry(mesh_data);
@@ -843,7 +844,7 @@ OpenGlGeometry RenderEngineGl::GetCylinder() {
 
     // For long skinny cylinders, it would be better to offer some subdivisions
     // along the length. For now, we'll simply save the triangles.
-    MeshData mesh_data = MakeUnitCylinder(kLongitudeBands, 1);
+    RenderMesh mesh_data = MakeUnitCylinder(kLongitudeBands, 1);
     cylinder_ = CreateGlGeometry(mesh_data);
   }
 
@@ -860,7 +861,7 @@ OpenGlGeometry RenderEngineGl::GetHalfSpace() {
     // TODO(SeanCurtis-TRI): For vertex-lighting (as opposed to fragment
     //  lighting), this will render better with tighter resolution. Consider
     //  making this configurable.
-    MeshData mesh_data = MakeSquarePatch(kMeasure, 1);
+    RenderMesh mesh_data = MakeSquarePatch(kMeasure, 1);
     half_space_ = CreateGlGeometry(mesh_data);
   }
 
@@ -872,7 +873,7 @@ OpenGlGeometry RenderEngineGl::GetHalfSpace() {
 
 OpenGlGeometry RenderEngineGl::GetBox() {
   if (!box_.is_defined()) {
-    MeshData mesh_data = MakeUnitBox();
+    RenderMesh mesh_data = MakeUnitBox();
     box_ = CreateGlGeometry(mesh_data);
   }
 
@@ -884,7 +885,11 @@ OpenGlGeometry RenderEngineGl::GetBox() {
 OpenGlGeometry RenderEngineGl::GetMesh(const string& filename) {
   OpenGlGeometry mesh;
   if (meshes_.count(filename) == 0) {
-    MeshData mesh_data = LoadMeshFromObj(filename);
+    // TODO(SeanCurtis-TRI): We're ignoring the declared perception properties
+    //  for the mesh. We need to pass it in and return a mesh *and* the
+    //  resulting material properties.
+    RenderMesh mesh_data = LoadRenderMeshFromObj(
+        filename, PerceptionProperties(), parameters_.default_diffuse);
     mesh = CreateGlGeometry(mesh_data);
     meshes_.insert({filename, mesh});
   } else {
@@ -1001,7 +1006,7 @@ RenderTarget RenderEngineGl::GetRenderTarget(const RenderCameraCore& camera,
   return target;
 }
 
-OpenGlGeometry RenderEngineGl::CreateGlGeometry(const MeshData& mesh_data) {
+OpenGlGeometry RenderEngineGl::CreateGlGeometry(const RenderMesh& mesh_data) {
   OpenGlGeometry geometry;
   // Create the vertex array object (VAO).
   glCreateVertexArrays(1, &geometry.vertex_array);
@@ -1022,6 +1027,8 @@ OpenGlGeometry RenderEngineGl::CreateGlGeometry(const MeshData& mesh_data) {
   const int kFloatsPerUv = 2;
   vertex_data.reserve(
       v_count * (kFloatsPerPosition + kFloatsPerNormal + kFloatsPerUv));
+  // N.B. we are implicitly converting from double to float by inserting them
+  // into the vector.
   vertex_data.insert(vertex_data.end(), mesh_data.positions.data(),
                      mesh_data.positions.data() + v_count * kFloatsPerPosition);
   vertex_data.insert(vertex_data.end(), mesh_data.normals.data(),
@@ -1064,6 +1071,9 @@ OpenGlGeometry RenderEngineGl::CreateGlGeometry(const MeshData& mesh_data) {
   DRAKE_DEMAND(vbo_offset == vertex_data.size() * sizeof(GLfloat));
 
   // Create the index buffer object (IBO).
+  using indices_uint_t = decltype(mesh_data.indices)::Scalar;
+  static_assert(sizeof(GLuint) == sizeof(indices_uint_t),
+                "If this fails, cast from unsigned int to GLuint");
   glCreateBuffers(1, &geometry.index_buffer);
   glNamedBufferStorage(geometry.index_buffer,
                        mesh_data.indices.size() * sizeof(GLuint),
@@ -1110,7 +1120,7 @@ ShaderId RenderEngineGl::AddShader(std::unique_ptr<ShaderProgram> program,
                                    RenderType render_type) {
   const ShaderId shader_id = program->shader_id();
   shader_families_[render_type].insert({shader_id, vector<GeometryId>()});
-  shader_programs_[render_type][shader_id] = move(program);
+  shader_programs_[render_type][shader_id] = std::move(program);
   return shader_id;
 }
 
@@ -1125,7 +1135,7 @@ ShaderProgramData RenderEngineGl::GetShaderProgram(
       if (data.has_value()) {
         if (candidate_data->shader_id() < data->shader_id()) continue;
       }
-      data = move(candidate_data);
+      data = std::move(candidate_data);
     }
   }
   // There should always be, at least, the default shader that accepts the
