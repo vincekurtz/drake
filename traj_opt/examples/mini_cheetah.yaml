@@ -115,10 +115,6 @@ print_debug_data : false
 save_solver_stats_csv : true
 
 # Contact model parameters. 
-# With no force at a distance, the normal component of contact force increases
-# quadratically from 0 Newtons at 0 meters penetration to F Newtons at delta
-# meters of penetration. After this point, force increases linearly at a rate
-# of 2F/delta Newtons / meter. 
 contact_stiffness : 1800    # normal force stiffness, in N/m
 dissipation_velocity : 0.1  # Hunt & Crossley-like model parameter, in m/s.
 
