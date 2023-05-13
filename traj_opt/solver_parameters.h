@@ -143,14 +143,11 @@ struct SolverParameters {
   // Contact model parameters
   // TODO(vincekurtz): this is definitely the wrong place to specify the contact
   // model - figure out the right place and put these parameters there
-  double F{1.0};       // force (in Newtons) at delta meters of penetration
-  double delta{0.01};  // penetration distance at which we apply F newtons
+  double contact_stiffness{100};     // normal force stiffness, N/m
   double dissipation_velocity{0.1};  // Hunt-Crossley velocity, in m/s.
   double stiction_velocity{0.05};    // Regularization of stiction, in m/s.
   double friction_coefficient{0.5};  // Coefficient of friction.
-
-  bool force_at_a_distance{true};  // whether to allow force at a distance
-  double smoothing_factor{1.0};    // force at a distance smoothing
+  double smoothing_factor{0.1};      // force at a distance smoothing
 
   // Flags for making a contour plot with the first two decision variables.
   bool save_contour_data{false};
