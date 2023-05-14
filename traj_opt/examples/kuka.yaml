@@ -78,18 +78,9 @@ print_debug_data : false
 save_solver_stats_csv : true
 
 # Contact model parameters. 
-# With no force at a distance, the normal component of contact force increases
-# quadratically from 0 Newtons at 0 meters penetration to F Newtons at delta
-# meters of penetration. After this point, force increases linearly at a rate
-# of 2F/delta Newtons / meter. 
-F : 10.0       # force at delta meters of penetration
-delta : 0.01  # penetration distance with F newtons of normal force
+contact_stiffness : 1000    # contact stiffness in N/m
 dissipation_velocity : 0.1  # Hunt & Crossley-like model parameter, in m/s.
-
-# With force at a distance, contact normal forces increases linearly at a rate
-# of 2F/delta Newtons / meter, with a given smoothing factor (higher is smoother)
-smoothing_factor : 10.0
-force_at_a_distance : true
+smoothing_factor : 0.01     # amount of smoothing (logistic distirbution scale)
 
 # Friction
 friction_coefficient : 0.1  # Coefficient of friction.

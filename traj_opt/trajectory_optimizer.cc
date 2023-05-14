@@ -265,8 +265,7 @@ void TrajectoryOptimizer<T>::CalcContactForceContribution(
   using std::sqrt;
 
   // Compliant contact parameters
-  const double F = params_.F;
-  const double delta = params_.delta;
+  const double k = params_.contact_stiffness;
   const double sigma = params_.smoothing_factor;
   const double dissipation_velocity = params_.dissipation_velocity;
 
@@ -276,12 +275,8 @@ void TrajectoryOptimizer<T>::CalcContactForceContribution(
 
   // Compute the distance at which contact forces are zero: we don't need to do
   // any geometry queries beyond this distance
-  double threshold = 0.0;
-  if (params_.force_at_a_distance) {
-    const double k = F / delta;
-    const double eps = sqrt(std::numeric_limits<double>::epsilon());
-    threshold = -sigma / k * log(exp(eps / sigma) - 1.0);
-  }
+  const double eps = sqrt(std::numeric_limits<double>::epsilon());
+  double threshold = -sigma * log(exp(eps / (sigma * k)) - 1.0);
 
   // Get signed distance pairs
   const geometry::QueryObject<T>& query_object =
@@ -294,125 +289,110 @@ void TrajectoryOptimizer<T>::CalcContactForceContribution(
       query_object.ComputeSignedDistancePairwiseClosestPoints(threshold);
 
   for (const SignedDistancePair<T>& pair : signed_distance_pairs) {
-    // Don't do any contact force computations if we're not in contact, unless
-    // we're using a contact model that allows force at a distance.
-    if ((params_.force_at_a_distance) || (pair.distance < 0)) {
-      // Normal outwards from A.
-      const Vector3<T> nhat = -pair.nhat_BA_W;
+    // Normal outwards from A.
+    const Vector3<T> nhat = -pair.nhat_BA_W;
 
-      // Get geometry and transformation data for the witness points
-      const GeometryId geometryA_id = pair.id_A;
-      const GeometryId geometryB_id = pair.id_B;
+    // Get geometry and transformation data for the witness points
+    const GeometryId geometryA_id = pair.id_A;
+    const GeometryId geometryB_id = pair.id_B;
 
-      const BodyIndex bodyA_index =
-          plant().geometry_id_to_body_index().at(geometryA_id);
-      const Body<T>& bodyA = plant().get_body(bodyA_index);
-      const BodyIndex bodyB_index =
-          plant().geometry_id_to_body_index().at(geometryB_id);
-      const Body<T>& bodyB = plant().get_body(bodyB_index);
+    const BodyIndex bodyA_index =
+        plant().geometry_id_to_body_index().at(geometryA_id);
+    const Body<T>& bodyA = plant().get_body(bodyA_index);
+    const BodyIndex bodyB_index =
+        plant().geometry_id_to_body_index().at(geometryB_id);
+    const Body<T>& bodyB = plant().get_body(bodyB_index);
 
-      // Body poses in world.
-      const math::RigidTransform<T>& X_WA =
-          plant().EvalBodyPoseInWorld(context, bodyA);
-      const math::RigidTransform<T>& X_WB =
-          plant().EvalBodyPoseInWorld(context, bodyB);
+    // Body poses in world.
+    const math::RigidTransform<T>& X_WA =
+        plant().EvalBodyPoseInWorld(context, bodyA);
+    const math::RigidTransform<T>& X_WB =
+        plant().EvalBodyPoseInWorld(context, bodyB);
 
-      // Geometry poses in body frames.
-      const math::RigidTransform<T> X_AGa =
-          inspector.GetPoseInFrame(geometryA_id).template cast<T>();
-      const math::RigidTransform<T> X_BGb =
-          inspector.GetPoseInFrame(geometryB_id).template cast<T>();
+    // Geometry poses in body frames.
+    const math::RigidTransform<T> X_AGa =
+        inspector.GetPoseInFrame(geometryA_id).template cast<T>();
+    const math::RigidTransform<T> X_BGb =
+        inspector.GetPoseInFrame(geometryB_id).template cast<T>();
 
-      // Position of the witness points in the world frame.
-      const auto& p_GaCa_Ga = pair.p_ACa;
-      const RigidTransform<T> X_WGa = X_WA * X_AGa;
-      const Vector3<T> p_WCa_W = X_WGa * p_GaCa_Ga;
-      const auto& p_GbCb_Gb = pair.p_BCb;
-      const RigidTransform<T> X_WGb = X_WB * X_BGb;
-      const Vector3<T> p_WCb_W = X_WGb * p_GbCb_Gb;
+    // Position of the witness points in the world frame.
+    const auto& p_GaCa_Ga = pair.p_ACa;
+    const RigidTransform<T> X_WGa = X_WA * X_AGa;
+    const Vector3<T> p_WCa_W = X_WGa * p_GaCa_Ga;
+    const auto& p_GbCb_Gb = pair.p_BCb;
+    const RigidTransform<T> X_WGb = X_WB * X_BGb;
+    const Vector3<T> p_WCb_W = X_WGb * p_GbCb_Gb;
 
-      // We define the (common, unique) contact point C as the midpoint between
-      // witness points Ca and Cb.
-      const Vector3<T> p_WC = 0.5 * (p_WCa_W + p_WCb_W);
+    // We define the (common, unique) contact point C as the midpoint between
+    // witness points Ca and Cb.
+    const Vector3<T> p_WC = 0.5 * (p_WCa_W + p_WCb_W);
 
-      // Shift vectors.
-      const Vector3<T> p_AC_W = p_WC - X_WA.translation();
-      const Vector3<T> p_BC_W = p_WC - X_WB.translation();
+    // Shift vectors.
+    const Vector3<T> p_AC_W = p_WC - X_WA.translation();
+    const Vector3<T> p_BC_W = p_WC - X_WB.translation();
 
-      // Velocities.
-      const SpatialVelocity<T>& V_WA =
-          plant().EvalBodySpatialVelocityInWorld(context, bodyA);
-      const SpatialVelocity<T>& V_WB =
-          plant().EvalBodySpatialVelocityInWorld(context, bodyB);
-      const SpatialVelocity<T> V_WAc = V_WA.Shift(p_AC_W);
-      const SpatialVelocity<T> V_WBc = V_WB.Shift(p_BC_W);
+    // Velocities.
+    const SpatialVelocity<T>& V_WA =
+        plant().EvalBodySpatialVelocityInWorld(context, bodyA);
+    const SpatialVelocity<T>& V_WB =
+        plant().EvalBodySpatialVelocityInWorld(context, bodyB);
+    const SpatialVelocity<T> V_WAc = V_WA.Shift(p_AC_W);
+    const SpatialVelocity<T> V_WBc = V_WB.Shift(p_BC_W);
 
-      // Relative contact velocity.
-      const Vector3<T> v_AcBc_W = V_WBc.translational() - V_WAc.translational();
+    // Relative contact velocity.
+    const Vector3<T> v_AcBc_W = V_WBc.translational() - V_WAc.translational();
 
-      // Split into normal and tangential components.
-      const T vn = nhat.dot(v_AcBc_W);
-      const Vector3<T> vt = v_AcBc_W - vn * nhat;
+    // Split into normal and tangential components.
+    const T vn = nhat.dot(v_AcBc_W);
+    const Vector3<T> vt = v_AcBc_W - vn * nhat;
 
-      // Normal dissipation follows a smoothed Hunt and Crossley model
-      T dissipation_factor = 0.0;
-      const T s = vn / dissipation_velocity;
-      if (s < 0) {
-        dissipation_factor = 1 - s;
-      } else if (s < 2) {
-        dissipation_factor = (s - 2) * (s - 2) / 4;
-      }
-
-      // (Compliant) force in the normal direction increases linearly at a rate
-      // of 2F/delta Newtons per meter, with some smoothing that may or may not
-      // allow for force at a distance.
-      T compliant_fn;
-      const T x = -pair.distance / delta;
-      if (params_.force_at_a_distance) {
-        if (2 * F * x / sigma >= 37) {
-          // If the exponent is going to be very large, replace with the
-          // functional limit.
-          // N.B. x = 37 is the first integer such that exp(x)+1 = exp(x) in
-          // double precision.
-          compliant_fn = 2 * F * x;
-        } else {
-          compliant_fn = sigma * log(1 + exp(2 * F * x / sigma));
-        }
-      } else {
-        if (x < 0) {
-          compliant_fn = 0;
-        } else if (x < 1) {
-          compliant_fn = F * x * x;
-        } else {
-          compliant_fn = F * (2 * x - 1);
-        }
-      }
-      const T fn = compliant_fn * dissipation_factor;
-
-      // Tangential frictional component.
-      // N.B. This model is algebraically equivalent to:
-      //  ft = -mu*fn*sigmoid(||vt||/vs)*vt/||vt||.
-      // with the algebraic sigmoid function defined as sigmoid(x) =
-      // x/sqrt(1+x^2). The algebraic simplification is performed to avoid
-      // division by zero when vt = 0 (or loss of precision when close to zero).
-      const Vector3<T> that_regularized =
-          -vt / sqrt(vs * vs + vt.squaredNorm());
-      const Vector3<T> ft_BC_W = that_regularized * mu * fn;
-
-      // Total contact force on B at C, expressed in W.
-      const Vector3<T> f_BC_W = nhat * fn + ft_BC_W;
-
-      // Spatial contact forces on bodies A and B.
-      const SpatialForce<T> F_BC_W(Vector3<T>::Zero(), f_BC_W);
-      const SpatialForce<T> F_BBo_W = F_BC_W.Shift(-p_BC_W);
-
-      const SpatialForce<T> F_AC_W(Vector3<T>::Zero(), -f_BC_W);
-      const SpatialForce<T> F_AAo_W = F_AC_W.Shift(-p_AC_W);
-
-      // Add the forces into the given MultibodyForces
-      forces->mutable_body_forces()[bodyA.node_index()] += F_AAo_W;
-      forces->mutable_body_forces()[bodyB.node_index()] += F_BBo_W;
+    // Normal dissipation follows a smoothed Hunt and Crossley model
+    T dissipation_factor = 0.0;
+    const T s = vn / dissipation_velocity;
+    if (s < 0) {
+      dissipation_factor = 1 - s;
+    } else if (s < 2) {
+      dissipation_factor = (s - 2) * (s - 2) / 4;
     }
+
+    // (Compliant) force in the normal direction increases linearly at a rate
+    // of k Newtons per meter, with some smoothing defined by sigma.
+    T compliant_fn;
+    const T exponent = - pair.distance / sigma;
+    if (exponent >= 37) {
+      // If the exponent is going to be very large, replace with the
+      // functional limit.
+      // N.B. x = 37 is the first integer such that exp(x)+1 = exp(x) in
+      // double precision.
+      compliant_fn = -k * pair.distance;
+    } else {
+      compliant_fn = sigma * k * log(1 + exp(exponent));
+    }
+    const T fn = compliant_fn * dissipation_factor;
+
+    // Tangential frictional component.
+    // N.B. This model is algebraically equivalent to:
+    //  ft = -mu*fn*sigmoid(||vt||/vs)*vt/||vt||.
+    // with the algebraic sigmoid function defined as sigmoid(x) =
+    // x/sqrt(1+x^2). The algebraic simplification is performed to avoid
+    // division by zero when vt = 0 (or loss of precision when close to zero).
+    const Vector3<T> that_regularized =
+        -vt / sqrt(vs * vs + vt.squaredNorm());
+    const Vector3<T> ft_BC_W = that_regularized * mu * fn;
+
+    // Total contact force on B at C, expressed in W.
+    const Vector3<T> f_BC_W = nhat * fn + ft_BC_W;
+
+    // Spatial contact forces on bodies A and B.
+    const SpatialForce<T> F_BC_W(Vector3<T>::Zero(), f_BC_W);
+    const SpatialForce<T> F_BBo_W = F_BC_W.Shift(-p_BC_W);
+
+    const SpatialForce<T> F_AC_W(Vector3<T>::Zero(), -f_BC_W);
+    const SpatialForce<T> F_AAo_W = F_AC_W.Shift(-p_AC_W);
+
+    // Add the forces into the given MultibodyForces
+    forces->mutable_body_forces()[bodyA.node_index()] += F_AAo_W;
+    forces->mutable_body_forces()[bodyB.node_index()] += F_BBo_W;
   }
 }
 

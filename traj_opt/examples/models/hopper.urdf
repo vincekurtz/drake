@@ -13,39 +13,42 @@
   <!-- Torso -->
   <link name="torso">
     <inertial>
-      <origin xyz="0 0 0" rpy="1.570796326790 0 0"/>
+      <origin xyz="0 0 0" rpy="0 1.570796326790 0"/>
       <mass value="1"/>
       <inertia ixx="0.013" ixy="0" ixz="0" iyy=".013" iyz="0" izz="0.013"/>
     </inertial>
     <visual>
-      <origin xyz="0 0 0" rpy="1.570796326790 0 0"/>
+      <origin xyz="0 0 0" rpy="0 1.570796326790 0"/>
       <geometry>
         <capsule length="0.4" radius=".05"/>
       </geometry>
       <material name="yellow"/>
     </visual>
+    <!--
     <collision>
-      <origin xyz="0 0 0" rpy="1.570796326790 0 0"/>
+      <origin xyz="0 0 0" rpy="0 1.570796326790 0"/>
       <geometry>
         <capsule length="0.4" radius=".05"/>
       </geometry>
     </collision>
+    -->
   </link>
-  <drake:joint name="base_joint" type="planar">
+  <joint name="base_joint" type="planar">
     <parent link="world"/>
     <child link="torso"/>
-    <origin xyz="0 0 0" rpy="1.570796326790 0 0"/>
-  </drake:joint>
+    <axis xyz="0 -1 0"/>
+    <origin xyz="0 0 0" rpy="0 -1.570796326790 0"/>
+  </joint>
 
   <!-- Leg --> 
   <link name="leg">
     <inertial>
-      <origin xyz="0 -0.2 0" rpy="1.570796326790 0 0"/>
+      <origin xyz="-0.2 0 0" rpy="0 1.570796326790 0"/>
       <mass value="0.2"/>
       <inertia ixx="0.01" ixy="0" ixz="0" iyy="0.01" iyz="0" izz="0.01"/>
     </inertial>
     <visual>
-      <origin xyz="0 -0.2 0" rpy="1.570796326790 0 0"/>
+      <origin xyz="-0.2 0 0" rpy="0 1.570796326790 0"/>
       <geometry>
         <capsule length="0.4" radius=".03"/>
       </geometry>
@@ -55,32 +58,32 @@
   <joint name="knee" type="revolute">
     <parent link="torso"/>
     <child link="leg"/>
-    <origin xyz="0 -0.2 0"/>
-    <axis xyz="0 0 1"/>
+    <origin xyz="-0.2 0 0"/>
+    <axis xyz="0 -1 0"/>
   </joint>
   
   <!-- Foot --> 
   <link name="foot">
     <inertial>
-      <origin xyz="0.05 0 0" rpy="1.570796326790 0 1.570796326790"/>
+      <origin xyz="0 0 -0.05" rpy="0 0 0"/>
       <mass value="0.1"/>
       <inertia ixx="0.005" ixy="0" ixz="0" iyy="0.005" iyz="0" izz="0.005"/>
     </inertial>
     <visual>
-      <origin xyz="0.05 0 0" rpy="1.570796326790 0 1.570796326790"/>
+      <origin xyz="0 0 -0.05" rpy="0 0 0"/>
       <geometry>
         <capsule length="0.2" radius=".03"/>
       </geometry>
       <material name="yellow"/>
     </visual>
     <collision>
-      <origin xyz="0.15 0 0" rpy="1.570796326790 0 1.570796326790"/>
+      <origin xyz="0 0 -0.15" rpy="0 0 0"/>
       <geometry>
         <sphere radius=".03"/>
       </geometry>
     </collision>
     <collision>
-      <origin xyz="-0.05 0 0" rpy="1.570796326790 0 1.570796326790"/>
+      <origin xyz="0 0 0.05" rpy="0 0 0"/>
       <geometry>
         <sphere radius=".03"/>
       </geometry>
@@ -89,8 +92,8 @@
   <joint name="ankle" type="revolute">
     <parent link="leg"/>
     <child link="foot"/>
-    <origin xyz="0 -0.4 0"/>
-    <axis xyz="0 0 1"/>
+    <origin xyz="-0.4 0 0"/>
+    <axis xyz="0 -1 0"/>
   </joint>
 
   <!-- Actuators --> 

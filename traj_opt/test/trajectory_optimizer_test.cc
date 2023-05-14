@@ -193,8 +193,7 @@ GTEST_TEST(TrajectoryOptimizerTest, ContactGradientMethods) {
   opt_prob.q_nom.resize(num_steps + 1);
   opt_prob.v_nom.resize(num_steps + 1);
   SolverParameters solver_params;
-  solver_params.F = 1.0;
-  solver_params.delta = 0.01;
+  solver_params.contact_stiffness = 100;
   solver_params.dissipation_velocity = 0.1;
   solver_params.friction_coefficient = 0.5;
 
