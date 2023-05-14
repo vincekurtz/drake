@@ -20,8 +20,8 @@ q_nom_start : [ 1.0, 0.0, 0.0, 0.0,
            0.0,-0.8, 1.6,
            0.0,-0.8, 1.6,
            0.0,-0.8, 1.6]
-q_nom_end : [ 0.7, 0.0, 0.0, 0.3,
-           0.3, 0.2, 0.29,
+q_nom_end : [ 1.0, 0.0, 0.0, 0.0,
+           0.4, 0.0, 0.29,
            0.0,-0.8, 1.6,
            0.0,-0.8, 1.6,
            0.0,-0.8, 1.6,
@@ -89,7 +89,7 @@ scaling : true
 equality_constraints : false
 normalize_quaternions : false
 linear_solver : pentadiagonal_lu
-num_threads : 4
+num_threads : 8
 
 # Convergence thresholds
 tolerances:
@@ -115,7 +115,7 @@ print_debug_data : false
 save_solver_stats_csv : true
 
 # Contact model parameters. 
-contact_stiffness : 1800    # normal force stiffness, in N/m
+contact_stiffness : 2000    # normal force stiffness, in N/m
 dissipation_velocity : 0.1  # Hunt & Crossley-like model parameter, in m/s.
 
 # Amount of smoothing (and therefore force at a distance) to apply when
@@ -123,14 +123,14 @@ dissipation_velocity : 0.1  # Hunt & Crossley-like model parameter, in m/s.
 # randomized smoothing, assuming that signed distances are drawn from a logistic
 # distirbution with the smoothing factor as the scale parameter. Higher values
 # mean more smoothing and more force at a distance. 
-smoothing_factor : 0.01
+smoothing_factor : 0.02
 
 # Friction
 friction_coefficient : 1.0  # Coefficient of friction.
 stiction_velocity: 0.5     # Regularization velocity, in m/s.
 
 # MPC parameters
-mpc : true
+mpc : false
 mpc_iters : 1
 controller_frequency : 60
 sim_time : 20
