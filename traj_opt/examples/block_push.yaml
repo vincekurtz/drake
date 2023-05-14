@@ -24,7 +24,7 @@ time_step : 0.05   # Discretization timestep (seconds)
 num_steps : 40     # number of timesteps
 
 # Solver parameters
-max_iters : 500             # maximum Gauss-Newton iterations
+max_iters : 200             # maximum Gauss-Newton iterations
 method : "trust_region"     # solver method, {linesearch, trust_region}
 
 # Convergence thresholds
@@ -51,14 +51,9 @@ print_debug_data : false
 save_solver_stats_csv : true
 
 # Contact model parameters
-F : 1.0         # force at delta meters of penetration
-delta : 0.01    # penetration distance with F newtons of normal force
+contact_stiffness : 100     # contact stiffness in N/m
 dissipation_velocity : 0.1  # Hunt & Crossley-like model parameter, in m/s.
-
-# With force at a distance, contact normal forces increases linearly at a rate
-# of 2F/delta Newtons / meter, with a given smoothing factor (higher is smoother)
-smoothing_factor : 1.0
-force_at_a_distance : false
+smoothing_factor : 0.005    # amount of smoothing (logistic distirbution scale)
 
 # Friction
 friction_coefficient : 0.2  # Coefficient of friction.
