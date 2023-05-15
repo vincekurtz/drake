@@ -64,6 +64,38 @@ class TrajOptExample {
    */
   void RunModelPredictiveControl(const TrajOptExampleParams& options) const;
 
+  /**
+   * Set an optimization problem from example options which were loaded from
+   * YAML.
+   *
+   * @param options parameters loaded from yaml
+   * @param opt_prob the problem definition (cost, initital state, etc)
+   */
+  void SetProblemDefinition(const TrajOptExampleParams& options,
+                            ProblemDefinition* opt_prob) const;
+
+  /**
+   * Set solver parameters (used to pass options to the optimizer)
+   * from example options (loaded from a YAML file).
+   *
+   * @param options parameters loaded from yaml
+   * @param solver_params parameters for the optimizer that we'll set
+   */
+  void SetSolverParameters(const TrajOptExampleParams& options,
+                           SolverParameters* solver_params) const;
+
+  /**
+   * Normalize quaternions in the given sequence of generalized positions. This
+   * is useful for, for example, ensuring that the reference and initial guess
+   * contain valid quaternions.
+   *
+   * @param plant model of the system that we're optimizing over
+   * @param q sequence of generalized positions, including quaternion DoFs, that
+   * we'll normalize
+   */
+  void NormalizeQuaternions(const MultibodyPlant<double>& plant,
+                            std::vector<VectorXd>* q) const;
+
  protected:
   /**
    * Meshcat instance used for visualization.
@@ -105,26 +137,6 @@ class TrajOptExample {
                           const double time_step) const;
 
   /**
-   * Set an optimization problem from example options which were loaded from
-   * YAML.
-   *
-   * @param options parameters loaded from yaml
-   * @param opt_prob the problem definition (cost, initital state, etc)
-   */
-  void SetProblemDefinition(const TrajOptExampleParams& options,
-                            ProblemDefinition* opt_prob) const;
-
-  /**
-   * Set solver parameters (used to pass options to the optimizer)
-   * from example options (loaded from a YAML file).
-   *
-   * @param options parameters loaded from yaml
-   * @param solver_params parameters for the optimizer that we'll set
-   */
-  void SetSolverParameters(const TrajOptExampleParams& options,
-                           SolverParameters* solver_params) const;
-
-  /**
    * Return a vector that interpolates linearly between q_start and q_end.
    * Useful for setting initial guesses and target trajectories.
    *
@@ -145,18 +157,6 @@ class TrajOptExample {
     }
     return result;
   }
-
-  /**
-   * Normalize quaternions in the given sequence of generalized positions. This
-   * is useful for, for example, ensuring that the reference and initial guess
-   * contain valid quaternions.
-   *
-   * @param plant model of the system that we're optimizing over
-   * @param q sequence of generalized positions, including quaternion DoFs, that
-   * we'll normalize
-   */
-  void NormalizeQuaternions(const MultibodyPlant<double>& plant,
-                            std::vector<VectorXd>* q) const;
 };
 
 }  // namespace examples
