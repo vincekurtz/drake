@@ -639,6 +639,7 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsFiniteDiff(
   const std::vector<VectorX<T>>& v = EvalV(state);
   const std::vector<VectorX<T>>& a = EvalA(state);
   const std::vector<VectorX<T>>& tau = EvalTau(state);
+  const std::vector<VectorX<T>>& phi = EvalPhi(state);
 
   // Get references to the partials that we'll be setting
   std::vector<MatrixX<T>>& dtau_dqm = id_partials->dtau_dqm;
@@ -723,24 +724,10 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsFiniteDiff(
         a_eps_t -= da_i * (Nplus[t + 1].col(i) + Nplus[t].col(i));
       }
 
-      // Compute dphi/dq_t via finite differencing
-      // TODO: this could be made much more efficient by re-using computation in
-      // several places
+      // Compute dphi/dq_t with finite differencing
+      // TODO: allocate elsewhere
       const int num_phi = prob_.penalized_contact_pairs.size();
-      VectorX<T> phi(num_phi);
       VectorX<T> phi_eps(num_phi);
-      plant().SetPositions(&context_t, q[t]);
-      CalcInverseDynamicsSingleTimeStep(context_t, a_eps_tm, &workspace,
-                                        &tau_eps_tm, &phi);
-      plant().SetPositions(&context_t, q_eps_t);
-      CalcInverseDynamicsSingleTimeStep(context_t, a_eps_tm, &workspace,
-                                        &tau_eps_tm, &phi_eps);
-      VectorX<T> dphi = (phi_eps - phi) / dq_i;
-      dphi_dqt[t].col(i) = dphi;
-
-      //std::cout << "phi        : " << fmt::format("{}", fmt_eigen(phi.transpose())) << std::endl;
-      //std::cout << "phi (state): " << fmt::format("{}", fmt_eigen(state.cache().inverse_dynamics_cache.phi[t].transpose())) << std::endl;
-      //std::cout << std::endl;
 
       // Compute perturbed tau(q) and calculate the nonzero entries of dtau/dq
       // via finite differencing
@@ -749,8 +736,10 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsFiniteDiff(
       plant().SetPositions(&context_t, q_eps_t);
       plant().SetVelocities(&context_t, v_eps_t);
       CalcInverseDynamicsSingleTimeStep(context_t, a_eps_tm, &workspace,
-                                        &tau_eps_tm);
+                                        &tau_eps_tm, &phi_eps);
       dtau_dqp[t - 1].col(i) = (tau_eps_tm - tau[t - 1]) / dq_i;
+
+      dphi_dqt[t].col(i) = (phi_eps - phi[t]) / dq_i;
 
       // tau[t] = ID(q[t+1], v[t+1], a[t])
       if (t < num_steps()) {
@@ -1306,7 +1295,6 @@ void TrajectoryOptimizer<T>::CalcGradient(
 
     // Contribution from signed distances
     // TODO: add max
-    // TODO: load weight from parameter
     const double weight = params_.signed_distance_penalty;
     phit_term = weight * dt * phi[t].transpose() * dphi_dqt[t];
 
