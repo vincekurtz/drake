@@ -187,6 +187,9 @@ struct SolverParameters {
   // Indicator for which DoFs the nominal trajectory is defined as relative to
   // the initial condition. Useful for locomotion or continuous rotation tasks.
   VectorX<bool> q_nom_relative_to_q_init;
+
+  // Quadratic cost on selected signed distances
+  double signed_distance_penalty{-1};
 };
 
 }  // namespace traj_opt

@@ -140,8 +140,8 @@ T TrajectoryOptimizer<T>::CalcCost(
 
   // Add a running penalty on signed distances
   const std::vector<VectorX<T>>& phi = EvalPhi(state);
-  // TODO: read weights on this from YAML or something
-  const double weight = 1.0;
+  const double weight = params_.signed_distance_penalty;
+  DRAKE_DEMAND(weight >= 0);
   for (int t = 0; t <= num_steps(); ++t) {
     // TODO: use max(0, phi_t)^2
     cost += T(0.5 * weight * phi[t].transpose() * phi[t]);
@@ -1312,7 +1312,7 @@ void TrajectoryOptimizer<T>::CalcGradient(
     // Contribution from signed distances
     // TODO: add max
     // TODO: load weight from parameter
-    const double weight = 1.0;
+    const double weight = params_.signed_distance_penalty;
     phit_term = weight * dt * phi[t].transpose() * dphi_dqt[t];
 
     // Put it all together to get the gradient w.r.t q[t]
@@ -1329,7 +1329,7 @@ void TrajectoryOptimizer<T>::CalcGradient(
   vt_term = (v[num_steps()] - prob_.v_nom[num_steps()]).transpose() * 2 *
             prob_.Qf_v * dvt_dqt[num_steps()];
 
-  const double weight = 1.0; // TODO: set from YAML
+  const double weight = params_.signed_distance_penalty;
   phit_term = weight * phi[num_steps()].transpose() * dphi_dqt[num_steps()];
 
   g->tail(nq) = qt_term + vt_term + taum_term + phit_term;
@@ -1398,7 +1398,7 @@ void TrajectoryOptimizer<T>::CalcHessian(
     dgt_dqt += dtau_dqp[t - 1].transpose() * R * dtau_dqp[t - 1];
     dgt_dqt += dtau_dqt[t].transpose() * R * dtau_dqt[t];
 
-    const double weight = 1.0;  // TODO: set in YAML
+    const double weight = params_.signed_distance_penalty;
     dgt_dqt += weight * dt * dphi_dqt[t].transpose() * dphi_dqt[t];
     if (t < num_steps() - 1) {
       dgt_dqt += dtau_dqm[t + 1].transpose() * R * dtau_dqm[t + 1];
@@ -1431,7 +1431,7 @@ void TrajectoryOptimizer<T>::CalcHessian(
   dgT_dqT +=
       dtau_dqp[num_steps() - 1].transpose() * R * dtau_dqp[num_steps() - 1];
   
-  const double weight = 1.0;  // TODO: set in YAML
+  const double weight = params_.signed_distance_penalty;
   dgT_dqT += weight * dphi_dqt[num_steps()].transpose() * dphi_dqt[num_steps()];
 
   // Add proximal operator terms to the Hessian, if requested

@@ -5,11 +5,13 @@
 #
 ##
 
+signed_distance_penalty : 10
+
 # Initial state
 q_init : [1.57, 2.0, 0.0, 5.0,-1.0, 4.2, 0.0,   # left arm positions
           1.57, 2.0, 0.0, 5.0, 1.0, 4.2, 0.0,   # right arm positions
           1.0, 0.0, 0.0, 0.0,                   # box orientation
-          0.5, 0.0, 0.08]                       # box position
+          0.7, 0.0, 0.08]                       # box position
 v_init : [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
           0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
           0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
@@ -29,7 +31,7 @@ q_nom_end : [1.57, 2.0, 0.0, 5.0,-1.0, 4.2, 0.0,
 q_guess : [1.57, 2.0, 0.0, 5.0,-1.0, 4.2, 0.0,
            1.57, 2.0, 0.0, 5.0, 1.0, 4.2, 0.0,
            1.0, 0.0, 0.0, 0.0,
-           0.5, 0.0, 0.08]
+           0.7, 0.0, 0.08]
 
 # Cost Weights
 Qq: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
@@ -63,7 +65,7 @@ max_iters : 50             # maximum Gauss-Newton iterations
 method : "trust_region"     # solver method, {linesearch, trust_region}
 scaling : true
 equality_constraints : false
-num_threads : 4
+num_threads : 12
 
 tolerances:
   rel_cost_reduction: 0
@@ -88,7 +90,7 @@ print_debug_data : false
 save_solver_stats_csv : true
 
 # Contact model parameters. 
-contact_stiffness : 1000    # normal force stiffness, in N/m
+contact_stiffness : 500    # normal force stiffness, in N/m
 dissipation_velocity : 0.1  # Hunt & Crossley-like model parameter, in m/s.
 
 # Amount of smoothing (and therefore force at a distance) to apply when

@@ -597,6 +597,8 @@ void TrajOptExample::SetSolverParameters(
     q_nom_relative = VectorX<bool>::Constant(options.q_init.size(), false);
   }
   solver_params->q_nom_relative_to_q_init = q_nom_relative;
+
+  solver_params->signed_distance_penalty = options.signed_distance_penalty;
 }
 
 void TrajOptExample::NormalizeQuaternions(const MultibodyPlant<double>& plant,
