@@ -199,13 +199,28 @@ TrajectoryOptimizerSolution<double> TrajOptExample::SolveTrajectoryOptimization(
   // TODO: specify in YAML rather than hard-coding for the Jaco example
   // TODO: add to MPC
   // TODO: move to SetProblemDefinition
-  auto plant_context = plant.CreateDefaultContext();
-  const geometry::QueryObject<T>& query_object =
-      plant.get_geometry_query_input_port()
-          .template Eval<geometry::QueryObject<double>>(plant_context);
+  auto diagram_context = diagram->CreateDefaultContext();
+  auto& plant_context =
+      diagram->GetMutableSubsystemContext(plant, diagram_context.get());
+  const geometry::QueryObject<double>& query_object =
+      plant.get_geometry_query_input_port().Eval<geometry::QueryObject<double>>(
+          plant_context);
   const drake::geometry::SceneGraphInspector<double>& inspector =
       query_object.inspector();
-  inspector.GetGeometryIdByName("nub")
+  
+  geometry::FrameId box_frame_id =
+      plant.GetBodyFrameIdOrThrow(plant.GetBodyByName("box").index());
+  geometry::GeometryId box_geometry_id = inspector.GetGeometryIdByName(
+      box_frame_id, geometry::Role::kProximity, "box_15cm::sphere_center");
+  (void) box_geometry_id;
+
+  // DEBUG: print the names of all the geometries
+  // std::vector<geometry::GeometryId> all_geom_ids =
+  //     plant.GetCollisionGeometriesForBody(plant.GetBodyByName("box"));
+  // for (geometry::GeometryId id : all_geom_ids) {
+  //   std::cout << "cannonical name: " << inspector.GetName(id) << std::endl;
+  // }
+
 
   // Set our solver parameters
   SolverParameters solver_params;
