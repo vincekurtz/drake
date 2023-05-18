@@ -138,13 +138,15 @@ T TrajectoryOptimizer<T>::CalcCost(
   const std::vector<VectorX<T>>& tau = EvalTau(state);
   T cost = CalcCost(state.q(), v, tau, &state.workspace);
 
+  const double dt = time_step();
+
   // Add a running penalty on signed distances
   const std::vector<VectorX<T>>& phi = EvalPhi(state);
   const double weight = params_.signed_distance_penalty;
   DRAKE_DEMAND(weight >= 0);
   for (int t = 0; t <= num_steps(); ++t) {
     // TODO: use max(0, phi_t)^2
-    cost += T(0.5 * weight * phi[t].transpose() * phi[t]);
+    cost += T(0.5 * dt * weight * phi[t].transpose() * phi[t]);
   }
 
   // Add a proximal operator term to the cost, if requested
@@ -1265,7 +1267,7 @@ void TrajectoryOptimizer<T>::CalcGradient(
 
   // TODO: allocate in workspace
   // TODO: don't hard-code number of penalized_contact_pairs
-  VectorX<T> phit_term(2);
+  VectorX<T> phit_term(nq);
 
   for (int t = 1; t < num_steps(); ++t) {
     // Contribution from position cost

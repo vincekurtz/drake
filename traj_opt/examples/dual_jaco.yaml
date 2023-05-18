@@ -47,8 +47,8 @@ R: [1e-3, 1e-3, 1e-3, 1e-3, 1e-3, 1e-3, 1e-3,
     1e3, 1e3, 1e3,
     1e3, 1e3, 1e3]
 
-Qfq: [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1,
-      0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1,
+Qfq: [0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0,
       10, 10, 10, 10,
       10, 10, 10]
 Qfv: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0,
@@ -98,7 +98,7 @@ dissipation_velocity : 0.1  # Hunt & Crossley-like model parameter, in m/s.
 # randomized smoothing, assuming that signed distances are drawn from a logistic
 # distirbution with the smoothing factor as the scale parameter. Higher values
 # mean more smoothing and more force at a distance. 
-smoothing_factor : 0.005
+smoothing_factor : 0.001
 
 # Friction
 friction_coefficient : 0.2  # Coefficient of friction.
