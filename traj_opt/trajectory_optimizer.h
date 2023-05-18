@@ -676,10 +676,13 @@ class TrajectoryOptimizer {
    * @param a generalized acceleration
    * @param workspace scratch space for intermediate computations
    * @param tau generalized forces
+   * @param penalized_signed_distances signed distances that we will add a cost
+   * term for
    */
   void CalcInverseDynamicsSingleTimeStep(
       const Context<T>& context, const VectorX<T>& a,
-      TrajectoryOptimizerWorkspace<T>* workspace, VectorX<T>* tau) const;
+      TrajectoryOptimizerWorkspace<T>* workspace, VectorX<T>* tau,
+      VectorX<T>* penalized_signed_distances = nullptr) const;
 
   /**
    * Calculate the force contribution from contacts for each body, and add them

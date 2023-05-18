@@ -238,7 +238,8 @@ void TrajectoryOptimizer<T>::CalcInverseDynamics(
 template <typename T>
 void TrajectoryOptimizer<T>::CalcInverseDynamicsSingleTimeStep(
     const Context<T>& context, const VectorX<T>& a,
-    TrajectoryOptimizerWorkspace<T>* workspace, VectorX<T>* tau) const {
+    TrajectoryOptimizerWorkspace<T>* workspace, VectorX<T>* tau,
+    VectorX<T>* penalized_signed_distances) const {
   plant().CalcForceElementsContribution(context, &workspace->f_ext);
 
   // Add in contact force contribution to f_ext
@@ -247,7 +248,8 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsSingleTimeStep(
     // TODO(vincekurtz): perform this check earlier, and maybe print some
     // warnings to stdout if we're not connected (we do want to be able to run
     // problems w/o contact sometimes)
-    CalcContactForceContribution(context, &workspace->f_ext, nullptr);
+    CalcContactForceContribution(context, &workspace->f_ext,
+                                 penalized_signed_distances);
   }
 
   // Inverse dynamics computes tau = M*a - k(q,v) - f_ext
