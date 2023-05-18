@@ -146,7 +146,8 @@ T TrajectoryOptimizer<T>::CalcCost(
   DRAKE_DEMAND(weight >= 0);
   for (int t = 0; t <= num_steps(); ++t) {
     // TODO: use max(0, phi_t)^2
-    cost += T(0.5 * dt * weight * phi[t].transpose() * phi[t]);
+    cost += T(0.5 * dt * weight * phi[t].transpose().cwiseMax(0) *
+              phi[t].cwiseMax(0));
   }
 
   // Add a proximal operator term to the cost, if requested
@@ -1298,7 +1299,7 @@ void TrajectoryOptimizer<T>::CalcGradient(
     // Contribution from signed distances
     // TODO: add max
     const double weight = params_.signed_distance_penalty;
-    phit_term = weight * dt * phi[t].transpose() * dphi_dqt[t];
+    phit_term = weight * dt * phi[t].cwiseMax(0).transpose() * dphi_dqt[t];
 
     // Put it all together to get the gradient w.r.t q[t]
     g->segment(t * nq, nq) = qt_term + vt_term + vp_term + taum_term +
@@ -1315,7 +1316,8 @@ void TrajectoryOptimizer<T>::CalcGradient(
             prob_.Qf_v * dvt_dqt[num_steps()];
 
   const double weight = params_.signed_distance_penalty;
-  phit_term = weight * phi[num_steps()].transpose() * dphi_dqt[num_steps()];
+  phit_term = weight * dt * phi[num_steps()].cwiseMax(0).transpose() *
+              dphi_dqt[num_steps()];
 
   g->tail(nq) = qt_term + vt_term + taum_term + phit_term;
 
@@ -1368,6 +1370,21 @@ void TrajectoryOptimizer<T>::CalcHessian(
   const std::vector<MatrixX<T>>& dtau_dqm = id_partials.dtau_dqm;
   const std::vector<MatrixX<T>>& dphi_dqt = id_partials.dphi_dqt;
 
+  const std::vector<VectorX<T>>& phi = EvalPhi(state);
+
+  auto heaviside = [](const VectorX<T>& x) {
+    VectorX<T> hx(x.size());
+    for (int i = 0; i < x.size(); ++i) {
+      hx(i) = (x(i) >= 0) ? 1.0 : 0.0;
+    }
+    return hx;
+  };
+
+  std::vector<VectorX<T>> heaviside_phi(phi.size());
+  for (int t = 0; t < static_cast<int>(phi.size()); ++t) {
+    heaviside_phi[t] = heaviside(phi[t]);
+  }
+
   // Get mutable references to the non-zero bands of the Hessian
   std::vector<MatrixX<T>>& A = H->mutable_A();  // 2 rows below diagonal
   std::vector<MatrixX<T>>& B = H->mutable_B();  // 1 row below diagonal
@@ -1384,7 +1401,13 @@ void TrajectoryOptimizer<T>::CalcHessian(
     dgt_dqt += dtau_dqt[t].transpose() * R * dtau_dqt[t];
 
     const double weight = params_.signed_distance_penalty;
-    dgt_dqt += weight * dt * dphi_dqt[t].transpose() * dphi_dqt[t];
+    const int nphi = phi[t].rows();
+    for (int ip =0;ip<nphi;++ip){
+      dgt_dqt += weight * dt * dphi_dqt[t].row(ip).transpose() *
+                 dphi_dqt[t].row(ip) * heaviside_phi[t](ip);
+    }
+
+
     if (t < num_steps() - 1) {
       dgt_dqt += dtau_dqm[t + 1].transpose() * R * dtau_dqm[t + 1];
       dgt_dqt += dvt_dqm[t + 1].transpose() * Qv * dvt_dqm[t + 1];
