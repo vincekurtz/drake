@@ -31,8 +31,8 @@ struct InverseDynamicsPartials {
     dtau_dqt.assign(num_steps, MatrixX<T>(nv, nq));
     dtau_dqp.assign(num_steps, MatrixX<T>(nv, nq));
 
-    // TODO: replace 78 with the geometry ids that we want to penalize
-    dphi_dqt.assign(num_steps + 1, MatrixX<T>(78, nq));
+    // TODO: read number of contact pairs that we'll penalize from YAML
+    dphi_dqt.assign(num_steps + 1, MatrixX<T>(2, nq));
 
     // Set all derivatives w.r.t q(-1) to NaN
     dtau_dqm[0].setConstant(nv, nq, NAN);

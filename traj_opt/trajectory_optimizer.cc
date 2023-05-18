@@ -260,6 +260,12 @@ template <typename T>
 void TrajectoryOptimizer<T>::CalcContactForceContribution(
     const Context<T>& context, MultibodyForces<T>* forces,
     VectorX<T>* penalized_signed_distances) const {
+  const int num_phi = prob_.penalized_contact_pairs.size();
+  if (penalized_signed_distances != nullptr) {
+    DRAKE_DEMAND(num_phi ==
+                 static_cast<int>(penalized_signed_distances->size()));
+  }
+
   using std::abs;
   using std::exp;
   using std::log;
@@ -292,12 +298,6 @@ void TrajectoryOptimizer<T>::CalcContactForceContribution(
   const std::vector<SignedDistancePair<T>>& signed_distance_pairs =
       query_object.ComputeSignedDistancePairwiseClosestPoints(threshold);
 
-  // TODO: only consider some contact pairs, not all of them 
-  if (penalized_signed_distances != nullptr) {
-    DRAKE_DEMAND(static_cast<int>(signed_distance_pairs.size()) ==
-                 static_cast<int>(penalized_signed_distances->size()));
-  } 
-
   //for (const SignedDistancePair<T>& pair : signed_distance_pairs) {
   for (unsigned int i=0; i<signed_distance_pairs.size(); ++i) {
     const SignedDistancePair<T>& pair = signed_distance_pairs[i];
@@ -309,11 +309,14 @@ void TrajectoryOptimizer<T>::CalcContactForceContribution(
     const GeometryId geometryB_id = pair.id_B;
 
     // Record signed distances
-    // TODO: filter according to the actually penalized pairs
     if (penalized_signed_distances != nullptr) {
-      // TODO: ordering might be inconsistent??
       VectorX<T>& phis = *penalized_signed_distances;
-      phis[i] = pair.distance;
+      for (int j=0; j<num_phi; ++j) {
+        SortedPair<GeometryId> geom_pair(geometryA_id, geometryB_id);
+        if (geom_pair == prob_.penalized_contact_pairs[j]) {
+          phis[j] = pair.distance;
+        }
+      }
     }
 
     const BodyIndex bodyA_index =
@@ -710,8 +713,9 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsFiniteDiff(
       // Compute dphi/dq_t via finite differencing
       // TODO: this could be made much more efficient by re-using computation in
       // several places
-      VectorX<T> phi(78);   // hard-coded for dual jaco example
-      VectorX<T> phi_eps(78);
+      const int num_phi = prob_.penalized_contact_pairs.size();
+      VectorX<T> phi(num_phi);
+      VectorX<T> phi_eps(num_phi);
       plant().SetPositions(&context_t, q[t]);
       CalcInverseDynamicsSingleTimeStep(context_t, a_eps_tm, &workspace,
                                         &tau_eps_tm, &phi);
@@ -720,9 +724,9 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsFiniteDiff(
                                         &tau_eps_tm, &phi_eps);
       VectorX<T> dphi = (phi_eps - phi) / dq_i;
       dphi_dqt[t].col(i) = dphi;
-      //std::cout << fmt::format("phi: {}", fmt_eigen(phi.transpose())) << std::endl;;
-      //std::cout << fmt::format("phi_eps: {}", fmt_eigen(phi_eps.transpose())) << std::endl;;
-      //std::cout << fmt::format("dphi: {}", fmt_eigen(dphi.transpose())) << std::endl;
+      std::cout << fmt::format("phi: {}", fmt_eigen(phi.transpose())) << std::endl;;
+      std::cout << fmt::format("phi_eps: {}", fmt_eigen(phi_eps.transpose())) << std::endl;;
+      std::cout << fmt::format("dphi: {}", fmt_eigen(dphi.transpose())) << std::endl;
 
       // Compute perturbed tau(q) and calculate the nonzero entries of dtau/dq
       // via finite differencing
