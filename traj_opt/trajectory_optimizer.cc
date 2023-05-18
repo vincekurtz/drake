@@ -1255,6 +1255,7 @@ void TrajectoryOptimizer<T>::CalcGradient(
   const std::vector<VectorX<T>>& q = state.q();
   const std::vector<VectorX<T>>& v = EvalV(state);
   const std::vector<VectorX<T>>& tau = EvalTau(state);
+  const std::vector<VectorX<T>>& phi = EvalPhi(state);
 
   const VelocityPartials<T>& v_partials = EvalVelocityPartials(state);
   const InverseDynamicsPartials<T>& id_partials =
@@ -1264,6 +1265,7 @@ void TrajectoryOptimizer<T>::CalcGradient(
   const std::vector<MatrixX<T>>& dtau_dqp = id_partials.dtau_dqp;
   const std::vector<MatrixX<T>>& dtau_dqt = id_partials.dtau_dqt;
   const std::vector<MatrixX<T>>& dtau_dqm = id_partials.dtau_dqm;
+  const std::vector<MatrixX<T>>& dphi_dqt = id_partials.dphi_dqt;
 
   // Set first block of g (derivatives w.r.t. q_0) to zero, since q0 = q_init
   // are constant.
@@ -1276,6 +1278,10 @@ void TrajectoryOptimizer<T>::CalcGradient(
   VectorX<T>& taum_term = workspace->tau_size_tmp1;
   VectorX<T>& taut_term = workspace->tau_size_tmp2;
   VectorX<T>& taup_term = workspace->tau_size_tmp3;
+
+  // TODO: allocate in workspace
+  // TODO: don't hard-code number of penalized_contact_pairs
+  VectorX<T> phit_term(2);
 
   for (int t = 1; t < num_steps(); ++t) {
     // Contribution from position cost
@@ -1303,9 +1309,15 @@ void TrajectoryOptimizer<T>::CalcGradient(
       taup_term = tau[t + 1].transpose() * 2 * prob_.R * dt * dtau_dqm[t + 1];
     }
 
+    // Contribution from signed distances
+    // TODO: add max
+    // TODO: load weight from parameter
+    const double weight = 1.0;
+    phit_term = weight * dt * phi[t].transpose() * dphi_dqt[t];
+
     // Put it all together to get the gradient w.r.t q[t]
-    g->segment(t * nq, nq) =
-        qt_term + vt_term + vp_term + taum_term + taut_term + taup_term;
+    g->segment(t * nq, nq) = qt_term + vt_term + vp_term + taum_term +
+                             taut_term + taup_term + phit_term;
   }
 
   // Last step is different, because there is terminal cost and v[t+1] doesn't
@@ -1316,7 +1328,11 @@ void TrajectoryOptimizer<T>::CalcGradient(
       (q[num_steps()] - prob_.q_nom[num_steps()]).transpose() * 2 * prob_.Qf_q;
   vt_term = (v[num_steps()] - prob_.v_nom[num_steps()]).transpose() * 2 *
             prob_.Qf_v * dvt_dqt[num_steps()];
-  g->tail(nq) = qt_term + vt_term + taum_term;
+
+  const double weight = 1.0; // TODO: set from YAML
+  phit_term = weight * phi[num_steps()].transpose() * dphi_dqt[num_steps()];
+
+  g->tail(nq) = qt_term + vt_term + taum_term + phit_term;
 
   // Add proximal operator term to the gradient, if requested
   if (params_.proximal_operator) {
@@ -1365,6 +1381,7 @@ void TrajectoryOptimizer<T>::CalcHessian(
   const std::vector<MatrixX<T>>& dtau_dqp = id_partials.dtau_dqp;
   const std::vector<MatrixX<T>>& dtau_dqt = id_partials.dtau_dqt;
   const std::vector<MatrixX<T>>& dtau_dqm = id_partials.dtau_dqm;
+  const std::vector<MatrixX<T>>& dphi_dqt = id_partials.dphi_dqt;
 
   // Get mutable references to the non-zero bands of the Hessian
   std::vector<MatrixX<T>>& A = H->mutable_A();  // 2 rows below diagonal
@@ -1380,6 +1397,9 @@ void TrajectoryOptimizer<T>::CalcHessian(
     dgt_dqt += dvt_dqt[t].transpose() * Qv * dvt_dqt[t];
     dgt_dqt += dtau_dqp[t - 1].transpose() * R * dtau_dqp[t - 1];
     dgt_dqt += dtau_dqt[t].transpose() * R * dtau_dqt[t];
+
+    const double weight = 1.0;  // TODO: set in YAML
+    dgt_dqt += weight * dt * dphi_dqt[t].transpose() * dphi_dqt[t];
     if (t < num_steps() - 1) {
       dgt_dqt += dtau_dqm[t + 1].transpose() * R * dtau_dqm[t + 1];
       dgt_dqt += dvt_dqm[t + 1].transpose() * Qv * dvt_dqm[t + 1];
@@ -1410,6 +1430,9 @@ void TrajectoryOptimizer<T>::CalcHessian(
   dgT_dqT += dvt_dqt[num_steps()].transpose() * Qf_v * dvt_dqt[num_steps()];
   dgT_dqT +=
       dtau_dqp[num_steps() - 1].transpose() * R * dtau_dqp[num_steps() - 1];
+  
+  const double weight = 1.0;  // TODO: set in YAML
+  dgT_dqT += weight * dphi_dqt[num_steps()].transpose() * dphi_dqt[num_steps()];
 
   // Add proximal operator terms to the Hessian, if requested
   if (params_.proximal_operator) {
