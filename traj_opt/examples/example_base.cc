@@ -207,17 +207,17 @@ TrajectoryOptimizerSolution<double> TrajOptExample::SolveTrajectoryOptimization(
           plant_context);
   const drake::geometry::SceneGraphInspector<double>& inspector =
       query_object.inspector();
-  
+
   geometry::FrameId box_frame_id =
       plant.GetBodyFrameIdOrThrow(plant.GetBodyByName("box").index());
   geometry::GeometryId box_geometry_id = inspector.GetGeometryIdByName(
       box_frame_id, geometry::Role::kProximity, "box_15cm::sphere_center");
-  
-  // DEBUG: print the names of all the geometries
-  //std::vector<geometry::GeometryId> all_geom_ids =
+
+  // DEBUG: print the names of all the geometries for a given body
+  // std::vector<geometry::GeometryId> all_geom_ids =
   //    plant.GetCollisionGeometriesForBody(plant.GetBodyByName(
   //        "nub_link", plant.GetModelInstanceByName("jaco_left")));
-  //for (geometry::GeometryId id : all_geom_ids) {
+  // for (geometry::GeometryId id : all_geom_ids) {
   //  std::cout << "cannonical name: " << inspector.GetName(id) << std::endl;
   //}
 
@@ -225,18 +225,21 @@ TrajectoryOptimizerSolution<double> TrajOptExample::SolveTrajectoryOptimization(
       plant.GetBodyByName("nub_link", plant.GetModelInstanceByName("jaco_left"))
           .index());
   geometry::GeometryId left_nub_geometry_id = inspector.GetGeometryIdByName(
-      left_nub_frame_id, geometry::Role::kProximity, "jaco_left::nub_tip_contact");
-  
+      left_nub_frame_id, geometry::Role::kProximity,
+      "jaco_left::nub_tip_contact");
+
   geometry::FrameId right_nub_frame_id = plant.GetBodyFrameIdOrThrow(
-      plant.GetBodyByName("nub_link", plant.GetModelInstanceByName("jaco_right"))
+      plant
+          .GetBodyByName("nub_link", plant.GetModelInstanceByName("jaco_right"))
           .index());
   geometry::GeometryId right_nub_geometry_id = inspector.GetGeometryIdByName(
-      right_nub_frame_id, geometry::Role::kProximity, "jaco_right::nub_tip_contact");
+      right_nub_frame_id, geometry::Role::kProximity,
+      "jaco_right::nub_tip_contact");
 
-  opt_prob.
-  (void) box_geometry_id;
-  (void)left_nub_geometry_id;
-  (void)right_nub_geometry_id;
+  opt_prob.penalized_contact_pairs.push_back(
+      SortedPair<geometry::GeometryId>(box_geometry_id, left_nub_geometry_id));
+  opt_prob.penalized_contact_pairs.push_back(
+      SortedPair<geometry::GeometryId>(box_geometry_id, right_nub_geometry_id));
 
   // Set our solver parameters
   SolverParameters solver_params;

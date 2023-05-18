@@ -4,6 +4,7 @@
 
 #include "drake/common/eigen_types.h"
 #include "drake/geometry/geometry_ids.h"
+#include "drake/common/sorted_pair.h"
 
 namespace drake {
 namespace traj_opt {
@@ -60,7 +61,7 @@ struct ProblemDefinition {
   std::vector<VectorXd> v_nom;
 
   // Signed distance pairs that we will penalize
-  std::vector<std::pair<GeometryId, GeometryId>> penalized_contact_pairs;
+  std::vector<SortedPair<GeometryId>> penalized_contact_pairs;
 };
 
 }  // namespace traj_opt
