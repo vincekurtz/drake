@@ -260,8 +260,6 @@ template <typename T>
 void TrajectoryOptimizer<T>::CalcContactForceContribution(
     const Context<T>& context, MultibodyForces<T>* forces,
     VectorX<T>* penalized_signed_distances) const {
-  (void) penalized_signed_distances;
-
   using std::abs;
   using std::exp;
   using std::log;
@@ -282,7 +280,7 @@ void TrajectoryOptimizer<T>::CalcContactForceContribution(
   // any geometry queries beyond this distance
   // N.B. For penalizing signed distances, we want to compute all contact pairs,
   // even far away
-  double threshold = 0;
+  double threshold = 1000;
 
   // Get signed distance pairs
   const geometry::QueryObject<T>& query_object =
@@ -294,13 +292,29 @@ void TrajectoryOptimizer<T>::CalcContactForceContribution(
   const std::vector<SignedDistancePair<T>>& signed_distance_pairs =
       query_object.ComputeSignedDistancePairwiseClosestPoints(threshold);
 
-  for (const SignedDistancePair<T>& pair : signed_distance_pairs) {
+  // TODO: only consider some contact pairs, not all of them 
+  if (penalized_signed_distances != nullptr) {
+    DRAKE_DEMAND(static_cast<int>(signed_distance_pairs.size()) ==
+                 static_cast<int>(penalized_signed_distances->size()));
+  } 
+
+  //for (const SignedDistancePair<T>& pair : signed_distance_pairs) {
+  for (unsigned int i=0; i<signed_distance_pairs.size(); ++i) {
+    const SignedDistancePair<T>& pair = signed_distance_pairs[i];
     // Normal outwards from A.
     const Vector3<T> nhat = -pair.nhat_BA_W;
 
     // Get geometry and transformation data for the witness points
     const GeometryId geometryA_id = pair.id_A;
     const GeometryId geometryB_id = pair.id_B;
+
+    // Record signed distances
+    // TODO: filter according to the actually penalized pairs
+    if (penalized_signed_distances != nullptr) {
+      // TODO: ordering might be inconsistent??
+      VectorX<T>& phis = *penalized_signed_distances;
+      phis[i] = pair.distance;
+    }
 
     const BodyIndex bodyA_index =
         plant().geometry_id_to_body_index().at(geometryA_id);
@@ -614,6 +628,7 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsFiniteDiff(
   std::vector<MatrixX<T>>& dtau_dqm = id_partials->dtau_dqm;
   std::vector<MatrixX<T>>& dtau_dqt = id_partials->dtau_dqt;
   std::vector<MatrixX<T>>& dtau_dqp = id_partials->dtau_dqp;
+  std::vector<MatrixX<T>>& dphi_dqt = id_partials->dphi_dqt;
 
   // Get kinematic mapping matrices for each time step
   const std::vector<MatrixX<T>>& Nplus = EvalNplus(state);
@@ -691,6 +706,23 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsFiniteDiff(
         v_eps_tp -= dv_i * Nplus[t + 1].col(i);
         a_eps_t -= da_i * (Nplus[t + 1].col(i) + Nplus[t].col(i));
       }
+
+      // Compute dphi/dq_t via finite differencing
+      // TODO: this could be made much more efficient by re-using computation in
+      // several places
+      VectorX<T> phi(78);   // hard-coded for dual jaco example
+      VectorX<T> phi_eps(78);
+      plant().SetPositions(&context_t, q[t]);
+      CalcInverseDynamicsSingleTimeStep(context_t, a_eps_tm, &workspace,
+                                        &tau_eps_tm, &phi);
+      plant().SetPositions(&context_t, q_eps_t);
+      CalcInverseDynamicsSingleTimeStep(context_t, a_eps_tm, &workspace,
+                                        &tau_eps_tm, &phi_eps);
+      VectorX<T> dphi = (phi_eps - phi) / dq_i;
+      dphi_dqt[t].col(i) = dphi;
+      //std::cout << fmt::format("phi: {}", fmt_eigen(phi.transpose())) << std::endl;;
+      //std::cout << fmt::format("phi_eps: {}", fmt_eigen(phi_eps.transpose())) << std::endl;;
+      //std::cout << fmt::format("dphi: {}", fmt_eigen(dphi.transpose())) << std::endl;
 
       // Compute perturbed tau(q) and calculate the nonzero entries of dtau/dq
       // via finite differencing

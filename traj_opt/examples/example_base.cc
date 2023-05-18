@@ -195,6 +195,18 @@ TrajectoryOptimizerSolution<double> TrajOptExample::SolveTrajectoryOptimization(
   // TODO(vincekurtz): consider moving this to SetProblemDefinition
   NormalizeQuaternions(plant, &opt_prob.q_nom);
 
+  // Select geometry pairs that we want to penalize signed distance for
+  // TODO: specify in YAML rather than hard-coding for the Jaco example
+  // TODO: add to MPC
+  // TODO: move to SetProblemDefinition
+  auto plant_context = plant.CreateDefaultContext();
+  const geometry::QueryObject<T>& query_object =
+      plant.get_geometry_query_input_port()
+          .template Eval<geometry::QueryObject<double>>(plant_context);
+  const drake::geometry::SceneGraphInspector<double>& inspector =
+      query_object.inspector();
+  inspector.GetGeometryIdByName("nub")
+
   // Set our solver parameters
   SolverParameters solver_params;
   SetSolverParameters(options, &solver_params);
