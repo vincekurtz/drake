@@ -247,7 +247,7 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsSingleTimeStep(
     // TODO(vincekurtz): perform this check earlier, and maybe print some
     // warnings to stdout if we're not connected (we do want to be able to run
     // problems w/o contact sometimes)
-    CalcContactForceContribution(context, &workspace->f_ext);
+    CalcContactForceContribution(context, &workspace->f_ext, nullptr);
   }
 
   // Inverse dynamics computes tau = M*a - k(q,v) - f_ext
@@ -256,7 +256,10 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsSingleTimeStep(
 
 template <typename T>
 void TrajectoryOptimizer<T>::CalcContactForceContribution(
-    const Context<T>& context, MultibodyForces<T>* forces) const {
+    const Context<T>& context, MultibodyForces<T>* forces,
+    VectorX<T>* penalized_signed_distances) const {
+  (void) penalized_signed_distances;
+
   using std::abs;
   using std::exp;
   using std::log;

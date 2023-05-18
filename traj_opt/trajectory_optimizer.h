@@ -687,9 +687,12 @@ class TrajectoryOptimizer {
    *
    * @param context system context storing q and v
    * @param forces total forces applied to the plant, which we will add into.
+   * @param penalized_signed_distances signed distances that we will add a cost
+   * term for
    */
-  void CalcContactForceContribution(const Context<T>& context,
-                                    MultibodyForces<T>* forces) const;
+  void CalcContactForceContribution(
+      const Context<T>& context, MultibodyForces<T>* forces,
+      VectorX<T>* penalized_signed_distances) const;
 
   /**
    * Compute signed distance data for all contact pairs for all time steps.

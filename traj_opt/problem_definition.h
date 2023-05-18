@@ -3,10 +3,12 @@
 #include <vector>
 
 #include "drake/common/eigen_types.h"
+#include "drake/geometry/geometry_ids.h"
 
 namespace drake {
 namespace traj_opt {
 
+using geometry::GeometryId;
 using Eigen::MatrixXd;
 using Eigen::VectorXd;
 
@@ -56,6 +58,9 @@ struct ProblemDefinition {
 
   // Target generalized velocities at each time step
   std::vector<VectorXd> v_nom;
+
+  // Signed distance pairs that we will penalize
+  std::vector<std::pair<GeometryId, GeometryId>> penalized_contact_pairs;
 };
 
 }  // namespace traj_opt
