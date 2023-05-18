@@ -660,10 +660,12 @@ class TrajectoryOptimizer {
    * context in turn stores q(t) and v(t) for each timestep.
    * @param a sequence of generalized accelerations
    * @param tau sequence of generalized forces
+   * @param phi signed distances for the DoFs that we'll penalize
    */
   void CalcInverseDynamics(const TrajectoryOptimizerState<T>& state,
                            const std::vector<VectorX<T>>& a,
-                           std::vector<VectorX<T>>* tau) const;
+                           std::vector<VectorX<T>>* tau,
+                           std::vector<VectorX<T>>* phi) const;
 
   /**
    * Helper function for computing the inverse dynamics

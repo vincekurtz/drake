@@ -214,12 +214,13 @@ void TrajectoryOptimizer<T>::CalcAccelerations(
 template <typename T>
 void TrajectoryOptimizer<T>::CalcInverseDynamics(
     const TrajectoryOptimizerState<T>& state, const std::vector<VectorX<T>>& a,
-    std::vector<VectorX<T>>* tau) const {
+    std::vector<VectorX<T>>* tau, std::vector<VectorX<T>>* phi) const {
   // Generalized forces aren't defined for the last timestep
   // TODO(vincekurtz): additional checks that q_t, v_t, tau_t are the right size
   // for the plant?
   DRAKE_DEMAND(static_cast<int>(a.size()) == num_steps());
   DRAKE_DEMAND(static_cast<int>(tau->size()) == num_steps());
+  DRAKE_DEMAND(static_cast<int>(phi->size()) == num_steps()+1);
 
 #if defined(_OPENMP)
 #pragma omp parallel for num_threads(params_.num_threads)
@@ -230,9 +231,17 @@ void TrajectoryOptimizer<T>::CalcInverseDynamics(
     const Context<T>& context_tp = EvalPlantContext(state, t + 1);
     // All dynamics terms are treated implicitly, i.e.,
     // tau[t] = M(q[t+1]) * a[t] - k(q[t+1],v[t+1]) - f_ext[t+1]
-    CalcInverseDynamicsSingleTimeStep(context_tp, a[t], &workspace,
-                                      &tau->at(t));
+    if (t > 0) {
+      CalcInverseDynamicsSingleTimeStep(context_tp, a[t], &workspace,
+                                        &tau->at(t), &phi->at(t - 1));
+    } else {
+      CalcInverseDynamicsSingleTimeStep(context_tp, a[t], &workspace,
+                                        &tau->at(t));
+    }
   }
+  // TODO: handle signed distances for the first and last timesteps properly
+  phi->at(0).setZero();
+  phi->at(num_steps()).setZero();
 }
 
 template <typename T>
@@ -724,9 +733,10 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsFiniteDiff(
                                         &tau_eps_tm, &phi_eps);
       VectorX<T> dphi = (phi_eps - phi) / dq_i;
       dphi_dqt[t].col(i) = dphi;
-      std::cout << fmt::format("phi: {}", fmt_eigen(phi.transpose())) << std::endl;;
-      std::cout << fmt::format("phi_eps: {}", fmt_eigen(phi_eps.transpose())) << std::endl;;
-      std::cout << fmt::format("dphi: {}", fmt_eigen(dphi.transpose())) << std::endl;
+
+      std::cout << "phi        : " << fmt::format("{}", fmt_eigen(phi.transpose())) << std::endl;
+      std::cout << "phi (state): " << fmt::format("{}", fmt_eigen(state.cache().inverse_dynamics_cache.phi[t].transpose())) << std::endl;
+      std::cout << std::endl;
 
       // Compute perturbed tau(q) and calculate the nonzero entries of dtau/dq
       // via finite differencing
@@ -1749,7 +1759,7 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsCache(
     typename TrajectoryOptimizerCache<T>::InverseDynamicsCache* cache) const {
   // Compute corresponding generalized torques
   const std::vector<VectorX<T>>& a = EvalA(state);
-  CalcInverseDynamics(state, a, &cache->tau);
+  CalcInverseDynamics(state, a, &cache->tau, &cache->phi);
 
   // Set cache invalidation flag
   cache->up_to_date = true;
