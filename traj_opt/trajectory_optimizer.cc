@@ -240,17 +240,12 @@ void TrajectoryOptimizer<T>::CalcInverseDynamics(
     const Context<T>& context_tp = EvalPlantContext(state, t + 1);
     // All dynamics terms are treated implicitly, i.e.,
     // tau[t] = M(q[t+1]) * a[t] - k(q[t+1],v[t+1]) - f_ext[t+1]
-    if (t > 0) {
-      CalcInverseDynamicsSingleTimeStep(context_tp, a[t], &workspace,
-                                        &tau->at(t), &phi->at(t - 1));
-    } else {
-      CalcInverseDynamicsSingleTimeStep(context_tp, a[t], &workspace,
-                                        &tau->at(t));
-    }
+    CalcInverseDynamicsSingleTimeStep(context_tp, a[t], &workspace,
+                                      &tau->at(t), &phi->at(t + 1));
   }
-  // TODO: handle signed distances for the first and last timesteps properly
+  // We don't need to compute phi for the first timestep, since all relevant
+  // gradients are zeroed out
   phi->at(0).setZero();
-  phi->at(num_steps()).setZero();
 }
 
 template <typename T>
