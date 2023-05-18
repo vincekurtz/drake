@@ -230,6 +230,10 @@ class TrajectoryOptimizer {
   const std::vector<VectorX<T>>& EvalTau(
       const TrajectoryOptimizerState<T>& state) const;
 
+  // Evaluated signed distances to penalize 
+  const std::vector<VectorX<T>>& EvalPhi(
+      const TrajectoryOptimizerState<T>& state) const;
+
   /**
    * Evaluate partial derivatives of velocites with respect to positions at each
    * time step.

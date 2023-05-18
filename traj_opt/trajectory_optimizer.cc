@@ -138,6 +138,15 @@ T TrajectoryOptimizer<T>::CalcCost(
   const std::vector<VectorX<T>>& tau = EvalTau(state);
   T cost = CalcCost(state.q(), v, tau, &state.workspace);
 
+  // Add a running penalty on signed distances
+  const std::vector<VectorX<T>>& phi = EvalPhi(state);
+  // TODO: read weights on this from YAML or something
+  const double weight = 1.0;
+  for (int t = 0; t <= num_steps(); ++t) {
+    // TODO: use max(0, phi_t)^2
+    cost += T(0.5 * weight * phi[t].transpose() * phi[t]);
+  }
+
   // Add a proximal operator term to the cost, if requested
   if (params_.proximal_operator) {
     const std::vector<VectorX<T>>& q = state.q();
@@ -734,9 +743,9 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartialsFiniteDiff(
       VectorX<T> dphi = (phi_eps - phi) / dq_i;
       dphi_dqt[t].col(i) = dphi;
 
-      std::cout << "phi        : " << fmt::format("{}", fmt_eigen(phi.transpose())) << std::endl;
-      std::cout << "phi (state): " << fmt::format("{}", fmt_eigen(state.cache().inverse_dynamics_cache.phi[t].transpose())) << std::endl;
-      std::cout << std::endl;
+      //std::cout << "phi        : " << fmt::format("{}", fmt_eigen(phi.transpose())) << std::endl;
+      //std::cout << "phi (state): " << fmt::format("{}", fmt_eigen(state.cache().inverse_dynamics_cache.phi[t].transpose())) << std::endl;
+      //std::cout << std::endl;
 
       // Compute perturbed tau(q) and calculate the nonzero entries of dtau/dq
       // via finite differencing
@@ -1816,6 +1825,15 @@ const std::vector<VectorX<T>>& TrajectoryOptimizer<T>::EvalTau(
     CalcInverseDynamicsCache(state,
                              &state.mutable_cache().inverse_dynamics_cache);
   return state.cache().inverse_dynamics_cache.tau;
+}
+
+template <typename T>
+const std::vector<VectorX<T>>& TrajectoryOptimizer<T>::EvalPhi(
+    const TrajectoryOptimizerState<T>& state) const {
+  if (!state.cache().inverse_dynamics_cache.up_to_date)
+    CalcInverseDynamicsCache(state,
+                             &state.mutable_cache().inverse_dynamics_cache);
+  return state.cache().inverse_dynamics_cache.phi;
 }
 
 template <typename T>
