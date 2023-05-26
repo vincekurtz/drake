@@ -1,8 +1,13 @@
-#include <drake/multibody/tree/prismatic_joint.h>
+#include <gflags/gflags.h>
 
 #include "drake/common/find_resource.h"
 #include "drake/multibody/plant/multibody_plant.h"
 #include "drake/traj_opt/examples/example_base.h"
+
+DEFINE_int32(hills, 0, "number of simulated hills to walk over");
+DEFINE_double(hill_height, 0.05, "height of each simulated hill, in meters");
+DEFINE_double(hill_spacing, 1.0,
+              "distance between each simulated hill, in meters");
 
 namespace drake {
 namespace traj_opt {
@@ -47,15 +52,15 @@ class MiniCheetahExample : public TrajOptExample {
                                      CoulombFriction<double>(0.5, 0.5));
 
     // Add some extra terrain
-    for (int i = 0; i < 2; ++i) {
-      const double px = 2.0 + static_cast<double>(i);
+    for (int i = 0; i < FLAGS_hills; ++i) {
+      const double px = 2.0 + FLAGS_hill_spacing * static_cast<double>(i);
       const std::string name = "hill_" + std::to_string(i);
       const RigidTransformd X_hill(RollPitchYawd(M_PI_2, 0, 0),
-                                   Vector3d(px, 0.0, -0.9));
+                                   Vector3d(px, 0.0, -1.0 + FLAGS_hill_height));
       plant->RegisterVisualGeometry(plant->world_body(), X_hill,
-                                    Cylinder(1, 25), name, green);
+                                    Cylinder(1.0, 25), name, green);
       plant->RegisterCollisionGeometry(plant->world_body(), X_hill,
-                                       Cylinder(1, 25), name,
+                                       Cylinder(1.0, 25), name,
                                        CoulombFriction<double>(0.5, 0.5));
     }
   }
@@ -66,7 +71,8 @@ class MiniCheetahExample : public TrajOptExample {
 }  // namespace traj_opt
 }  // namespace drake
 
-int main() {
+int main(int argc, char* argv[]) {
+  gflags::ParseCommandLineFlags(&argc, &argv, true);
   drake::traj_opt::examples::mini_cheetah::MiniCheetahExample example;
   example.RunExample("drake/traj_opt/examples/mini_cheetah.yaml");
   return 0;

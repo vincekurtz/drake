@@ -116,6 +116,14 @@ class TrajOptExample {
   virtual void CreatePlantModel(MultibodyPlant<double>*) const {}
 
   /**
+   * Update any custom meshcat visualizations, such as a frame that illustrates
+   * a target pose. In most cases this is not used.
+   *
+   * @param options Options that we read from YAML
+   */
+  virtual void UpdateCustomMeshcatElements(const TrajOptExampleParams&) const {}
+
+  /**
    * Create a MultibodyPlant model of the system to use for simulation (i.e., to
    * test MPC). The default behavior is to use the same model that we use for
    * optimization.
