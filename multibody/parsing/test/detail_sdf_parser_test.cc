@@ -503,7 +503,7 @@ TEST_F(SdfParserTest, ZeroMassNonZeroInertia) {
   // Test that attempt to parse links with zero mass and non-zero inertia fails.
   AddSceneGraph();
   const std::string expected_message = ".*condition 'mass > 0' failed.";
-  DRAKE_EXPECT_THROWS_MESSAGE(ParseTestString(R"""(
+  ParseTestString(R"""(
 <model name='bad'>
   <link name='bad'>
     <inertial>
@@ -518,7 +518,8 @@ TEST_F(SdfParserTest, ZeroMassNonZeroInertia) {
       </inertia>
     </inertial>
   </link>
-</model>)"""), expected_message);
+</model>)""");
+  EXPECT_THAT(TakeWarning(), ::testing::MatchesRegex(expected_message));
 }
 
 TEST_F(SdfParserTest, FloatingBodyPose) {
@@ -762,6 +763,9 @@ TEST_F(SdfParserTest, BallJointWithAxis2Error) {
     </axis2>
   </joint>
 </model>)""");
+  EXPECT_THAT(TakeWarning(), ::testing::MatchesRegex(
+      ".*A ball joint axis will be ignored. Only the dynamic"
+      " parameters and limits will be considered.*"));
   EXPECT_THAT(TakeWarning(), ::testing::MatchesRegex(
       R"(.*Actuation \(via non-zero effort limits\) for ball joint )"
       R"('should_not_have_axis' is not implemented yet and will be )"
@@ -1141,6 +1145,12 @@ TEST_F(SdfParserTest, JointParsingTest) {
   EXPECT_TRUE(CompareMatrices(ball_joint.position_upper_limits(), inf3));
   EXPECT_TRUE(CompareMatrices(ball_joint.velocity_lower_limits(), neg_inf3));
   EXPECT_TRUE(CompareMatrices(ball_joint.velocity_upper_limits(), inf3));
+  // Ball joints with axis produce a waring indicating it only some params
+  // of it are used.
+  EXPECT_THAT(TakeWarning(), ::testing::MatchesRegex(
+      ".*A ball joint axis will be ignored. Only the dynamic"
+      " parameters and limits will be considered.*"));
+  FlushDiagnostics();
 
   // Universal joint
   DRAKE_EXPECT_NO_THROW(
@@ -1382,6 +1392,9 @@ TEST_F(SdfParserTest, ActuatedBallJointParsingTest) {
     </axis>
   </joint>
 </model>)""");
+  EXPECT_THAT(TakeWarning(), ::testing::MatchesRegex(
+      ".*A ball joint axis will be ignored. Only the dynamic"
+      " parameters and limits will be considered.*"));
   EXPECT_THAT(TakeWarning(), ::testing::MatchesRegex(
       ".*effort limits.*ball joint.*not implemented.*"));
 }
