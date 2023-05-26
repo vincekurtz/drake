@@ -92,6 +92,7 @@ class AllegroHandExample : public TrajOptExample {
       MultibodyPlant<double>* plant) const final {
     const Vector4<double> blue(0.2, 0.3, 0.6, 1.0);
     const Vector4<double> black(0.0, 0.0, 0.0, 1.0);
+    const Vector4<double> green(0.3, 0.6, 0.4, 1.0);
 
     // Add a model of the hand
     std::string sdf_file =
@@ -132,7 +133,7 @@ class AllegroHandExample : public TrajOptExample {
                                   "ball_marker_one", black);
     plant->RegisterVisualGeometry(ball, X_m2,
                                   Cylinder(0.1 * radius, 2 * radius),
-                                  "ball_marker_two", black);
+                                  "ball_marker_two", green);
     plant->RegisterVisualGeometry(ball, X_m3,
                                   Cylinder(0.1 * radius, 2 * radius),
                                   "ball_marker_three", black);
