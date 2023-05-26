@@ -43,7 +43,7 @@ class AllegroHandExample : public TrajOptExample {
     // Add a visualization of the desired ball pose
     const double basis_length = 0.1;
     const double basis_radius = 0.005;
-    const double opacity = 0.5;
+    const double opacity = 0.3;
     meshcat_->SetObject("/desired_pose/x_basis",
                         Cylinder(basis_radius, basis_length),
                         Rgba(1.0, 0.0, 0.0, opacity));
@@ -173,6 +173,23 @@ class AllegroHandExample : public TrajOptExample {
     plant->RegisterVisualGeometry(ball, X_m3,
                                   Cylinder(0.1 * radius, 2 * radius),
                                   "ball_marker_three", black);
+
+    // Add some markers to show the ball's orientation with the same colors as
+    // the target frame
+    const RigidTransformd Xx(RollPitchYawd(0, M_PI_2, 0),
+                             Vector3d(radius / 2, 0, 0));
+    const RigidTransformd Xy(RollPitchYawd(M_PI_2, 0, 0),
+                             Vector3d(0, radius / 2, 0));
+    const RigidTransformd Xz(Vector3d(0, 0, radius / 2));
+    plant->RegisterVisualGeometry(
+        ball, Xx, Cylinder(0.1 * radius, radius * 1.01), "ball_axis_x",
+        Vector4<double>(1.0, 0.0, 0.0, 1.0));
+    plant->RegisterVisualGeometry(
+        ball, Xy, Cylinder(0.1 * radius, radius * 1.01), "ball_axis_y",
+        Vector4<double>(0.0, 1.0, 0.0, 1.0));
+    plant->RegisterVisualGeometry(
+        ball, Xz, Cylinder(0.1 * radius, radius * 1.01), "ball_axis_z",
+        Vector4<double>(0.0, 0.0, 1.0, 1.0));
 
     // Add the ground, slightly below the allegro hand
     RigidTransformd X_ground(Vector3d(0.0, 0.0, -5.05));
