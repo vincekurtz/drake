@@ -49,7 +49,7 @@ for i in range(N):
     iters = data["iter"]
 
     ax.plot(iters, data["merit"], label=labels[i], linewidth=3)
-    ax.set_ylabel("Merit Function")
+    ax.set_ylabel("Merit")
     ax.set_yscale("log")
     
     #ax[1].plot(iters, data["h_norm"], label=labels[i])
@@ -64,7 +64,7 @@ ax.legend()
 ax.grid()
 #ax[1].grid()
 #ax[2].grid()
-ax.set_xlabel("Iteration k")
+ax.set_xlabel("Iteration")
 ax.xaxis.set_major_locator(MaxNLocator(integer=True))
 
 plt.show()
