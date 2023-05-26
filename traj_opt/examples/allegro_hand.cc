@@ -18,6 +18,7 @@ using Eigen::Vector3d;
 using geometry::AddCompliantHydroelasticProperties;
 using geometry::AddContactMaterial;
 using geometry::Box;
+using geometry::Rgba;
 using geometry::Cylinder;
 using geometry::ProximityProperties;
 using geometry::Sphere;
@@ -37,6 +38,28 @@ class AllegroHandExample : public TrajOptExample {
     // Set the camera viewpoint
     std::vector<double> p = {0.3, 0.5, 0.0};
     meshcat_->SetProperty("/Cameras/default/rotated/<object>", "position", p);
+
+    // Add a visualization of the desired ball pose
+    const double basis_length = 0.1;
+    const double basis_radius = 0.005;
+    meshcat_->SetObject("/desired_pose/x_basis",
+                        Cylinder(basis_radius, basis_length),
+                        Rgba(1.0, 0.0, 0.0, 1.0));
+    meshcat_->SetObject("/desired_pose/y_basis",
+                        Cylinder(basis_radius, basis_length),
+                        Rgba(0.0, 1.0, 0.0, 1.0));
+    meshcat_->SetObject("/desired_pose/z_basis",
+                        Cylinder(basis_radius, basis_length),
+                        Rgba(0.0, 0.0, 1.0, 1.0));
+
+    const RigidTransformd Xx(RollPitchYawd(0, M_PI_2, 0),
+                             Vector3d(basis_length / 2, 0, 0));
+    const RigidTransformd Xy(RollPitchYawd(M_PI_2, 0, 0),
+                             Vector3d(0, basis_length / 2, 0));
+    const RigidTransformd Xz(Vector3d(0, 0, basis_length / 2));
+    meshcat_->SetTransform("/desired_pose/x_basis", Xx);
+    meshcat_->SetTransform("/desired_pose/y_basis", Xy);
+    meshcat_->SetTransform("/desired_pose/z_basis", Xz);
   }
 
  private:
