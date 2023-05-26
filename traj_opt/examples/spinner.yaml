@@ -28,15 +28,15 @@ Qfv : [0.1, 0.1, 0.1]
 
 # Problem definition parameters
 time_step : 0.05    # Discretization timestep (seconds)
-num_steps : 40      # number of timesteps
+num_steps : 10      # number of timesteps
 
 # Solver parameters
-max_iters : 300             # maximum Gauss-Newton iterations
+max_iters : 100             # maximum Gauss-Newton iterations
 method : "trust_region"     # solver method, {linesearch, trust_region}
 linesearch : "backtracking" # linesearch strategy, {armino, backtracking}
 scaling : false
 equality_constraints : false
-num_threads : 1
+num_threads : 4
 
 tolerances:
   rel_cost_reduction: 0

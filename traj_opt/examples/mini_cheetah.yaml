@@ -80,17 +80,17 @@ Qfv : [1, 1, 1,
 
 # Problem definition parameters
 time_step : 0.05   # Discretization timestep (seconds)
-num_steps : 20     # number of timesteps
+num_steps : 50     # number of timesteps
 
 # Solver parameters
-max_iters : 200            # maximum Gauss-Newton iterations
+max_iters : 10             # maximum Gauss-Newton iterations
 method : "trust_region"    # solver method, {linesearch, trust_region}
 linesearch : "backtracking"
 scaling : true
 equality_constraints : false
 normalize_quaternions : false
 linear_solver : pentadiagonal_lu
-num_threads : 1
+num_threads : 4
 
 Delta0 : 10
 

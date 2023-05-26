@@ -79,10 +79,10 @@ Qfv : [1e1, 1e1, 1e1, 1e1,
 
 # Problem definition parameters
 time_step : 0.05    # Discretization timestep (seconds)
-num_steps : 40      # number of timesteps
+num_steps : 10      # number of timesteps
 
 # Solver parameters
-max_iters : 100              # maximum Gauss-Newton iterations
+max_iters : 10               # maximum Gauss-Newton iterations
 method : "trust_region"     # solver method, {linesearch, trust_region}
 tolerances:
   rel_cost_reduction: 0
@@ -93,7 +93,7 @@ tolerances:
   abs_state_change: 0
 scaling : true
 equality_constraints : true
-num_threads : 1
+num_threads : 4
 
 Delta0 : 10
 
