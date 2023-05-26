@@ -72,6 +72,7 @@ drake_cc_binary(
         "//common:find_resource",
         "//multibody/parsing",
         "//multibody/plant",
+        "@gflags",
     ],
 )
 
