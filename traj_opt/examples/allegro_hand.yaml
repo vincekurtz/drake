@@ -93,7 +93,7 @@ tolerances:
   abs_state_change: 0
 scaling : true
 equality_constraints : true
-num_threads : 4
+num_threads : 1
 
 # Method used to compute gradients of inverse dynamics, one of
 # {forward_differences, central_differences, central_differences4, autodiff}

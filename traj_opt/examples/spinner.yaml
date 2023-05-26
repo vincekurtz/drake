@@ -36,7 +36,7 @@ method : "trust_region"     # solver method, {linesearch, trust_region}
 linesearch : "backtracking" # linesearch strategy, {armino, backtracking}
 scaling : true
 equality_constraints : true
-num_threads : 4
+num_threads : 1
 
 tolerances:
   rel_cost_reduction: 0

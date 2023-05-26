@@ -89,7 +89,7 @@ scaling : true
 equality_constraints : false
 normalize_quaternions : false
 linear_solver : pentadiagonal_lu
-num_threads : 4
+num_threads : 1
 
 # Convergence thresholds
 tolerances:
