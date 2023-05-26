@@ -31,6 +31,8 @@ void TrajOptExample::RunExample(const std::string options_file) const {
   TrajOptExampleParams options = yaml::LoadYamlFile<TrajOptExampleParams>(
       FindResourceOrThrow(options_file), {}, default_options);
 
+  UpdateCustomMeshcatElements(options);
+
   if (options.mpc) {
     // Run a simulation that uses the optimizer as a model predictive controller
     RunModelPredictiveControl(options);

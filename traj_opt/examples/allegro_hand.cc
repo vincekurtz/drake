@@ -18,12 +18,13 @@ using Eigen::Vector3d;
 using geometry::AddCompliantHydroelasticProperties;
 using geometry::AddContactMaterial;
 using geometry::Box;
-using geometry::Rgba;
 using geometry::Cylinder;
 using geometry::ProximityProperties;
+using geometry::Rgba;
 using geometry::Sphere;
 using math::RigidTransformd;
 using math::RollPitchYawd;
+using math::RotationMatrixd;
 using multibody::CoulombFriction;
 using multibody::ModelInstanceIndex;
 using multibody::MultibodyPlant;
@@ -42,15 +43,16 @@ class AllegroHandExample : public TrajOptExample {
     // Add a visualization of the desired ball pose
     const double basis_length = 0.1;
     const double basis_radius = 0.005;
+    const double opacity = 0.5;
     meshcat_->SetObject("/desired_pose/x_basis",
                         Cylinder(basis_radius, basis_length),
-                        Rgba(1.0, 0.0, 0.0, 1.0));
+                        Rgba(1.0, 0.0, 0.0, opacity));
     meshcat_->SetObject("/desired_pose/y_basis",
                         Cylinder(basis_radius, basis_length),
-                        Rgba(0.0, 1.0, 0.0, 1.0));
+                        Rgba(0.0, 1.0, 0.0, opacity));
     meshcat_->SetObject("/desired_pose/z_basis",
                         Cylinder(basis_radius, basis_length),
-                        Rgba(0.0, 0.0, 1.0, 1.0));
+                        Rgba(0.0, 0.0, 1.0, opacity));
 
     const RigidTransformd Xx(RollPitchYawd(0, M_PI_2, 0),
                              Vector3d(basis_length / 2, 0, 0));
@@ -63,6 +65,18 @@ class AllegroHandExample : public TrajOptExample {
   }
 
  private:
+  void UpdateCustomMeshcatElements(
+      const TrajOptExampleParams& options) const final {
+    // Visualize the target pose for the ball
+    const Vector3d target_position = options.q_nom_end.tail(3);
+    const RotationMatrixd target_orientation(
+        Quaternion<double>(options.q_nom_end[16], options.q_nom_end[17],
+                           options.q_nom_end[18], options.q_nom_end[19]));
+
+    const RigidTransformd X_desired(target_orientation, target_position);
+    meshcat_->SetTransform("/desired_pose", X_desired);
+  }
+
   void CreatePlantModel(MultibodyPlant<double>* plant) const final {
     const Vector4<double> blue(0.2, 0.3, 0.6, 1.0);
     const Vector4<double> black(0.0, 0.0, 0.0, 1.0);
