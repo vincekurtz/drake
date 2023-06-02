@@ -59,10 +59,10 @@ time_step : 0.05    # Discretization timestep (seconds)
 num_steps : 20      # number of timesteps
 
 # Solver parameters
-max_iters : 50             # maximum Gauss-Newton iterations
+max_iters : 500             # maximum Gauss-Newton iterations
 method : "trust_region"     # solver method, {linesearch, trust_region}
 scaling : true
-equality_constraints : false
+equality_constraints : true
 num_threads : 4
 
 tolerances:

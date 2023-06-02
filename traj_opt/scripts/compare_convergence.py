@@ -17,19 +17,20 @@ import os
 
 # Basic parameters: set these to define the location and name of the log files
 # that we'll compare, as well as corresponding legend labels
-example_name = "allegro_hand"
-csv_names = ["solver_stats_unconstrained.csv",
-             "solver_stats_constrained.csv"]
-labels = ["penalty method",
-          "exact constraints"]
+example_name = "spinner"
+csv_names = ["solver_stats_constrained.csv",
+             "solver_stats_unconstrained.csv"]
+labels = ["exact constraints",
+          "penalty method"]
 
 # Get file locations
 drake_root = os.getcwd()
 data_root = drake_root + f"/bazel-out/k8-opt/bin/traj_opt/examples/{example_name}.runfiles/drake/"
 
 # Make plots
-fig, ax = plt.subplots(2,1,sharex=True,figsize=(8,6))
-fig.suptitle(f"{example_name} convergence data")
+fig, ax = plt.subplots(2,1,sharex=True,figsize=(4.3,4))
+plt.subplots_adjust(left=0.16, right=0.98, top=0.98, bottom=0.12)
+#fig.suptitle(f"{example_name} convergence data")
 
 # Get a baseline cost
 N = len(csv_names)
@@ -40,17 +41,21 @@ for i in range(N):
     baseline = np.min([baseline, data["cost"][-1]])
 
 # Get the main data
+linestyles = ["-",":"]
+widths = [2, 3]
 for i in range(N):
     # Read data from the file and format nicely
     data_file = data_root + csv_names[i]
     data = np.genfromtxt(data_file, delimiter=',', names=True)
     iters = data["iter"]
 
-    ax[0].plot(iters, data["cost"], label=labels[i])
+    ax[0].plot(iters, data["cost"], label=labels[i], color='k',
+            linestyle=linestyles[i], linewidth=widths[i])
     ax[0].set_ylabel("Cost")
     ax[0].set_yscale("log")
     
-    ax[1].plot(iters, data["h_norm"], label=labels[i])
+    ax[1].plot(iters, data["h_norm"], label=labels[i], color='k',
+            linestyle=linestyles[i], linewidth=widths[i])
     ax[1].set_ylabel("Constraint Violation")
     ax[1].set_yscale("log")
     
