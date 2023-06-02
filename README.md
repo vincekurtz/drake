@@ -7,7 +7,7 @@ from source.
 
 For example, on Ubuntu:
 ```
-git clone https://github.com/vincekurtz/drake/tree/paper
+git clone https://github.com/vincekurtz/drake/tree/idto_paper
 cd drake
 sudo ./setup/ubuntu/install_prereqs.sh
 ```
