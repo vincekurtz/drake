@@ -15,22 +15,23 @@ from matplotlib.ticker import MaxNLocator
 import numpy as np
 import os
 
-plt.rcParams.update({'font.size': 16})
+#plt.rcParams.update({'font.size': 16})
 
 # Basic parameters: set these to define the location and name of the log files
 # that we'll compare, as well as corresponding legend labels
 example_name = "allegro_hand"
-csv_names = ["solver_stats_no_scale.csv",
-             "solver_stats_scale.csv"]
-labels = ["no scaling",
-          "with scaling"]
+csv_names = ["solver_stats_scale.csv",
+             "solver_stats_no_scale.csv"]
+labels = ["with scaling",
+          "no scaling"]
 
 # Get file locations
 drake_root = os.getcwd()
 data_root = drake_root + f"/bazel-out/k8-opt/bin/traj_opt/examples/{example_name}.runfiles/drake/"
 
 # Make plots
-fig, ax = plt.subplots(1,1,sharex=True,figsize=(8,6))
+fig, ax = plt.subplots(1,1,sharex=True,figsize=(4,3))
+plt.subplots_adjust(left=0.15, right=0.98, top=0.98, bottom=0.15)
 #fig.suptitle(f"{example_name} convergence data")
 
 # Get a baseline cost
@@ -41,6 +42,8 @@ for i in range(N):
     data = np.genfromtxt(data_file, delimiter=',', names=True)
     baseline = np.min([baseline, data["cost"][-1]])
 
+linestyle=["-",":"]
+width=[2,3]
 # Get the main data
 for i in range(N):
     # Read data from the file and format nicely
@@ -48,8 +51,9 @@ for i in range(N):
     data = np.genfromtxt(data_file, delimiter=',', names=True)
     iters = data["iter"]
 
-    ax.plot(iters, data["merit"], label=labels[i], linewidth=3)
-    ax.set_ylabel("Merit")
+    ax.plot(iters, data["merit"], label=labels[i], color='k',
+            linestyle=linestyle[i], linewidth=width[i])
+    ax.set_ylabel("Cost")
     ax.set_yscale("log")
     
     #ax[1].plot(iters, data["h_norm"], label=labels[i])
