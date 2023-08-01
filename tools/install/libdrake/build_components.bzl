@@ -17,6 +17,7 @@ LIBDRAKE_COMPONENTS = [
     "//common:drake_marker_shared_library",  # unpackaged
     "//examples/acrobot:acrobot_geometry",  # unpackaged
     "//examples/acrobot:acrobot_input",  # unpackaged
+    "//examples/acrobot:acrobot_lcm",  # unpackaged
     "//examples/acrobot:acrobot_params",  # unpackaged
     "//examples/acrobot:acrobot_plant",  # unpackaged
     "//examples/acrobot:acrobot_state",  # unpackaged
@@ -40,6 +41,7 @@ LIBDRAKE_COMPONENTS = [
     "//geometry/optimization",
     "//geometry/proximity",
     "//geometry/query_results",
+    "//geometry/render",
     "//geometry/render/shaders",
     "//geometry/render_gl",
     "//geometry/render_gltf_client",
@@ -47,7 +49,7 @@ LIBDRAKE_COMPONENTS = [
     "//lcm",
     "//manipulation/kinova_jaco",
     "//manipulation/kuka_iiwa",
-    "//manipulation/planner",  # 2023-06-01 Remove this with completed deprecation  # noqa
+    "//manipulation/planner",
     "//manipulation/schunk_wsg",
     "//manipulation/util",
     "//math",
@@ -86,5 +88,10 @@ LIBDRAKE_COMPONENTS = [
     "//systems/primitives",
     "//systems/rendering",
     "//systems/sensors",
+    "//traj_opt",
+    "//traj_opt/examples:example_base",  # unpackaged
+    "//traj_opt/examples:mpc_controller",  # unpackaged
+    "//traj_opt/examples:pd_plus_controller",  # unpackaged
+    "//traj_opt/examples:yaml_config",  # unpackaged
     "//visualization",
 ]
