@@ -1,0 +1,59 @@
+load("@drake//tools/install:install.bzl", "install")
+load(
+    "@drake//tools/skylark:pybind.bzl",
+    "drake_pybind_library",
+    "get_drake_py_installs",
+    "get_pybind_package_info",
+)
+load(
+    "@drake//tools/skylark:drake_py.bzl",
+    "drake_py_unittest",
+)
+load("//bindings/pydrake:pydrake.bzl", "add_lint_tests_pydrake")
+
+package(default_visibility = [
+    "//bindings/pydrake:__subpackages__",
+])
+
+# This determines how `PYTHONPATH` is configured, and how to install the
+# bindings.
+# TODO(eric.cousineau): address
+# https://github.com/RobotLocomotion/drake/issues/12055
+PACKAGE_INFO = get_pybind_package_info("//bindings")
+
+drake_pybind_library(
+    name = "traj_opt",
+    cc_deps = [
+        "//bindings/pydrake:documentation_pybind",
+        "//bindings/pydrake/common:cpp_param_pybind",
+        "//bindings/pydrake/common:cpp_template_pybind",
+        "//bindings/pydrake/common:deprecation_pybind",
+        "//bindings/pydrake/common:serialize_pybind",
+    ],
+    cc_so_name = "__init__",
+    cc_srcs = [
+        "traj_opt_py.h",
+        "traj_opt_py.cc",
+        "traj_opt_py_convergence_criteria_tol.cc",
+    ],
+    package_info = PACKAGE_INFO,
+    py_deps = [
+        "//bindings/pydrake/common:cpp_template_py",
+    ],
+)
+
+install(
+    name = "install",
+    targets = [":traj_opt"],
+    py_dest = PACKAGE_INFO.py_dest,
+    deps = get_drake_py_installs([":traj_opt"]),
+)
+
+drake_py_unittest(
+    name = "convergence_criteria_tol_test",
+    deps = [
+        ":traj_opt",
+    ],
+)
+
+add_lint_tests_pydrake()
