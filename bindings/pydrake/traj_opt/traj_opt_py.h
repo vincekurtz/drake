@@ -14,7 +14,7 @@ namespace internal {
 
 // For simplicity, these declarations are listed in alphabetical order.
 
-/* Defines bindings per planning_py_collision_checker.cc. */
+/* Defines bindings per traj_opt_py_covergence_criteria_tol.cc. */
 void DefineTrajOptConvergenceCriteriaTolerances(py::module m);
 
 }  // namespace internal

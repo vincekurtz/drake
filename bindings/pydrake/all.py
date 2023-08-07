@@ -46,6 +46,7 @@ from .planning import *
 from .polynomial import *
 from .solvers import *
 from .symbolic import *
+from .traj_opt import *
 from .trajectories import *
 
 # Submodules.
