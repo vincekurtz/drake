@@ -19,6 +19,7 @@
 #include "drake/traj_opt/trajectory_optimizer_workspace.h"
 #include "drake/traj_opt/velocity_partials.h"
 #include "drake/traj_opt/warm_start.h"
+#include "drake/traj_opt/derivative_interpolator.h"
 
 namespace drake {
 namespace systems {

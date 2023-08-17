@@ -80,7 +80,7 @@ Qfv : [1, 1, 1,
 
 # Problem definition parameters
 time_step : 0.05   # Discretization timestep (seconds)
-num_steps : 20     # number of timesteps
+num_steps : 100     # number of timesteps
 
 # Solver parameters
 max_iters : 50             # maximum Gauss-Newton iterations
@@ -106,7 +106,7 @@ gradients_method: "forward_differences"
 
 # Playback/visualization parameters
 play_target_trajectory : false
-play_initial_guess : false
+play_initial_guess : true
 play_optimal_trajectory : true
 
 # Debugging parameters

@@ -32,6 +32,10 @@ void TrajOptExample::RunExample(const std::string options_file) const {
       FindResourceOrThrow(options_file), {}, default_options);
 
   UpdateCustomMeshcatElements(options);
+  // TODO(dave) remove this once not needed
+  std::cout << "pausing so user can click local host link" << std::endl;
+  int temp;
+  std::cin >> temp;
 
   if (options.mpc) {
     // Run a simulation that uses the optimizer as a model predictive controller

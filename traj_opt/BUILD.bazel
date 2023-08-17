@@ -30,6 +30,7 @@ drake_cc_package_library(
         ":trajectory_optimizer_workspace",
         ":velocity_partials",
         ":warm_start",
+        ":derivative_interpolator",
     ],
 )
 
@@ -77,6 +78,7 @@ drake_cc_library(
         ":penta_diagonal_solver",
         ":penta_diagonal_to_petsc_matrix",
         ":problem_definition",
+        ":derivative_interpolator",
         ":solver_parameters",
         ":trajectory_optimizer_solution",
         ":trajectory_optimizer_state",
@@ -140,6 +142,15 @@ drake_cc_library(
     deps = [
         "//common:default_scalars",
         "//common:essential",
+    ],
+)
+
+drake_cc_library(
+    name = "derivative_interpolator",
+    hdrs = [
+        "derivative_interpolator.h",
+    ],
+    deps = [
     ],
 )
 
