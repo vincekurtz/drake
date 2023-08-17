@@ -770,6 +770,17 @@ class TrajectoryOptimizer {
       InverseDynamicsPartials<T>* id_partials) const;
 
   /**
+   * Interpolate the derivatives computed at the keypoints to get
+   * derivatives over the entire trajectory
+   *
+   * @param keypoints list of indiced where we have computed derivatives
+   * @param id_partials struct for holding dtau/dq
+   */
+  void InterpolateDerivatives(
+      std::vector<int> keypoints,
+      InverseDynamicsPartials<T>* id_partials) const;
+
+  /**
    * Compute partial derivatives of the inverse dynamics
    *
    *    tau_t = ID(q_{t-1}, q_t, q_{t+1})
@@ -1148,6 +1159,10 @@ class TrajectoryOptimizer {
 
   // Various parameters
   const SolverParameters params_;
+
+  // Derivative interpolator
+  derivative_interpolator interpolator = {"set_interval", 2, 0, 0, 0, 0, 0};        // Settings
+  DerivativeInterpolator* derivative_interpolator_;                                  // Class
 
   // Autodiff copies of the system diagram, plant model, optimizer state, and a
   // whole optimizer for computing exact gradients.

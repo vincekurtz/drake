@@ -556,6 +556,9 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartials(
     const TrajectoryOptimizerState<T>& state,
     InverseDynamicsPartials<T>* id_partials) const {
   INSTRUMENT_FUNCTION("Computes dtau/dq.");
+  std::vector<int> keypoints = derivative_interpolator_->ComputeKeypoints(interpolator, 100);
+  std::cout << keypoints[0] << " " << keypoints[1] << " " << keypoints[2] << " " << keypoints[3] << " " << keypoints.back() << std::endl;
+
   switch (params_.gradients_method) {
     case GradientsMethod::kForwardDifferences: {
       CalcInverseDynamicsPartialsFiniteDiff(state, id_partials);
@@ -587,6 +590,18 @@ void TrajectoryOptimizer<T>::CalcInverseDynamicsPartials(
           "and therefore the computation of gradients is not enabled.");
     }
   }
+
+  // Interpolate the derivatives
+  std::cout << "dtau_dqm " << id_partials->dtau_dqm[1] << std::endl;
+  std::cout << "dtau_dqt " << id_partials->dtau_dqt[1] << std::endl;
+  std::cout << "dtau_dqp " << id_partials->dtau_dqp[1] << std::endl;
+}
+
+template <typename T>
+void InterpolateDerivatives(std::vector<int> keypoints){
+    for(int i = 0; i < keypoints.size(); i++){
+
+    }
 }
 
 template <typename T>
