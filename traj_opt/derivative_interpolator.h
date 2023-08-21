@@ -3,6 +3,7 @@
 #include <vector>
 #include <string>
 #include <iostream>
+#include "drake/traj_opt/inverse_dynamics_partials.h"
 
 struct derivative_interpolator{
     std::string keyPointMethod;
@@ -21,6 +22,7 @@ public:
     }
 
     std::vector<int> ComputeKeypoints(derivative_interpolator interpolator, int horizon);
+    void SavePartials(std::string filename, InverseDynamicsPartials<T>* id_partials);
 //    void GetApproximateDerivsOverTrajectory(derivative_interpolator interpolator);
 
 private:

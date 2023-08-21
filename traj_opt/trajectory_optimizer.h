@@ -792,7 +792,8 @@ class TrajectoryOptimizer {
    */
   void CalcInverseDynamicsPartialsFiniteDiff(
       const TrajectoryOptimizerState<T>& state,
-      InverseDynamicsPartials<T>* id_partials) const;
+      InverseDynamicsPartials<T>* id_partials,
+      std::vector<int> keypoints) const;
 
   /**
    * Compute partial derivatives of the inverse dynamics
@@ -1163,7 +1164,6 @@ class TrajectoryOptimizer {
   // Derivative interpolator
   derivative_interpolator interpolator = {"set_interval", 2, 0, 0, 0, 0, 0};        // Settings
   DerivativeInterpolator* derivative_interpolator_;                                  // Class
-
   // Autodiff copies of the system diagram, plant model, optimizer state, and a
   // whole optimizer for computing exact gradients.
   std::unique_ptr<Diagram<AutoDiffXd>> diagram_ad_;
