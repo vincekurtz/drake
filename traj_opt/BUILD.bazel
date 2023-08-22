@@ -152,6 +152,7 @@ drake_cc_library(
         "derivative_interpolator.h",
     ],
     deps = [
+        ":inverse_dynamics_partials",
     ],
 )
 
