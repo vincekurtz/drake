@@ -1,5 +1,8 @@
 # Inverse Dynamics Trajectory Optimization for Contact-Implicit Model Predictive Control
 
+> **Note**
+> This is an outdated IDTO implementation. The latest version can be found [here](https://github.com/ToyotaResearchInstitute/idto).
+
 ## Installation
 
 Follow the standard instructions for installing [Drake](https://drake.mit.edu)
