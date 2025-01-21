@@ -108,8 +108,7 @@ drake_py_binary(
     name = "integration_sanity_check",
     srcs = ["integration_sanity_check.py"],
     deps = [
-        "//bindings/pydrake/multibody",
-        "//bindings/pydrake/systems",
+        "//bindings/pydrake",
     ],
 )
 
