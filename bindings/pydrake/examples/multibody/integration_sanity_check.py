@@ -1,11 +1,12 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
+import time
 from pydrake.geometry import SceneGraphConfig, StartMeshcat
 from pydrake.math import RigidTransform, RollPitchYaw
 from pydrake.multibody.parsing import Parser
 from pydrake.multibody.plant import AddMultibodyPlantSceneGraph
-from pydrake.systems.analysis import Simulator, SimulatorConfig, ApplySimulatorConfig
+from pydrake.systems.analysis import Simulator, SimulatorConfig, ApplySimulatorConfig, PrintSimulatorStatistics
 from pydrake.systems.primitives import LogVectorOutput
 from pydrake.systems.framework import DiagramBuilder, TriggerType
 from pydrake.visualization import AddDefaultVisualization, ModelVisualizer
@@ -137,14 +138,14 @@ def create_scene(sim_time_step):
 
 def run_simulation():
     # Set MbP timestep (> 0 uses discrete solver)
-    time_step = 0.01
+    time_step = 0.0
     
     # Set integrator parameters
     config = SimulatorConfig()
     config.integration_scheme = "runge_kutta3"
     config.max_step_size=0.1
     config.accuracy=0.1
-    config.target_realtime_rate = 1.0
+    config.target_realtime_rate = 0.0
     config.use_error_control = True
     config.publish_every_time_step = True
 
@@ -156,9 +157,14 @@ def run_simulation():
 
     # Run the sim
     meshcat.StartRecording()
-    simulator.AdvanceTo(1.0)
+    st = time.time()
+    simulator.AdvanceTo(1.000)
+    wall_time = time.time() - st
     meshcat.StopRecording()
     meshcat.PublishRecording()
+
+    print(f"Wall clock time: {wall_time:.4f} seconds")
+    PrintSimulatorStatistics(simulator)
 
     # Try to (roughly) plot the integration time steps
     log = logger.FindLog(simulator.get_context())
@@ -166,7 +172,7 @@ def run_simulation():
     dts = timesteps[1:] - timesteps[0:-1]
     plt.plot(timesteps[0:-1], dts, "o")
     plt.yscale("log")
-    plt.ylim((1e-8, 1e-1))
+    plt.ylim((1e-8, 1e-0))
     plt.show()
 
 
