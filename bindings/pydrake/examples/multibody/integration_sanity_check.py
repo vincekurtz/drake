@@ -144,7 +144,7 @@ def run_simulation():
     config = SimulatorConfig()
     config.integration_scheme = "runge_kutta3"
     config.max_step_size=0.1
-    config.accuracy=0.1
+    # config.accuracy=0.0001
     config.target_realtime_rate = 0.0
     config.use_error_control = True
     config.publish_every_time_step = True
@@ -173,6 +173,7 @@ def run_simulation():
     plt.plot(timesteps[0:-1], dts, "o")
     plt.yscale("log")
     plt.ylim((1e-8, 1e-0))
+    plt.title(f"{config.integration_scheme}, accuracy = {config.accuracy}")
     plt.show()
 
 
