@@ -1,10 +1,13 @@
+import matplotlib.pyplot as plt
 import numpy as np
+
 from pydrake.geometry import SceneGraphConfig, StartMeshcat
 from pydrake.math import RigidTransform, RollPitchYaw
 from pydrake.multibody.parsing import Parser
 from pydrake.multibody.plant import AddMultibodyPlantSceneGraph
-from pydrake.systems.analysis import Simulator
-from pydrake.systems.framework import DiagramBuilder
+from pydrake.systems.analysis import Simulator, SimulatorConfig, ApplySimulatorConfig
+from pydrake.systems.primitives import LogVectorOutput
+from pydrake.systems.framework import DiagramBuilder, TriggerType
 from pydrake.visualization import AddDefaultVisualization, ModelVisualizer
 
 ##
@@ -122,23 +125,49 @@ def create_scene(sim_time_step):
     plant.SetDefaultFreeBodyPose(cylinder, X_WorldCylinder)
     
     # Add visualization to see the geometries.
-    AddDefaultVisualization(builder=builder, meshcat=meshcat)
+    # NOTE: using the visualization messes with the published step sizes
+    # AddDefaultVisualization(builder=builder, meshcat=meshcat)
+
+    # Add a logger (mainly to keep track of timesteps)
+    logger = LogVectorOutput(plant.get_state_output_port(), builder, publish_triggers={TriggerType.kForced}, publish_period = 0)
+    logger.set_name("logger")
 
     diagram = builder.Build()
-    return diagram
+    return diagram, logger
 
-def initialize_simulation(diagram):
+def run_simulation():
+    # Set MbP timestep (> 0 uses discrete solver)
+    time_step = 0.01
+    
+    # Set integrator parameters
+    config = SimulatorConfig()
+    config.integration_scheme = "runge_kutta3"
+    config.max_step_size=0.1
+    config.accuracy=0.1
+    config.target_realtime_rate = 1.0
+    config.use_error_control = True
+    config.publish_every_time_step = True
+
+    # Set up the simulation
+    diagram, logger = create_scene(time_step)
     simulator = Simulator(diagram)
+    ApplySimulatorConfig(config, simulator)
     simulator.Initialize()
-    simulator.set_target_realtime_rate(1.)
-    return simulator
 
-def run_simulation(sim_time_step):
-    diagram = create_scene(sim_time_step)
-    simulator = initialize_simulation(diagram)
+    # Run the sim
     meshcat.StartRecording()
-    simulator.AdvanceTo(2.0)
+    simulator.AdvanceTo(1.0)
     meshcat.StopRecording()
     meshcat.PublishRecording()
 
-run_simulation(sim_time_step=0.001)
+    # Try to (roughly) plot the integration time steps
+    log = logger.FindLog(simulator.get_context())
+    timesteps = log.sample_times()
+    dts = timesteps[1:] - timesteps[0:-1]
+    plt.plot(timesteps[0:-1], dts, "o")
+    plt.yscale("log")
+    plt.ylim((1e-8, 1e-1))
+    plt.show()
+
+
+run_simulation()
