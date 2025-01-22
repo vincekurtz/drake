@@ -28,7 +28,7 @@ xml = """
     <geom name="table_top" type="box" pos="0.0 0.0 0.0" size="0.55 1.1 0.05" rgba="0.9 0.8 0.7 1"/>
     <body>
         <joint type="free"/>
-        <geom name="cylinder" type="cylinder" pos="0.0 0.0 0.5" euler="80 0 0" size="0.1 0.1" rgba="1.0 1.0 1.0 1.0"/>
+        <geom name="cylinder" type="cylinder" pos="0.0 0.0 3.5" euler="80 0 0" size="0.1 0.1" rgba="1.0 1.0 1.0 1.0"/>
     </body>
   </worldbody>
 </mujoco>
@@ -72,15 +72,15 @@ def step(state, time_step):
 
 def simulate():
     # Set initial conditions
-    x = np.array([1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.0, 1., 0.])
+    x = np.array([1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., -3.])
     t = 0.0
 
     # Set some sim parameters
-    dt = 0.01
+    dt = 0.1
     sim_time = 1.0
     accuracy = 0.001
     max_dt = 0.1
-    min_dt = 1e-4
+    min_dt = 0.001
 
     # Constants from IntegratorBase::CalcAdjustedStepSice    
     kSafety = 0.9
