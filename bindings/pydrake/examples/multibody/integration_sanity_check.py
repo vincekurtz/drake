@@ -92,7 +92,7 @@ table_top_sdf = """<?xml version="1.0"?>
 </sdf>
 """
 
-def create_scene(sim_time_step):
+def create_scene(sim_time_step, visualize=False):
     # Clean up the Meshcat instance.
     meshcat.Delete()
     meshcat.DeleteAddedControls()
@@ -127,7 +127,8 @@ def create_scene(sim_time_step):
     
     # Add visualization to see the geometries.
     # NOTE: using the visualization messes with the published step sizes
-    # AddDefaultVisualization(builder=builder, meshcat=meshcat)
+    if visualize:
+        AddDefaultVisualization(builder=builder, meshcat=meshcat)
 
     # Add a logger (mainly to keep track of timesteps)
     logger = LogVectorOutput(plant.get_state_output_port(), builder, publish_triggers={TriggerType.kForced}, publish_period = 0)
@@ -139,6 +140,7 @@ def create_scene(sim_time_step):
 def run_simulation():
     # Set MbP timestep (> 0 uses discrete solver)
     time_step = 0.01
+    visualize = True
     
     # Set integrator parameters
     config = SimulatorConfig()
@@ -150,7 +152,7 @@ def run_simulation():
     config.publish_every_time_step = True
 
     # Use hydroelastic contact
-    diagram, logger = create_scene(time_step)
+    diagram, logger = create_scene(time_step, visualize)
     scene_graph = diagram.GetSubsystemByName("scene_graph")
     sg_config = SceneGraphConfig()
     sg_config.default_proximity_properties.compliance_type = "compliant"
@@ -158,9 +160,11 @@ def run_simulation():
 
     # Check which contact solver and model we're using
     plant = diagram.GetSubsystemByName("plant")
+    approximation = plant.get_discrete_contact_approximation().name
     print("")
-    print(f"Discrete contact approximation: {plant.get_discrete_contact_approximation()}")
+    print(f"Discrete contact approximation: {approximation}")
     print(f"Discrete contact solver: {plant.get_discrete_contact_solver()}")
+    approx = plant.get_discrete_contact_approximation()
 
     # Set up the simulation
     simulator = Simulator(diagram)
@@ -185,7 +189,10 @@ def run_simulation():
     plt.plot(timesteps[0:-1], dts, "o")
     plt.yscale("log")
     plt.ylim((1e-8, 1e-0))
-    plt.title(f"{config.integration_scheme}, accuracy = {config.accuracy}")
+    if time_step == 0:
+        plt.title(f"{config.integration_scheme}, accuracy = {config.accuracy}")
+    else:
+        plt.title(f"{approximation}, dt={time_step}")
     plt.show()
 
 
