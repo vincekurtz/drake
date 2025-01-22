@@ -144,13 +144,19 @@ def run_simulation():
     config = SimulatorConfig()
     config.integration_scheme = "runge_kutta3"
     config.max_step_size=0.1
-    # config.accuracy=0.0001
+    config.accuracy=0.1
     config.target_realtime_rate = 0.0
     config.use_error_control = True
     config.publish_every_time_step = True
 
-    # Set up the simulation
+    # Use hydroelastic contact
     diagram, logger = create_scene(time_step)
+    scene_graph = diagram.GetSubsystemByName("scene_graph")
+    sg_config = SceneGraphConfig()
+    sg_config.default_proximity_properties.compliance_type = "compliant"
+    scene_graph.set_config(sg_config)
+
+    # Set up the simulation
     simulator = Simulator(diagram)
     ApplySimulatorConfig(config, simulator)
     simulator.Initialize()
@@ -158,7 +164,7 @@ def run_simulation():
     # Run the sim
     meshcat.StartRecording()
     st = time.time()
-    simulator.AdvanceTo(1.000)
+    simulator.AdvanceTo(1.0)
     wall_time = time.time() - st
     meshcat.StopRecording()
     meshcat.PublishRecording()
