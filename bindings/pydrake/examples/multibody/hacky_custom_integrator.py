@@ -18,6 +18,7 @@ from pydrake.visualization import AddDefaultVisualization, ModelVisualizer
 #
 ##
 
+meshcat = StartMeshcat()
 
 # Define a test model inline here
 xml = """
@@ -33,7 +34,7 @@ xml = """
 </mujoco>
 """
 
-def create_scene(sim_time_step):
+def create_scene(sim_time_step, visualize=False):
     builder = DiagramBuilder()
     plant, scene_graph = AddMultibodyPlantSceneGraph(
         builder, time_step=sim_time_step)
@@ -46,6 +47,10 @@ def create_scene(sim_time_step):
     sg_config = SceneGraphConfig()
     sg_config.default_proximity_properties.compliance_type = "compliant"
     scene_graph.set_config(sg_config)
+
+    if visualize:
+        # Connect to meshcat
+        AddDefaultVisualization(builder=builder, meshcat=meshcat)
     
     diagram = builder.Build()
     return diagram, plant
@@ -65,12 +70,35 @@ def step(state, time_step):
 
     return plant.GetPositionsAndVelocities(plant_context)
 
-# Hacky simulation loop
-x = np.array([1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.])
-t = 0.0
-dt = 0.01
+def simulate():
+    # Set initial conditions
+    x = np.array([1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.])
+    t = 0.0
 
-while t < 1.0:
-    x = step(x, dt)
-    t += dt
-    print(t, x)
+    # Set some sim parameters
+    dt = 0.01
+    sim_time = 1.0
+
+    # Create a model for visualization
+    diagram, plant = create_scene(0.0, visualize=True)
+    context = diagram.CreateDefaultContext()
+    plant_context = diagram.GetMutableSubsystemContext(plant, context)
+
+    meshcat.StartRecording()
+    while t < sim_time:
+        # Step the simulation
+        x = step(x, dt)
+        t += dt
+
+        # Update the visualizer
+        context.SetTime(t)
+        plant.SetPositionsAndVelocities(plant_context, x)
+        diagram.ForcedPublish(context)
+
+    meshcat.PublishRecording()
+
+    # wait to give meshcat a chance to catch up
+    time.sleep(100)
+
+simulate()
+
