@@ -72,7 +72,7 @@ def step(state, time_step):
 
 def simulate():
     # Set initial conditions
-    x = np.array([1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.])
+    x = np.array([1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.0, 1., 0.])
     t = 0.0
 
     # Set some sim parameters
@@ -112,8 +112,10 @@ def simulate():
         t += dt
 
         # Error is the difference between the one-step and two-step estimates
+        # TODO: use something more like IntegratorBase::CalcStateChangeNorm
+        # to compute the error norm
         err = x_full - x_half
-        err = np.max(np.abs(err))  # TODO: is this right????
+        err = np.linalg.norm(err)
         
         # Set the next timestep based on this error. Logic roughly follows
         # IntegratorBase::CalcAdjustedStepSize
