@@ -96,7 +96,6 @@ use_repo(
     "fmt",
     "gflags",
     "glib",
-    "glx",
     "gtest",
     "gurobi",
     "lapack",
@@ -106,7 +105,6 @@ use_repo(
     "meshcat",
     "mosek",
     "opencl",
-    "opengl",
     "pybind11",
     "pycodestyle",
     "python",
@@ -258,6 +256,5 @@ use_repo(
 # - Provide better configuration options for choosing dependencies.
 # - Adjust the wheel build to build more dependencies as Bazel modules.
 # - Update the maintainer docs in tools/workspace/README.
-# - Debug any new glitches with the new_release automation.
 # - Investigate any impact on S3 mirroring.
 # - Deprecate non-bzlmod use of Drake downstream.
