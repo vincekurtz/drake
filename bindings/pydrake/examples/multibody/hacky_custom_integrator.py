@@ -85,10 +85,17 @@ def simulate():
     plant_context = diagram.GetMutableSubsystemContext(plant, context)
 
     meshcat.StartRecording()
+    timesteps = []
     while t < sim_time:
+        # Record the current timestep
+        timesteps.append(dt)
+        
         # Step the simulation
         x = step(x, dt)
         t += dt
+
+        # TODO: update the time step based on error control scheme
+        dt = 0.01 * (np.sin(4 * np.pi * t) + 1.5)**2
 
         # Update the visualizer
         context.SetTime(t)
@@ -97,8 +104,18 @@ def simulate():
 
     meshcat.PublishRecording()
 
-    # wait to give meshcat a chance to catch up
-    time.sleep(100)
+    return np.array(timesteps)
 
-simulate()
+timesteps = simulate()
 
+t = np.cumsum(timesteps)
+plt.plot(t, timesteps, "o")
+plt.xlabel("Sim time (s)")
+plt.ylabel("dt (s)")
+
+plt.yscale("log")
+plt.ylim(1e-8, 1e0)
+
+plt.title("Hacky custom integrator with kLagged")
+
+plt.show()
