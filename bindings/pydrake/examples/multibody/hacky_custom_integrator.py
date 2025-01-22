@@ -78,6 +78,16 @@ def simulate():
     # Set some sim parameters
     dt = 0.01
     sim_time = 1.0
+    accuracy = 0.001
+    max_dt = 0.1
+    min_dt = 1e-4
+
+    # Constants from IntegratorBase::CalcAdjustedStepSice    
+    kSafety = 0.9
+    kMinShrink = 0.1
+    kMaxGrow = 5.0
+    kHysteresisLow = 0.9
+    kHysteresisHigh = 1.2
 
     # Create a model for visualization
     diagram, plant = create_scene(0.0, visualize=True)
@@ -90,12 +100,48 @@ def simulate():
         # Record the current timestep
         timesteps.append(dt)
         
-        # Step the simulation
-        x = step(x, dt)
+        # Step the simulation two ways: one with a full step, and one with
+        # two half steps.
+        x_full = step(x, dt)
+        x_half = step(x, dt / 2)
+        x_half = step(x_half, dt / 2)
+
+        # We'll use the smaller steps to advance the sim
+        # TODO: add conditions for rejecting the step
+        x = x_half
         t += dt
 
-        # TODO: update the time step based on error control scheme
-        dt = 0.01 * (np.sin(4 * np.pi * t) + 1.5)**2
+        # Error is the difference between the one-step and two-step estimates
+        err = x_full - x_half
+        err = np.max(np.abs(err))  # TODO: is this right????
+        
+        # Set the next timestep based on this error. Logic roughly follows
+        # IntegratorBase::CalcAdjustedStepSize
+        if err == 0.0:
+            new_dt = kMaxGrow * dt
+        else:
+            # N.B. assuming second order error estimate
+            new_dt = kSafety * dt * (accuracy / err) ** (1.0 / 2.0)
+
+        if (new_dt > dt) and (new_dt < kHysteresisHigh * dt):
+            new_dt = dt
+
+        if new_dt < dt:
+            if err < accuracy:
+                new_dt = dt
+            else:
+                new_dt = np.minimum(new_dt, kHysteresisLow * dt)
+
+        max_grow_dt = kMaxGrow * dt
+        min_shrink_dt = kMinShrink * dt
+        new_dt = np.minimum(new_dt, max_grow_dt)
+        new_dt = np.maximum(new_dt, min_shrink_dt)
+
+        new_dt = np.minimum(new_dt, max_dt)
+        new_dt = np.maximum(new_dt, min_dt)
+
+        print(t)
+        dt = new_dt
 
         # Update the visualizer
         context.SetTime(t)
