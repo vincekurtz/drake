@@ -112,6 +112,14 @@ drake_py_binary(
     ],
 )
 
+drake_py_binary(
+    name = "hacky_custom_integrator",
+    srcs = ["hacky_custom_integrator.py"],
+    deps = [
+        "//bindings/pydrake",
+    ],
+)
+
 PY_LIBRARIES = [
     ":cart_pole_passive_simulation_py",
     ":pendulum_lqr_monte_carlo_analysis_py",
