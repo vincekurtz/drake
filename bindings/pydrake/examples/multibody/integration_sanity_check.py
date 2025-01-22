@@ -138,7 +138,7 @@ def create_scene(sim_time_step):
 
 def run_simulation():
     # Set MbP timestep (> 0 uses discrete solver)
-    time_step = 0.0
+    time_step = 0.01
     
     # Set integrator parameters
     config = SimulatorConfig()
@@ -156,6 +156,12 @@ def run_simulation():
     sg_config.default_proximity_properties.compliance_type = "compliant"
     scene_graph.set_config(sg_config)
 
+    # Check which contact solver and model we're using
+    plant = diagram.GetSubsystemByName("plant")
+    print("")
+    print(f"Discrete contact approximation: {plant.get_discrete_contact_approximation()}")
+    print(f"Discrete contact solver: {plant.get_discrete_contact_solver()}")
+
     # Set up the simulation
     simulator = Simulator(diagram)
     ApplySimulatorConfig(config, simulator)
@@ -169,7 +175,7 @@ def run_simulation():
     meshcat.StopRecording()
     meshcat.PublishRecording()
 
-    print(f"Wall clock time: {wall_time:.4f} seconds")
+    print(f"\nWall clock time: {wall_time:.4f} seconds\n")
     PrintSimulatorStatistics(simulator)
 
     # Try to (roughly) plot the integration time steps
