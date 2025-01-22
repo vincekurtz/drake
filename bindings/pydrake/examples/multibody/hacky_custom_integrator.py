@@ -41,7 +41,7 @@ def create_scene(sim_time_step, visualize=False):
 
     parser = Parser(plant)
     parser.AddModelsFromString(xml, "xml")
-    plant.set_discrete_contact_approximation(DiscreteContactApproximation.kSimilar)
+    plant.set_discrete_contact_approximation(DiscreteContactApproximation.kLagged)
     plant.Finalize()
 
     # Use hydroelastic contact 
@@ -73,17 +73,17 @@ def step(state, time_step):
 
 def simulate():
     # Set initial conditions
-    x = np.array([1., 0., 0., 0., 0., -1., 0., 0., 0., 0., 0., 3., 0.])
+    x = np.array([1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 1., 0.])
     t = 0.0
 
     # Set some sim parameters
     dt = 0.01
     sim_time = 1.0
-    accuracy = 0.1
+    accuracy = 0.01
     max_dt = 0.01
     min_dt = 1e-6
 
-    # Constants from IntegratorBase::CalcAdjustedStepSice    
+    # Constants from IntegratorBase::CalcAdjustedStepSize    
     kSafety = 0.9
     kMinShrink = 0.1
     kMaxGrow = 5.0
@@ -97,6 +97,7 @@ def simulate():
 
     meshcat.StartRecording()
     timesteps = []
+    errors = []
     while t < sim_time:
         # Record the current timestep
         timesteps.append(dt)
@@ -117,6 +118,7 @@ def simulate():
         # to compute the error norm
         err = x_full - x_half
         err = np.linalg.norm(err)
+        errors.append(err)
         
         # Set the next timestep based on this error. Logic roughly follows
         # IntegratorBase::CalcAdjustedStepSize
@@ -143,7 +145,7 @@ def simulate():
         new_dt = np.minimum(new_dt, max_dt)
         new_dt = np.maximum(new_dt, min_dt)
 
-        print(t)
+        print(f"Time: {t:.4f} / {sim_time:.4f}")
         dt = new_dt
 
         # Update the visualizer
@@ -154,18 +156,25 @@ def simulate():
     meshcat.PublishRecording()
     contact_approx = plant.get_discrete_contact_approximation().name
 
-    return np.array(timesteps), contact_approx
+    return np.array(timesteps), np.array(errors), accuracy, contact_approx
 
-timesteps, contact_approx = simulate()
+timesteps, errors, target_accuracy, contact_approx = simulate()
 
+plt.title(f"Hacky custom integrator with {contact_approx}")
+
+plt.subplot(2,1,1)
 t = np.cumsum(timesteps)
 plt.plot(t, timesteps, "o")
-plt.xlabel("Sim time (s)")
 plt.ylabel("dt (s)")
-
 plt.yscale("log")
 plt.ylim(1e-8, 1e0)
 
-plt.title(f"Hacky custom integrator with {contact_approx}")
+plt.subplot(2,1,2)
+plt.plot(t, errors, "o")
+plt.axhline(target_accuracy, linestyle="--", color="grey")
+plt.yscale("log")
+plt.ylim(1e-8, 1e0)
+plt.ylabel("Error")
+plt.xlabel("Sim time (s)")
 
 plt.show()

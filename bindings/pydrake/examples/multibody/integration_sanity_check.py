@@ -27,7 +27,7 @@ xml = """
     <geom name="table_top" type="box" pos="0.0 0.0 0.0" size="0.55 1.1 0.05" rgba="0.9 0.8 0.7 1"/>
     <body>
         <joint type="free"/>
-        <geom name="cylinder" type="cylinder" pos="0.0 0.0 0.5" euler="80 0 0" size="0.1 0.1" rgba="1.0 1.0 1.0 1.0"/>
+        <geom name="object" type="sphere" pos="0.0 0.0 0.5" euler="80 0 0" size="0.1" rgba="1.0 1.0 1.0 1.0"/>
     </body>
   </worldbody>
 </mujoco>
@@ -64,11 +64,11 @@ def create_scene(sim_time_step, visualize=False):
 def run_simulation():
     # Set MbP timestep (> 0 uses discrete solver)
     time_step = 0.0
-    visualize = False
+    visualize = True
     
     # Set integrator parameters
     config = SimulatorConfig()
-    config.integration_scheme = "runge_kutta3"
+    config.integration_scheme = "implicit_euler"
     config.max_step_size=0.1
     config.accuracy=0.1
     config.target_realtime_rate = 0.0
@@ -77,10 +77,10 @@ def run_simulation():
 
     # Use hydroelastic contact
     diagram, logger = create_scene(time_step, visualize)
-    scene_graph = diagram.GetSubsystemByName("scene_graph")
-    sg_config = SceneGraphConfig()
-    sg_config.default_proximity_properties.compliance_type = "compliant"
-    scene_graph.set_config(sg_config)
+    # scene_graph = diagram.GetSubsystemByName("scene_graph")
+    # sg_config = SceneGraphConfig()
+    # sg_config.default_proximity_properties.compliance_type = "compliant"
+    # scene_graph.set_config(sg_config)
 
     # Check which contact solver and model we're using
     plant = diagram.GetSubsystemByName("plant")
