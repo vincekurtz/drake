@@ -5,7 +5,7 @@ import time
 from pydrake.geometry import SceneGraphConfig, StartMeshcat
 from pydrake.math import RigidTransform, RollPitchYaw
 from pydrake.multibody.parsing import Parser
-from pydrake.multibody.plant import AddMultibodyPlantSceneGraph
+from pydrake.multibody.plant import AddMultibodyPlantSceneGraph, DiscreteContactApproximation
 from pydrake.systems.analysis import Simulator, SimulatorConfig, ApplySimulatorConfig, PrintSimulatorStatistics
 from pydrake.systems.primitives import LogVectorOutput
 from pydrake.systems.framework import DiagramBuilder, TriggerType
@@ -28,7 +28,7 @@ xml = """
     <geom name="table_top" type="box" pos="0.0 0.0 0.0" size="0.55 1.1 0.05" rgba="0.9 0.8 0.7 1"/>
     <body>
         <joint type="free"/>
-        <geom name="cylinder" type="cylinder" pos="0.0 0.0 3.5" euler="80 0 0" size="0.1 0.1" rgba="1.0 1.0 1.0 1.0"/>
+        <geom name="object" type="sphere" pos="0.0 0.0 0.5" euler="80 0 0" size="0.1" rgba="1.0 1.0 1.0 1.0"/>
     </body>
   </worldbody>
 </mujoco>
@@ -41,6 +41,7 @@ def create_scene(sim_time_step, visualize=False):
 
     parser = Parser(plant)
     parser.AddModelsFromString(xml, "xml")
+    plant.set_discrete_contact_approximation(DiscreteContactApproximation.kSimilar)
     plant.Finalize()
 
     # Use hydroelastic contact 
@@ -72,15 +73,15 @@ def step(state, time_step):
 
 def simulate():
     # Set initial conditions
-    x = np.array([1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., -3.])
+    x = np.array([1., 0., 0., 0., 0., -1., 0., 0., 0., 0., 0., 3., 0.])
     t = 0.0
 
     # Set some sim parameters
-    dt = 0.1
+    dt = 0.01
     sim_time = 1.0
-    accuracy = 0.001
-    max_dt = 0.1
-    min_dt = 0.001
+    accuracy = 0.1
+    max_dt = 0.01
+    min_dt = 1e-6
 
     # Constants from IntegratorBase::CalcAdjustedStepSice    
     kSafety = 0.9
@@ -90,7 +91,7 @@ def simulate():
     kHysteresisHigh = 1.2
 
     # Create a model for visualization
-    diagram, plant = create_scene(0.0, visualize=True)
+    diagram, plant = create_scene(0.1, visualize=True)  # dt unused here
     context = diagram.CreateDefaultContext()
     plant_context = diagram.GetMutableSubsystemContext(plant, context)
 
@@ -151,10 +152,11 @@ def simulate():
         diagram.ForcedPublish(context)
 
     meshcat.PublishRecording()
+    contact_approx = plant.get_discrete_contact_approximation().name
 
-    return np.array(timesteps)
+    return np.array(timesteps), contact_approx
 
-timesteps = simulate()
+timesteps, contact_approx = simulate()
 
 t = np.cumsum(timesteps)
 plt.plot(t, timesteps, "o")
@@ -164,6 +166,6 @@ plt.ylabel("dt (s)")
 plt.yscale("log")
 plt.ylim(1e-8, 1e0)
 
-plt.title("Hacky custom integrator with kLagged")
+plt.title(f"Hacky custom integrator with {contact_approx}")
 
 plt.show()
