@@ -2,6 +2,7 @@ from pydrake.all import *
 
 import matplotlib.pyplot as plt
 import numpy as np
+from dataclasses import dataclass
 
 ##
 #
@@ -10,8 +11,18 @@ import numpy as np
 #
 ##
 
+@dataclass
+class SimulationExample:
+    """A little container for setting up different examples."""
+    name: str
+    xml: str
+    use_hydroelastic: bool
+    initial_state: np.array
+    sim_time: float
+
 def ball_on_table():
-    """XML description of a simple sphere on a tabletop."""
+    """A sphere is dropped on a table with some initial horizontal velocity."""
+    name = "Ball on table"
     xml = """
     <?xml version="1.0"?>
     <mujoco model="robot">
@@ -24,7 +35,10 @@ def ball_on_table():
     </worldbody>
     </mujoco>
     """
-    return xml
+    use_hydroelastic = False
+    initial_state = np.array([1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 1., 0.])
+    sim_time = 1.0
+    return SimulationExample(name, xml, use_hydroelastic, initial_state, sim_time)
 
 def create_scene(
     xml: str, 
@@ -76,10 +90,7 @@ def create_scene(
 
 
 def run_simulation(
-    xml: str,
-    use_hydroelastic: bool,
-    initial_state: np.array,
-    sim_time: float,
+    example: SimulationExample,
     integrator: str,
     accuracy: float,
     max_step_size: float,
@@ -89,10 +100,7 @@ def run_simulation(
     Run a short simulation, and report the time-steps used throughout.
 
     Args:
-        xml: string defining the model in mjcf format.
-        use_hydroelastic: whether the model should use hydroelastic contact.
-        initial_state: the state [q, v] to start the simulation from
-        sim_time: the total simulation time (in seconds)
+        example: container defining the scenario to simulate
         integrator: which integration strategy to use ("implicit_euler", "runge_kutta3", "convex", "discrete")
         accuracy: the desired accuracy (ignored for "discrete")
         max_step_size: the maximum (and initial) timestep dt
@@ -102,6 +110,11 @@ def run_simulation(
     Returns:
         Timesteps (dt) throughout the simulation.
     """
+    xml = example.xml
+    use_hydroelastic = example.use_hydroelastic
+    initial_state = example.initial_state
+    sim_time = example.sim_time
+
     if visualize:
         meshcat = StartMeshcat()
     else:
@@ -259,19 +272,21 @@ def run_simulation(
 
 
 if __name__=="__main__":
+    example = ball_on_table()
+    integrator = "convex"
+    accuracy = 0.1
+
     time_steps = run_simulation(
-        xml = ball_on_table(),
-        use_hydroelastic = False,
-        initial_state = np.array([1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 1., 0.]),
-        sim_time = 1.0,
-        integrator = "implicit_euler",
-        accuracy = 0.1,
+        example,
+        integrator,
+        accuracy,
         max_step_size = 0.01,
         visualize = False
     )
 
     # Plot stuff
     times = np.cumsum(time_steps)
+    plt.title(f"{example.name} | {integrator} | accuracy = {accuracy}")
     plt.plot(times, time_steps, "o")
     plt.ylim(1e-10, 1e0)
     plt.yscale("log")
