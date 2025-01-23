@@ -80,6 +80,44 @@ def cylinder_point():
     sim_time = 1.0
     return SimulationExample(name, xml, use_hydroelastic, initial_state, sim_time)
 
+def clutter():
+    """Several spheres fall into a box."""
+    name = "Clutter"
+    xml = """
+    <?xml version="1.0"?>
+    <mujoco model="robot">
+    <worldbody>
+        <geom name="base" type="box" pos="0.0 0.0 0.0" size="0.5 0.5 0.02" rgba="0.5 0.5 0.5 0.3"/>
+        <geom name="left" type="box" pos="0.5 0.0 0.25" size="0.02 0.5 0.25" rgba="0.5 0.5 0.5 0.3"/>
+        <geom name="right" type="box" pos="-0.5 0.0 0.25" size="0.02 0.5 0.25" rgba="0.5 0.5 0.5 0.3"/>
+        <geom name="front" type="box" pos="0.0 0.5 0.25" size="0.5 0.02 0.25" rgba="0.5 0.5 0.5 0.3"/>
+        <geom name="back" type="box" pos="0.0 -0.5 0.25" size="0.5 0.02 0.25" rgba="0.5 0.5 0.5 0.3"/>
+        <body>
+            <joint type="free"/>
+            <geom name="ball1" type="sphere" pos="0.0 0.0 0.5" size="0.1" rgba="1.0 1.0 1.0 1.0"/>
+        </body>
+        <body>
+            <joint type="free"/>
+            <geom name="ball2" type="sphere" pos="0.0 0.001 0.7" size="0.1" rgba="1.0 1.0 1.0 1.0"/>
+        </body>
+        <body>
+            <joint type="free"/>
+            <geom name="ball3" type="sphere" pos="0.001 0.0 0.9" size="0.1" rgba="1.0 1.0 1.0 1.0"/>
+        </body>
+    </worldbody>
+    </mujoco>
+    """
+    use_hydroelastic = False
+    initial_state = np.array(
+        [1., 0., 0., 0., 0., 0., 0., 
+         1., 0., 0., 0., 0., 0., 0.,
+         1., 0., 0., 0., 0., 0., 0.,
+         0., 0., 0., 0., 0., 0., 
+         0., 0., 0., 0., 0., 0., 
+         0., 0., 0., 0., 0., 0.])
+    sim_time = 3.0
+    return SimulationExample(name, xml, use_hydroelastic, initial_state, sim_time)
+
 def create_scene(
     xml: str, 
     time_step: float, 
@@ -250,7 +288,7 @@ def run_simulation(
             new_dt = np.minimum(new_dt, max_dt)
             new_dt = np.maximum(new_dt, min_dt)
 
-            print(f"Time: {t:.4f} / {sim_time:.4f}")
+            print(f"t = {t:.4f}s, dt = {new_dt}")
             dt = new_dt
 
             # Update the visualizer
@@ -261,6 +299,11 @@ def run_simulation(
 
         if meshcat is not None:
             meshcat.PublishRecording()
+
+        print("")
+        print(f"Number of time steps taken = {len(timesteps)}")
+        print(f"Smallest step size = {np.min(timesteps)}")
+        print("")
 
         return np.array(timesteps)
 
@@ -288,6 +331,7 @@ def run_simulation(
             xml, time_step, use_hydroelastic, meshcat)
         context = diagram.CreateDefaultContext()
         plant_context = diagram.GetMutableSubsystemContext(plant, context)
+
         plant.SetPositionsAndVelocities(plant_context, initial_state)
 
         simulator = Simulator(diagram, context)
@@ -312,9 +356,9 @@ def run_simulation(
 
 
 if __name__=="__main__":
-    example = cylinder_hydro()
+    example = clutter()
     integrator = "convex"
-    accuracy = 0.001
+    accuracy = 0.1
 
     time_steps = run_simulation(
         example,
