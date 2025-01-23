@@ -382,8 +382,8 @@ def run_simulation(
 
 
 if __name__=="__main__":
-    example = cylinder_hydro()
-    integrator = "runge_kutta3"
+    example = clutter()
+    integrator = "convex"
     accuracy = 0.1
 
     time_steps, meshcat = run_simulation(
