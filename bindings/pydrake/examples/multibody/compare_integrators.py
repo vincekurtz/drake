@@ -98,11 +98,19 @@ def clutter():
         </body>
         <body>
             <joint type="free"/>
-            <geom name="ball2" type="sphere" pos="0.0 0.001 0.7" size="0.1" rgba="1.0 1.0 1.0 1.0"/>
+            <geom name="ball2" type="sphere" pos="0.0 0.01 0.7" size="0.1" rgba="1.0 1.0 1.0 1.0"/>
         </body>
         <body>
             <joint type="free"/>
-            <geom name="ball3" type="sphere" pos="0.001 0.0 0.9" size="0.1" rgba="1.0 1.0 1.0 1.0"/>
+            <geom name="ball3" type="sphere" pos="0.01 0.0 0.9" size="0.1" rgba="1.0 1.0 1.0 1.0"/>
+        </body>
+        <body>
+            <joint type="free"/>
+            <geom name="ball4" type="sphere" pos="0.0 -0.01 1.1" size="0.1" rgba="1.0 1.0 1.0 1.0"/>
+        </body>
+        <body>
+            <joint type="free"/>
+            <geom name="ball5" type="sphere" pos="-0.01 0.0 1.3" size="0.1" rgba="1.0 1.0 1.0 1.0"/>
         </body>
     </worldbody>
     </mujoco>
@@ -112,6 +120,10 @@ def clutter():
         [1., 0., 0., 0., 0., 0., 0., 
          1., 0., 0., 0., 0., 0., 0.,
          1., 0., 0., 0., 0., 0., 0.,
+         1., 0., 0., 0., 0., 0., 0.,
+         1., 0., 0., 0., 0., 0., 0.,
+         0., 0., 0., 0., 0., 0., 
+         0., 0., 0., 0., 0., 0., 
          0., 0., 0., 0., 0., 0., 
          0., 0., 0., 0., 0., 0., 
          0., 0., 0., 0., 0., 0.])
@@ -305,8 +317,6 @@ def run_simulation(
         print(f"Smallest step size = {np.min(timesteps)}")
         print("")
 
-        return np.array(timesteps)
-
     else:
         # We can use a more standard simulation setup and rely on a logger to
         # tell use the time step information. Note that in this case enabling
@@ -344,6 +354,7 @@ def run_simulation(
             meshcat.StartRecording()
         simulator.AdvanceTo(sim_time)
         if meshcat is not None:
+            meshcat.StopRecording()
             meshcat.PublishRecording()
 
         PrintSimulatorStatistics(simulator)
@@ -352,15 +363,17 @@ def run_simulation(
         log = logger.FindLog(context)
         times = log.sample_times()
         timesteps = times[1:] - times[0:-1]
-        return np.asarray(timesteps)
+
+    # Keep meshcat instance alive 
+    return np.asarray(timesteps), meshcat
 
 
 if __name__=="__main__":
     example = clutter()
     integrator = "convex"
-    accuracy = 0.1
+    accuracy = 0.01
 
-    time_steps = run_simulation(
+    time_steps, meshcat = run_simulation(
         example,
         integrator,
         accuracy,
@@ -370,7 +383,7 @@ if __name__=="__main__":
 
     # Plot stuff
     times = np.cumsum(time_steps)
-    plt.title(f"{example.name} | {integrator} | accuracy = {accuracy}")
+    plt.title(f"{example.name} | {integrator} integrator | accuracy = {accuracy}")
     plt.plot(times, time_steps, "o")
     plt.ylim(1e-10, 1e0)
     plt.yscale("log")
