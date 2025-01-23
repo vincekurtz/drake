@@ -42,7 +42,8 @@ def create_scene(
         meshcat: meshcat instance for visualization. Defaults to no visualization.
 
     Returns:
-        The system diagram and the MbP within that diagram
+        The system diagram, the MbP within that diagram, and the logger instance
+        used to keep track of time steps
     """
     builder = DiagramBuilder()
     plant, scene_graph = AddMultibodyPlantSceneGraph(
@@ -50,7 +51,9 @@ def create_scene(
 
     parser = Parser(plant)
     parser.AddModelsFromString(xml, "xml")
-    plant.set_discrete_contact_approximation(DiscreteContactApproximation.kLagged)
+    if time_step > 0:
+        plant.set_discrete_contact_approximation(
+            DiscreteContactApproximation.kLagged)
     plant.Finalize()
 
     if hydroelastic:
@@ -60,9 +63,16 @@ def create_scene(
 
     if meshcat is not None:
         AddDefaultVisualization(builder=builder, meshcat=meshcat)
+
+    logger = LogVectorOutput(
+        plant.get_state_output_port(), 
+        builder, 
+        publish_triggers={TriggerType.kForced}, 
+        publish_period = 0)
+    logger.set_name("logger")
     
     diagram = builder.Build()
-    return diagram, plant
+    return diagram, plant, logger
 
 
 def run_simulation(
@@ -98,10 +108,11 @@ def run_simulation(
         meshcat = None
 
     if integrator == "convex":
+        # Use our hacky custom integrator to step through the sim
         def step(state, time_step):
             """Take a single step with kLagged at a given timestep."""
             # Create a fresh system model
-            diagram, plant = create_scene(xml, time_step, use_hydroelastic)
+            diagram, plant, _ = create_scene(xml, time_step, use_hydroelastic)
             
             # Set the initial state
             context = diagram.CreateDefaultContext()
@@ -130,9 +141,11 @@ def run_simulation(
 
         # Create a model for visualization
         if meshcat is not None:
-            diagram, plant = create_scene(xml, 1.0, use_hydroelastic, meshcat)
+            diagram, plant, _ = create_scene(xml, 1.0, use_hydroelastic, meshcat)
             context = diagram.CreateDefaultContext()
             plant_context = diagram.GetMutableSubsystemContext(plant, context)
+            diagram.ForcedPublish(context)
+            input("Waiting for meshcat... [ENTER] to continue")
             meshcat.StartRecording()
 
         timesteps = []
@@ -197,6 +210,50 @@ def run_simulation(
             meshcat.PublishRecording()
 
         return np.array(timesteps)
+
+    else:
+        # We can use a more standard simulation setup and rely on a logger to
+        # tell use the time step information. Note that in this case enabling
+        # visualization messes with the time step report though. 
+
+        if integrator == "discrete":
+            pass 
+        else:
+            # Configure Drake's built-in error controlled integration
+            config = SimulatorConfig()
+            config.integration_scheme = integrator
+            config.max_step_size = max_step_size
+            config.accuracy = accuracy
+            config.target_realtime_rate = 1.0
+            config.use_error_control = True
+            config.publish_every_time_step = True
+
+            # Set up the system diagram and initial condition
+            diagram, plant, logger = create_scene(
+                xml, 0.0, use_hydroelastic, meshcat)
+            context = diagram.CreateDefaultContext()
+            plant_context = diagram.GetMutableSubsystemContext(plant, context)
+            plant.SetPositionsAndVelocities(plant_context, initial_state)
+
+            simulator = Simulator(diagram, context)
+            ApplySimulatorConfig(config, simulator)
+            simulator.Initialize()
+            input("Waiting for meshcat... [ENTER] to continue")
+
+            # Simulate
+            if meshcat is not None:
+                meshcat.StartRecording()
+            simulator.AdvanceTo(sim_time)
+            if meshcat is not None:
+                meshcat.PublishRecording()
+
+            PrintSimulatorStatistics(simulator)
+
+            # Get timesteps from the logger
+            log = logger.FindLog(context)
+            times = log.sample_times()
+            timesteps = times[1:] - times[0:-1]
+            return np.asarray(timesteps)
 
 
 if __name__=="__main__":
