@@ -20,6 +20,9 @@ from pydrake.visualization import AddDefaultVisualization, ModelVisualizer
 
 meshcat = StartMeshcat()
 
+print(type(meshcat))
+breakpoint()
+
 # Define a test model inline here
 xml = """
 <?xml version="1.0"?>
@@ -81,7 +84,7 @@ def simulate():
     sim_time = 1.0
     accuracy = 0.01
     max_dt = 0.01
-    min_dt = 1e-6
+    min_dt = 1e-10
 
     # Constants from IntegratorBase::CalcAdjustedStepSize    
     kSafety = 0.9
