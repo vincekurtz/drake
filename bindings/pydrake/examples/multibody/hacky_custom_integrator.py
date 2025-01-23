@@ -99,26 +99,17 @@ def simulate():
     timesteps = []
     errors = []
     while t < sim_time:
-        # Record the current timestep
-        timesteps.append(dt)
-        
         # Step the simulation two ways: one with a full step, and one with
         # two half steps.
         x_full = step(x, dt)
         x_half = step(x, dt / 2)
         x_half = step(x_half, dt / 2)
 
-        # We'll use the smaller steps to advance the sim
-        # TODO: add conditions for rejecting the step
-        x = x_half
-        t += dt
-
         # Error is the difference between the one-step and two-step estimates
         # TODO: use something more like IntegratorBase::CalcStateChangeNorm
         # to compute the error norm
         err = x_full - x_half
         err = np.linalg.norm(err)
-        errors.append(err)
         
         # Set the next timestep based on this error. Logic roughly follows
         # IntegratorBase::CalcAdjustedStepSize
@@ -136,6 +127,17 @@ def simulate():
                 new_dt = dt
             else:
                 new_dt = np.minimum(new_dt, kHysteresisLow * dt)
+
+        if err <= accuracy:
+            # We'll use the smaller steps to advance the sim, and only advance
+            # if it respects the desired accuracy
+            x = x_half
+            t += dt
+        
+            # Record the timestep and error vector only if we actually take
+            # the step
+            timesteps.append(dt)
+            errors.append(err)
 
         max_grow_dt = kMaxGrow * dt
         min_shrink_dt = kMinShrink * dt
