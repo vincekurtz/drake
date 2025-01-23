@@ -216,44 +216,46 @@ def run_simulation(
         # tell use the time step information. Note that in this case enabling
         # visualization messes with the time step report though. 
 
-        if integrator == "discrete":
-            pass 
-        else:
-            # Configure Drake's built-in error controlled integration
-            config = SimulatorConfig()
+        # Configure Drake's built-in error controlled integration
+        config = SimulatorConfig()
+        if integrator != "discrete":
             config.integration_scheme = integrator
-            config.max_step_size = max_step_size
-            config.accuracy = accuracy
-            config.target_realtime_rate = 1.0
-            config.use_error_control = True
-            config.publish_every_time_step = True
+        config.max_step_size = max_step_size
+        config.accuracy = accuracy
+        config.target_realtime_rate = 1.0
+        config.use_error_control = True
+        config.publish_every_time_step = True
 
-            # Set up the system diagram and initial condition
-            diagram, plant, logger = create_scene(
-                xml, 0.0, use_hydroelastic, meshcat)
-            context = diagram.CreateDefaultContext()
-            plant_context = diagram.GetMutableSubsystemContext(plant, context)
-            plant.SetPositionsAndVelocities(plant_context, initial_state)
+        # Set up the system diagram and initial condition
+        if integrator == "discrete":
+            time_step = max_step_size
+        else:
+            time_step = 0.0
+        diagram, plant, logger = create_scene(
+            xml, time_step, use_hydroelastic, meshcat)
+        context = diagram.CreateDefaultContext()
+        plant_context = diagram.GetMutableSubsystemContext(plant, context)
+        plant.SetPositionsAndVelocities(plant_context, initial_state)
 
-            simulator = Simulator(diagram, context)
-            ApplySimulatorConfig(config, simulator)
-            simulator.Initialize()
-            input("Waiting for meshcat... [ENTER] to continue")
+        simulator = Simulator(diagram, context)
+        ApplySimulatorConfig(config, simulator)
+        simulator.Initialize()
+        input("Waiting for meshcat... [ENTER] to continue")
 
-            # Simulate
-            if meshcat is not None:
-                meshcat.StartRecording()
-            simulator.AdvanceTo(sim_time)
-            if meshcat is not None:
-                meshcat.PublishRecording()
+        # Simulate
+        if meshcat is not None:
+            meshcat.StartRecording()
+        simulator.AdvanceTo(sim_time)
+        if meshcat is not None:
+            meshcat.PublishRecording()
 
-            PrintSimulatorStatistics(simulator)
+        PrintSimulatorStatistics(simulator)
 
-            # Get timesteps from the logger
-            log = logger.FindLog(context)
-            times = log.sample_times()
-            timesteps = times[1:] - times[0:-1]
-            return np.asarray(timesteps)
+        # Get timesteps from the logger
+        log = logger.FindLog(context)
+        times = log.sample_times()
+        timesteps = times[1:] - times[0:-1]
+        return np.asarray(timesteps)
 
 
 if __name__=="__main__":
@@ -262,10 +264,10 @@ if __name__=="__main__":
         use_hydroelastic = False,
         initial_state = np.array([1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 1., 0.]),
         sim_time = 1.0,
-        integrator = "convex",
+        integrator = "implicit_euler",
         accuracy = 0.1,
         max_step_size = 0.01,
-        visualize = True
+        visualize = False
     )
 
     # Plot stuff
