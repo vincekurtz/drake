@@ -40,6 +40,46 @@ def ball_on_table():
     sim_time = 1.0
     return SimulationExample(name, xml, use_hydroelastic, initial_state, sim_time)
 
+def cylinder_hydro():
+    """A cylinder with hydroelastic contact is dropped on the table."""
+    name = "Cylinder w/ hydroelastic"
+    xml = """
+    <?xml version="1.0"?>
+    <mujoco model="robot">
+    <worldbody>
+        <geom name="table_top" type="box" pos="0.0 0.0 0.0" size="0.55 1.1 0.05" rgba="0.9 0.8 0.7 1"/>
+        <body>
+            <joint type="free"/>
+            <geom name="object" type="cylinder" pos="0.0 0.0 0.5" euler="80 0 0" size="0.1 0.1" rgba="1.0 1.0 1.0 1.0"/>
+        </body>
+    </worldbody>
+    </mujoco>
+    """
+    use_hydroelastic = True
+    initial_state = np.array([1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 1., 0.])
+    sim_time = 1.0
+    return SimulationExample(name, xml, use_hydroelastic, initial_state, sim_time)
+
+def cylinder_point():
+    """A cylinder with point contact is dropped on the table."""
+    name = "Cylinder w/ point contact"
+    xml = """
+    <?xml version="1.0"?>
+    <mujoco model="robot">
+    <worldbody>
+        <geom name="table_top" type="box" pos="0.0 0.0 0.0" size="0.55 1.1 0.05" rgba="0.9 0.8 0.7 1"/>
+        <body>
+            <joint type="free"/>
+            <geom name="object" type="cylinder" pos="0.0 0.0 0.5" euler="80 0 0" size="0.1 0.1" rgba="1.0 1.0 1.0 1.0"/>
+        </body>
+    </worldbody>
+    </mujoco>
+    """
+    use_hydroelastic = False
+    initial_state = np.array([1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 1., 0.])
+    sim_time = 1.0
+    return SimulationExample(name, xml, use_hydroelastic, initial_state, sim_time)
+
 def create_scene(
     xml: str, 
     time_step: float, 
@@ -272,16 +312,16 @@ def run_simulation(
 
 
 if __name__=="__main__":
-    example = ball_on_table()
+    example = cylinder_hydro()
     integrator = "convex"
-    accuracy = 0.1
+    accuracy = 0.001
 
     time_steps = run_simulation(
         example,
         integrator,
         accuracy,
         max_step_size = 0.01,
-        visualize = False
+        visualize = True,
     )
 
     # Plot stuff
