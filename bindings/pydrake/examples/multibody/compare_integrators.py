@@ -1,5 +1,6 @@
 from pydrake.all import *
 
+import time
 import matplotlib.pyplot as plt
 import numpy as np
 from dataclasses import dataclass
@@ -224,9 +225,11 @@ def run_simulation(
 
             # Do a single timestep of integration with kLagged 
             simulator = Simulator(diagram, context)
+            st = time.time()
             simulator.AdvanceTo(time_step)
+            sim_time = time.time() - st
 
-            return plant.GetPositionsAndVelocities(plant_context)
+            return plant.GetPositionsAndVelocities(plant_context), sim_time
 
         # Hacky version of error-controlled convex integrator
         x = initial_state
@@ -252,12 +255,18 @@ def run_simulation(
             meshcat.StartRecording()
 
         timesteps = []
+        wall_time = 0.0
         while t < sim_time:
             # Step the simulation two ways: one with a full step, and one with
             # two half steps.
-            x_full = step(x, dt)
-            x_half = step(x, dt / 2)
-            x_half = step(x_half, dt / 2)
+            x_full, t0 = step(x, dt)
+            x_half, t1 = step(x, dt / 2)
+            x_half, t2 = step(x_half, dt / 2)
+
+            # Approximate wall clock based on the time in simulator.AdvanceTo
+            # This will be an overestimate of what we can achieve in a good
+            # implementation.
+            wall_time += t0 + t1 + t2
 
             # Error is the difference between the one-step and two-step
             # estimates.
@@ -313,6 +322,7 @@ def run_simulation(
             meshcat.PublishRecording()
 
         print("")
+        print(f"Approximate wall clock time = {wall_time}")
         print(f"Number of time steps taken = {len(timesteps)}")
         print(f"Smallest step size = {np.min(timesteps)}")
         print("")
@@ -328,7 +338,7 @@ def run_simulation(
             config.integration_scheme = integrator
         config.max_step_size = max_step_size
         config.accuracy = accuracy
-        config.target_realtime_rate = 1.0
+        config.target_realtime_rate = 0.0
         config.use_error_control = True
         config.publish_every_time_step = True
 
@@ -352,11 +362,14 @@ def run_simulation(
         # Simulate
         if meshcat is not None:
             meshcat.StartRecording()
+        start_time = time.time()
         simulator.AdvanceTo(sim_time)
+        wall_time = time.time() - start_time
         if meshcat is not None:
             meshcat.StopRecording()
             meshcat.PublishRecording()
 
+        print(f"\nWall clock time: {wall_time}\n")
         PrintSimulatorStatistics(simulator)
 
         # Get timesteps from the logger
@@ -369,9 +382,9 @@ def run_simulation(
 
 
 if __name__=="__main__":
-    example = clutter()
-    integrator = "convex"
-    accuracy = 0.01
+    example = cylinder_hydro()
+    integrator = "runge_kutta3"
+    accuracy = 0.1
 
     time_steps, meshcat = run_simulation(
         example,
