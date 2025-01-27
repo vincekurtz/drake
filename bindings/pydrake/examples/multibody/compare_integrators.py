@@ -21,6 +21,32 @@ class SimulationExample:
     initial_state: np.array
     sim_time: float
 
+def gripper():
+    """A fake "gripper", where an object is wedged between two fixed joints."""
+    name = "Gripper"
+    xml = """
+    <?xml version="1.0"?>
+    <mujoco model="robot">
+      <worldbody>
+        <geom name="table" type="box" size="0.5 0.5 0.02" rgba="0.5 0.5 0.5 0.5"/>
+        <body>
+          <joint type="slide" />
+          <geom name="post" type="box" pos="0 0 0.3" size="0.02 0.02 0.1" rgba="0.5 0.5 0.5 0.5"/>
+          <geom name="finger1" type="box" pos="0.01 0.025 0.39" size="0.005 0.04 0.005" rgba="0.5 0.5 0.5 0.5"/>
+          <geom name="finger2" type="box" pos="-0.01 0.025 0.39" size="0.005 0.04 0.005" rgba="0.5 0.5 0.5 0.5"/>
+        </body>
+        <body>
+          <joint type="free" />
+          <geom name="manipuland" type="box" pos="0.0 0.05 0.36" euler="10 0 0" size="0.00501 0.005 0.04" rgba="0.9 0.8 0.7 1.0"/>
+        </body>
+      </worldbody>
+    </mujoco>
+    """
+    use_hydroelastic = True
+    initial_state = np.array([0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+    sim_time = 2.0
+    return SimulationExample(name, xml, use_hydroelastic, initial_state, sim_time)
+
 def ball_on_table():
     """A sphere is dropped on a table with some initial horizontal velocity."""
     name = "Ball on table"
@@ -405,16 +431,16 @@ def run_simulation(
 
 
 if __name__=="__main__":
-    example = double_pendulum()
-    integrator = "implicit_euler"
-    accuracy = 0.00001
+    example = gripper()
+    integrator = "discrete"
+    accuracy = 0.1
 
     time_steps, meshcat = run_simulation(
         example,
         integrator,
         accuracy,
-        max_step_size = 0.01,
-        visualize = False,
+        max_step_size = 0.001,
+        visualize = True,
     )
 
     # Plot stuff
