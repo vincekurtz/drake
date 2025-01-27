@@ -41,6 +41,29 @@ def ball_on_table():
     sim_time = 1.0
     return SimulationExample(name, xml, use_hydroelastic, initial_state, sim_time)
 
+def double_pendulum():
+    """A simple double pendulum (no contact)."""
+    name = "Double Pendulum"
+    xml = """
+    <?xml version="1.0"?>
+    <mujoco model="robot">
+    <worldbody>
+        <body>
+        <joint type="hinge" axis="0 1 0" pos="0 0 0.1" damping="1e-3"/>
+        <geom type="capsule" size="0.01 0.1"/>
+        <body>
+            <joint type="hinge" axis="0 1 0" pos="0 0 -0.1" damping="1e-3"/>
+            <geom type="capsule" size="0.01 0.1" pos="0 0 -0.2"/>
+        </body>
+        </body>
+    </worldbody>
+    </mujoco>
+    """
+    use_hydroelastic = False
+    initial_state = np.array([3.0, 0.1, 0.0, 0.0])
+    sim_time = 2.0
+    return SimulationExample(name, xml, use_hydroelastic, initial_state, sim_time)
+
 def cylinder_hydro():
     """A cylinder with hydroelastic contact is dropped on the table."""
     name = "Cylinder w/ hydroelastic"
@@ -382,16 +405,16 @@ def run_simulation(
 
 
 if __name__=="__main__":
-    example = clutter()
-    integrator = "convex"
-    accuracy = 1.0
+    example = double_pendulum()
+    integrator = "implicit_euler"
+    accuracy = 0.00001
 
     time_steps, meshcat = run_simulation(
         example,
         integrator,
         accuracy,
         max_step_size = 0.01,
-        visualize = True,
+        visualize = False,
     )
 
     # Plot stuff
