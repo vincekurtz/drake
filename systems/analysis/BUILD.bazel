@@ -20,6 +20,7 @@ drake_cc_package_library(
         ":antiderivative_function",
         ":batch_eval",
         ":bogacki_shampine3_integrator",
+        ":convex_integrator",
         ":dense_output",
         ":explicit_euler_integrator",
         ":hermitian_dense_output",
@@ -84,6 +85,7 @@ drake_cc_library(
     hdrs = ["simulator_config_functions.h"],
     deps = [
         ":bogacki_shampine3_integrator",
+        ":convex_integrator",
         ":explicit_euler_integrator",
         ":implicit_euler_integrator",
         ":radau_integrator",
@@ -105,6 +107,15 @@ drake_cc_library(
     name = "bogacki_shampine3_integrator",
     srcs = ["bogacki_shampine3_integrator.cc"],
     hdrs = ["bogacki_shampine3_integrator.h"],
+    deps = [
+        ":integrator_base",
+    ],
+)
+
+drake_cc_library(
+    name = "convex_integrator",
+    srcs = ["convex_integrator.cc"],
+    hdrs = ["convex_integrator.h"],
     deps = [
         ":integrator_base",
     ],
@@ -584,6 +595,15 @@ drake_cc_googletest(
         ":runge_kutta2_integrator",
         "//common/test_utilities:eigen_matrix_compare",
         "//math:geometric_transform",
+        "//multibody/plant",
+        "//systems/analysis/test_utilities",
+    ],
+)
+
+drake_cc_googletest(
+    name = "convex_integrator_test",
+    deps = [
+        ":convex_integrator",
         "//multibody/plant",
         "//systems/analysis/test_utilities",
     ],
