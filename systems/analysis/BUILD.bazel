@@ -118,6 +118,8 @@ drake_cc_library(
     hdrs = ["convex_integrator.h"],
     deps = [
         ":integrator_base",
+        "//multibody/plant",
+        "//systems/framework:diagram",
     ],
 )
 
