@@ -47,7 +47,7 @@ namespace {
 constexpr double kHuge = 1.0e40;
 
 // Simulation parameters.
-DEFINE_double(simulation_time, 10.0, "Simulation duration in seconds");
+DEFINE_double(simulation_time, 3.0, "Simulation duration in seconds");
 DEFINE_double(
     mbp_time_step, 1.0E-2,
     "If mbp_time_step > 0, the fixed-time step period (in seconds) of discrete "
@@ -97,7 +97,7 @@ DEFINE_bool(visualize_multicontact, false,
 DEFINE_double(viz_period, 1.0 / 60.0, "Viz period.");
 
 // Discrete contact solver.
-DEFINE_string(discrete_contact_approximation, "sap",
+DEFINE_string(discrete_contact_approximation, "lagged",
               "Discrete contact solver. Options are: 'tamsi', 'sap', 'lagged', "
               "'similar'.");
 DEFINE_double(near_rigid_threshold, 1.0, "SAP near rigid threshold.");
