@@ -264,10 +264,11 @@ void CompliantContactManager<T>::DoExtractModelInfo() {
       // plant to symbolic and perform other supported queries such as
       // introspection and kinematics.
       if constexpr (!std::is_same_v<T, symbolic::Expression>) {
+        const double time_step = plant().time_step();
         const double near_rigid_threshold =
             plant().get_sap_near_rigid_threshold();
-        sap_driver_ =
-            std::make_unique<SapDriver<T>>(this, near_rigid_threshold);
+        sap_driver_ = std::make_unique<SapDriver<T>>(this, time_step,
+                                                     near_rigid_threshold);
       }
       break;
     case DiscreteContactSolver::kTamsi:

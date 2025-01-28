@@ -83,7 +83,7 @@ class SapDriver {
   // @pre manager is not nullptr.
   // @pre near_rigid_threshold is positive.
   explicit SapDriver(const CompliantContactManager<T>* manager,
-                     double near_rigid_threshold = 1.0);
+                     double time_step, double near_rigid_threshold = 1.0);
 
   ~SapDriver();
 
@@ -120,6 +120,12 @@ class SapDriver {
   const ContactProblemCache<T>& EvalContactProblemCache(
       const systems::Context<T>& context) const;
 
+  // Get the current time step
+  double get_time_step() const { return time_step_; }
+
+  // Set the time step for error-controlled integration
+  void set_time_step(double time_step) { time_step_ = time_step; }
+
  private:
   // Provide private access for unit testing only.
   friend class SapDriverTest;
@@ -127,6 +133,9 @@ class SapDriver {
   const CompliantContactManager<T>& manager() const { return *manager_; }
 
   const MultibodyPlant<T>& plant() const { return manager().plant(); }
+
+  // Time step can be changed for error-controlled integration
+  double time_step_;
 
   const MultibodyTreeTopology& tree_topology() const {
     return manager().tree_topology();

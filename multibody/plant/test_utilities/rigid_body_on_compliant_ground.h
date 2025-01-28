@@ -162,7 +162,8 @@ class RigidBodyOnCompliantGround
     manager_ = owned_contact_manager.get();
     plant_->SetDiscreteUpdateManager(std::move(owned_contact_manager));
     tamsi_driver_ = std::make_unique<TamsiDriver<double>>(manager_);
-    sap_driver_ = std::make_unique<SapDriver<double>>(manager_);
+    sap_driver_ =
+        std::make_unique<SapDriver<double>>(manager_, plant_->time_step());
 
     // Create context.
     context_ = diagram_->CreateDefaultContext();

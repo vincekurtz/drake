@@ -63,8 +63,10 @@ namespace internal {
 
 template <typename T>
 SapDriver<T>::SapDriver(const CompliantContactManager<T>* manager,
-                        double near_rigid_threshold)
-    : manager_(manager), near_rigid_threshold_(near_rigid_threshold) {
+                        double time_step, double near_rigid_threshold)
+    : time_step_(time_step),
+      manager_(manager),
+      near_rigid_threshold_(near_rigid_threshold) {
   DRAKE_DEMAND(manager != nullptr);
   DRAKE_DEMAND(near_rigid_threshold >= 0.0);
 }
