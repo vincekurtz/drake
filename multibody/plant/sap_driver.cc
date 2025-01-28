@@ -91,7 +91,7 @@ void SapDriver<T>::DeclareCacheEntries(
 
   const auto& contact_problem_cache_entry = mutable_manager->DeclareCacheEntry(
       "contact problem",
-      systems::ValueProducer(this, ContactProblemCache<T>(plant().time_step()),
+      systems::ValueProducer(this, ContactProblemCache<T>(get_time_step()),
                              &SapDriver<T>::CalcContactProblemCache),
       // The ContactProblemCache includes free motion velocities which include
       // contribution from force elements, which could involve user-injected
@@ -151,7 +151,7 @@ void SapDriver<T>::CalcLinearDynamicsMatrix(const systems::Context<T>& context,
   // external actuation, evaluated at the previous state x₀.
   // The dynamics matrix is defined as:
   //   A = ∂m/∂v = (M + dt⋅D)
-  M.diagonal() += plant().time_step() * plant().EvalJointDampingCache(context);
+  M.diagonal() += get_time_step() * plant().EvalJointDampingCache(context);
 
   for (TreeIndex t(0); t < tree_topology().num_trees(); ++t) {
     const int tree_start_in_v = tree_topology().tree_velocities_start_in_v(t);
@@ -178,7 +178,7 @@ void SapDriver<T>::CalcFreeMotionVelocities(const systems::Context<T>& context,
       manager()
           .EvalAccelerationsDueToNonConstraintForcesCache(context)
           .get_vdot();
-  const double dt = this->plant().time_step();
+  const double dt = get_time_step();
   const VectorX<T>& x0 =
       context.get_discrete_state(manager().multibody_state_index()).value();
   const auto v0 = x0.bottomRows(this->plant().num_velocities());
@@ -303,7 +303,7 @@ void SapDriver<T>::AddLimitConstraints(const systems::Context<T>& context,
   // See notes below for details. Dimensionless.
   constexpr double kLimitWindowFactor = 2.0;
 
-  const double dt = plant().time_step();
+  const double dt = get_time_step();
 
   // N.B. MultibodyPlant estimates very conservative (soft) stiffness and
   // damping parameters to ensure that the explicit treatment of the compliant
@@ -810,7 +810,7 @@ void SapDriver<T>::CalcContactProblemCache(
           : manager().deformable_driver()->num_deformable_bodies();
   const int num_objects = num_rigid_bodies + num_deformable_bodies;
   cache->sap_problem = std::make_unique<SapContactProblem<T>>(
-      plant().time_step(), std::move(A), std::move(v_star));
+      get_time_step(), std::move(A), std::move(v_star));
   cache->sap_problem->set_num_objects(num_objects);
   SapContactProblem<T>& problem = *cache->sap_problem;
   // N.B. All contact constraints must be added before any other constraint
@@ -871,7 +871,7 @@ void SapDriver<T>::PackContactSolverResults(
       sap_results.gamma.head(3 * num_contacts);
   const Eigen::VectorBlock<const VectorX<T>> contact_velocities =
       sap_results.vc.head(3 * num_contacts);
-  const double time_step = plant().time_step();
+  const double time_step = get_time_step();
   ExtractNormal(contact_impulses, &contact_results->fn);
   ExtractTangent(contact_impulses, &contact_results->ft);
   contact_results->fn /= time_step;
@@ -1037,7 +1037,7 @@ void SapDriver<T>::CalcDiscreteUpdateMultibodyForces(
   const SapSolverResults<T>& sap_results = EvalSapSolverResults(context);
   // Generalized velocities and accelerations.
   const VectorX<T>& v = sap_results.v;
-  const VectorX<T> a = (v - v0) / plant().time_step();
+  const VectorX<T> a = (v - v0) / get_time_step();
 
   // Include all state dependent forces (not constraints) evaluated at t₀
   // (previous time step as stored in the context).
