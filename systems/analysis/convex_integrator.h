@@ -45,12 +45,11 @@ class ConvexIntegrator final : public IntegratorBase<T> {
 
     // Check that the system we're simulating is a diagram with a plant in it
     const Diagram<T>* diagram = dynamic_cast<const Diagram<T>*>(&system);
-    DRAKE_ASSERT(diagram != nullptr);
+    DRAKE_DEMAND(diagram != nullptr);
 
-    // Isolate the MultibodyPlant subsystem
     plant_ = dynamic_cast<const MultibodyPlant<T>*>(
         &diagram->GetSubsystemByName("plant"));
-    DRAKE_ASSERT(plant_ != nullptr);
+    DRAKE_DEMAND(plant_ != nullptr);
 
     // TODO(vincekurtz): consider additional checks to ensure that there are no
     // significant systems other than the plant in the diagram.
@@ -61,6 +60,8 @@ class ConvexIntegrator final : public IntegratorBase<T> {
 
   // TODO(vincekurtz): add error estimation
   int get_error_estimate_order() const override { return 0; }
+
+  const MultibodyPlant<T>& plant() const {return *plant_; }
 
  private:
   // The primary integration step, sets x_{t+h}
