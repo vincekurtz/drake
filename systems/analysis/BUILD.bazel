@@ -604,8 +604,15 @@ drake_cc_googletest(
     name = "convex_integrator_test",
     deps = [
         ":convex_integrator",
+        ":simulator",
+        ":simulator_gflags",
+        ":simulator_print_stats",
+        "//geometry:meshcat_visualizer",
+        "//multibody/parsing",
         "//multibody/plant",
         "//systems/analysis/test_utilities",
+        "//systems/framework:diagram",
+        "//visualization:visualization_config_functions",
     ],
 )
 
