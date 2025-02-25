@@ -10,6 +10,7 @@
 #include <gflags/gflags.h>
 
 #include "drake/geometry/meshcat_visualizer.h"
+#include "drake/geometry/scene_graph.h"
 #include "drake/multibody/parsing/parser.h"
 #include "drake/multibody/plant/multibody_plant_config_functions.h"
 #include "drake/systems/analysis/simulator.h"
@@ -27,7 +28,14 @@ DEFINE_bool(visualize, false, "Whether to visualize (true) or not (false).");
 DEFINE_bool(meshes, false,
             "Whether to an example with complicated meshes (true) or just a "
             "bunch of spheres (false).");
+DEFINE_double(near_rigid_threshold, 1.0, "Threshold for near-rigid contact.");
+DEFINE_double(stiction_tolerance, 1.0e-4, "Stiction tolerance [m/s].");
+DEFINE_double(penetration_allowance, 1.0e-3,
+              "Penetration allowance for contact.");
+DEFINE_double(point_stiffness, 1.0e6,
+              "Stiffness for point contact [N/m].");
 
+using geometry::SceneGraphConfig;
 using multibody::AddMultibodyPlant;
 using multibody::MultibodyPlantConfig;
 using multibody::Parser;
@@ -43,6 +51,9 @@ int do_main() {
 
   MultibodyPlantConfig plant_config;
   plant_config.time_step = FLAGS_time_step;
+  plant_config.sap_near_rigid_threshold = FLAGS_near_rigid_threshold;
+  plant_config.stiction_tolerance = FLAGS_stiction_tolerance;
+  plant_config.penetration_allowance = FLAGS_penetration_allowance; 
   auto [plant, scene_graph] = AddMultibodyPlant(plant_config, &builder);
 
   std::string url = "package://drake/examples/clutter/spheres_in_a_box.xml";
@@ -51,6 +62,10 @@ int do_main() {
   }
   Parser(&plant).AddModelsFromUrl(url);
   plant.Finalize();
+
+  SceneGraphConfig sg_config;
+  sg_config.default_proximity_properties.point_stiffness = FLAGS_point_stiffness;
+  scene_graph.set_config(sg_config);
 
   auto meshcat = std::make_shared<drake::geometry::Meshcat>();
   if (FLAGS_visualize) {
