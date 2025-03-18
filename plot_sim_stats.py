@@ -96,6 +96,9 @@ def make_plots(csv_file, start_step, end_step):
 def analyze_data(csv_file, start_step, end_step):
     """Answer some basic questions about the data."""
     data = pd.read_csv(csv_file)
+    
+    if end_step == -1:
+        end_step = len(data)
 
     # Extract the relevant quantities
     k = np.array(data["k"][start_step:end_step])
@@ -109,34 +112,34 @@ def analyze_data(csv_file, start_step, end_step):
     print("\nHow many Newton solves?")
     phase_0_solves = np.sum(np.logical_and(k == 0, solve_phase == 0))
     phase_1_solves = np.sum(np.logical_and(k == 0, solve_phase == 1))
-    phase_2_solves = np.sum(np.logical_and(k == 0, solve_phase == 2))
+    # phase_2_solves = np.sum(np.logical_and(k == 0, solve_phase == 2))
     print("==> ", phase_0_solves, "full steps t --> t+h (phase 0)")
     print("==> ", phase_1_solves, "half steps t --> t+h/2 (phase 1)")
-    print("==> ", phase_2_solves, "half steps t+h/2 --> t+h (phase 2)")
+    # print("==> ", phase_2_solves, "half steps t+h/2 --> t+h (phase 2)")
 
     print("\nHow many Newton steps in each phase?")
     phase_0_steps = np.sum(solve_phase == 0)
     phase_1_steps = np.sum(solve_phase == 1)
-    phase_2_steps = np.sum(solve_phase == 2)
+    # phase_2_steps = np.sum(solve_phase == 2)
     print("==> ", phase_0_steps, "(phase 0)")
     print("==> ", phase_1_steps, "(phase 1)")
-    print("==> ", phase_2_steps, "(phase 2)")
+    # print("==> ", phase_2_steps, "(phase 2)")
 
     print("\nHow many Newton steps on average?")
     phase_0_avg = phase_0_steps / phase_0_solves
     phase_1_avg = phase_1_steps / phase_1_solves
-    phase_2_avg = phase_2_steps / phase_2_solves
+    # phase_2_avg = phase_2_steps / phase_2_solves
     print(f"==>  {phase_0_avg:.1f} (phase 0)")
     print(f"==>  {phase_1_avg:.1f} (phase 1)")
-    print(f"==>  {phase_2_avg:.1f} (phase 2)")
+    # print(f"==>  {phase_2_avg:.1f} (phase 2)")
 
     print("\nMaximum number of Newton steps in each phase?")
     phase_0_max = np.max(k[np.where(solve_phase == 0)])
     phase_1_max = np.max(k[np.where(solve_phase == 1)])
-    phase_2_max = np.max(k[np.where(solve_phase == 2)])
+    # phase_2_max = np.max(k[np.where(solve_phase == 2)])
     print("==> ", phase_0_max, "(phase 0)")
     print("==> ", phase_1_max, "(phase 1)")
-    print("==> ", phase_2_max, "(phase 2)")
+    # print("==> ", phase_2_max, "(phase 2)")
 
     print("\nHow many Hessian refreshes?")
     print("==> ", np.sum(hessian_refresh))
@@ -147,18 +150,18 @@ def analyze_data(csv_file, start_step, end_step):
     print("\nHow many Hessian refreshes occured in each phase?")
     phase_0_refreshes = np.sum(np.logical_and(hessian_refresh, solve_phase == 0))
     phase_1_refreshes = np.sum(np.logical_and(hessian_refresh, solve_phase == 1))
-    phase_2_refreshes = np.sum(np.logical_and(hessian_refresh, solve_phase == 2))
+    # phase_2_refreshes = np.sum(np.logical_and(hessian_refresh, solve_phase == 2))
     print("==> ", phase_0_refreshes, "(phase 0)")
     print("==> ", phase_1_refreshes, "(phase 1)")
-    print("==> ", phase_2_refreshes, "(phase 2)")
+    # print("==> ", phase_2_refreshes, "(phase 2)")
 
     print("\nHow many problem structure changes in each phase?")
     phase_0_changes = np.sum(np.logical_and(problem_changed, solve_phase == 0))
     phase_1_changes = np.sum(np.logical_and(problem_changed, solve_phase == 1))
-    phase_2_changes = np.sum(np.logical_and(problem_changed, solve_phase == 2))
+    # phase_2_changes = np.sum(np.logical_and(problem_changed, solve_phase == 2))
     print("==> ", phase_0_changes, "(phase 0)")
     print("==> ", phase_1_changes, "(phase 1)")
-    print("==> ", phase_2_changes, "(phase 2)")
+    # print("==> ", phase_2_changes, "(phase 2)")
 
 
 def plot_hessian_refreshes(csv_file, start_step, end_step, include_baseline=False):
@@ -240,7 +243,7 @@ if __name__ == "__main__":
     csv_file = "./bazel-bin/examples/multibody/clutter/clutter.runfiles/_main/convex_integrator.csv"
 
     # Set the data range (in terms of solver steps)
-    start_step = 500
+    start_step = 0
     end_step = 700
 
     # Answer some questions about the data

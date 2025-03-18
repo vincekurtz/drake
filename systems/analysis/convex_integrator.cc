@@ -162,7 +162,7 @@ bool ConvexIntegrator<T>::DoStep(const T& h) {
   const double a22 = gamma;
   const double b1 = 1.0 - gamma;
   const double b2 = gamma;
-  const double bhat2 = 0.5;  // arbitrary free parameter (as long as != gamma)
+  const double bhat2 = 0.25;  // arbitrary free parameter (as long as != gamma)
   const double bhat1 = 1.0 - bhat2;
 
   // Set time and time-step for debugging
@@ -188,7 +188,7 @@ bool ConvexIntegrator<T>::DoStep(const T& h) {
   mutable_context.SetTime(t0 + c1 * h);
   v_guess = plant().GetVelocities(plant_context);
   CalcNextContinuousState(h * a11, v_guess, &x1);
-  VectorX<T> f1 = (x1.CopyToVector() - x0) / (h * a11);
+  const VectorX<T> f1 = (x1.CopyToVector() - x0) / (h * a11);
 
   // Second phase: solve for x₂ = x₀ + h a₂₁f(t₁, x₁) + h a₂₂f(t₂, x₂).
   // We'll do this by first setting x = x₀ + h a₂₁f(t₁, x₁), then solving for
@@ -196,9 +196,9 @@ bool ConvexIntegrator<T>::DoStep(const T& h) {
   solve_phase_ = 1;
   x.SetFromVector(x0 + h * a21 * f1);
   mutable_context.SetTimeAndNoteContinuousStateChange(t0 + c2 * h);
-  v_guess = x1.get_generalized_velocity().CopyToVector();
+  v_guess = x.get_generalized_velocity().CopyToVector();
   CalcNextContinuousState(h * a22, v_guess, &x2);
-  VectorX<T> f2 = (x2.CopyToVector() - x.CopyToVector()) / (h * a22);
+  const VectorX<T> f2 = (x2.CopyToVector() - x.CopyToVector()) / (h * a22);
 
   // Advance the state as x₀ + h b₁f(t₁, x₁) + h b₂f(t₂, x₂)
   x.SetFromVector(x0 + h * (b1 * f1 + b2 * f2));
@@ -206,7 +206,7 @@ bool ConvexIntegrator<T>::DoStep(const T& h) {
 
   // Determine the error estimate using the embedded lower-order method
   if (!this->get_fixed_step_mode()) {
-    VectorX<T> x_hat = x0 + h * (bhat1 * f1 + bhat2 * f2);
+    const VectorX<T> x_hat = x0 + h * (bhat1 * f1 + bhat2 * f2);
     ContinuousState<T>& err = *this->get_mutable_error_estimate();
     err.SetFromVector(x.CopyToVector() - x_hat);
   }
