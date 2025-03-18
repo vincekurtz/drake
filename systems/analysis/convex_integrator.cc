@@ -145,10 +145,25 @@ void ConvexIntegrator<T>::DoInitialize() {
 
 template <typename T>
 bool ConvexIntegrator<T>::DoStep(const T& h) {
+  using std::sqrt;
   // Get references to the overall diagram context and the plant context
   const Context<T>& diagram_context = this->get_context();
   const Context<T>& plant_context =
       plant().GetMyContextFromRoot(diagram_context);
+
+  // Single Diagonally Implicit Runge Kutta (SDIRK) coefficients from Kennedy
+  // and Carpenter, "Diagonaly Implicit Runge-Kutta Method for Oridnary
+  // Differential Equations", 2016. pp 72, eq (221).
+  const double gamma = (2.0 - sqrt(2.0)) / 2.0;
+  const double c1 = gamma;
+  const double c2 = 1.0;
+  const double a11 = gamma;
+  const double a21 = 1.0 - gamma;
+  const double a22 = gamma;
+  const double b1 = 1.0 - gamma;
+  const double b2 = gamma;
+  const double bhat2 = 0.5;
+  const double bhat1 = 1.0 - bhat2;
 
   // Set time and time-step for debugging
   const T t0 = diagram_context.get_time();
@@ -157,51 +172,43 @@ bool ConvexIntegrator<T>::DoStep(const T& h) {
 
   // Workspace allocations
   VectorX<T>& v_guess = workspace_.v;
-
-  // Solve the for the full step x_{t+h}
-  solve_phase_ = 0;
-  v_guess = plant().GetVelocities(plant_context);
-  CalcNextContinuousState(h, v_guess, x_next_full_.get());
-
+ 
+  // Mutable context
   Context<T>& mutable_context = *this->get_mutable_context();
-  ContinuousState<T>& x_next = mutable_context.get_mutable_continuous_state();
+  ContinuousState<T>& x = mutable_context.get_mutable_continuous_state();
 
-  if (this->get_fixed_step_mode()) {
-    // We're using fixed step mode, so we can just set the state to x_{t+h} and
-    // move on. No need for error estimation.
-    x_next.SetFrom(*x_next_full_);
-    mutable_context.SetTimeAndNoteContinuousStateChange(t0 + h);
-  } else {
-    // We're using error control, and will compare with two half-sized steps.
+  // TODO: rename these
+  const VectorX<T> x0 = diagram_context.get_continuous_state().CopyToVector();
+  ContinuousState<T>& x1 = *x_next_full_;
+  ContinuousState<T>& x2 = *x_next_half_1_;
 
-    // First half-step to (t + h/2) uses the average of v_t and v_{t+1} as the
-    // initial guess
-    solve_phase_ = 1;
-    v_guess += x_next_full_->get_generalized_velocity().CopyToVector();
-    v_guess /= 2.0;
-    CalcNextContinuousState(0.5 * h, v_guess, x_next_half_1_.get());
+  // First phase: solve for x₁ = x₀ + h a₁₁f(t₁, x₁) using convex SAP.
+  // We'll do this by solving the SAP problem from x = x₀ with timestep h a₁₁.
+  solve_phase_ = 0;
+  mutable_context.SetTime(t0 + c1 * h);
+  v_guess = plant().GetVelocities(plant_context);
+  CalcNextContinuousState(h * a11, v_guess, &x1);
+  VectorX<T> f1 = (x1.CopyToVector() - x0) / (h * a11);
 
-    // For the second half-step to (t + h), we need to start from (t + h/2). So
-    // we'll first set the system state to the result of the first half-step.
-    x_next.SetFrom(*x_next_half_1_);
-    mutable_context.SetTimeAndNoteContinuousStateChange(t0 + 0.5 * h);
+  // Second phase: solve for x₂ = x₀ + h a₂₁f(t₁, x₁) + h a₂₂f(t₂, x₂).
+  // We'll do this by first setting x = x₀ + h a₂₁f(t₁, x₁), then solving for
+  // the step from x to x₂ with timestep h a₂₂.
+  solve_phase_ = 1;
+  x.SetFromVector(x0 + h * a21 * f1);
+  mutable_context.SetTimeAndNoteContinuousStateChange(t0 + c2 * h);
+  v_guess = x1.get_generalized_velocity().CopyToVector();
+  CalcNextContinuousState(h * a22, v_guess, &x2);
+  VectorX<T> f2 = (x2.CopyToVector() - x.CopyToVector()) / (h * a22);
 
-    // Now we can take the second half-step. We'll use the solution of the full
-    // step as our initial guess here.
-    solve_phase_ = 2;
-    v_guess = x_next_full_->get_generalized_velocity().CopyToVector();
-    CalcNextContinuousState(0.5 * h, v_guess, x_next_half_2_.get());
+  // Advance the state as x₀ + h b₁f(t₁, x₁) + h b₂f(t₂, x₂)
+  x.SetFromVector(x0 + h * (b1 * f1 + b2 * f2));
+  mutable_context.SetTimeAndNoteContinuousStateChange(t0 + h);
 
-    // Set the state to the result of the second half-step (since this is more
-    // accurate than the full step, and we have it anyway).
-    x_next.SetFrom(*x_next_half_2_);
-    mutable_context.SetTimeAndNoteContinuousStateChange(t0 + h);
-
-    // Estimate the error as the difference between the full step and the
-    // two half-steps.
+  // Determine the error estimate using the embedded lower-order method
+  if (!this->get_fixed_step_mode()) {
+    VectorX<T> x_hat = x0 + h * (bhat1 * f1 + bhat2 * f2);
     ContinuousState<T>& err = *this->get_mutable_error_estimate();
-    err.SetFrom(*x_next_full_);
-    err.get_mutable_vector().PlusEqScaled(-1.0, x_next_half_2_->get_vector());
+    err.SetFromVector(x.CopyToVector() - x_hat);
   }
 
   return true;  // step was successful
