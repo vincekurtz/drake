@@ -151,19 +151,32 @@ bool ConvexIntegrator<T>::DoStep(const T& h) {
   const Context<T>& plant_context =
       plant().GetMyContextFromRoot(diagram_context);
 
-  // Single Diagonally Implicit Runge Kutta (SDIRK) coefficients from Kennedy
-  // and Carpenter, "Diagonaly Implicit Runge-Kutta Method for Oridnary
-  // Differential Equations", 2016. pp 72, eq (221).
+  // Explicit Single Diagonally Implicit Runge Kutta (ESDIRK) coefficients from
+  // Kennedy and Carpenter, "Diagonaly Implicit Runge-Kutta Method for Oridnary
+  // Differential Equations", 2016. pp 71, eq (219).
+
   const double gamma = (2.0 - sqrt(2.0)) / 2.0;
-  const double c1 = gamma;
-  const double c2 = 1.0;
-  const double a11 = gamma;
-  const double a21 = 1.0 - gamma;
+
+  const double c2 = 2 * gamma;
+  const double c3 = 1.0;
+
+  const double b3 = gamma;
+  const double b2 = (1.0 - 2 * gamma) / (4 * gamma);
+  const double b1 = 1.0 - b2 - gamma;
+
+  const double a21 = gamma;
   const double a22 = gamma;
-  const double b1 = 1.0 - gamma;
-  const double b2 = gamma;
-  const double bhat2 = 0.25;  // arbitrary free parameter (as long as != gamma)
-  const double bhat1 = 1.0 - bhat2;
+  const double a31 = 1.0 - b2 - gamma;
+  const double a32 = b2;
+  const double a33 = gamma;
+
+  const double bhat3 =
+      (-2 * gamma * gamma) * (1.0 - gamma + gamma * gamma) / (2 * gamma - 1);
+  const double bhat2 =
+      gamma * (-2 + 7 * gamma - 5 * gamma * gamma + 4 * gamma * gamma * gamma) /
+      (4 * gamma - 2);
+  const double bhat1 = (1.0 - bhat2 - bhat3);
+
 
   // Set time and time-step for debugging
   const T t0 = diagram_context.get_time();
@@ -179,37 +192,51 @@ bool ConvexIntegrator<T>::DoStep(const T& h) {
 
   // TODO: rename these
   const VectorX<T> x0 = diagram_context.get_continuous_state().CopyToVector();
-  ContinuousState<T>& x1 = *x_next_full_;
+  // ContinuousState<T>& x1 = *x_next_full_;
   ContinuousState<T>& x2 = *x_next_half_1_;
+  ContinuousState<T>& x3 = *x_next_half_2_;
 
-  // First phase: solve for x₁ = x₀ + h a₁₁f(t₁, x₁) using convex SAP.
-  // We'll do this by solving the SAP problem from x = x₀ with timestep h a₁₁.
+  // First phase is explicit: k₁ = f(t₀, x₀)
   solve_phase_ = 0;
-  mutable_context.SetTime(t0 + c1 * h);
-  v_guess = plant().GetVelocities(plant_context);
-  CalcNextContinuousState(h * a11, v_guess, &x1);
-  const VectorX<T> f1 = (x1.CopyToVector() - x0) / (h * a11);
+  const VectorX<T> k1 =
+      this->EvalTimeDerivatives(diagram_context).CopyToVector();
 
-  // Second phase: solve for x₂ = x₀ + h a₂₁f(t₁, x₁) + h a₂₂f(t₂, x₂).
-  // We'll do this by first setting x = x₀ + h a₂₁f(t₁, x₁), then solving for
-  // the step from x to x₂ with timestep h a₂₂.
+  // Second phase is implicit: 
+  //   k₂ = f(t₀ + c₂ h, x₀ + h a₂₁ k₁ + h a₂₂ k₂)
+  // We'll compute k₂ as follows:
+  //    - Set x₁ = x₀ + h a₂₁ k₁
+  //    - Set t₁ = t₀ + c₂ h
+  //    - Solve for x₂ = x₁ + h a₂₂ f(t₁, x₂) with SAP
+  //    - Set k₂ = (x₂ - x₁) / (h * a₂₂)
   solve_phase_ = 1;
-  x.SetFromVector(x0 + h * a21 * f1);
+  x.SetFromVector(x0 + h * a21 * k1);
   mutable_context.SetTimeAndNoteContinuousStateChange(t0 + c2 * h);
-
-  const VectorX<T> v1 = x1.get_generalized_velocity().CopyToVector();
-  const VectorX<T> a = (v1 - v_guess) / (h * a11);
-  v_guess = x.get_generalized_velocity().CopyToVector() + h * a22 * a;
+  v_guess = plant().GetVelocities(plant_context);
   CalcNextContinuousState(h * a22, v_guess, &x2);
-  const VectorX<T> f2 = (x2.CopyToVector() - x.CopyToVector()) / (h * a22);
+  const VectorX<T> k2 = (x2.CopyToVector() - x.CopyToVector()) / (h * a22);
 
-  // Advance the state as x₀ + h b₁f(t₁, x₁) + h b₂f(t₂, x₂)
-  x.SetFromVector(x0 + h * (b1 * f1 + b2 * f2));
-  mutable_context.SetTimeAndNoteContinuousStateChange(t0 + h);
+  // Third phase is implicit:
+  //   k₃ = f(t₀ + c₃ h, x₀ + h a₃₁ k₁ + h a₃₂ k₂ + h a₃₃ k₃)
+  // We'll compute k₃ as follows:
+  //    - Set x₂ = x₀ + h a₃₁ k₁ + h a₃₂ k₂
+  //    - Set t₂ = t₀ + c₃ h
+  //    - Solve for x₃ = x₂ + h a₃₃ f(t₂, x₃) with SAP
+  //    - Set k₃ = (x₃ - x₂) / (h * a₃₃)
+  solve_phase_ = 2;
+  x.SetFromVector(x0 + h * (a31 * k1 + a32 * k2));
+  mutable_context.SetTimeAndNoteContinuousStateChange(t0 + c3 * h);
+  v_guess = x2.get_generalized_velocity().CopyToVector();
+  CalcNextContinuousState(h * a33, v_guess, &x3);
+  const VectorX<T> k3 = (x3.CopyToVector() - x.CopyToVector()) / (h * a33);
 
-  // Determine the error estimate using the embedded lower-order method
+  // Putting everything together, we have
+  //   x = x₀ + h (b₁ k₁ + b₂ k₂ + b₃ k₃)
+  x.SetFromVector(x0 + h * (b1 * k1 + b2 * k2 + b3 * k3));
+
+  // The error estimate is computed using the embedded lower-order method:
+  //  x_hat = x₀ + h (b̂₁ k₁ + b̂₂ k₂ + b̂₃ k₃)
   if (!this->get_fixed_step_mode()) {
-    const VectorX<T> x_hat = x0 + h * (bhat1 * f1 + bhat2 * f2);
+    const VectorX<T> x_hat = x0 + h * (bhat1 * k1 + bhat2 * k2 + bhat3 * k3);
     ContinuousState<T>& err = *this->get_mutable_error_estimate();
     err.SetFromVector(x.CopyToVector() - x_hat);
   }
