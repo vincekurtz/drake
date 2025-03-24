@@ -196,7 +196,10 @@ bool ConvexIntegrator<T>::DoStep(const T& h) {
   solve_phase_ = 1;
   x.SetFromVector(x0 + h * a21 * f1);
   mutable_context.SetTimeAndNoteContinuousStateChange(t0 + c2 * h);
-  v_guess = x.get_generalized_velocity().CopyToVector();
+
+  const VectorX<T> v1 = x1.get_generalized_velocity().CopyToVector();
+  const VectorX<T> a = (v1 - v_guess) / (h * a11);
+  v_guess = x.get_generalized_velocity().CopyToVector() + h * a22 * a;
   CalcNextContinuousState(h * a22, v_guess, &x2);
   const VectorX<T> f2 = (x2.CopyToVector() - x.CopyToVector()) / (h * a22);
 
