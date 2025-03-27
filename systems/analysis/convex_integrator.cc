@@ -162,7 +162,7 @@ bool ConvexIntegrator<T>::DoStep(const T& h) {
   const double a22 = gamma;
   const double b1 = 1.0 - gamma;
   const double b2 = gamma;
-  const double bhat2 = 0.25;  // arbitrary free parameter (as long as != gamma)
+  const double bhat2 = 1.0 / 3.0;
   const double bhat1 = 1.0 - bhat2;
 
   // Set time and time-step for debugging
