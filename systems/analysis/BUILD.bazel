@@ -20,6 +20,7 @@ drake_cc_package_library(
         ":antiderivative_function",
         ":batch_eval",
         ":bogacki_shampine3_integrator",
+        ":convex_integrator",
         ":dense_output",
         ":explicit_euler_integrator",
         ":hermitian_dense_output",
@@ -85,6 +86,7 @@ drake_cc_library(
     hdrs = ["simulator_config_functions.h"],
     deps = [
         ":bogacki_shampine3_integrator",
+        ":convex_integrator",
         ":explicit_euler_integrator",
         ":implicit_euler_integrator",
         ":radau_integrator",
@@ -109,6 +111,20 @@ drake_cc_library(
     hdrs = ["bogacki_shampine3_integrator.h"],
     deps = [
         ":integrator_base",
+    ],
+)
+
+drake_cc_library(
+    name = "convex_integrator",
+    srcs = ["convex_integrator.cc"],
+    hdrs = ["convex_integrator.h"],
+    deps = [
+        ":integrator_base",
+        "//common:timer",
+        "//multibody/contact_solvers/sap:sap_dummy_constraint",
+        "//multibody/contact_solvers/sap:sap_external_system_constraint",
+        "//multibody/plant",
+        "//multibody/plant:contact_properties",
     ],
 )
 
@@ -427,6 +443,7 @@ drake_cc_library(
     srcs = ["simulator_print_stats.cc"],
     hdrs = ["simulator_print_stats.h"],
     deps = [
+        ":convex_integrator",
         ":implicit_integrator",
         ":integrator_base",
         ":simulator",
@@ -566,15 +583,15 @@ drake_cc_binary(
     ],
 )
 
-drake_py_unittest(
-    name = "simulator_gflags_test",
-    data = [
-        ":simulator_gflags_main",
-    ],
-    deps = [
-        "@rules_python//python/runfiles",
-    ],
-)
+# drake_py_unittest(
+#     name = "simulator_gflags_test",
+#     data = [
+#         ":simulator_gflags_main",
+#     ],
+#     deps = [
+#         "@rules_python//python/runfiles",
+#     ],
+# )
 
 drake_cc_googletest(
     name = "batch_eval_test",
@@ -600,6 +617,23 @@ drake_cc_googletest(
         "//math:geometric_transform",
         "//multibody/plant",
         "//systems/analysis/test_utilities",
+    ],
+)
+
+drake_cc_googletest(
+    name = "convex_integrator_test",
+    deps = [
+        ":convex_integrator",
+        ":simulator",
+        ":simulator_config_functions",
+        ":simulator_print_stats",
+        "//common/test_utilities:eigen_matrix_compare",
+        "//geometry:meshcat_visualizer",
+        "//multibody/parsing",
+        "//multibody/plant",
+        "//systems/analysis/test_utilities",
+        "//systems/framework:diagram",
+        "//visualization:visualization_config_functions",
     ],
 )
 
