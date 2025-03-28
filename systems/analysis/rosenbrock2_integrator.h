@@ -108,6 +108,9 @@ class Rosenbrock2Integrator final : public ImplicitIntegrator<T> {
 
   // Intermediate variables to avoid heap allocations
   VectorX<T> x0_, x_, xdot_, k1_, k2_;
+
+  // Track how often it's been since we re-computed the Jacobian
+  int num_steps_since_last_jacobian_update_{0};
 };
 
 }  // namespace systems
