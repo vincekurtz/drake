@@ -154,7 +154,7 @@ bool ConvexIntegrator<T>::DoStep(const T& h) {
   // Single Diagonally Implicit Runge Kutta (SDIRK) coefficients from Kennedy
   // and Carpenter, "Diagonaly Implicit Runge-Kutta Method for Oridnary
   // Differential Equations", 2016. pp 72, eq (221).
-  const double gamma = (2.0 - sqrt(2.0)) / 2.0;
+  const double gamma = 1.0 - sqrt(2.0) / 2.0;
   const double c1 = gamma;
   const double c2 = 1.0;
   const double a11 = gamma;
@@ -162,7 +162,7 @@ bool ConvexIntegrator<T>::DoStep(const T& h) {
   const double a22 = gamma;
   const double b1 = 1.0 - gamma;
   const double b2 = gamma;
-  const double bhat2 = 1.0 / 3.0;
+  const double bhat2 = 2.0 - 5.0 / 4.0 * sqrt(2.0);
   const double bhat1 = 1.0 - bhat2;
 
   // Set time and time-step for debugging
