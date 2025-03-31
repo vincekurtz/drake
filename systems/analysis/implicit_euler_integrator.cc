@@ -45,8 +45,8 @@ void ImplicitEulerIntegrator<T>::DoInitialize() {
     // Verify that maximum step size has been set.
     if (isnan(this->get_maximum_step_size()))
       throw std::logic_error(
-          "Neither initial step size target nor maximum "
-          "step size has been set!");
+          "Neither initial step size target nor maximum step size has been "
+          "set!");
 
     this->request_initial_step_size_target(this->get_maximum_step_size());
   }
@@ -186,10 +186,13 @@ bool ImplicitEulerIntegrator<T>::StepAbstract(
     typename ImplicitIntegrator<T>::ConvergenceStatus status =
         this->CheckNewtonConvergence(i, *xtplus, dx, dx_norm, last_dx_norm);
     // If it converged, we're done.
-    if (status == ImplicitIntegrator<T>::ConvergenceStatus::kConverged)
+    if (status == ImplicitIntegrator<T>::ConvergenceStatus::kConverged) {
       return true;
+    }
     // If it diverged, we have to abort and try again.
-    if (status == ImplicitIntegrator<T>::ConvergenceStatus::kDiverged) break;
+    if (status == ImplicitIntegrator<T>::ConvergenceStatus::kDiverged) {
+      break;
+    }
     // Otherwise, continue to the next Newton-Raphson iteration.
     DRAKE_DEMAND(status ==
                  ImplicitIntegrator<T>::ConvergenceStatus::kNotConverged);
@@ -204,7 +207,9 @@ bool ImplicitEulerIntegrator<T>::StepAbstract(
   // is nothing else we can try.  Note that get_reuse() returns false if
   // "full Newton-Raphson" mode is activated (see
   // ImplicitIntegrator::get_use_full_newton()).
-  if (!this->get_reuse()) return false;
+  if (!this->get_reuse()) {
+    return false;
+  }
 
   // Try StepAbstract again. That method will freshen Jacobians and iteration
   // matrix factorizations as necessary.
