@@ -116,25 +116,8 @@ bool Rosenbrock2Integrator<T>::DoImplicitIntegratorStep(const T& h) {
   error_est_vec_.resize(n);
 
   // Compute and factor the iteration matrix G = [I/(hγ) − J], where J = ∂/∂x
-  // f(t₀, x₀). We'll choose how thoroughly to re-compute G based on 'trials':
-  int trial;
-  if (num_steps_since_last_jacobian_update_ > 10) {
-    // Recompute the Jacobian, and refactor G. This is the most expensive
-    // (and most accurate) option.
-    trial = 3;
-    num_steps_since_last_jacobian_update_ = 0;
-  } else if (h != this->get_previous_integration_step_size()) {
-    // Refactor G, but keep the jacobian J frozen. This is an intermediate
-    // amount of computation.
-    trial = 2;
-    num_steps_since_last_jacobian_update_ += 1;
-  } else {
-    // Completely reuse the old value of G. This is the cheapest option.
-    trial = 1;
-    num_steps_since_last_jacobian_update_ += 1;
-  }
-
-  if (!this->MaybeFreshenMatrices(t0, x0_, h, trial,
+  // f(t₀, x₀). trial = 3 is used to indicate fully re-computing everything.
+  if (!this->MaybeFreshenMatrices(t0, x0_, h, 3,
                                   ComputeAndFactorIterationMatrix,
                                   &iteration_matrix_)) {
     // If factorization fails, reject the step so that error control selects a
