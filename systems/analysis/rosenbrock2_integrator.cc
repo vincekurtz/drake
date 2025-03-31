@@ -117,9 +117,8 @@ bool Rosenbrock2Integrator<T>::DoImplicitIntegratorStep(const T& h) {
 
   // Compute and factor the iteration matrix G = [I/(hγ) − J], where J = ∂/∂x
   // f(t₀, x₀). trial = 3 is used to indicate fully re-computing everything.
-  if (!this->MaybeFreshenMatrices(t0, x0_, h, 3,
-                                  ComputeAndFactorIterationMatrix,
-                                  &iteration_matrix_)) {
+  if (!this->MaybeFreshenMatrices(
+          t0, x0_, h, 3, ComputeAndFactorIterationMatrix, &iteration_matrix_)) {
     // If factorization fails, reject the step so that error control selects a
     // smaller h.
     return false;

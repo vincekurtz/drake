@@ -131,6 +131,7 @@ const vector<NamedResetIntegratorFunc<T>>& GetAllNamedResetIntegratorFuncs() {
       std::initializer_list<NamedResetIntegratorFunc<T>>{
           // Keep this list sorted alphabetically.
           MakeResetter<T, BogackiShampine3Integrator>(),
+          MakeResetter<T, ConvexIntegrator>(),
           MakeResetter<T, ExplicitEulerIntegrator>(),
           MakeResetter<T, ImplicitEulerIntegrator>(),
           MakeResetter<T, Radau1Integrator>(),

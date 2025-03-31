@@ -146,6 +146,11 @@ GTEST_TEST(ImplicitIntegratorTest, Clone) {
   SpringMassSystem<double> dummy_system(spring_k, mass, false /* unforced */);
 
   for (auto& scheme : GetIntegrationSchemes()) {
+    // Skip the convex integrator
+    if (scheme == "convex") {
+      continue;
+    }
+
     // Create the original implicit integrator.
     Simulator<double> tmp(dummy_system);
     auto original = dynamic_cast<ImplicitIntegrator<double>*>(

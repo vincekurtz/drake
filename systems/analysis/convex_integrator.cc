@@ -174,12 +174,12 @@ bool ConvexIntegrator<T>::DoStep(const T& h) {
 
   // Workspace allocations
   VectorX<T>& v_guess = workspace_.v;
- 
+
   // Mutable context
   Context<T>& mutable_context = *this->get_mutable_context();
   ContinuousState<T>& x = mutable_context.get_mutable_continuous_state();
 
-  // TODO: rename these
+  // TODO(vincekurtz): rename these
   const VectorX<T> x0 = diagram_context.get_continuous_state().CopyToVector();
   ContinuousState<T>& x1 = *x_next_full_;
   ContinuousState<T>& x2 = *x_next_half_1_;
