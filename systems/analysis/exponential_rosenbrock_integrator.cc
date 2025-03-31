@@ -16,7 +16,8 @@ namespace drake {
 namespace systems {
 
 template <class T>
-ExponentialRosenbrockIntegrator<T>::~ExponentialRosenbrockIntegrator() = default;
+ExponentialRosenbrockIntegrator<T>::~ExponentialRosenbrockIntegrator() =
+    default;
 
 template <class T>
 std::unique_ptr<ImplicitIntegrator<T>>
@@ -37,7 +38,7 @@ void ExponentialRosenbrockIntegrator<T>::DoInitialize() {
   x0_.resize(nx);
   x_.resize(nx);
   xdot_.resize(nx);
-  exponential_matrix_.resize(nx+1, nx+1);
+  exponential_matrix_.resize(nx + 1, nx + 1);
 }
 
 template <class T>
@@ -53,7 +54,7 @@ bool ExponentialRosenbrockIntegrator<T>::DoImplicitIntegratorStep(const T& h) {
   const int n = x0_.size();
   x_.resize(n);
   xdot_.resize(n);
-  exponential_matrix_.resize(n+1, n+1);
+  exponential_matrix_.resize(n + 1, n + 1);
 
   // Compute the Jacobian J = ∂/∂x f(x₀)
   const MatrixX<T>& J = this->CalcJacobian(t0, x0_);
@@ -64,7 +65,7 @@ bool ExponentialRosenbrockIntegrator<T>::DoImplicitIntegratorStep(const T& h) {
   // Compute δt φ₁(δt A) f(x), where φ₁(z) = ∫₀¹ exp((1−θ)z)dθ, following
   // https://math.stackexchange.com/questions/4170258/how-to-apply-phi-functions-to-matrices
   exponential_matrix_.setZero();
-  exponential_matrix_.block(0, 0, n, n) = J;  // top-left block is J
+  exponential_matrix_.block(0, 0, n, n) = J;      // top-left block is J
   exponential_matrix_.block(0, n, n, 1) = xdot_;  // last column is f(x₀)
   exponential_matrix_ *= h;
   MatrixX<T> expX = exponential_matrix_.exp();

@@ -79,7 +79,6 @@ class ExponentialRosenbrockIntegrator final : public ImplicitIntegrator<T> {
 
   // Helper variable for computing the φ₁ function via matrix exponentiation.
   MatrixX<T> exponential_matrix_;
-
 };
 
 }  // namespace systems
