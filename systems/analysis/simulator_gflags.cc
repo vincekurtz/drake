@@ -35,6 +35,7 @@ DEFINE_string(simulator_integration_scheme,
               "'bogacki_shampine3', "
               "'convex', "
               "'explicit_euler', "
+              "'exponential_rosenbrock', "
               "'implicit_euler', "
               "'radau1', "
               "'radau3', "

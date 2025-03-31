@@ -13,6 +13,7 @@
 #include "drake/systems/analysis/bogacki_shampine3_integrator.h"
 #include "drake/systems/analysis/convex_integrator.h"
 #include "drake/systems/analysis/explicit_euler_integrator.h"
+#include "drake/systems/analysis/exponential_rosenbrock_integrator.h"
 #include "drake/systems/analysis/implicit_euler_integrator.h"
 #include "drake/systems/analysis/radau_integrator.h"
 #include "drake/systems/analysis/rosenbrock2_integrator.h"
@@ -133,6 +134,7 @@ const vector<NamedResetIntegratorFunc<T>>& GetAllNamedResetIntegratorFuncs() {
           MakeResetter<T, BogackiShampine3Integrator>(),
           MakeResetter<T, ConvexIntegrator>(),
           MakeResetter<T, ExplicitEulerIntegrator>(),
+          MakeResetter<T, ExponentialRosenbrockIntegrator>(),
           MakeResetter<T, ImplicitEulerIntegrator>(),
           MakeResetter<T, Radau1Integrator>(),
           MakeResetter<T, Radau3Integrator>(),
