@@ -42,9 +42,15 @@ class ConvexIntegratorTester {
   ConvexIntegratorTester() = delete;
 
   static void LinearizeExternalSystem(ConvexIntegrator<double>* integrator,
-                                      const double h, MatrixXd* K,
+                                      const double h, VectorXd* K,
                                       VectorXd* u0) {
     integrator->LinearizeExternalSystem(h, K, u0);
+  }
+
+  static SapContactProblem<double> MakeSapContactProblem(
+      ConvexIntegrator<double>* integrator, const Context<double>& context,
+      const double h) {
+    return integrator->MakeSapContactProblem(context, h);
   }
 };
 
@@ -85,17 +91,17 @@ const char actuated_pendulum_xml[] = R"""(
 <mujoco model="robot">
   <worldbody>
     <body>
-      <joint name="joint1" type="hinge" axis="0 1 0" pos="0 0 0.1" damping="1e-3"/>
+      <joint name="joint1" type="hinge" axis="0 1 0" pos="0 0 0.1"/>
       <geom type="capsule" size="0.01 0.1"/>
       <body>
-        <joint name="joint2" type="hinge" axis="0 1 0" pos="0 0 -0.1" damping="1e-3"/>
+        <joint name="joint2" type="hinge" axis="0 1 0" pos="0 0 -0.1"/>
         <geom type="capsule" size="0.01 0.1" pos="0 0 -0.2"/>
       </body>
     </body>
   </worldbody>
   <actuator>
-    <motor joint="joint1"/>
-    <motor joint="joint2"/>
+    <motor joint="joint1" ctrlrange="-2 2"/>
+    <motor joint="joint2" ctrlrange="-3 3"/>
   </actuator>
 </mujoco>
 )""";
@@ -277,9 +283,10 @@ GTEST_TEST(ConvexIntegratorTest, ActuatedPendulum) {
 
   // Linearize the non-plant system dynamics around the current state
   const int nv = plant.num_velocities();
-  MatrixXd A(nv, nv);
+  VectorXd A_vec(nv, nv);
   VectorXd tau(nv);
-  ConvexIntegratorTester::LinearizeExternalSystem(&integrator, h, &A, &tau);
+  ConvexIntegratorTester::LinearizeExternalSystem(&integrator, h, &A_vec, &tau);
+  const MatrixXd A = A_vec.asDiagonal();
 
   // Reference linearization via autodiff
   const Context<double>& ctrl_context =
@@ -292,9 +299,9 @@ GTEST_TEST(ConvexIntegratorTest, ActuatedPendulum) {
   const MatrixXd& D = true_linearization->D();
   const MatrixXd K = D.rightCols(2) + h * D.leftCols(2);  // N(q) = I
   const VectorXd u0 = plant.get_actuation_input_port().Eval(plant_context) -
-                          D.rightCols(2) * plant.GetVelocities(plant_context);
+                      D.rightCols(2) * plant.GetVelocities(plant_context);
 
-  const MatrixXd A_ref = - h * B * K;
+  const MatrixXd A_ref = -B * K;
   const VectorXd tau_ref = B * u0;
 
   // Confirm that our finite difference linearization is close to the reference
@@ -304,6 +311,31 @@ GTEST_TEST(ConvexIntegratorTest, ActuatedPendulum) {
       CompareMatrices(A, A_ref, kTolerance, MatrixCompareType::relative));
   EXPECT_TRUE(
       CompareMatrices(tau, tau_ref, kTolerance, MatrixCompareType::relative));
+
+  // Compute the gradient of the cost, and check that this matches the momentum
+  // balance conditions, M(v − v*) + h A v − h τ₀ = 0.
+  const VectorXd v = v0;
+  MatrixXd M(nv, nv);
+  plant.CalcMassMatrix(plant_context, &M);
+  MultibodyForces<double> f_ext(plant);
+  plant.CalcForceElementsContribution(plant_context, &f_ext);
+  const VectorXd k =
+      plant.CalcInverseDynamics(plant_context, VectorXd::Zero(2), f_ext);
+  const VectorXd v_star = v0 - h * M.ldlt().solve(k);
+  const VectorXd dl_ref = M * (v - v_star) + h * A * v - h * tau;
+
+  SapContactProblem<double> problem =
+      ConvexIntegratorTester::MakeSapContactProblem(&integrator, plant_context,
+                                                    h);
+  SapModel<double> model(&problem);
+  auto model_context = model.MakeContext();
+  Eigen::VectorBlock<VectorXd> v_model =
+      model.GetMutableVelocities(model_context.get());
+  model.velocities_permutation().Apply(v, &v_model);
+  const VectorXd dl = model.EvalCostGradient(*model_context);
+
+  EXPECT_TRUE(
+      CompareMatrices(dl, dl_ref, kTolerance, MatrixCompareType::relative));
 
   // Simulate for a few seconds
   const int fps = 32;
@@ -315,6 +347,82 @@ GTEST_TEST(ConvexIntegratorTest, ActuatedPendulum) {
   std::cout << std::endl;
   PrintSimulatorStatistics(simulator);
   std::cout << std::endl;
+}
+
+// Test implicit joint effort limits
+GTEST_TEST(ConvexIntegratorTest, EffortLimits) {
+  // Set up the a system model with effort limits
+  DiagramBuilder<double> builder;
+  auto [plant, scene_graph] = AddMultibodyPlantSceneGraph(&builder, 0.0);
+  Parser(&plant, &scene_graph)
+      .AddModelsFromString(actuated_pendulum_xml, "xml");
+  plant.Finalize();
+
+  // Connect a high-gain PD controller
+  VectorXd Kp(2), Kd(2), Ki(2);
+  Kp << 1e3, 1e3;
+  Kd << 0.1, 0.1;
+  Ki << 0.0, 0.0;
+  auto ctrl = builder.AddSystem<PidController>(Kp, Ki, Kd);
+
+  VectorXd x_nom(4);
+  x_nom << M_PI_2, M_PI_2, 0.0, 0.0;
+  auto target_state = builder.AddSystem<ConstantVectorSource<double>>(x_nom);
+
+  builder.Connect(target_state->get_output_port(),
+                  ctrl->get_input_port_desired_state());
+  builder.Connect(plant.get_state_output_port(),
+                  ctrl->get_input_port_estimated_state());
+  builder.Connect(ctrl->get_output_port(), plant.get_actuation_input_port());
+
+  // Compile the system diagram
+  auto diagram = builder.Build();
+  auto diagram_context = diagram->CreateDefaultContext();
+  Context<double>& plant_context =
+      diagram->GetMutableSubsystemContext(plant, diagram_context.get());
+
+  // Get the actuator effort limits
+  VectorXd effort_limits(2);
+  for (JointActuatorIndex a : plant.GetJointActuatorIndices()) {
+    const JointActuator<double>& actuator = plant.get_joint_actuator(a);
+    const int i = actuator.input_start();
+    const int n = actuator.num_inputs();
+    effort_limits.segment(i, n) =
+        VectorXd::Constant(n, actuator.effort_limit());
+  }
+
+  // Set up the integrator
+  ConvexIntegrator<double> integrator(*diagram, diagram_context.get());
+  integrator.set_maximum_step_size(0.1);
+  integrator.set_fixed_step_mode(true);
+  integrator.Initialize();
+
+  const VectorXd q0 = plant.GetPositions(plant_context);
+  const VectorXd v0 = plant.GetVelocities(plant_context);
+
+  // Compute some dynamics terms
+  MatrixXd M(2, 2);
+  VectorXd k(2);
+  MultibodyForces<double> f_ext(plant);
+  plant.CalcMassMatrix(plant_context, &M);
+  plant.CalcForceElementsContribution(plant_context, &f_ext);
+  k = plant.CalcInverseDynamics(plant_context, VectorXd::Zero(2), f_ext);
+
+  // Simulate for a step
+  const double h = 0.01;
+  EXPECT_TRUE(integrator.IntegrateWithSingleFixedStepToTime(h));
+
+  // Compare requested and applied actuator forces
+  const VectorXd u_req = plant.get_actuation_input_port().Eval(plant_context);
+  EXPECT_TRUE(u_req[0] > effort_limits[0]);
+  EXPECT_TRUE(u_req[1] > effort_limits[1]);
+
+  // TODO(vincekurtz): report u_app in plant.get_net_actuation_output_port()
+  const VectorXd v = plant.GetVelocities(plant_context);
+  const VectorXd u_app = M * (v - v0) / h + k;
+
+  EXPECT_TRUE(u_app[0] <= effort_limits[0]);
+  EXPECT_TRUE(u_app[1] <= effort_limits[1]);
 }
 
 }  // namespace systems

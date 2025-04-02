@@ -174,10 +174,12 @@ class ConvexIntegrator final : public IntegratorBase<T> {
   void AddContactConstraints(const Context<T>& context,
                              SapContactProblem<T>* problem);
 
-  // Adds dummy constraints to the SAP problem. These do nothing, but ensure
-  // that all DoFs are participating and the size of the problem won't vary
-  // between time steps.
-  void AddDummyConstraints(SapContactProblem<T>* problem) const;
+  // Adds external system constraints to the SAP problem. This includes
+  // linearizes the external system around the current state in order to treat
+  // arbitrary controllers as implicitly as possible (modulo SAP SPD
+  // requirements).
+  void AddExternalSystemConstraints(const VectorX<T>& K, const VectorX<T>& tau0,
+                                    SapContactProblem<T>* problem) const;
 
   // Compute signed distances and jacobians. While we store this in a
   // DiscreteContactData struct (basically copying DiscreteUpdateManager), this
@@ -245,25 +247,17 @@ class ConvexIntegrator final : public IntegratorBase<T> {
                       T* dell_dalpha = nullptr, T* d2ell_dalpha2 = nullptr,
                       VectorX<T>* d2ell_dalpha2_scratch = nullptr) const;
 
-  // Accumulate forces from all external input ports in a single vector,
-  //   τ = B u + τₑₓₜ + ∑ Jᵀ fₑₓₜ
-  void GetGeneralizedForcesFromInputPorts(const Context<T>& plant_context,
-                                          const MatrixX<T>& B,
-                                          MultibodyForces<T>* forces,
-                                          VectorX<T>* tau) const;
-
   // Linearize the external (e.g. controller) system around the current state.
   //
   // The original nonlinear controller
-  //     τ = B u = g(x)
+  //     τ = g(x)
   // is approximated as
-  //     τ = τ₀ − Ãv,
-  // where Ã is symmetric and positive definite, and we use the fact that q = q0
+  //     τ = -Kv + τ₀,
+  // where K is dianonal and positive definite, and we use the fact that q = q0
   // + h N v to write everything in terms of velocities.
   //
   // We do the linearization via finite differences
-  void LinearizeExternalSystem(const T& h, MatrixX<T>* A_tilde,
-                               VectorX<T>* tau0);
+  void LinearizeExternalSystem(const T& h, VectorX<T>* K, VectorX<T>* tau0);
 
   // Project the given (square) matrix to a nearby symmetric positive
   // (semi)-definite matrix.
@@ -302,9 +296,6 @@ class ConvexIntegrator final : public IntegratorBase<T> {
   HessianFactorization hessian_factorization_;
   std::vector<MatrixX<T>> A_;  // Hack to keep these from going out of scope
   BlockSparseMatrix<T> J_;
-
-  // Stored vector of effort limits for each actuator
-  VectorX<T> effort_limits_;
 
   // Flag for enabling/disabling hessian re-use
   bool use_full_newton_{false};
@@ -349,12 +340,11 @@ class ConvexIntegrator final : public IntegratorBase<T> {
     MatrixX<T> M;               // mass matrix
     VectorX<T> k;               // coriolis terms from inverse dynamics
     std::unique_ptr<MultibodyForces<T>> f_ext;  // external forces (gravity)
-    MatrixX<T> A_tilde;  // SPD Hessian correction term, A_tilde = h P + h^2 Q
-    VectorX<T> tau0;     // Explicit external forces, tau0 = B g0 + P v0
+    VectorX<T> K;  // Diagonal linearization of external systems, τ = -Kv + τ₀
+    VectorX<T> tau0;  // Explicit external forces, τ₀ = g₀ + P v₀
 
     // Used in LinearizeExternalSystem
     VectorX<T> g0;
-    MatrixX<T> B;
     MatrixX<T> D;
     MatrixX<T> N;
     MatrixX<T> P;
