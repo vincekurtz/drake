@@ -442,14 +442,6 @@ SapSolverStatus ConvexIntegrator<T>::SolveWithGuessImpl(
         ell_decrement < sap_parameters_.cost_abs_tolerance +
                             sap_parameters_.cost_rel_tolerance * ell_scale &&
         alpha > 0.5;
-
-    // The theta convergence criterion is only relevant *after* a step has been
-    // taken. This is different from the (tighter) SAP convergence thresholds,
-    // which are checked before the step is taken.
-    if (theta_criterion_reached) {
-      converged = true;
-      break;
-    }
   }
 
   if (!converged) return SapSolverStatus::kFailure;

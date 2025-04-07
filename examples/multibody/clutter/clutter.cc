@@ -52,7 +52,7 @@ constexpr double kHuge = 1.0e40;
 // Simulation parameters.
 DEFINE_double(simulation_time, 10.0, "Simulation duration in seconds");
 DEFINE_double(
-    mbp_time_step, 1.0E-2,
+    mbp_time_step, 0.0,
     "If mbp_time_step > 0, the fixed-time step period (in seconds) of discrete "
     "updates for the plant (modeled as a discrete system). "
     "If mbp_time_step = 0, the plant is modeled as a continuous system "
@@ -108,7 +108,7 @@ DEFINE_bool(dense_algebra, true, "Whether to use dense algebra in SAP.");
 DEFINE_string(
     integrator_jacobian_scheme, "forward",
     "Jacobian computation scheme: 'forward', 'central', 'automatic'.");
-DEFINE_bool(full_newton, false, "Update Jacobian every iteration.");
+DEFINE_bool(full_newton, true, "Update Jacobian every iteration.");
 DEFINE_bool(save_csv, false, "Save CSV data for the convex integrator.");
 DEFINE_bool(trapezoid, false, "Implicit trapezoid rule for error estimation.");
 
