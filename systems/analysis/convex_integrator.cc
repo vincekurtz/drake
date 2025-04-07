@@ -128,7 +128,7 @@ void ConvexIntegrator<T>::DoInitialize() {
 
   // Set SAP solver parameters (default is sparse algebra)
   sap_parameters_.linear_solver_type = SapHessianFactorizationType::kDense;
-  sap_parameters_.max_iterations = 100;
+  sap_parameters_.max_iterations = 10000;
 
   // Set up CSV writing, if requested
   if (write_to_csv_) {
@@ -319,6 +319,10 @@ SapSolverStatus ConvexIntegrator<T>::SolveWithGuessImpl(
   int num_line_search_iters = 0;
   bool theta_criterion_reached = false;
   double theta = std::numeric_limits<double>::quiet_NaN();
+
+  // NCG allocations
+  VectorX<T> g_old(nv);  // gradient from the previous iteration
+
   for (;; ++k) {
     // We first verify the stopping criteria. If satisfied, we skip expensive
     // factorizations.
@@ -410,7 +414,12 @@ SapSolverStatus ConvexIntegrator<T>::SolveWithGuessImpl(
 
     // This is the most expensive update: it performs the factorization of H to
     // solve for the search direction dv.
-    CalcSearchDirectionData(model, *context, &search_direction_data);
+    // CalcSearchDirectionData(model, *context, &search_direction_data);
+
+    CalcSearchDirectionDataNCG(model, *context, g_old, k,
+                              &search_direction_data);
+    g_old = model.EvalCostGradient(*context);
+
     const VectorX<double>& dv = search_direction_data.dv;
 
     // Perform line search. We'll do exact linesearch only, regardless of the
@@ -524,6 +533,58 @@ void ConvexIntegrator<T>::CalcHessianFactorization(
   hessian->UpdateWeightMatrixAndFactor(G);
 
   num_hessian_factorizations_++;
+}
+
+template <typename T>
+void ConvexIntegrator<T>::CalcSearchDirectionDataNCG(const SapModel<T>& model,
+                                                     const Context<T>& context,
+                                                     const VectorX<T>& g_old,
+                                                     const int k,
+                                                     SearchDirectionData* data)
+  requires std::is_same_v<T, double>
+{  // NOLINT(whitespace/braces)
+  const VectorX<T>& g = model.EvalCostGradient(context);
+
+  if (k == 0) {
+    // The first iteration is just gradient descent.
+    data->dv = -g;
+  } else {
+    // We'll use the Dai-Kau method to find the conjugate gradient direction.
+    const VectorX<T>& p = data->dv;  // old search direction
+    const VectorX<T> y = g - g_old;
+    const T gy = g.dot(y);
+    const T yp = y.dot(p);
+    const T yy = y.dot(y);
+    const T pg = p.dot(g);
+
+    const T beta = gy / yp - (yy / yp) * (pg / yp);
+
+    data->dv = -g + beta * p;
+  }
+  
+  // Update Δp, Δvc and d²ellA/dα².
+  model.constraints_bundle().J().Multiply(data->dv, &data->dvc);
+  model.MultiplyByDynamicsMatrix(data->dv, &data->dp);
+  data->d2ellA_dalpha2 = data->dv.dot(data->dp);
+
+  using std::isnan;
+  if (isnan(data->d2ellA_dalpha2)) {
+    throw std::logic_error(fmt::format(
+        "The Hessian of the momentum cost along the search direction is NaN. "
+        "{}",
+        kNanValuesMessage));
+  }
+  if (data->d2ellA_dalpha2 <= 0) {
+    throw std::logic_error(fmt::format(
+        "The Hessian of the momentum cost along the search direction is not "
+        "positive, d²ℓ/dα² = {}. This can only be caused by a mass matrix that "
+        "is not SPD. This would indicate bad problem data (e.g. a zero mass "
+        "floating body, though this would be caught earlier). If you don't "
+        "believe this is the root cause of your problem, please contact the "
+        "Drake developers and/or open a Drake issue with a minimal "
+        "reproduction example to help debug your problem.",
+        data->d2ellA_dalpha2));
+  }
 }
 
 template <typename T>
