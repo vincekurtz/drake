@@ -596,7 +596,11 @@ void ConvexIntegrator<T>::CalcSearchDirectionDataNCG(const SapModel<T>& model,
 
     const MatrixX<T> H = MakeDenseHessian(model, context);
     const VectorX<T> P = H.diagonal().cwiseInverse();
- 
+
+    // Hessian condition number
+    const T kappa = 1.0 / H.llt().rcond();
+    fmt::print("kappa: {}\n", kappa);
+
     const T gy = g.transpose() * P.asDiagonal() * y;
     const T yp = y.dot(p);
     const T yy = y.transpose() * P.asDiagonal() * y;
