@@ -271,6 +271,10 @@ class ConvexIntegrator final : public IntegratorBase<T> {
   // (semi)-definite matrix.
   void ProjectSPD(MatrixX<T>* M) const;
 
+  // Construct a dense Hessian matrix for the SAP problem
+  const MatrixX<T> MakeDenseHessian(const SapModel<T>& model,
+                                    const Context<T>& context) const;
+
   // Tree topology used for defining the sparsity pattern in A.
   const MultibodyTreeTopology& tree_topology() const {
     return GetInternalTree(plant()).get_topology();

@@ -536,6 +536,42 @@ void ConvexIntegrator<T>::CalcHessianFactorization(
 }
 
 template <typename T>
+const MatrixX<T> ConvexIntegrator<T>::MakeDenseHessian(
+    const SapModel<T>& model, const Context<T>& context) const {
+  const int nv = model.num_velocities();
+
+  // Hessian is given by H = A + JᵀGJ. We have access to sparse versions of
+  // A and G.
+  const std::vector<MatrixX<T>>& A_sparse = model.dynamics_matrix();
+  const std::vector<MatrixX<T>>& G_sparse =
+      model.EvalConstraintsHessian(context);
+
+  // Get a dense matrix representation of J
+  const MatrixX<T> J = model.constraints_bundle().J().MakeDenseMatrix();
+
+  // Extract a dense representation of A
+  MatrixX<T> A = MatrixX<T>::Zero(nv, nv);
+  int block_start = 0;
+  for (unsigned int i = 0; i < A_sparse.size(); ++i) {
+    const int block_size = A_sparse[i].rows();
+    A.block(block_start, block_start, block_size, block_size) = A_sparse[i];
+    block_start += block_size;
+  }
+
+  // Extract a dense representation of G
+  const int nc = model.num_constraint_equations();
+  MatrixX<T> G = MatrixX<T>::Zero(nc, nc);
+  block_start = 0;
+  for (unsigned int i = 0; i < G_sparse.size(); ++i) {
+    const int block_size = G_sparse[i].rows();
+    G.block(block_start, block_start, block_size, block_size) = G_sparse[i];
+    block_start += block_size;
+  }
+
+  return A + J.transpose() * G * J;
+}
+
+template <typename T>
 void ConvexIntegrator<T>::CalcSearchDirectionDataNCG(const SapModel<T>& model,
                                                      const Context<T>& context,
                                                      const VectorX<T>& g_old,
@@ -544,23 +580,50 @@ void ConvexIntegrator<T>::CalcSearchDirectionDataNCG(const SapModel<T>& model,
   requires std::is_same_v<T, double>
 {  // NOLINT(whitespace/braces)
   const VectorX<T>& g = model.EvalCostGradient(context);
+    
+  const MatrixX<T> H = MakeDenseHessian(model, context);
 
-  if (k == 0) {
-    // The first iteration is just gradient descent.
-    data->dv = -g;
-  } else {
-    // We'll use the Dai-Kau method to find the conjugate gradient direction.
-    const VectorX<T>& p = data->dv;  // old search direction
-    const VectorX<T> y = g - g_old;
-    const T gy = g.dot(y);
-    const T yp = y.dot(p);
-    const T yy = y.dot(y);
-    const T pg = p.dot(g);
+  data->dv = H.ldlt().solve(-g);
 
-    const T beta = gy / yp - (yy / yp) * (pg / yp);
+  (void)k;
+  (void)g_old;
 
-    data->dv = -g + beta * p;
-  }
+  // if (k == 0) {
+  //   // The first iteration is just gradient descent.
+  //   data->dv = -g;
+  // } else {
+  //   // We'll use the Dai-Kau method to find the conjugate gradient direction.
+  //   const VectorX<T>& p = data->dv;  // old search direction
+  //   const VectorX<T> y = g - g_old;
+  
+  //   // Compute the pre-conditioning matrix P = diag(H)^{-1}, where H = A + JᵀGJ.
+  //   const int nv = model.num_velocities();
+  //   VectorX<T> P = VectorX<T>::Ones(nv, nv);
+    
+  //   const MatrixX<T> H = MakeDenseHessian(model, context);
+
+  //   // A_ = model.dynamics_matrix();
+  //   // J_ = model.constraints_bundle().J();
+  //   // const MatrixX<T>& J = J_.MakeDenseMatrix();
+  //   // const std::vector<MatrixX<double>>& G = model.EvalConstraintsHessian(context);
+
+  //   // fmt::print("nv: {}\n", nv);
+  //   // fmt::print("len(A): {}\n", A_.size());
+  //   // fmt::print("J.shape: {}\n", J);
+  //   // TODO: compute dense Hessian, sanity check via p = -H^{-1}g
+
+  //   getchar();
+
+  //   // fmt::print("P = {}\n", fmt_eigen(P.transpose()));
+ 
+  //   const T gy = g.transpose() * P.asDiagonal() * y;
+  //   const T yp = y.dot(p);
+  //   const T yy = y.transpose() * P.asDiagonal() * y;
+  //   const T pg = p.dot(g);
+  //   const T beta = gy / yp - (yy / yp) * (pg / yp);
+
+  //   data->dv = -g + beta * p;
+  // }
   
   // Update Δp, Δvc and d²ellA/dα².
   model.constraints_bundle().J().Multiply(data->dv, &data->dvc);
