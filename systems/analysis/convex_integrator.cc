@@ -581,49 +581,30 @@ void ConvexIntegrator<T>::CalcSearchDirectionDataNCG(const SapModel<T>& model,
 {  // NOLINT(whitespace/braces)
   const VectorX<T>& g = model.EvalCostGradient(context);
     
-  const MatrixX<T> H = MakeDenseHessian(model, context);
 
-  data->dv = H.ldlt().solve(-g);
-
-  (void)k;
-  (void)g_old;
-
-  // if (k == 0) {
-  //   // The first iteration is just gradient descent.
-  //   data->dv = -g;
-  // } else {
-  //   // We'll use the Dai-Kau method to find the conjugate gradient direction.
-  //   const VectorX<T>& p = data->dv;  // old search direction
-  //   const VectorX<T> y = g - g_old;
+  if (k == 0) {
+    // The first iteration is just gradient descent.
+    data->dv = -g;
+  } else {
+    // We'll use the Dai-Kau method to find the conjugate gradient direction.
+    const VectorX<T>& p = data->dv;  // old search direction
+    const VectorX<T> y = g - g_old;
   
-  //   // Compute the pre-conditioning matrix P = diag(H)^{-1}, where H = A + JᵀGJ.
-  //   const int nv = model.num_velocities();
-  //   VectorX<T> P = VectorX<T>::Ones(nv, nv);
-    
-  //   const MatrixX<T> H = MakeDenseHessian(model, context);
+    // Compute the pre-conditioning matrix P = diag(H)^{-1}, where H = A + JᵀGJ.
+    // const int nv = model.num_velocities();
+    // VectorX<T> P = VectorX<T>::Ones(nv, nv);
 
-  //   // A_ = model.dynamics_matrix();
-  //   // J_ = model.constraints_bundle().J();
-  //   // const MatrixX<T>& J = J_.MakeDenseMatrix();
-  //   // const std::vector<MatrixX<double>>& G = model.EvalConstraintsHessian(context);
-
-  //   // fmt::print("nv: {}\n", nv);
-  //   // fmt::print("len(A): {}\n", A_.size());
-  //   // fmt::print("J.shape: {}\n", J);
-  //   // TODO: compute dense Hessian, sanity check via p = -H^{-1}g
-
-  //   getchar();
-
-  //   // fmt::print("P = {}\n", fmt_eigen(P.transpose()));
+    const MatrixX<T> H = MakeDenseHessian(model, context);
+    const VectorX<T> P = H.diagonal().cwiseInverse();
  
-  //   const T gy = g.transpose() * P.asDiagonal() * y;
-  //   const T yp = y.dot(p);
-  //   const T yy = y.transpose() * P.asDiagonal() * y;
-  //   const T pg = p.dot(g);
-  //   const T beta = gy / yp - (yy / yp) * (pg / yp);
+    const T gy = g.transpose() * P.asDiagonal() * y;
+    const T yp = y.dot(p);
+    const T yy = y.transpose() * P.asDiagonal() * y;
+    const T pg = p.dot(g);
+    const T beta = gy / yp - (yy / yp) * (pg / yp);
 
-  //   data->dv = -g + beta * p;
-  // }
+    data->dv = beta * p - P.asDiagonal() * g;
+  }
   
   // Update Δp, Δvc and d²ellA/dα².
   model.constraints_bundle().J().Multiply(data->dv, &data->dvc);
