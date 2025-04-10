@@ -658,7 +658,11 @@ void ConvexIntegrator<T>::CalcSearchDirectionDataBFGS(const SapModel<T>& model,
 {  // NOLINT(whitespace/braces)
   const VectorX<T>& g = model.EvalCostGradient(context);
   
-  if (k > 0) {
+  if (k == 0) {
+    // Initialize the Hessian inverse approximation
+    const MatrixX<T> H = MakeDenseHessian(model, context);
+    Hinv_ = H.diagonal().cwiseInverse().asDiagonal();
+  } else {
     // Update the Hessian inverse approximation
     const VectorX<T> y = g - g_old;
     const T sTy = s.transpose() * y;
