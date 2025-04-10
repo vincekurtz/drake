@@ -320,8 +320,13 @@ SapSolverStatus ConvexIntegrator<T>::SolveWithGuessImpl(
   bool theta_criterion_reached = false;
   double theta = std::numeric_limits<double>::quiet_NaN();
 
-  // NCG allocations
+  // Experimental NCG/BFGS allocations
   VectorX<T> g_old(nv);  // gradient from the previous iteration
+  VectorX<T> s = VectorX<T>::Zero(nv);      // previous step size
+
+  // Initialize BFGS
+  // TODO: try Hessian diagonal
+  Hinv_ = MatrixX<T>::Identity(nv, nv);
 
   for (;; ++k) {
     // We first verify the stopping criteria. If satisfied, we skip expensive
@@ -416,7 +421,12 @@ SapSolverStatus ConvexIntegrator<T>::SolveWithGuessImpl(
     // solve for the search direction dv.
     // CalcSearchDirectionData(model, *context, &search_direction_data);
 
-    CalcSearchDirectionDataNCG(model, *context, g_old, k,
+    // Solve for dv with NCG
+    // CalcSearchDirectionDataNCG(model, *context, g_old, k,
+    //                           &search_direction_data);
+
+    // Solve for dv with BFGS
+    CalcSearchDirectionDataBFGS(model, *context, g_old, s, k,
                               &search_direction_data);
     g_old = model.EvalCostGradient(*context);
 
@@ -426,6 +436,9 @@ SapSolverStatus ConvexIntegrator<T>::SolveWithGuessImpl(
     // sap parameters.
     std::tie(alpha, num_line_search_iters) = PerformExactLineSearch(
         model, *context, search_direction_data, scratch.get());
+
+    // Save step size for BFGS
+    s = alpha * dv;
 
     sap_stats_.num_line_search_iters += num_line_search_iters;
 
@@ -609,6 +622,55 @@ void ConvexIntegrator<T>::CalcSearchDirectionDataNCG(const SapModel<T>& model,
     data->dv = beta * p - P.asDiagonal() * g;
   }
   
+  // Update Δp, Δvc and d²ellA/dα².
+  model.constraints_bundle().J().Multiply(data->dv, &data->dvc);
+  model.MultiplyByDynamicsMatrix(data->dv, &data->dp);
+  data->d2ellA_dalpha2 = data->dv.dot(data->dp);
+
+  using std::isnan;
+  if (isnan(data->d2ellA_dalpha2)) {
+    throw std::logic_error(fmt::format(
+        "The Hessian of the momentum cost along the search direction is NaN. "
+        "{}",
+        kNanValuesMessage));
+  }
+  if (data->d2ellA_dalpha2 <= 0) {
+    throw std::logic_error(fmt::format(
+        "The Hessian of the momentum cost along the search direction is not "
+        "positive, d²ℓ/dα² = {}. This can only be caused by a mass matrix that "
+        "is not SPD. This would indicate bad problem data (e.g. a zero mass "
+        "floating body, though this would be caught earlier). If you don't "
+        "believe this is the root cause of your problem, please contact the "
+        "Drake developers and/or open a Drake issue with a minimal "
+        "reproduction example to help debug your problem.",
+        data->d2ellA_dalpha2));
+  }
+}
+
+template <typename T>
+void ConvexIntegrator<T>::CalcSearchDirectionDataBFGS(const SapModel<T>& model,
+                                                     const Context<T>& context,
+                                                     const VectorX<T>& g_old,
+                                                     const VectorX<T>& s,
+                                                     const int k,
+                                                     SearchDirectionData* data)
+  requires std::is_same_v<T, double>
+{  // NOLINT(whitespace/braces)
+  const VectorX<T>& g = model.EvalCostGradient(context);
+  
+  if (k > 0) {
+    // Update the Hessian inverse approximation
+    const VectorX<T> y = g - g_old;
+    const T sTy = s.transpose() * y;
+    Hinv_ =
+        Hinv_ +
+        (sTy + y.transpose() * Hinv_ * y) * (s * s.transpose()) / (sTy * sTy) -
+        (Hinv_ * y * s.transpose() + s * y.transpose() * Hinv_) / sTy;
+  }
+
+  // Set the search direction
+  data->dv = - Hinv_ * g;
+
   // Update Δp, Δvc and d²ellA/dα².
   model.constraints_bundle().J().Multiply(data->dv, &data->dvc);
   model.MultiplyByDynamicsMatrix(data->dv, &data->dp);
