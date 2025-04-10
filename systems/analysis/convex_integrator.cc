@@ -581,10 +581,12 @@ void ConvexIntegrator<T>::CalcSearchDirectionDataNCG(const SapModel<T>& model,
 {  // NOLINT(whitespace/braces)
   const VectorX<T>& g = model.EvalCostGradient(context);
     
+  const MatrixX<T> H = MakeDenseHessian(model, context);
+  const VectorX<T> P = H.diagonal().cwiseInverse();
 
   if (k == 0) {
     // The first iteration is just gradient descent.
-    data->dv = -g;
+    data->dv = - (P.asDiagonal() * g);
   } else {
     // We'll use the Dai-Kau method to find the conjugate gradient direction.
     const VectorX<T>& p = data->dv;  // old search direction
@@ -594,12 +596,9 @@ void ConvexIntegrator<T>::CalcSearchDirectionDataNCG(const SapModel<T>& model,
     // const int nv = model.num_velocities();
     // VectorX<T> P = VectorX<T>::Ones(nv, nv);
 
-    const MatrixX<T> H = MakeDenseHessian(model, context);
-    const VectorX<T> P = H.diagonal().cwiseInverse();
-
     // Hessian condition number
-    const T kappa = 1.0 / H.llt().rcond();
-    fmt::print("kappa: {}\n", kappa);
+    // const T kappa = 1.0 / H.llt().rcond();
+    // fmt::print("kappa: {}\n", kappa);
 
     const T gy = g.transpose() * P.asDiagonal() * y;
     const T yp = y.dot(p);
