@@ -1604,6 +1604,9 @@ void ConvexIntegrator<T>::LinearizeExternalSystem(const T& h, VectorX<T>* Ku,
   VectorX<T> g_prime = g0;
   VectorX<T> ge_prime = ge0;
 
+  // TODO(vincekurtz): consider doing finite differences over v only, and simply
+  // using N(q) to set q'. That could reduce the size of this loop, and storage
+  // requirements for P, Q, etc.
   for (int i = 0; i < nx; ++i) {
     // Choose a step size (following implicit_integrator.cc)
     const T abs_si = abs(s(i));
