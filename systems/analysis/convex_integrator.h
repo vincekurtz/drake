@@ -225,6 +225,13 @@ class ConvexIntegrator final : public IntegratorBase<T> {
                                const Context<T>& context,
                                SearchDirectionData* search_direction_data)
     requires std::is_same_v<T, double>;
+  
+  // Compute search direction data using the Newton-CG method of Nocedal and
+  // Wright, Alg. 7.1
+  void CalcSearchDirectionDataNewtonCG(
+      const SapModel<T>& model, const Context<T>& context,
+      SearchDirectionData* search_direction_data)
+    requires std::is_same_v<T, double>;
 
   // Compute search direction data, but use nonlinear preconditioned conjugate
   // gradients instead of Newton

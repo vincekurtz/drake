@@ -421,9 +421,13 @@ SapSolverStatus ConvexIntegrator<T>::SolveWithGuessImpl(
     // solve for the search direction dv.
     // CalcSearchDirectionData(model, *context, &search_direction_data);
 
-    // Solve for dv with NCG
-    CalcSearchDirectionDataNCG(model, *context, g_old, k,
-                               &search_direction_data);
+    // Solve for dv with Newton CG
+    CalcSearchDirectionDataNewtonCG(model, *context,
+                                   &search_direction_data);
+
+    // Solve for dv with Nonlinear Conjugate Gradients
+    // CalcSearchDirectionDataNCG(model, *context, g_old, k,
+    //                            &search_direction_data);
     g_old = model.EvalCostGradient(*context);
 
     // Solve for dv with BFGS
@@ -586,6 +590,78 @@ const MatrixX<T> ConvexIntegrator<T>::MakeDenseHessian(
 }
 
 template <typename T>
+void ConvexIntegrator<T>::CalcSearchDirectionDataNewtonCG(const SapModel<T>& model,
+                                                     const Context<T>& context,
+                                                     SearchDirectionData* data)
+  requires std::is_same_v<T, double>
+{  // NOLINT(whitespace/braces)
+  using std::max;
+  using std::min;
+  using std::sqrt;
+
+  const VectorX<T>& g = model.EvalCostGradient(context);
+  const MatrixX<T> H = MakeDenseHessian(model, context);
+
+  // Tolerance for CG iterations
+  const T g_norm = g.norm();
+  const T eps = min(0.5, sqrt(g_norm)) * g_norm;
+
+  // Search direction
+  VectorX<T>& z = data->dv;
+  z.setZero();
+
+  // Allocations
+  VectorX<T> r = g;
+  VectorX<T> r_old = g;
+  VectorX<T> d = -r;
+  T alpha;
+  T beta;
+
+  // Solver loop
+  int j = 0;
+  for (;; ++j) {
+    alpha = r.dot(r) / d.dot(H * d);
+    z += alpha * d;
+    r = r_old + alpha * H * d;
+    if (r.norm() < eps) {
+      // We've converged to H z = -g, to acceptable tolerance.
+      break;
+    }
+    beta = r.dot(r) / (r_old.dot(r_old));
+    d = -r + beta * d;
+    r_old = r;
+    if (j == sap_parameters_.max_iterations) {
+      throw std::logic_error(
+          fmt::format("Newton CG did not converge after {} iterations.", j));
+    }
+  }
+  
+  // Update Δp, Δvc and d²ellA/dα².
+  model.constraints_bundle().J().Multiply(data->dv, &data->dvc);
+  model.MultiplyByDynamicsMatrix(data->dv, &data->dp);
+  data->d2ellA_dalpha2 = data->dv.dot(data->dp);
+
+  using std::isnan;
+  if (isnan(data->d2ellA_dalpha2)) {
+    throw std::logic_error(fmt::format(
+        "The Hessian of the momentum cost along the search direction is NaN. "
+        "{}",
+        kNanValuesMessage));
+  }
+  if (data->d2ellA_dalpha2 <= 0) {
+    throw std::logic_error(fmt::format(
+        "The Hessian of the momentum cost along the search direction is not "
+        "positive, d²ℓ/dα² = {}. This can only be caused by a mass matrix that "
+        "is not SPD. This would indicate bad problem data (e.g. a zero mass "
+        "floating body, though this would be caught earlier). If you don't "
+        "believe this is the root cause of your problem, please contact the "
+        "Drake developers and/or open a Drake issue with a minimal "
+        "reproduction example to help debug your problem.",
+        data->d2ellA_dalpha2));
+  }
+}
+
+template <typename T>
 void ConvexIntegrator<T>::CalcSearchDirectionDataNCG(const SapModel<T>& model,
                                                      const Context<T>& context,
                                                      const VectorX<T>& g_old,
@@ -601,7 +677,7 @@ void ConvexIntegrator<T>::CalcSearchDirectionDataNCG(const SapModel<T>& model,
 
   if (k == 0) {
     // The first iteration is just gradient descent.
-    data->dv = - g;
+    data->dv = - P * g;
   } else {
     const VectorX<T>& p = data->dv;  // old search direction
 
