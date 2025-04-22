@@ -422,8 +422,8 @@ SapSolverStatus ConvexIntegrator<T>::SolveWithGuessImpl(
     // CalcSearchDirectionData(model, *context, &search_direction_data);
 
     // Solve for dv with NCG
-    CalcSearchDirectionDataNCG(model, *context, g_old, s, k,
-                              &search_direction_data);
+    CalcSearchDirectionDataNCG(model, *context, g_old, k,
+                               &search_direction_data);
     g_old = model.EvalCostGradient(*context);
 
     // Solve for dv with BFGS
@@ -589,7 +589,6 @@ template <typename T>
 void ConvexIntegrator<T>::CalcSearchDirectionDataNCG(const SapModel<T>& model,
                                                      const Context<T>& context,
                                                      const VectorX<T>& g_old,
-                                                     const VectorX<T>& s,
                                                      const int k,
                                                      SearchDirectionData* data)
   requires std::is_same_v<T, double>
@@ -599,49 +598,22 @@ void ConvexIntegrator<T>::CalcSearchDirectionDataNCG(const SapModel<T>& model,
     
   const MatrixX<T> H = MakeDenseHessian(model, context);
   const MatrixX<T> P = H.diagonal().cwiseInverse().asDiagonal();
-  (void)H;
-  (void)P;
 
   if (k == 0) {
     // The first iteration is just gradient descent.
     data->dv = - g;
   } else {
-    // We'll use the hybrid CG method from Hamel et al, 2024. 
-    const VectorX<T>& d = data->dv;  // old search direction
+    const VectorX<T>& p = data->dv;  // old search direction
 
-    // Conjugate descent method
-    const T gTg = g.dot(g);
-    const T dTg = d.dot(g);
-    const T beta_CD = gTg / (-dTg);
-    (void)beta_CD;
-
-    // Dai-Yuan method
+    // Dai-Yuan method with pre-conditioning (https://arxiv.org/pdf/2405.08001)
     const VectorX<T> y = g - g_old;
-    const T dTy = d.dot(y);
-    const T beta_DY = gTg / dTy;
-    const T gTg_old = g_old.dot(g_old);
+    const T yp = y.dot(p);
+    const T gy = g.dot(P * y);
+    const T yy = y.dot(P * y);
+    const T pg = p.dot(g);
+    const T beta = gy / yp - (yy / yp) * (pg / yp);
 
-    // Wei-Yao-Liu method
-    const T ratio = g.norm() / g_old.norm();
-    const T beta_WYL = g.dot(g - ratio * g_old) / gTg_old;
-
-    // Convex combination
-    const VectorX<T> Hs = H * s;
-    const T denom = (-beta_WYL + beta_DY) * Hs.dot(d);
-    const T num = -s.dot(g) + Hs.dot(g) - beta_WYL * Hs.dot(d);
-    const T gamma = num / denom;
-
-    const T beta = (1.0 - gamma) * beta_WYL + gamma * beta_DY;
-    fmt::print("k = {}\n", k);
-    fmt::print("num = {}\n", num);
-    fmt::print("denom = {}\n", denom);
-    fmt::print("gamma = {}\n", gamma);
-    fmt::print("beta_DY = {}\n", beta_DY);
-    fmt::print("beta_WYL = {}\n", beta_WYL);
-    fmt::print("beta = {}\n", beta);
-    getchar();
-
-    data->dv = beta * d - g;
+    data->dv = beta * p - P * g;
   }
   
   // Update Δp, Δvc and d²ellA/dα².

@@ -230,7 +230,7 @@ class ConvexIntegrator final : public IntegratorBase<T> {
   // gradients instead of Newton
   void CalcSearchDirectionDataNCG(const SapModel<T>& model,
                                   const Context<T>& context,
-                                  const VectorX<T>& g_old, const VectorX<T>& s,
+                                  const VectorX<T>& g_old,
                                   const int k,
                                   SearchDirectionData* search_direction_data)
     requires std::is_same_v<T, double>;
