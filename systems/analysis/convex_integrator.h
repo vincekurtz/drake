@@ -378,8 +378,6 @@ class ConvexIntegrator final : public IntegratorBase<T> {
     VectorX<T> ge0;
     MatrixX<T> De;
     MatrixX<T> N;
-    MatrixX<T> P;
-    MatrixX<T> Q;
 
     // Used in AddContactConstraint
     DiscreteContactData<DiscreteContactPair<T>> contact_data;

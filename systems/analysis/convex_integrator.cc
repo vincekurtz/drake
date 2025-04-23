@@ -97,13 +97,11 @@ void ConvexIntegrator<T>::DoInitialize() {
   workspace_.ku.resize(nv);
   workspace_.Ke.resize(nv);
   workspace_.ke.resize(nv);
-  workspace_.D.resize(nv, nq + nv);
+  workspace_.D.resize(nv, nv);
   workspace_.g0.resize(nv);
-  workspace_.De.resize(nv, nq + nv);
+  workspace_.De.resize(nv, nv);
   workspace_.ge0.resize(nv);
   workspace_.N.resize(nq, nv);
-  workspace_.P.resize(nv, nv);
-  workspace_.Q.resize(nv, nv);
 
   // Set an artificial step size target, if not set already.
   if (isnan(this->get_initial_step_size_target())) {
@@ -1575,16 +1573,13 @@ void ConvexIntegrator<T>::LinearizeExternalSystem(const T& h, VectorX<T>* Ku,
   const ContinuousState<T>& state = context.get_continuous_state();
   const int nq = state.num_q();
   const int nv = state.num_v();
-  const int nx = nq + nv;
 
   // Workspace pre-allocations
   MatrixX<T>& D = workspace_.D;
-  VectorX<T>& g0 = workspace_.g0;
   MatrixX<T>& De = workspace_.De;
+  VectorX<T>& g0 = workspace_.g0;
   VectorX<T>& ge0 = workspace_.ge0;
   MatrixX<T>& N = workspace_.N;
-  MatrixX<T>& P = workspace_.P;
-  MatrixX<T>& Q = workspace_.Q;
 
   // Compute some quantities that depend on the current state, before messing
   // with the state with finite differences
@@ -1594,87 +1589,70 @@ void ConvexIntegrator<T>::LinearizeExternalSystem(const T& h, VectorX<T>* Ku,
   g0 = B * plant().AssembleActuationInput(plant_context);
   CalcAppliedExternalForces(plant_context, &ge0);
 
-  // Compute τ = D(x − x₀) + g₀ with finite differences
+  // Allocate a perturbed state x = [q; v; z] and outputs g(x), ge(x)
+  const VectorX<T> x = state.CopyToVector();
+  VectorX<T> x_prime = x;
+  VectorX<T> g_prime = g0;
+  VectorX<T> ge_prime = ge0;
+
+  // We'll want to perturb q and v separately, so we'll go ahead and grab these
+  // references.
+  auto q = x.head(nq);
+  auto v = x.segment(nq, nv);
+  auto q_prime = x_prime.head(nq);
+  auto v_prime = x_prime.segment(nq, nv);
+
+  // Compute τ = D(v − v₀) + g₀ with forward differences differences
   Context<T>* mutable_context = this->get_mutable_context();
   ContinuousState<T>& mutable_state =
       mutable_context->get_mutable_continuous_state();
   const double eps = std::sqrt(std::numeric_limits<double>::epsilon());
-  const VectorX<T> s = state.CopyToVector();  // s = [x; z]
-  VectorX<T> s_prime = s;
-  VectorX<T> g_prime = g0;
-  VectorX<T> ge_prime = ge0;
 
-  // TODO(vincekurtz): consider doing finite differences over v only, and simply
-  // using N(q) to set q'. That could reduce the size of this loop, and storage
-  // requirements for P, Q, etc.
-  for (int i = 0; i < nx; ++i) {
+  for (int i = 0; i < nv; ++i) {
     // Choose a step size (following implicit_integrator.cc)
-    const T abs_si = abs(s(i));
-    T dsi(abs_si);
-    if (dsi <= 1) {
-      dsi = eps;
+    const T abs_vi = abs(v(i));
+    T dvi(abs_vi);
+    if (dvi <= 1) {
+      dvi = eps;
     } else {
-      dsi = eps * abs_si;
+      dvi = eps * abs_vi;
     }
 
-    // Ensure that s' and s differ by an exactly representable number
-    s_prime(i) = s(i) + dsi;
-    dsi = s_prime(i) - s(i);
+    // Ensure that v' and v differ by an exactly representable number
+    v_prime(i) = v(i) + dvi;
+    dvi = v_prime(i) - v(i);
 
-    // Put s' in the context and mark it as stale
-    mutable_state.SetFromVector(s_prime);
+    // Perturb q as well, using the fact that q' = q + h N dv
+    q_prime = q + h * N * (v_prime - v);
+
+    // Put x' in the context and mark the state as stale
+    mutable_state.SetFromVector(x_prime);
     mutable_context->NoteContinuousStateChange();
 
-    // Compute the relevant matrix entries. Note that this assumes the state is
-    // organized as s = [x; z] where x is the plant state and z is the external
-    // system state.
+    // Compute the relevant matrix entries for D = dg/dv
     g_prime = B * plant().AssembleActuationInput(plant_context);
-    D.col(i) = (g_prime - g0) / dsi;
+    D.col(i) = (g_prime - g0) / dvi;
 
     // Same thing, but for external systems rather than actuation inputs
     CalcAppliedExternalForces(plant_context, &ge_prime);
-    De.col(i) = (ge_prime - ge0) / dsi;
+    De.col(i) = (ge_prime - ge0) / dvi;
 
-    // Reset s' to s
-    s_prime(i) = s(i);
+    // Reset the state for the next iteration
+    v_prime(i) = v(i);
   }
 
   // Reset the context back to how we found it
-  mutable_state.SetFromVector(s);
+  mutable_state.SetFromVector(x);
   mutable_context->NoteContinuousStateChange();
 
-  // We'll use D = [Dq, Dv] and q = q0 + h N v to write everything in terms of
-  // velocities.
-  const Eigen::Ref<MatrixX<T>> Dq = D.leftCols(nq);
-  const Eigen::Ref<MatrixX<T>> Dv = D.rightCols(nv);
-
-  const Eigen::Ref<MatrixX<T>> Dq_e = De.leftCols(nq);
-  const Eigen::Ref<MatrixX<T>> Dv_e = De.rightCols(nv);
-
-  // Square matrices that we can project to be symmetric positive definite
-  // For now we'll just use diagonal projection, so that we can support implicit
-  // effort limits and not worry about the external system constraint coupling
-  // multiple cliques.
-  P = -Dv;
-  Q = -Dq * N;
-
-  const MatrixX<T> P_e = -Dv_e;
-  const MatrixX<T> Q_e = -Dq_e * N;
-
-  // We'll use the diagonal projection for both Ku and ku to ensure that any
-  // non-convex portion of the dynamics is treated explicitly. Otherwise these
-  // components would be ingored entirely, resulting in wrong dynamics.
-  (*Ku) = P.diagonal().cwiseMax(0) + h * Q.diagonal().cwiseMax(0);
-  (*ku) = g0 + P.diagonal().cwiseMax(0).asDiagonal() * v0;
+  // Use the diagonal projection for both Ku and ku ensures that any
+  // non-convex portion of the dynamics is treated explicitly.
+  (*Ku) = (-D).diagonal().cwiseMax(0);
+  (*ku) = g0 + (*Ku).asDiagonal() * v0;
 
   // Add contribution from external ports
-  (*Ke) = P_e.diagonal().cwiseMax(0) + h * Q_e.diagonal().cwiseMax(0);
-  (*ke) = ge0 + P_e.diagonal().cwiseMax(0).asDiagonal() * v0;
-
-  // fmt::print("Qe =\n{}\n", fmt_eigen(Q_e));
-  // fmt::print("Ke = {}\n", fmt_eigen((*Ke).transpose()));
-  // fmt::print("ke = {}\n", fmt_eigen((*ke).transpose()));
-  // getchar();
+  (*Ke) = (-De).diagonal().cwiseMax(0);
+  (*ke) = ge0 + (*Ke).asDiagonal() * v0;
 }
 
 template <typename T>
