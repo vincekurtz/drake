@@ -332,9 +332,8 @@ bool ConvexIntegrator<T>::DoStepWithImplicitTrapezoidErrorEstimate(const T& h) {
     v_guess = x_next_full_->get_generalized_velocity().CopyToVector();
     CalcNextContinuousState(0.5 * h, v_guess, x_next_half_2_.get());
 
-    // Set the state to the result of the full step, since that is actually
-    // L-stable. The implicit trapezoidal rule is higher order, but not stable.
-    x_next.SetFrom(*x_next_full_);
+    // Set the state to the second-order implicit trapezoidal solution.
+    x_next.SetFrom(*x_next_half_2_);
     mutable_context.SetTimeAndNoteContinuousStateChange(t0 + h);
 
     // Estimate the error as the difference between the full step and the
