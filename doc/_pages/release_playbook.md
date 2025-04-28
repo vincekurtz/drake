@@ -40,6 +40,8 @@ push_release, etc.) are supported only on Ubuntu (not macOS).
    (Instructions can be found atop its source code: [``relnotes.py``](https://github.com/RobotLocomotion/drake/blob/master/tools/release_engineering/relnotes.py))
     1. On the first run, use ``--action=create`` to bootstrap the file.
        * The output is draft release notes in ``doc/_release-notes/v1.N.0.md``.
+       * The version numbers in ``doc/_pages/from_binary.md`` should also have
+         been automatically upgraded.
     2. On the subsequent runs, use ``--action=update`` to refresh the file.
        * Try to avoid updating the release notes to refer to changes newer than
        the likely release, i.e., if you run ``--update`` on the morning you're
@@ -124,7 +126,7 @@ the main body of the document:
    1. Open the following Jenkins jobs (e.g., each in its own
       new window, so you can copy-and-paste sha1 and version easily):
       - [Linux Wheel Staging](https://drake-jenkins.csail.mit.edu/view/Staging/job/linux-jammy-unprovisioned-gcc-wheel-staging-release/)
-      - [macOS arm Wheel Staging](https://drake-jenkins.csail.mit.edu/view/Staging/job/mac-arm-sonoma-unprovisioned-clang-wheel-staging-release/)
+      - [macOS arm Wheel Staging](https://drake-jenkins.csail.mit.edu/view/Staging/job/mac-arm-sonoma-clang-wheel-staging-release/)
       - [Jammy Packaging Staging](https://drake-jenkins.csail.mit.edu/view/Staging/job/linux-jammy-unprovisioned-gcc-cmake-staging-packaging/)
       - [Noble Packaging Staging](https://drake-jenkins.csail.mit.edu/view/Staging/job/linux-noble-unprovisioned-gcc-cmake-staging-packaging/)
       - [macOS arm Packaging Staging](https://drake-jenkins.csail.mit.edu/view/Staging/job/mac-arm-sonoma-clang-cmake-staging-packaging/)
@@ -143,8 +145,6 @@ the main body of the document:
    1. There is a dummy date 2099-12-31 nearby that should likewise be changed.
    2. Make sure that the nightly build git sha from the prior steps matches the
       ``newest_commit`` whose changes are enumerated in the notes.
-   3. Update the github links within ``doc/_pages/from_binary.md`` to reflect
-      the upcoming v1.N.0.
 4. Re-enable CI by reverting the commit you added way up above in step 3 of **Prior to release**.
 5. Wait for the wheel builds to complete, and then download release artifacts:
    1. Use the
@@ -169,12 +169,12 @@ the main body of the document:
       appropriate edits as follows:
       * The version number
    5. Click the box labeled "Attach binaries by dropping them here or selecting
-      them." and then choose for upload the **36** release files from
+      them." and then choose for upload the **33** release files from
       ``/tmp/drake-release/v1.N.0/...``:
       - 9: 3 `.tar.gz` + 6 checksums
       - 6: 2 `.deb` + 4 checksums
       - 12: 4 linux `.whl` + 8 checksums
-      - 9: 3 macOS arm `.whl` + 6 checksums
+      - 6: 2 macOS arm `.whl` + 4 checksums
       * Note that on Jammy with `snap` provided Firefox, drag-and-drop from
         Nautilus will fail, and drop all of your release page inputs typed so
         far. Use the Firefox-provided selection dialog instead, by clicking on
@@ -204,13 +204,20 @@ Most likely, you will want to use an api token to authenticate yourself to the
 ``twine`` uploader. See <https://pypi.org/help/#apitoken> and <https://packaging.python.org/en/latest/guides/distributing-packages-using-setuptools/#create-an-account>
 for advice on managing api tokens.
 
-For Jammy (and later?), ``apt install twine`` gives a perfectly adequate
-version of ``twine``.
+For Jammy, ``apt install twine`` is too old. Instead, you must run it from a
+venv (detail below).
 
 1. Run ``twine`` to upload the wheel release, as follows:
 
    1. You will need your PyPI username and password for this. (Do not use drake-robot.)
-   2. Run ``twine upload /tmp/drake-release/v1.N.0/*.whl``.
+   2. Run:
+      ```
+      $ cd tmp
+      $ python3 -m venv env
+      $ env/bin/pip install twine
+      $ env/bin/twine upload /tmp/drake-release/v1.N.0/*.whl
+      $ rm -rf env
+      ```
    3. Confirm that all of the uploads succeeded without any error messages in
       your terminal.
 

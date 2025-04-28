@@ -20,8 +20,10 @@ _files_to_remove = []
 # This is the complete set of defined targets (i.e. potential wheels). By
 # default, all targets are built, but the user may down-select from this set.
 # On macOS (unlike Linux), this is just the set of Python versions targeted.
+#
+# These should be kept in sync with
+# `setup/macos/source_distribution/Brewfile-developer`.
 python_targets = (
-    PythonTarget(3, 11),
     PythonTarget(3, 12),
     PythonTarget(3, 13),
 )
@@ -66,18 +68,6 @@ def _assert_isdir(path, name):
     """
     if not os.path.isdir(path):
         die(f'{name} \'{path}\' is not a valid directory')
-
-
-def _provision(python_targets):
-    """
-    Prepares wheel build environment.
-    """
-    packages_path = os.path.join(resource_root, 'image', 'packages-macos')
-    command = ['brew', 'bundle', f'--file={packages_path}']
-    subprocess.check_call(command)
-
-    for t in python_targets:
-        subprocess.check_call(['brew', 'install', f'python@{t.version}'])
 
 
 def _test_wheel(wheel, python_target, env):
@@ -127,8 +117,6 @@ def build(options):
 
     # Set up build environment.
     os.makedirs(build_root, exist_ok=True)
-    if options.provision:
-        _provision(targets_to_build)
 
     # Sanitize the build/test environment.
     environment = os.environ.copy()
@@ -165,6 +153,9 @@ def build(options):
 
     # Build the wheel(s).
     for python_target in targets_to_build:
+        if os.path.islink(wheel_root):
+            os.unlink(wheel_root)
+
         wheel_versioned_root = os.path.join(
             build_root, f'python{python_target.version}', 'wheel')
         os.symlink(wheel_versioned_root, wheel_root)
@@ -203,10 +194,6 @@ def add_build_arguments(parser):
         '-k', '--keep-build', action='store_true',
         help='do not delete build/test trees on success '
              '(tree(s) are always retained on failure)')
-    parser.add_argument(
-        '--no-provision', dest='provision', action='store_false',
-        help='skip host provisioning '
-             '(requires already-povisioned host)')
 
 
 def add_selection_arguments(parser):

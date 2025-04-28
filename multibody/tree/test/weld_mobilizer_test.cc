@@ -18,6 +18,7 @@ namespace {
 
 using Eigen::Vector3d;
 using Eigen::VectorXd;
+using math::RigidTransformd;
 using std::make_unique;
 using std::unique_ptr;
 using systems::Context;
@@ -55,6 +56,15 @@ TEST_F(WeldMobilizerTest, CalcAcrossMobilizerTransform) {
       weld_body_to_world_->CalcAcrossMobilizerTransform(*context_));
   EXPECT_TRUE(CompareMatrices(X_FM.GetAsMatrix34(), X_WB_.GetAsMatrix34(),
                               kTolerance, MatrixCompareType::relative));
+
+  // Now check the fast inline methods.
+  const double q_dummy{};
+  RigidTransformd fast_X_FM = weld_body_to_world_->calc_X_FM(&q_dummy);
+  EXPECT_TRUE(fast_X_FM.IsExactlyIdentity());
+  weld_body_to_world_->update_X_FM(&q_dummy, &fast_X_FM);
+  EXPECT_TRUE(fast_X_FM.IsExactlyIdentity());
+
+  TestPrePostMultiplyByX_FM(X_FM, *weld_body_to_world_);
 }
 
 TEST_F(WeldMobilizerTest, CalcAcrossMobilizerSpatialVeloctiy) {
