@@ -138,9 +138,10 @@ void ConvexIntegrator<T>::DoInitialize() {
 
 template <typename T>
 bool ConvexIntegrator<T>::DoStep(const T& h) {
-  return DoStepWithHalfStepErrorEstimate(h);
+  // return DoStepWithHalfStepErrorEstimate(h);
   // return DoStepWithSDIRK(h);
   // return DoStepWithImplicitTrapezoidErrorEstimate(h);
+  return DoStepWithBDF2ErrorEstimate(h);
 }
 
 template <typename T>
@@ -333,6 +334,70 @@ bool ConvexIntegrator<T>::DoStepWithImplicitTrapezoidErrorEstimate(const T& h) {
     CalcNextContinuousState(0.5 * h, v_guess, x_next_half_2_.get());
 
     // Set the state to the second-order implicit trapezoidal solution.
+    x_next.SetFrom(*x_next_half_2_);
+    mutable_context.SetTimeAndNoteContinuousStateChange(t0 + h);
+
+    // Estimate the error as the difference between the full step and the
+    // two half-steps.
+    ContinuousState<T>& err = *this->get_mutable_error_estimate();
+    err.SetFrom(*x_next_full_);
+    err.get_mutable_vector().PlusEqScaled(-1.0, x_next_half_2_->get_vector());
+  }
+
+  return true;  // step was successful
+}
+
+template <typename T>
+bool ConvexIntegrator<T>::DoStepWithBDF2ErrorEstimate(const T& h) {
+  // Get references to the overall diagram context and the plant context
+  const Context<T>& diagram_context = this->get_context();
+  const Context<T>& plant_context =
+      plant().GetMyContextFromRoot(diagram_context);
+
+  // Set time and time-step for debugging
+  const T t0 = diagram_context.get_time();
+  time_ = diagram_context.get_time();
+  time_step_ = h;
+
+  // Workspace allocations
+  VectorX<T>& v_guess = workspace_.v;
+
+  // Solve the for the full step x_{t+h}
+  solve_phase_ = 0;
+  v_guess = plant().GetVelocities(plant_context);
+  CalcNextContinuousState(h, v_guess, x_next_full_.get());
+
+  Context<T>& mutable_context = *this->get_mutable_context();
+  ContinuousState<T>& x_next = mutable_context.get_mutable_continuous_state();
+
+  if (this->get_fixed_step_mode()) {
+    // We're using fixed step mode, so we can just set the state to x_{t+h} and
+    // move on. No need for error estimation.
+    x_next.SetFrom(*x_next_full_);
+    mutable_context.SetTimeAndNoteContinuousStateChange(t0 + h);
+  } else {
+    // We're using error control, and will compare with two half-sized steps.
+
+    // First step to (t + h/2) using implicit Euler (= BDF1)
+    solve_phase_ = 1;
+    v_guess += x_next_full_->get_generalized_velocity().CopyToVector();
+    v_guess /= 2.0;
+    CalcNextContinuousState(0.5 * h, v_guess, x_next_half_1_.get());
+
+    // Second step to (t + h) using BDF2
+    // x₂ = −1/3 x₀ + 4/3 x₁ + 2/3f(t₂, x₂)
+    solve_phase_ = 2;
+    VectorX<T> x_tilde =
+        -1.0 / 3.0 * diagram_context.get_continuous_state().CopyToVector() +
+        4.0 / 3.0 * x_next_half_1_->CopyToVector();
+    x_next.SetFromVector(x_tilde);
+    mutable_context.SetTimeAndNoteContinuousStateChange(t0 + 0.5 * h);
+
+    v_guess = x_next_full_->get_generalized_velocity().CopyToVector();
+    CalcNextContinuousState(1.0 / 6.0 * h, v_guess, x_next_half_2_.get());
+
+    // Set the state to the result of the second half-step (since this is more
+    // accurate than the full step, and we have it anyway).
     x_next.SetFrom(*x_next_half_2_);
     mutable_context.SetTimeAndNoteContinuousStateChange(t0 + h);
 

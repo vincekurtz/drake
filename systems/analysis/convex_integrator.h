@@ -167,6 +167,10 @@ class ConvexIntegrator final : public IntegratorBase<T> {
   // estimation. This requires a total of 2 SAP solves.
   bool DoStepWithImplicitTrapezoidErrorEstimate(const T& h);
 
+  // Do the main integration step, using a BDF2 scheme for error estimation.
+  // This requires a total of 3 SAP solves.
+  bool DoStepWithBDF2ErrorEstimate(const T& h);
+
   // Solve the SAP problem to compute x_{t+h} at a given step size. This will be
   // called multiple times for each DoStep to compute the error estimate.
   //
