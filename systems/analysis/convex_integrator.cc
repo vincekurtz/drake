@@ -138,10 +138,10 @@ void ConvexIntegrator<T>::DoInitialize() {
 
 template <typename T>
 bool ConvexIntegrator<T>::DoStep(const T& h) {
-  // return DoStepWithHalfStepErrorEstimate(h);
+  return DoStepWithHalfStepErrorEstimate(h);
   // return DoStepWithSDIRK(h);
   // return DoStepWithImplicitTrapezoidErrorEstimate(h);
-  return DoStepWithBDF2ErrorEstimate(h);
+  // return DoStepWithBDF2ErrorEstimate(h);
 }
 
 template <typename T>
@@ -584,9 +584,10 @@ SapSolverStatus ConvexIntegrator<T>::SolveWithGuessImpl(
 
     // Dump iteration data to csv, if requested
     if (write_to_csv_) {
+      const T grad_norm = model.EvalCostGradient(*context).norm();
       csv_file_ << fmt::format(
           "{},{},{},{},{},{},{},{},{}\n", time_, time_step_, k,
-          momentum_residual, static_cast<int>(refresh_hessian_),
+          grad_norm, static_cast<int>(refresh_hessian_),
           static_cast<int>(problem_structure_changed),
           static_cast<int>(theta_criterion_reached), theta, solve_phase_);
     }
