@@ -18,3 +18,19 @@ drake_cc_binary(
     copts = ["-fsycl-targets=nvptx64-nvidia-cuda"],
     linkopts = ["-fsycl-targets=nvptx64-nvidia-cuda"],
 )
+
+drake_cc_binary(
+    name = "matrix_multiplication",
+    srcs = ["matrix_multiplication.cc"],
+    copts = [
+        "-fsycl-targets=nvptx64-nvidia-cuda",
+        "-Wno-error=deprecated-declarations",
+        "-Wno-deprecated-declarations",
+        "-Wno-error=unused-variable",
+    ],
+    linkopts = ["-fsycl-targets=nvptx64-nvidia-cuda"],
+    deps = [
+        "//common:essential",
+        "@gflags"
+    ],
+)
