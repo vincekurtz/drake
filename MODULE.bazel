@@ -31,6 +31,8 @@ cc_configure = use_extension(
 )
 use_repo(cc_configure, "local_config_cc")
 
+register_toolchains("//tools/dpcpp_toolchain:dpcpp_toolchain_for_linux")
+
 # Add C++ dependencies that are part of our public API.
 #
 # We declare these dependencies twice -- as modules (bazel_dep) and repository
