@@ -16,7 +16,7 @@ Set environment variables (every time):
 source /opt/intel/oneapi/setvars.sh
 ```
 
-Run SYCL examples:
+Run SYCL examples, e.g.,
 ```bash
 bazel run //examples/sycl:simple
 ```

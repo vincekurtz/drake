@@ -11,3 +11,10 @@ drake_cc_binary(
     copts = ["-fsycl-targets=nvptx64-nvidia-cuda"],
     linkopts = ["-fsycl-targets=nvptx64-nvidia-cuda"],
 )
+
+drake_cc_binary(
+    name = "add_integers",
+    srcs = ["add_integers.cc"],
+    copts = ["-fsycl-targets=nvptx64-nvidia-cuda"],
+    linkopts = ["-fsycl-targets=nvptx64-nvidia-cuda"],
+)
