@@ -586,8 +586,8 @@ SapSolverStatus ConvexIntegrator<T>::SolveWithGuessImpl(
     if (write_to_csv_) {
       const T grad_norm = model.EvalCostGradient(*context).norm();
       csv_file_ << fmt::format(
-          "{},{},{},{},{},{},{},{},{}\n", time_, time_step_, k,
-          grad_norm, static_cast<int>(refresh_hessian_),
+          "{},{},{},{},{},{},{},{},{}\n", time_, time_step_, k, grad_norm,
+          static_cast<int>(refresh_hessian_),
           static_cast<int>(problem_structure_changed),
           static_cast<int>(theta_criterion_reached), theta, solve_phase_);
     }
