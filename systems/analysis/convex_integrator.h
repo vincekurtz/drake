@@ -195,6 +195,11 @@ class ConvexIntegrator final : public IntegratorBase<T> {
   void AddJointLimitConstraints(const Context<T>& context, const T& h,
                                 SapContactProblem<T>* problem) const;
 
+  // Add coupler (e.g., mimic) constraints to the SAP problem.
+  // This is basically a copy-paste of SapDriver::AddCouplerConstraints.
+  void AddCouplerConstraints(const Context<T>& context,
+                             SapContactProblem<T>* problem) const;
+
   // Add external system constraints to the SAP problem. In particular, these
   // constraints produce generalized forces
   //

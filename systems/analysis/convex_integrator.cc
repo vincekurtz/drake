@@ -2,6 +2,7 @@
 
 #include "drake/common/timer.h"
 #include "drake/multibody/contact_solvers/newton_with_bisection.h"
+#include "drake/multibody/contact_solvers/sap/sap_coupler_constraint.h"
 #include "drake/multibody/contact_solvers/sap/sap_dummy_constraint.h"
 #include "drake/multibody/contact_solvers/sap/sap_external_system_constraint.h"
 #include "drake/multibody/contact_solvers/sap/sap_hunt_crossley_constraint.h"
@@ -20,12 +21,14 @@ using multibody::Joint;
 using multibody::JointActuator;
 using multibody::JointActuatorIndex;
 using multibody::JointIndex;
+using multibody::MultibodyConstraintId;
 using multibody::RigidBody;
 using multibody::contact_solvers::internal::Bracket;
 using multibody::contact_solvers::internal::DoNewtonWithBisectionFallback;
 using multibody::contact_solvers::internal::MakeContactConfiguration;
 using multibody::contact_solvers::internal::MatrixBlock;
 using multibody::contact_solvers::internal::SapConstraintJacobian;
+using multibody::contact_solvers::internal::SapCouplerConstraint;
 using multibody::contact_solvers::internal::SapDummyConstraint;
 using multibody::contact_solvers::internal::SapExternalSystemConstraint;
 using multibody::contact_solvers::internal::SapHessianFactorizationType;
@@ -123,7 +126,7 @@ void ConvexIntegrator<T>::DoInitialize() {
   this->set_accuracy_in_use(working_accuracy);
 
   // Set SAP solver parameters (default is sparse algebra)
-  sap_parameters_.linear_solver_type = SapHessianFactorizationType::kDense;
+  // sap_parameters_.linear_solver_type = SapHessianFactorizationType::kDense;
   sap_parameters_.max_iterations = 100;
 
   // Set up CSV writing, if requested
@@ -1081,6 +1084,9 @@ SapContactProblem<T> ConvexIntegrator<T>::MakeSapContactProblem(
   // joint limit constraints
   AddJointLimitConstraints(context, h, &problem);
 
+  // coupler constraints for "mimic" joints
+  AddCouplerConstraints(context, &problem);
+
   // External actuator constraints, τ = clamp(-Kᵤ v + kᵤ, -e, e)
   if (plant().num_actuators() > 0) {
     AddActuationConstraints(Ku, ku, &problem);
@@ -1093,6 +1099,46 @@ SapContactProblem<T> ConvexIntegrator<T>::MakeSapContactProblem(
   }
 
   return problem;
+}
+
+template <typename T>
+void ConvexIntegrator<T>::AddCouplerConstraints(
+    const Context<T>& context, SapContactProblem<T>* problem) const {
+  DRAKE_DEMAND(problem != nullptr);
+
+  const std::map<MultibodyConstraintId, bool>& constraint_active_status =
+      plant().GetConstraintActiveStatus(context);
+
+  for (const auto& [id, info] : plant().get_coupler_constraint_specs()) {
+    // Skip this constraint if it is not active.
+    if (!constraint_active_status.at(id)) continue;
+    const Joint<T>& joint0 = plant().get_joint(info.joint0_index);
+    const Joint<T>& joint1 = plant().get_joint(info.joint1_index);
+    const int dof0 = joint0.velocity_start();
+    const int dof1 = joint1.velocity_start();
+    const TreeIndex tree0 = tree_topology().velocity_to_tree_index(dof0);
+    const TreeIndex tree1 = tree_topology().velocity_to_tree_index(dof1);
+
+    // Sanity check.
+    DRAKE_DEMAND(tree0.is_valid() && tree1.is_valid());
+
+    // DOFs local to their tree.
+    const int tree_dof0 =
+        dof0 - tree_topology().tree_velocities_start_in_v(tree0);
+    const int tree_dof1 =
+        dof1 - tree_topology().tree_velocities_start_in_v(tree1);
+
+    const int tree_nv0 = tree_topology().num_tree_velocities(tree0);
+    const int tree_nv1 = tree_topology().num_tree_velocities(tree1);
+
+    const typename SapCouplerConstraint<T>::Kinematics kinematics{
+        tree0,           tree_dof0,  tree_nv0, joint0.GetOnePosition(context),
+        tree1,           tree_dof1,  tree_nv1, joint1.GetOnePosition(context),
+        info.gear_ratio, info.offset};
+
+    problem->AddConstraint(
+        std::make_unique<SapCouplerConstraint<T>>(std::move(kinematics)));
+  }
 }
 
 template <typename T>
