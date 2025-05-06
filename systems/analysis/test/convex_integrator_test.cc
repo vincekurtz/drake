@@ -107,6 +107,19 @@ const char actuated_pendulum_xml[] = R"""(
 </mujoco>
 )""";
 
+// MJCF of a simple pendulum with joint limits
+const char limited_pendulum_xml[] = R"""(
+<?xml version="1.0"?>
+<mujoco model="robot">
+  <worldbody>
+    <body>
+      <joint name="joint1" type="hinge" axis="0 1 0" pos="0 0 0.1" range="10 90"/>
+      <geom type="capsule" size="0.01 0.1"/>
+    </body>
+  </worldbody>
+</mujoco>
+)""";
+
 // Simulate a simple double pendulum system with the convex integrator. Play
 // the sim back over meshcat so we can see what's going on.
 GTEST_TEST(ConvexIntegratorTest, DoublePendulumSim) {
@@ -428,5 +441,55 @@ GTEST_TEST(ConvexIntegratorTest, EffortLimits) {
   EXPECT_TRUE(u_app[1] <= effort_limits[1]);
 }
 
+// Test imposing joint limits with SAP
+GTEST_TEST(ConvexIntegratorTest, JointLimits) {
+  auto meshcat = std::make_shared<drake::geometry::Meshcat>();
+
+  // Set up the a system model with joint limits
+  DiagramBuilder<double> builder;
+  auto [plant, scene_graph] = AddMultibodyPlantSceneGraph(&builder, 0.0);
+  Parser(&plant, &scene_graph).AddModelsFromString(limited_pendulum_xml, "xml");
+  plant.Finalize();
+
+  AddDefaultVisualization(&builder, meshcat);
+
+  // Compile the system diagram
+  auto diagram = builder.Build();
+  auto diagram_context = diagram->CreateDefaultContext();
+  Context<double>& plant_context =
+      diagram->GetMutableSubsystemContext(plant, diagram_context.get());
+
+  plant.SetPositions(&plant_context, Vector1d(M_PI_2));
+
+  // Set up the simulator
+  Simulator<double> simulator(*diagram, std::move(diagram_context));
+  SimulatorConfig config;
+  config.target_realtime_rate = 1.0;
+  config.publish_every_time_step = true;
+  ApplySimulatorConfig(config, &simulator);
+
+  // Set the integrator
+  ConvexIntegrator<double>& integrator =
+      simulator.reset_integrator<ConvexIntegrator<double>>();
+  integrator.set_maximum_step_size(0.1);
+  simulator.Initialize();
+
+  // Simulate for a few seconds
+  const int fps = 64;
+  meshcat->StartRecording(fps);
+  simulator.AdvanceTo(0.5);
+  meshcat->StopRecording();
+  meshcat->PublishRecording();
+
+  // Check that the final joint position is right at the limit
+  const VectorXd q = plant.GetPositions(plant_context);
+  const double q_min =
+      plant.GetJointByName("joint1").position_lower_limits()[0];
+  EXPECT_NEAR(q[0], q_min, 1e-3);
+
+  std::cout << std::endl;
+  PrintSimulatorStatistics(simulator);
+  std::cout << std::endl;
+}
 }  // namespace systems
 }  // namespace drake

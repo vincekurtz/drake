@@ -186,9 +186,14 @@ class ConvexIntegrator final : public IntegratorBase<T> {
   SapContactProblem<T> MakeSapContactProblem(const Context<T>& context,
                                              const T& h);
 
-  // Adds contact constraints to the SAP problem.
+  // Add contact constraints to the SAP problem.
   void AddContactConstraints(const Context<T>& context,
                              SapContactProblem<T>* problem);
+
+  // Add joint limit constraints to the SAP problem.
+  // This is basically a copy-paste of SapDriver::AddLimitConstraints.
+  void AddJointLimitConstraints(const Context<T>& context, const T& h,
+                                SapContactProblem<T>* problem) const;
 
   // Add external system constraints to the SAP problem. In particular, these
   // constraints produce generalized forces
