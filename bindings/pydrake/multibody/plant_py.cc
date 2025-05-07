@@ -1721,7 +1721,22 @@ PYBIND11_MODULE(plant, m) {
                   config, resolution_hint);
             },
             py::arg("geometry_instance"), py::arg("config"),
-            py::arg("resolution_hint"), cls_doc.RegisterDeformableBody.doc)
+            py::arg("resolution_hint"),
+            cls_doc.RegisterDeformableBody.doc_3args)
+        .def(
+            "RegisterDeformableBody",
+            [](Class& self, const geometry::GeometryInstance& geometry_instance,
+                ModelInstanceIndex model_instance,
+                const fem::DeformableBodyConfig<T>& config,
+                double resolution_hint) {
+              return self.RegisterDeformableBody(
+                  std::make_unique<geometry::GeometryInstance>(
+                      geometry_instance),
+                  model_instance, config, resolution_hint);
+            },
+            py::arg("geometry_instance"), py::arg("model_instance"),
+            py::arg("config"), py::arg("resolution_hint"),
+            cls_doc.RegisterDeformableBody.doc_4args)
         .def("SetWallBoundaryCondition", &Class::SetWallBoundaryCondition,
             py::arg("id"), py::arg("p_WQ"), py::arg("n_W"),
             cls_doc.SetWallBoundaryCondition.doc)
@@ -1744,7 +1759,13 @@ PYBIND11_MODULE(plant, m) {
             [](const Class* self, geometry::GeometryId geometry_id) {
               return self->GetBodyId(geometry_id);
             },
-            py::arg("geometry_id"), cls_doc.GetBodyId.doc_1args_geometry_id);
+            py::arg("geometry_id"), cls_doc.GetBodyId.doc_1args_geometry_id)
+        /* The parallelism configuration is for internal-use only and thus the
+         naming choice. This will go away when we figure out a more principled
+         way of using threads in a single deformable sim. */
+        .def("_set_parallelism", &Class::SetParallelism, py::arg("parallelism"),
+            cls_doc.SetParallelism.doc)
+        .def("_parallelism", &Class::parallelism, cls_doc.parallelism.doc);
   }
 
   type_visit([m](auto dummy) { DoScalarDependentDefinitions(m, dummy); },

@@ -99,6 +99,7 @@ from pydrake.multibody.benchmarks.acrobot import (
     AcrobotParameters,
     MakeAcrobotPlant,
 )
+from pydrake.common import Parallelism
 from pydrake.common.cpp_param import List
 from pydrake.common import FindResourceOrThrow
 from pydrake.common.deprecation import install_numpy_warning_filters
@@ -134,6 +135,7 @@ from pydrake.systems.analysis import Simulator_
 from pydrake.systems.framework import (
     DiagramBuilder,
     DiagramBuilder_,
+    DiscreteStateIndex,
     System_,
     LeafSystem_,
     InputPort_,
@@ -3369,10 +3371,11 @@ class TestPlant(unittest.TestCase):
         plant, scene_graph = AddMultibodyPlantSceneGraph(builder, 1.0e-3)
         dut = plant.mutable_deformable_model()
         self.assertEqual(dut.num_bodies(), 0)
-        # Add a deformable body to the model.
+        # Add two deformable bodies to the model with the two overloads of
+        # RegisterDeformableBody.
         deformable_body_config = DeformableBodyConfig_[float]()
         geometry = GeometryInstance(X_PG=RigidTransform(),
-                                    shape=Sphere(1.), name="sphere")
+                                    shape=Sphere(1.0), name="sphere")
         props = ProximityProperties()
         props.AddProperty("material", "coulomb_friction",
                           CoulombFriction_[float](1.0, 1.0))
@@ -3381,33 +3384,49 @@ class TestPlant(unittest.TestCase):
             geometry_instance=geometry,
             config=deformable_body_config,
             resolution_hint=1.0)
+        model_instance = plant.AddModelInstance("deformable_instance")
+        geometry2 = GeometryInstance(X_PG=RigidTransform(),
+                                     shape=Sphere(2.0), name="sphere2")
+        geometry2.set_proximity_properties(props)
+        dut.RegisterDeformableBody(
+            geometry_instance=geometry2,
+            config=deformable_body_config,
+            model_instance=model_instance,
+            resolution_hint=1.0)
+        self.assertEqual(dut.num_bodies(), 2)
 
         geometry_id = dut.GetGeometryId(body_id)
         self.assertEqual(dut.GetBodyId(geometry_id), body_id)
         dut.SetWallBoundaryCondition(body_id, [1, 1, -1], [0, 0, 1])
 
         spatial_inertia = SpatialInertia_[float].SolidCubeWithDensity(1, 1)
-        rigid_body = plant.AddRigidBody("rigid_body", spatial_inertia)
+        rigid_body = plant.AddRigidBody("rigid_body", model_instance,
+                                        spatial_inertia)
         dut.AddFixedConstraint(body_A_id=body_id,
                                body_B=rigid_body,
                                X_BA=RigidTransform(), shape=Box(1, 1, 1),
                                X_BG=RigidTransform())
 
-        # Verify that a body has been added to the model.
-        self.assertEqual(dut.num_bodies(), 1)
+        # Verify that both bodies have been added to the model.
         self.assertIsInstance(dut.GetReferencePositions(body_id), np.ndarray)
 
         deformable_model = plant.deformable_model()
-        self.assertEqual(deformable_model.num_bodies(), 1)
-        # Turn on SAP and finalize.
-        plant.set_discrete_contact_approximation(
-            DiscreteContactApproximation.kSap)
+        self.assertEqual(deformable_model.num_bodies(), 2)
+
+        mutable_deformable_model = plant.mutable_deformable_model()
+        mutable_deformable_model._set_parallelism(parallelism=Parallelism(2))
+        self.assertEqual(deformable_model._parallelism().num_threads(), 2)
+        mutable_deformable_model._set_parallelism(
+            parallelism=Parallelism(False))
+        self.assertEqual(deformable_model._parallelism().num_threads(), 1)
+
         plant.Finalize()
 
         self.assertIsInstance(
             plant.get_deformable_body_configuration_output_port(),
             OutputPort_[float])
-        self.assertEqual(deformable_model.GetDiscreteStateIndex(body_id), 1)
+        self.assertIsInstance(deformable_model.GetDiscreteStateIndex(body_id),
+                              DiscreteStateIndex)
 
         diagram = builder.Build()
         # Ensure we can simulate this system.

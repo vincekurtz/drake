@@ -141,6 +141,7 @@ drake_cc_library(
         ":tamsi_solver",
         "//common:default_scalars",
         "//common:essential",
+        "//common:parallelism",
         "//common:unused",
         "//geometry:geometry_ids",
         "//geometry:geometry_roles",
@@ -1061,6 +1062,7 @@ drake_cc_googletest(
 
 drake_cc_googletest(
     name = "deformable_integration_test",
+    timeout = "moderate",
     deps = [
         ":multibody_plant_config_functions",
         ":multibody_plant_core",
