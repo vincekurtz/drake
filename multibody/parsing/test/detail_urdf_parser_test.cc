@@ -395,29 +395,29 @@ TEST_F(UrdfParserTest, JointTypeUnknown) {
 // TODO(rpoyner-tri): Add MimicContinuousTime (which should throw the same
 // warning as MimicNoSap).
 
-TEST_F(UrdfParserTest, MimicNoSap) {
-  // Currently the <mimic> tag is only supported by SAP. Setting the solver
-  // to TAMSI should be a warning.
-  plant_.set_discrete_contact_approximation(
-      DiscreteContactApproximation::kTamsi);
-  EXPECT_NE(AddModelFromUrdfString(R"""(
-    <robot name='a'>
-      <link name='parent'/>
-      <link name='child'/>
-      <joint name='joint' type='revolute'>
-        <parent link='parent'/>
-        <child link='child'/>
-        <mimic/>
-      </joint>
-    </robot>)""",
-                                   ""),
-            std::nullopt);
-  EXPECT_THAT(
-      TakeWarning(),
-      MatchesRegex(
-          ".*Mimic elements are currently only supported by MultibodyPlant "
-          "with a discrete time step and using DiscreteContactSolver::kSap."));
-}
+// TEST_F(UrdfParserTest, MimicNoSap) {
+//   // Currently the <mimic> tag is only supported by SAP. Setting the solver
+//   // to TAMSI should be a warning.
+//   plant_.set_discrete_contact_approximation(
+//       DiscreteContactApproximation::kTamsi);
+//   EXPECT_NE(AddModelFromUrdfString(R"""(
+//     <robot name='a'>
+//       <link name='parent'/>
+//       <link name='child'/>
+//       <joint name='joint' type='revolute'>
+//         <parent link='parent'/>
+//         <child link='child'/>
+//         <mimic/>
+//       </joint>
+//     </robot>)""",
+//                                    ""),
+//             std::nullopt);
+//   EXPECT_THAT(
+//       TakeWarning(),
+//       MatchesRegex(
+//         ".*Mimic elements are currently only supported by MultibodyPlant "
+//         "with a discrete time step and using DiscreteContactSolver::kSap."));
+// }
 
 TEST_F(UrdfParserTest, MimicNoJoint) {
   // Currently the <mimic> tag is only supported by SAP.

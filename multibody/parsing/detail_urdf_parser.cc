@@ -759,17 +759,18 @@ void UrdfParser::ParseMimicTag(XMLElement* node) {
   std::string name;
   ParseStringAttribute(node, "name", &name);
 
-  if (!plant->is_discrete() ||
-      plant->get_discrete_contact_solver() != DiscreteContactSolver::kSap) {
-    Warning(
-        *mimic_node,
-        fmt::format("Joint '{}' specifies a mimic element that will be "
-                    "ignored. Mimic elements are currently only supported by "
-                    "MultibodyPlant with a discrete time step and using "
-                    "DiscreteContactSolver::kSap.",
-                    name));
-    return;
-  }
+  // Ignoring this check to enable mimic elements for ConvexIntegrator
+  // if (!plant->is_discrete() ||
+  //     plant->get_discrete_contact_solver() != DiscreteContactSolver::kSap) {
+  //   Warning(
+  //       *mimic_node,
+  //       fmt::format("Joint '{}' specifies a mimic element that will be "
+  //                   "ignored. Mimic elements are currently only supported by"
+  //                   " MultibodyPlant with a discrete time step and using "
+  //                   "DiscreteContactSolver::kSap.",
+  //                   name));
+  //   return;
+  // }
 
   std::string joint_to_mimic;
   if (!ParseStringAttribute(mimic_node, "joint", &joint_to_mimic)) {

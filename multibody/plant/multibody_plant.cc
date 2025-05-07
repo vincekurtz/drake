@@ -483,11 +483,12 @@ MultibodyConstraintId MultibodyPlant<T>::AddCouplerConstraint(
   // constraints to be added pre-finalize.
   DRAKE_MBP_THROW_IF_FINALIZED();
 
-  if (!is_discrete()) {
-    throw std::runtime_error(
-        "Currently coupler constraints are only supported for discrete "
-        "MultibodyPlant models.");
-  }
+  // Ignoring this check to enable mimic elements for ConvexIntegrator
+  // if (!is_discrete()) {
+  //   throw std::runtime_error(
+  //       "Currently coupler constraints are only supported for discrete "
+  //       "MultibodyPlant models.");
+  // }
 
   // TAMSI does not support tendon constraints. We've already confirmed that
   // this model is discrete. The only remaining discrete solver is SAP, so we
