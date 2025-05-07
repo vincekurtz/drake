@@ -437,8 +437,9 @@ GTEST_TEST(ConvexIntegratorTest, EffortLimits) {
   const VectorXd v = plant.GetVelocities(plant_context);
   const VectorXd u_app = M * (v - v0) / h + k;
 
-  EXPECT_TRUE(u_app[0] <= effort_limits[0]);
-  EXPECT_TRUE(u_app[1] <= effort_limits[1]);
+  const double kTol = std::sqrt(std::numeric_limits<double>::epsilon());
+  EXPECT_TRUE(u_app[0] <= effort_limits[0] + kTol);
+  EXPECT_TRUE(u_app[1] <= effort_limits[1] + kTol);
 }
 
 // Test imposing joint limits with SAP

@@ -1071,7 +1071,7 @@ SapContactProblem<T> ConvexIntegrator<T>::MakeSapContactProblem(
   k = plant().CalcInverseDynamics(
       context, VectorX<T>::Zero(plant().num_velocities()), f_ext);
   const VectorX<T>& v0 = plant().GetVelocities(context);
-  v_star = v0 - h * M.ldlt().solve(k);
+  v_star = A_dense.ldlt().solve(M * v0 - h * k);
 
   // problem creation
   // TODO(vincekurtz): consider updating rather than recreating
@@ -1082,7 +1082,7 @@ SapContactProblem<T> ConvexIntegrator<T>::MakeSapContactProblem(
   AddContactConstraints(context, &problem);
 
   // joint limit constraints
-  AddJointLimitConstraints(context, h, &problem);
+  AddJointLimitConstraints(context, v_star, h, &problem);
 
   // coupler constraints for "mimic" joints
   AddCouplerConstraints(context, &problem);
@@ -1143,7 +1143,7 @@ void ConvexIntegrator<T>::AddCouplerConstraints(
 
 template <typename T>
 void ConvexIntegrator<T>::AddJointLimitConstraints(
-    const Context<T>& context, const T& h,
+    const Context<T>& context, const VectorX<T>& v_star, const T& h,
     SapContactProblem<T>* problem) const {
   DRAKE_DEMAND(problem != nullptr);
 
@@ -1197,9 +1197,9 @@ void ConvexIntegrator<T>::AddJointLimitConstraints(
       // limits are within this window.
       using std::abs;
       using std::max;
-      // delta_q estimates how much q changes in a single time step. We estimate
-      // this with v0.
-      const T delta_q = h * abs(v0);
+      // delta_q estimates how much q changes in a single time step.
+      // We use the maximum of v0 and v* for a conservative estimation.
+      const T delta_q = h * max(abs(v0), abs(v_star(velocity_start)));
       // We use a factor kLimitWindowFactor to look into a larger window. A very
       // large kLimitWindowFactor means that constraints will always be added
       // even if they are inactive at the end of the computation. A smaller
