@@ -175,42 +175,30 @@ void ScrewMobilizer<T>::DoCalcNplusDotMatrix(
 }
 
 template <typename T>
-void ScrewMobilizer<T>::MapVelocityToQDot(const systems::Context<T>&,
-                                          const Eigen::Ref<const VectorX<T>>& v,
-                                          EigenPtr<VectorX<T>> qdot) const {
-  DRAKE_ASSERT(v.size() == kNv);
-  DRAKE_ASSERT(qdot != nullptr);
-  DRAKE_ASSERT(qdot->size() == kNq);
+void ScrewMobilizer<T>::DoMapVelocityToQDot(
+    const systems::Context<T>&, const Eigen::Ref<const VectorX<T>>& v,
+    EigenPtr<VectorX<T>> qdot) const {
   *qdot = v;
 }
 
 template <typename T>
-void ScrewMobilizer<T>::MapQDotToVelocity(
+void ScrewMobilizer<T>::DoMapQDotToVelocity(
     const systems::Context<T>&, const Eigen::Ref<const VectorX<T>>& qdot,
     EigenPtr<VectorX<T>> v) const {
-  DRAKE_ASSERT(qdot.size() == kNq);
-  DRAKE_ASSERT(v != nullptr);
-  DRAKE_ASSERT(v->size() == kNv);
   *v = qdot;
 }
 
 template <typename T>
-void ScrewMobilizer<T>::MapAccelerationToQDDot(
+void ScrewMobilizer<T>::DoMapAccelerationToQDDot(
     const systems::Context<T>&, const Eigen::Ref<const VectorX<T>>& vdot,
     EigenPtr<VectorX<T>> qddot) const {
-  DRAKE_ASSERT(vdot.size() == kNv);
-  DRAKE_ASSERT(qddot != nullptr);
-  DRAKE_ASSERT(qddot->size() == kNq);
   *qddot = vdot;
 }
 
 template <typename T>
-void ScrewMobilizer<T>::MapQDDotToAcceleration(
+void ScrewMobilizer<T>::DoMapQDDotToAcceleration(
     const systems::Context<T>&, const Eigen::Ref<const VectorX<T>>& qddot,
     EigenPtr<VectorX<T>> vdot) const {
-  DRAKE_ASSERT(qddot.size() == kNq);
-  DRAKE_ASSERT(vdot != nullptr);
-  DRAKE_ASSERT(vdot->size() == kNv);
   *vdot = qddot;
 }
 

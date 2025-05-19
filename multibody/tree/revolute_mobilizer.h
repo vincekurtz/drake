@@ -119,26 +119,6 @@ class RevoluteMobilizer : public MobilizerImpl<T, 1, 1> {
                                              const T& theta_dot) const;
   bool is_velocity_equal_to_qdot() const final { return true; }
 
-  // Maps v to qdot, which for this mobilizer is q̇ = v.
-  void MapVelocityToQDot(const systems::Context<T>& context,
-                         const Eigen::Ref<const VectorX<T>>& v,
-                         EigenPtr<VectorX<T>> qdot) const final;
-
-  // Maps qdot to v, which for this mobilizer is v = q̇.
-  void MapQDotToVelocity(const systems::Context<T>& context,
-                         const Eigen::Ref<const VectorX<T>>& qdot,
-                         EigenPtr<VectorX<T>> v) const final;
-
-  // Maps vdot to qddot, which for this mobilizer is q̈ = v̇.
-  void MapAccelerationToQDDot(const systems::Context<T>& context,
-                              const Eigen::Ref<const VectorX<T>>& vdot,
-                              EigenPtr<VectorX<T>> qddot) const final;
-
-  // Maps qddot to vdot, which for this mobilizer is v̇ = q̈.
-  void MapQDDotToAcceleration(const systems::Context<T>& context,
-                              const Eigen::Ref<const VectorX<T>>& qddot,
-                              EigenPtr<VectorX<T>> vdot) const final;
-
  protected:
   // Constructor for a RevoluteMobilizer between the inboard frame F and the
   // outboard frame M, granting a single rotational degree of freedom about a
@@ -160,6 +140,26 @@ class RevoluteMobilizer : public MobilizerImpl<T, 1, 1> {
   // Generally, v̇ = Ṅ⁺(q,q̇)⋅q̇ + N⁺(q)⋅q̈. For this mobilizer, Ṅ⁺ = zero matrix.
   void DoCalcNplusDotMatrix(const systems::Context<T>& context,
                             EigenPtr<MatrixX<T>> NplusDot) const final;
+
+  // Maps v to qdot, which for this mobilizer is q̇ = v.
+  void DoMapVelocityToQDot(const systems::Context<T>& context,
+                           const Eigen::Ref<const VectorX<T>>& v,
+                           EigenPtr<VectorX<T>> qdot) const final;
+
+  // Maps qdot to v, which for this mobilizer is v = q̇.
+  void DoMapQDotToVelocity(const systems::Context<T>& context,
+                           const Eigen::Ref<const VectorX<T>>& qdot,
+                           EigenPtr<VectorX<T>> v) const final;
+
+  // Maps vdot to qddot, which for this mobilizer is q̈ = v̇.
+  void DoMapAccelerationToQDDot(const systems::Context<T>& context,
+                                const Eigen::Ref<const VectorX<T>>& vdot,
+                                EigenPtr<VectorX<T>> qddot) const final;
+
+  // Maps qddot to vdot, which for this mobilizer is v̇ = q̈.
+  void DoMapQDDotToAcceleration(const systems::Context<T>& context,
+                                const Eigen::Ref<const VectorX<T>>& qddot,
+                                EigenPtr<VectorX<T>> vdot) const final;
 
  private:
   // Joint axis expressed identically in frames F and M. This must be one of
@@ -246,6 +246,14 @@ class RevoluteMobilizerAxial final : public RevoluteMobilizer<T> {
     math::RigidTransform<T> X_FB;
     X_MB.template PreMultiplyByAxialRotation<axis>(arX_FM, &X_FB);
     return X_FB;
+  }
+
+  // Returns v_F = aR_FM * v_M, exploiting the known structure of the axial
+  // rotation matrix aR_FM.
+  Vector3<T> apply_R_FM(const math::RotationMatrix<T>& aR_FM,
+                        const Vector3<T>& v_M) const {
+    return math::RotationMatrix<T>::template ApplyAxialRotation<axis>(aR_FM,
+                                                                      v_M);
   }
 
   // Computes the across-mobilizer spatial velocity V_FM(q, v) of the outboard

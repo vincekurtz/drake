@@ -75,12 +75,20 @@ class WeldMobilizer final : public MobilizerImpl<T, 0, 0> {
     return X_MB;
   }
 
-  // Computes the across-mobilizer velocity V_FM which for this mobilizer is
-  // always zero since the outboard frame M is fixed to the inboard frame F.
+  /* Since R_FM is identity, applying it to a vector does nothing. */
+  Vector3<T> apply_R_FM(const math::RotationMatrix<T>&,
+                        const Vector3<T>& v_M) const {
+    return v_M;
+  }
+
+  /* Computes the across-mobilizer velocity V_FM which for this mobilizer is
+  always zero. */
   SpatialVelocity<T> calc_V_FM(const T*, const T*) const {
     return SpatialVelocity<T>::Zero();
   }
 
+  /* Computes the across-mobilizer acceleration A_FM which for this mobilizer is
+  always zero. */
   SpatialAcceleration<T> calc_A_FM(const T*, const T*, const T*) const {
     return SpatialAcceleration<T>::Zero();
   }
@@ -109,30 +117,6 @@ class WeldMobilizer final : public MobilizerImpl<T, 0, 0> {
 
   bool is_velocity_equal_to_qdot() const override { return true; }
 
-  // This override is a no-op since this mobilizer has no generalized
-  // velocities associated with it.
-  void MapVelocityToQDot(const systems::Context<T>& context,
-                         const Eigen::Ref<const VectorX<T>>& v,
-                         EigenPtr<VectorX<T>> qdot) const final;
-
-  // This override is a no-op since this mobilizer has no generalized
-  // velocities associated with it.
-  void MapQDotToVelocity(const systems::Context<T>& context,
-                         const Eigen::Ref<const VectorX<T>>& qdot,
-                         EigenPtr<VectorX<T>> v) const final;
-
-  // This override is a no-op since this mobilizer has no generalized
-  // velocities associated with it.
-  void MapAccelerationToQDDot(const systems::Context<T>& context,
-                              const Eigen::Ref<const VectorX<T>>& vdot,
-                              EigenPtr<VectorX<T>> qddot) const final;
-
-  // This override is a no-op since this mobilizer has no generalized
-  // velocities associated with it.
-  void MapQDDotToAcceleration(const systems::Context<T>& context,
-                              const Eigen::Ref<const VectorX<T>>& qddot,
-                              EigenPtr<VectorX<T>> vdot) const final;
-
   bool can_rotate() const final { return false; }
   bool can_translate() const final { return false; }
 
@@ -150,6 +134,30 @@ class WeldMobilizer final : public MobilizerImpl<T, 0, 0> {
   // Generally, v̇ = Ṅ⁺(q,q̇)⋅q̇ + N⁺(q)⋅q̈. For this mobilizer, Ṅ⁺ = 0x0 matrix.
   void DoCalcNplusDotMatrix(const systems::Context<T>& context,
                             EigenPtr<MatrixX<T>> NplusDot) const final;
+
+  // This override is a no-op since this mobilizer has no generalized
+  // velocities associated with it.
+  void DoMapVelocityToQDot(const systems::Context<T>& context,
+                           const Eigen::Ref<const VectorX<T>>& v,
+                           EigenPtr<VectorX<T>> qdot) const final;
+
+  // This override is a no-op since this mobilizer has no generalized
+  // velocities associated with it.
+  void DoMapQDotToVelocity(const systems::Context<T>& context,
+                           const Eigen::Ref<const VectorX<T>>& qdot,
+                           EigenPtr<VectorX<T>> v) const final;
+
+  // This override is a no-op since this mobilizer has no generalized
+  // velocities associated with it.
+  void DoMapAccelerationToQDDot(const systems::Context<T>& context,
+                                const Eigen::Ref<const VectorX<T>>& vdot,
+                                EigenPtr<VectorX<T>> qddot) const final;
+
+  // This override is a no-op since this mobilizer has no generalized
+  // velocities associated with it.
+  void DoMapQDDotToAcceleration(const systems::Context<T>& context,
+                                const Eigen::Ref<const VectorX<T>>& qddot,
+                                EigenPtr<VectorX<T>> vdot) const final;
 
   std::unique_ptr<Mobilizer<double>> DoCloneToScalar(
       const MultibodyTree<double>& tree_clone) const final;
