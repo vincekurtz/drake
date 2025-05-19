@@ -52,7 +52,7 @@ constexpr double kHuge = 1.0e40;
 // Simulation parameters.
 DEFINE_double(simulation_time, 10.0, "Simulation duration in seconds");
 DEFINE_double(
-    mbp_time_step, 1.0E-2,
+    mbp_time_step, 0.0,
     "If mbp_time_step > 0, the fixed-time step period (in seconds) of discrete "
     "updates for the plant (modeled as a discrete system). "
     "If mbp_time_step = 0, the plant is modeled as a continuous system "
@@ -98,7 +98,8 @@ DEFINE_bool(random_offsets, true,
 DEFINE_bool(visualize, true, "Whether to visualize (true) or not (false).");
 DEFINE_bool(visualize_forces, false,
             "Whether to visualize forces (true) or not (false).");
-DEFINE_double(viz_period, 1.0 / 60.0, "Viz period.");
+DEFINE_double(viz_period, std::numeric_limits<double>::infinity(),
+              "Viz period.");
 
 // Discrete contact solver.
 DEFINE_string(discrete_contact_approximation, "lagged",
@@ -634,7 +635,7 @@ int do_main() {
     return systems::EventStatus::Succeeded();
   });
 
-  simulator->set_publish_every_time_step(false);
+  simulator->set_publish_every_time_step(true);
   simulator->Initialize();
   if (FLAGS_visualize) {
     // Wait for meshcat to load
