@@ -57,8 +57,11 @@ namespace internal {
 // @note The roll-pitch-yaw (space x-y-z) Euler sequence is also known as the
 // Tait-Bryan angles or Cardan angles.
 //
-//    H_FM₆ₓ₃=[ I₃ₓ₃ ]    Hdot_FM = 0₆ₓ₃
-//            [ 0₃ₓ₃ ]
+//    H_FM_F₆ₓ₃ = [ I₃ₓ₃ ]    Hdot_FM_F = 0₆ₓ₃
+//                [ 0₃ₓ₃ ]
+//
+//    H_FM_M = R_MF ⋅ H_FM_F = [ R_MF ]
+//                             [  0   ]
 //
 // @tparam_default_scalar
 template <typename T>
@@ -201,8 +204,8 @@ class RpyBallMobilizer final : public MobilizerImpl<T, 3, 3> {
     return SpatialVelocity<T>(w_FM, Vector3<T>::Zero());
   }
 
-  // Here H₆ₓ₃=[I₃ₓ₃ 0₃ₓ₃]ᵀ so Hdot=0 and
-  // A_FM = H⋅vdot + Hdot⋅v = [vdot, 0₃]ᵀ
+  // Here H_F₆ₓ₃=[I₃ₓ₃ 0₃ₓ₃]ᵀ so Hdot_F=0 and
+  // A_FM_F = H_F⋅vdot + Hdot_F⋅v = [vdot, 0₃]ᵀ
   SpatialAcceleration<T> calc_A_FM(const T*, const T*, const T* vdot) const {
     const Eigen::Map<const Vector3<T>> alpha_FM(vdot);
     return SpatialAcceleration<T>(alpha_FM, Vector3<T>::Zero());
@@ -250,6 +253,14 @@ class RpyBallMobilizer final : public MobilizerImpl<T, 3, 3> {
   void DoCalcNplusMatrix(const systems::Context<T>& context,
                          EigenPtr<MatrixX<T>> Nplus) const final;
 
+  // Generally, q̈ = Ṅ(q,q̇)⋅v + N(q)⋅v̇. For this mobilizer, Ṅ is not simple.
+  void DoCalcNDotMatrix(const systems::Context<T>& context,
+                        EigenPtr<MatrixX<T>> Ndot) const final;
+
+  // Generally, v̇ = Ṅ⁺(q,q̇)⋅q̇ + N⁺(q)⋅q̈. For this mobilizer, Ṅ⁺ is not simple.
+  void DoCalcNplusDotMatrix(const systems::Context<T>& context,
+                            EigenPtr<MatrixX<T>> NplusDot) const final;
+
   // Maps the generalized velocity v, which corresponds to the angular velocity
   // w_FM, to time derivatives of roll-pitch-yaw angles θ₀, θ₁, θ₂ in qdot.
   //
@@ -296,6 +307,11 @@ class RpyBallMobilizer final : public MobilizerImpl<T, 3, 3> {
 
   std::unique_ptr<Mobilizer<symbolic::Expression>> DoCloneToScalar(
       const MultibodyTree<symbolic::Expression>& tree_clone) const override;
+
+  // Certain roll pitch yaw calculations (e.g., calculating the N(q) matrix)
+  // have a singularity (divide-by-zero error) when cos(pitch) ≈ 0.
+  void ThrowSinceCosPitchIsNearZero(const T& pitch,
+                                    const char* function_name) const;
 
  private:
   // Helper method to make a clone templated on ToScalar.

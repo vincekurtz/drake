@@ -1,5 +1,8 @@
 #pragma once
 
+#include <set>
+#include <string>
+
 #include "drake/common/default_scalars.h"
 #include "drake/common/drake_assert.h"
 #include "drake/common/drake_copyable.h"
@@ -13,6 +16,9 @@ namespace multibody {
 
 template <typename T>
 class MultibodyPlant;
+
+template <typename T>
+class DeformableModel;
 
 /// A class representing an element (subcomponent) of a MultibodyPlant or
 /// (internally) a MultibodyTree. Examples of multibody elements are bodies,
@@ -71,6 +77,20 @@ class MultibodyElement {
   /// @param[out] parameters A mutable collections of parameters in a context.
   /// @pre parameters != nullptr
   void SetDefaultParameters(systems::Parameters<T>* parameters) const;
+
+  /// Declares MultibodyTreeSystem discrete states. NVI to the virtual method
+  /// DoDeclareDiscreteState().
+  /// @param[in] tree_system A mutable copy of the parent MultibodyTreeSystem.
+  /// @pre 'tree_system' must be the same as the parent tree system (what's
+  /// returned from GetParentTreeSystem()).
+  void DeclareDiscreteState(internal::MultibodyTreeSystem<T>* tree_system);
+
+  /// (Advanced) Declares all cache entries needed by this element.
+  /// This method is called by MultibodyTree on `this` element during
+  /// MultibodyTree::Finalize(). It subsequently calls DoDeclareCacheEntries().
+  /// Custom elements that need to declare cache entries must override
+  /// DoDeclareCacheEntries().
+  void DeclareCacheEntries(internal::MultibodyTreeSystem<T>* tree_system);
 
   /// Returns `true` if this %MultibodyElement was added during Finalize()
   /// rather than something a user added. (See class comments.)
@@ -140,6 +160,14 @@ class MultibodyElement {
   /// objects may override to set default values of their specific parameters.
   virtual void DoSetDefaultParameters(systems::Parameters<T>*) const;
 
+  /// Implementation of the NVI DeclareDiscreteState(). MultibodyElement-derived
+  /// objects may override to declare their specific state variables.
+  virtual void DoDeclareDiscreteState(internal::MultibodyTreeSystem<T>*);
+
+  /// Derived classes must override this method to declare cache entries
+  /// needed by `this` element. The default implementation is a no-op.
+  virtual void DoDeclareCacheEntries(internal::MultibodyTreeSystem<T>*);
+
   /// To be used by MultibodyElement-derived objects when declaring parameters
   /// in their implementation of DoDeclareParameters(). For an example, see
   /// RigidBody::DoDeclareParameters().
@@ -154,6 +182,21 @@ class MultibodyElement {
       internal::MultibodyTreeSystem<T>* tree_system,
       const AbstractValue& model_value);
 
+  /// To be used by MultibodyElement-derived objects when declaring discrete
+  /// states in their implementation of DoDeclareDiscreteStates(). For an
+  /// example, see DeformableBody::DoDeclareDiscreteStates().
+  systems::DiscreteStateIndex DeclareDiscreteState(
+      internal::MultibodyTreeSystem<T>* tree_system,
+      const VectorX<T>& model_value);
+
+  /// To be used by MultibodyElement-derived objects when declaring cache
+  /// entries in their implementation of DoDeclareCacheEntries(). For an
+  /// example, see DeformableBody::DoDeclareCacheEntries().
+  systems::CacheEntry& DeclareCacheEntry(
+      internal::MultibodyTreeSystem<T>* tree_system, std::string description,
+      systems::ValueProducer value_producer,
+      std::set<systems::DependencyTicket> prerequisites_of_calc);
+
   /// Returns true if this multibody element has a parent tree, otherwise false.
   bool has_parent_tree() const { return parent_tree_ != nullptr; }
 
@@ -161,6 +204,9 @@ class MultibodyElement {
   // MultibodyTree<T> is a natural friend of MultibodyElement objects and
   // therefore it can set the owning parent tree and unique index in that tree.
   friend class internal::MultibodyTree<T>;
+  // Similarly, friend DeformableModel<T> to allow it to set the parent tree and
+  // index for deformable bodies.
+  friend class DeformableModel<T>;
 
   // Give unit tests access to the tree.
   friend class MultibodyElementTester;
