@@ -219,9 +219,13 @@ class PooledSapModel<T>::PatchConstraintsPool {
     //           [ 0   R²/g²]
     // It's RMS norm will be w = sqrt(7)/m ≈ 2.65/m.
     T w = 2.65 / model().body_mass(bodies_[p].first);
+    fmt::print("first body mass: {}, w: {}\n",
+               model().body_mass(bodies_[p].first), w);
     if (num_cliques == 2) {
       w += 2.65 / model().body_mass(bodies_[p].second);
     }
+    fmt::print("second body mass: {}, w: {}\n",
+               model().body_mass(bodies_[p].second), w);
     const T Rt = sigma_ * w;  // SAP's regularization.
 
     // Regularized Lagged model.
