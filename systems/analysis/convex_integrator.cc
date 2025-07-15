@@ -478,6 +478,10 @@ bool ConvexIntegrator<double>::SolveWithGuess(
                 << "\n";
     }
 
+    if (std::isnan(data.cache().cost)) {
+      throw std::runtime_error("ConvexIntegrator: failed with cost = NaN. ");
+    }
+
     // Gradient-based convergence check. Allows for early exit if v_guess is
     // already close enough to the solution.
     if (grad_norm < eps * scale) {
