@@ -64,7 +64,13 @@ def run_simulation(
     simulator = Simulator(diagram)
     ApplySimulatorConfig(config, simulator)
     if mbp_time_step == 0:
-        simulator.get_mutable_integrator().set_plant(plant)
+        ci = simulator.get_mutable_integrator()
+        ci.set_plant(plant)
+        params = ci.get_solver_parameters()
+        params.enable_hessian_reuse = False
+        params.print_solver_stats = True
+        params.use_dense_algebra = True
+        ci.set_solver_parameters(params)
     if visualize:
         simulator.set_target_realtime_rate(1.0)
         simulator.set_publish_every_time_step(True)
@@ -120,7 +126,7 @@ if __name__=="__main__":
         "--visualize",
         action="store_true",
         help="Whether to visualize the simulation (try for real-time if true).",
-        default=False,
+        default=True,
         required=False,
     )
     parser.add_argument(
@@ -140,7 +146,7 @@ if __name__=="__main__":
         "--mbp_time_step",
         type=float,
         help="Simulator step size dt (in seconds). 0 for continuous time.",
-        default=0.005,
+        default=0.0,
         required=False,
     )
     parser.add_argument(
@@ -158,8 +164,8 @@ if __name__=="__main__":
     parser.add_argument(
         "--max_time_step",
         type=float,
-        help="Maximum time step for the error controlled integrator (default 0.1).",
-        default=0.1,
+        help="Maximum time step for the error controlled integrator.",
+        default=0.001,
         required=False,
     )
     args = parser.parse_args()
