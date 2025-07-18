@@ -593,7 +593,7 @@ std::pair<double, int> ConvexIntegrator<double>::PerformExactLineSearch(
   // dell0 will be used to generate an initial guess.
   const double ell0 = data.cache().cost;
   const double dell0 = data.cache().gradient.dot(dv);
-  if (dell0 >= 0) {
+  if (dell0 >= 0 || !std::isfinite(dell0)) {
     throw std::logic_error(
         "ConvexIntegrator: the cost does not decrease along the search "
         "direction. This is usually caused by an excessive accumulation of "
