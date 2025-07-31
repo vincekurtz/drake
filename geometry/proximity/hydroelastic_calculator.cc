@@ -124,6 +124,13 @@ ContactCalculator<T>::MaybeMakeContactSurface(GeometryId id_A,
                (type_A == HydroelasticType::kSoft &&
                 type_B == HydroelasticType::kRigid));
 
+  throw std::logic_error(
+      fmt::format("Requested hydroelastic contact between a rigid geometry "
+                  "with id {} and a compliant geometry with id {}; that is not "
+                  "allowed.",
+                  type_A == HydroelasticType::kRigid ? id_A : id_B,
+                  type_A == HydroelasticType::kRigid ? id_B : id_A));
+
   bool A_is_rigid = type_A == HydroelasticType::kRigid;
   const GeometryId id_S = A_is_rigid ? id_B : id_A;
   const GeometryId id_R = A_is_rigid ? id_A : id_B;

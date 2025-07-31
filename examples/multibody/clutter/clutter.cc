@@ -55,10 +55,10 @@ DEFINE_double(
 DEFINE_double(density, 1000.0, "The density of all objects, in kg/m³.");
 DEFINE_double(static_friction, 0.5, "All bodies use this value.");
 DEFINE_double(dynamic_friction, 0.5, "All bodies use this value.");
-DEFINE_double(box_stiffness, 1.0e5, "Box point contact stiffness in N/m.");
-DEFINE_double(sphere_stiffness, 1.0e5,
+DEFINE_double(box_stiffness, 1.0e7, "Box point contact stiffness in N/m.");
+DEFINE_double(sphere_stiffness, 1.0e7,
               "Sphere point contact stiffness in N/m.");
-DEFINE_bool(use_hydro, false, "If true, use hydro. Otherwise point contact.");
+DEFINE_bool(use_hydro, true, "If true, use hydro. Otherwise point contact.");
 DEFINE_double(sphere_resolution, 0.02, "Resolution hint for the sphere");
 DEFINE_double(dissipation_time_constant, 0.01,
               "Dissipation time constant in seconds.");
@@ -83,7 +83,7 @@ DEFINE_int32(objects_per_pile, 5, "Number of objects per pile.");
 DEFINE_double(dz, 0.15, "Initial distance between objects in the pile.");
 DEFINE_double(scale_factor, 1.0, "Multiplicative factor to generate the pile.");
 DEFINE_bool(add_sink_walls, true, "Adds wall of a sink model.");
-DEFINE_bool(enable_boxes, false, "Make some of the objects boxes.");
+DEFINE_bool(enable_boxes, true, "Make some of the objects boxes.");
 DEFINE_bool(random_offsets, true,
             "Use slight random offsets in initial positions.");
 
@@ -293,7 +293,7 @@ void AddSink(MultibodyPlant<double>* plant) {
       [&](const std::string& name, const Vector3d& dimensions,
           const RigidTransformd& X_WB,
           const Vector4<double>& color) -> const RigidBody<double>& {
-    const double kSinkStiffness = kHuge;
+    const double kSinkStiffness = 1e8;
     const auto& wall =
         AddBox(name, dimensions, wall_mass, kSinkStiffness, static_friction,
                dynamic_friction, color, false, true, plant);
