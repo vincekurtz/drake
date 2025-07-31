@@ -40,6 +40,14 @@ CLANG_FLAGS = CXX_FLAGS + [
     "-Werror=return-stack-address",
     "-Werror=sign-compare",
     "-Werror=unqualified-std-cast-call",
+    # Turn off for sycl builds
+    "-Wno-unused-variable",
+    "-Wno-deprecated-declarations",
+    "-Wno-missing-template-arg-list-after-template-kw",
+    "-Wno-deprecated-declarations",
+    "-Wno-shadow",
+    "-Wno-maybe-uninitialized",
+    "-Wno-uninitialized"
 ]
 
 # The APPLECLANG_FLAGS will be enabled for all C++ rules in the project when

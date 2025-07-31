@@ -589,3 +589,7 @@ DRAKE_DEFINE_FUNCTION_TEMPLATE_INSTANTIATIONS_ON_DEFAULT_SCALARS(
 
 DRAKE_DEFINE_CLASS_TEMPLATE_INSTANTIATIONS_ON_DEFAULT_SCALARS(
     class ::drake::geometry::internal::point_distance::DistanceToPoint);
+template std::tuple<Eigen::Vector<double, 3>, Eigen::Vector<double, 3>, bool>
+drake::geometry::internal::point_distance::DistanceToPoint<
+    double>::ComputeDistanceToBox<3>(const Eigen::Vector<double, 3>& h,
+                                     const Eigen::Vector<double, 3>& p_GQ_G);

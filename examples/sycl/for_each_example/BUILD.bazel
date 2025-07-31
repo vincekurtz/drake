@@ -1,0 +1,33 @@
+load(
+    "//tools/skylark:drake_cc.bzl",
+    "drake_cc_binary",
+)
+
+package(default_visibility = ["//visibility:private"])
+
+drake_cc_binary(
+    name = "for_each_example",
+    srcs = ["main.cc"],
+    copts = [
+        "-fsycl",
+        "-fsycl-targets=nvptx64-nvidia-cuda,spir64",
+        #"-Xsycl-target-backend=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_89",
+        "-gline-tables-only",
+        "-I/opt/intel/oneapi/dpl/2022.8/include",
+        "-I/opt/intel/oneapi/tbb/2022.1/include",  # Added TBB include
+        "-Wno-old-style-cast",
+        "-Wno-logical-op-parentheses",
+        "-Wno-unknown-pragmas",
+        "-Wno-deprecated-copy-with-dtor",
+        "-Wno-deprecated-copy-with-user-provided-copy",
+        "-Wno-sign-compare",
+        "-Wno-unused-but-set-variable",
+    ],
+    linkopts = [
+        "-fsycl",
+        "-fsycl-targets=nvptx64-nvidia-cuda,spir64",
+        #"-Xsycl-target-backend=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_89",
+        "-L/opt/intel/oneapi/tbb/2025.1/lib",  # Added TBB lib path
+        "-ltbb",  # Link TBB
+    ],
+) 

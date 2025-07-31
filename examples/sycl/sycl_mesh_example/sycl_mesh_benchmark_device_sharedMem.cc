@@ -1,0 +1,183 @@
+#include <chrono>
+#include <iostream>
+#include <random>
+#include <string>
+#include <vector>
+
+#include <sycl/sycl.hpp>
+
+constexpr size_t transform_size = 12;
+constexpr size_t num_frames = 1000;
+int main(int argc, char* argv[]) {
+  size_t num_meshes = 30;
+  size_t vertices_per_mesh = 4000;
+  size_t vertices_per_work_item = 20;
+
+  if (argc >= 4) {
+    num_meshes = std::stoul(argv[1]);
+    vertices_per_mesh = std::stoul(argv[2]);
+    vertices_per_work_item = std::stoul(argv[3]);
+  } else {
+    std::cout << "Usage: " << argv[0]
+              << " <num_meshes> <vertices_per_mesh> <vertices_per_work_item>\n";
+    std::cout << "Using default values.\n";
+  }
+
+  std::vector<sycl::device> devices = sycl::device::get_devices();
+
+  for (const auto& dev : devices) {
+    std::cout << "\n== Running on device: "
+              << dev.get_info<sycl::info::device::name>() << " ==\n";
+
+    sycl::queue q{dev};
+
+    std::cout << "Device: "
+              << q.get_device().get_info<sycl::info::device::name>()
+              << std::endl;
+    std::cout
+        << "Max Compute Units: "
+        << q.get_device().get_info<sycl::info::device::max_compute_units>()
+        << std::endl;
+    std::cout
+        << "Max Work Group Size: "
+        << q.get_device().get_info<sycl::info::device::max_work_group_size>()
+        << std::endl;
+
+    std::cout << "Max Work Item Dimensions: "
+              << q.get_device()
+                     .get_info<sycl::info::device::max_work_item_dimensions>()
+              << std::endl;
+
+    double* mesh_vertices = sycl::malloc_device<double>(
+        num_meshes * vertices_per_mesh * 3, q);  // XYZ per vertex
+
+    std::vector<double> host_vertices(num_meshes * vertices_per_mesh * 3);
+    std::mt19937 rng(42);
+    std::uniform_real_distribution<double> dist(-1.0, 1.0);
+    for (auto& v : host_vertices) v = dist(rng);
+
+    q.memcpy(mesh_vertices, host_vertices.data(),
+             sizeof(double) * host_vertices.size())
+        .wait();
+
+    // Device allocated transforms
+    double* transforms =
+        sycl::malloc_device<double>(num_meshes * transform_size, q);
+
+    // Host side transforms for updating
+    std::vector<double> host_transforms(num_meshes * transform_size, 0.0);
+
+    std::chrono::duration<double, std::milli> total_update_time{0};
+    std::chrono::duration<double, std::milli> total_kernel_time{0};
+    std::chrono::duration<double, std::milli> total_memcpy_time{0};
+
+    for (int frame = 0; frame <= static_cast<int>(num_frames); ++frame) {
+      auto t0 = std::chrono::high_resolution_clock::now();
+      for (size_t i = 0; i < num_meshes; ++i) {
+        for (size_t j = 0; j < transform_size; ++j) {
+          host_transforms[i * transform_size + j] +=
+              static_cast<double>(frame + i + j) * 0.001;
+        }
+      }
+      auto t1 = std::chrono::high_resolution_clock::now();
+      if (frame > 0) total_update_time += (t1 - t0);
+
+      // Memcpy the transforms to device
+      auto memcpy_start = std::chrono::high_resolution_clock::now();
+      q.memcpy(transforms, host_transforms.data(),
+               sizeof(double) * host_transforms.size())
+          .wait();
+      auto memcpy_end = std::chrono::high_resolution_clock::now();
+      if (frame > 0) total_memcpy_time += (memcpy_end - memcpy_start);
+
+      auto kernel_event = q.submit([&](sycl::handler& h) {
+        // Allocate local memory for transform matrix shared within work group
+        sycl::local_accessor<double, 1> local_transform(transform_size, h);
+
+        // Define ND-range with num_meshes work groups and enough work items per
+        // group to process all vertices in a mesh
+        size_t work_items_per_mesh =
+            (vertices_per_mesh + vertices_per_work_item - 1) /
+            vertices_per_work_item;
+        sycl::range<1> global_range{num_meshes * work_items_per_mesh};
+        sycl::range<1> local_range{work_items_per_mesh};
+
+        h.parallel_for(
+            sycl::nd_range<1>(global_range, local_range),
+            [=](sycl::nd_item<1> item) {
+              // Each work group represents one mesh
+              size_t mesh_id = item.get_group(0);
+              size_t local_id = item.get_local_id(0);
+              size_t global_id = item.get_global_id(0);
+
+              // Distribute transform loading across work items
+              if (local_id < transform_size) {
+                // Each of the first 12 work items loads one element
+                local_transform[local_id] =
+                    transforms[mesh_id * transform_size + local_id];
+              }
+
+              // Ensure all work items see the loaded transform data
+              item.barrier(sycl::access::fence_space::local_space);
+
+              // Calculate which vertices this work item processes
+              size_t vertices_start = (mesh_id * vertices_per_mesh) +
+                                      (local_id * vertices_per_work_item);
+              size_t vertices_to_process = vertices_per_work_item;
+
+              // Adjust for last work item in case vertices don't divide evenly
+              if (local_id == work_items_per_mesh - 1) {
+                size_t remaining = vertices_per_mesh % vertices_per_work_item;
+                if (remaining > 0) {
+                  vertices_to_process = remaining;
+                }
+              }
+
+              // Process vertices assigned to this work item
+              for (size_t v = 0; v < vertices_to_process; ++v) {
+                // Skip processing if we're beyond the mesh's vertices
+                if ((local_id * vertices_per_work_item) + v >=
+                    vertices_per_mesh)
+                  break;
+
+                double& x = mesh_vertices[(vertices_start + v) * 3 + 0];
+                double& y = mesh_vertices[(vertices_start + v) * 3 + 1];
+                double& z = mesh_vertices[(vertices_start + v) * 3 + 2];
+
+                double new_x = local_transform[0] * x + local_transform[1] * y +
+                               local_transform[2] * z + local_transform[3];
+                double new_y = local_transform[4] * x + local_transform[5] * y +
+                               local_transform[6] * z + local_transform[7];
+                double new_z = local_transform[8] * x + local_transform[9] * y +
+                               local_transform[10] * z + local_transform[11];
+
+                x = new_x;
+                y = new_y;
+                z = new_z;
+              }
+            });
+      });
+
+      kernel_event.wait();
+
+      auto t2 = std::chrono::high_resolution_clock::now();
+      if (frame > 0) total_kernel_time += (t2 - memcpy_end);
+
+      q.memcpy(host_vertices.data(), mesh_vertices,
+               sizeof(double) * host_vertices.size())
+          .wait();
+    }
+
+    std::cout << "Average CPU-side transform update time: "
+              << (total_update_time.count() / num_frames) << " ms\n";
+    std::cout << "Average transforms memcpy time: "
+              << (total_memcpy_time.count() / num_frames) << " ms\n";
+    std::cout << "Average kernel execution time: "
+              << (total_kernel_time.count() / num_frames) << " ms\n";
+
+    sycl::free(mesh_vertices, q);
+    sycl::free(transforms, q);
+  }
+
+  return 0;
+}

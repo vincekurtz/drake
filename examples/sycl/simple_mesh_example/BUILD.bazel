@@ -1,0 +1,74 @@
+load(
+    "//tools/skylark:drake_cc.bzl",
+    "drake_cc_binary",
+    "drake_cc_library",
+)
+
+package(default_visibility = ["//visibility:private"])
+
+drake_cc_library(
+    name = "simple_mesh",
+    srcs = ["simple_mesh.cc"],
+    hdrs = ["simple_mesh.h"],
+
+    copts = [
+        "-fsycl",
+        "-g",
+        "-lineinfo",
+        "-fsycl-targets=nvptx64-nvidia-cuda,spir64",
+        "-DEIGEN_DONT_VECTORIZE"
+    ],
+
+    deps = [
+        "//common:essential"
+    ]
+)
+
+drake_cc_binary(
+    name = "mesh_test",
+    srcs = ["mesh_test.cc"],
+    copts = [
+        "-fsycl",
+        "-g",
+        "-lineinfo",
+        "-fsycl-targets=nvptx64-nvidia-cuda,spir64",
+        "-DEIGEN_DONT_VECTORIZE"
+    ],
+    linkopts = [
+        "-fsycl",
+        "-fsycl-targets=nvptx64-nvidia-cuda,spir64",
+    ],
+
+    deps = [
+        ":simple_mesh",
+        "//common:essential",
+        "//math:geometric_transform",
+        "@gflags",
+    ],
+
+)
+
+
+drake_cc_binary(
+    name = "mesh_benchmark",
+    srcs = ["mesh_benchmark.cc"],
+    copts = [
+        "-fsycl",
+        "-g",
+        "-lineinfo",
+        "-fsycl-targets=nvptx64-nvidia-cuda,spir64",
+        "-DEIGEN_DONT_VECTORIZE"
+    ],
+    linkopts = [
+        "-fsycl",
+        "-fsycl-targets=nvptx64-nvidia-cuda,spir64",
+    ],
+
+    deps = [
+        ":simple_mesh",
+        "//common:essential",
+        "//math:geometric_transform",
+        "@gflags"
+    ],
+
+)

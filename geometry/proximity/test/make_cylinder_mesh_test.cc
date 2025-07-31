@@ -108,8 +108,9 @@ bool IsTetrahedronRespectingMa(const VolumeElement& tetrahedron,
 
   // Each vertex may have multiple closest faces when the vertex is on the
   // medial axis.
-  std::vector<int> closest_faces[VolumeMesh<double>::kVertexPerElement];
-  for (int v = 0; v < mesh.kVertexPerElement; ++v) {
+  constexpr int num_v_per_element = VolumeMesh<double>::kVertexPerElement;
+  std::vector<int> closest_faces[num_v_per_element];
+  for (int v = 0; v < num_v_per_element; ++v) {
     const Vector3d r_MV = mesh.vertex(tetrahedron.vertex(v));
     const double dist = distance_to_boundary(r_MV);
     for (int f = 0; f < kNumCylinderFaces; ++f) {
@@ -121,7 +122,7 @@ bool IsTetrahedronRespectingMa(const VolumeElement& tetrahedron,
   // Check that at least one face is closest.
   for (int f = 0; f < kNumCylinderFaces; ++f) {
     bool closest_to_this_face = true;
-    for (int v = 0; v < mesh.kVertexPerElement; ++v) {
+    for (int v = 0; v < num_v_per_element; ++v) {
       closest_to_this_face &=
           closest_faces[v].end() !=
           std::find(closest_faces[v].begin(), closest_faces[v].end(), f);

@@ -1,0 +1,56 @@
+load(
+    "//tools/skylark:drake_cc.bzl",
+    "drake_cc_binary",
+    "drake_cc_library",
+)
+
+package(default_visibility = ["//visibility:private"])
+
+drake_cc_binary(
+    name = "buffers",
+    srcs = ["vector-add-buffers.cc"],
+    copts = [
+        "-fsycl",
+        "-fsycl-targets=nvptx64-nvidia-cuda,spir64",
+        "-Xsycl-target-backend=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_89"
+    ],
+    linkopts = [
+        "-fsycl",
+        "-fsycl-targets=nvptx64-nvidia-cuda,spir64",
+        "-Xsycl-target-backend=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_89"
+    ],
+
+)
+
+drake_cc_binary(
+    name = "usm",
+    srcs = ["vector-add-usm.cc"],
+    copts = [
+        "-fsycl",
+        "-fsycl-targets=nvptx64-nvidia-cuda,spir64",
+        "-Xsycl-target-backend=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_89"
+    ],
+    linkopts = [
+        "-fsycl",
+        "-fsycl-targets=nvptx64-nvidia-cuda,spir64",
+        "-Xsycl-target-backend=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_89"
+    ],
+
+)
+
+
+drake_cc_binary(
+    name = "usm_device",
+    srcs = ["vector-add-usm_device.cc"],
+    copts = [
+        "-fsycl",
+        "-fsycl-targets=nvptx64-nvidia-cuda,spir64",
+        "-Xsycl-target-backend=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_89"
+    ],
+    linkopts = [
+        "-fsycl",
+        "-fsycl-targets=nvptx64-nvidia-cuda,spir64",
+        "-Xsycl-target-backend=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_89"
+    ],
+
+)

@@ -1,0 +1,31 @@
+load(
+    "//tools/skylark:drake_cc.bzl",
+    "drake_cc_binary",
+    "drake_cc_library",
+)
+
+package(default_visibility = ["//visibility:private"])
+
+
+drake_cc_binary(
+    name = "volume_mesh_test",
+    srcs = ["volume_mesh_test.cc"],
+    copts = [
+        "-fsycl",
+        "-fsycl-targets=nvptx64-nvidia-cuda,spir64",
+        "-DEIGEN_DONT_VECTORIZE"
+    ],
+    linkopts = [
+        "-fsycl",
+        "-fsycl-targets=nvptx64-nvidia-cuda,spir64",
+    ],
+
+    deps = [
+        "//common:essential",
+        "//math:geometric_transform",
+        "//geometry/proximity:volume_mesh",
+        "@gflags",
+    ],
+)
+
+

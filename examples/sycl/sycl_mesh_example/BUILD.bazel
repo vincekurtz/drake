@@ -1,0 +1,177 @@
+load(
+    "//tools/skylark:drake_cc.bzl",
+    "drake_cc_binary",
+)
+
+package(default_visibility = ["//visibility:private"])
+
+# Transforms are in host
+drake_cc_binary(
+    name = "sycl_mesh_benchmark_host",
+    srcs = ["sycl_mesh_benchmark_host.cc"],
+    copts = [
+        "-fsycl",
+        "-fsycl-targets=nvptx64-nvidia-cuda,spir64",
+        #"-Xsycl-target-backend=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_89"
+    ],
+    linkopts = [
+        "-fsycl",
+        "-fsycl-targets=nvptx64-nvidia-cuda,spir64",
+        #"-Xsycl-target-backend=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_89"
+    ],
+)
+
+# Transforms are host - scaling analysis
+drake_cc_binary(
+    name = "sycl_mesh_benchmark_host_scale",
+    srcs = ["sycl_mesh_benchmark_host_scale.cc"],
+    copts = [
+        "-fsycl",
+        "-fsycl-targets=nvptx64-nvidia-cuda,spir64",
+        #"-Xsycl-target-backend=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_89"
+    ],
+    linkopts = [
+        "-fsycl",
+        "-fsycl-targets=nvptx64-nvidia-cuda,spir64",
+        #"-Xsycl-target-backend=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_89"
+    ],
+)
+
+# Transforms are in shared
+drake_cc_binary(
+    name = "sycl_mesh_benchmark_shared",
+    srcs = ["sycl_mesh_benchmark_shared.cc"],
+    copts = [
+        "-fsycl",
+        "-fsycl-targets=nvptx64-nvidia-cuda,spir64",
+        #"-Xsycl-target-backend=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_89"
+    ],
+    linkopts = [
+        "-fsycl",
+        "-fsycl-targets=nvptx64-nvidia-cuda,spir64",
+        #"-Xsycl-target-backend=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_89"
+    ],
+)
+
+# Transforms are in device - memcopied
+drake_cc_binary(
+    name = "sycl_mesh_benchmark_device",
+    srcs = ["sycl_mesh_benchmark_device.cc"],
+    copts = [
+        "-fsycl",
+        "-fsycl-targets=nvptx64-nvidia-cuda,spir64",
+        #"-Xsycl-target-backend=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_89"
+    ],
+    linkopts = [
+        "-fsycl",
+        "-fsycl-targets=nvptx64-nvidia-cuda,spir64",
+        #"-Xsycl-target-backend=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_89"
+    ],
+)
+
+
+# Transforms are in device - memcopied - transforms in shared memory
+drake_cc_binary(
+    name = "sycl_mesh_benchmark_device_sharedMem",
+    srcs = ["sycl_mesh_benchmark_device_sharedMem.cc"],
+    copts = [
+        "-fsycl",
+        "-fsycl-targets=nvptx64-nvidia-cuda,spir64",
+        #"-Xsycl-target-backend=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_89"
+    ],
+    linkopts = [
+        "-fsycl",
+        "-fsycl-targets=nvptx64-nvidia-cuda,spir64",
+        #"-Xsycl-target-backend=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_89"
+    ],
+)
+
+# Transforms are in device - memcopied - memory is aligned
+drake_cc_binary(
+    name = "sycl_mesh_benchmark_device_aligned",
+    srcs = ["sycl_mesh_benchmark_device_aligned.cc"],
+    copts = [
+        "-fsycl",
+        "-fsycl-targets=nvptx64-nvidia-cuda,spir64",
+        #"-Xsycl-target-backend=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_89"
+    ],
+    linkopts = [
+        "-fsycl",
+        "-fsycl-targets=nvptx64-nvidia-cuda,spir64",
+        #"-Xsycl-target-backend=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_89"
+    ],
+)
+
+# Transforms are in device - memcopied - scaling analysis
+drake_cc_binary(
+    name = "sycl_mesh_benchmark_device_scale",
+    srcs = ["sycl_mesh_benchmark_device_scale.cc"],
+    copts = [
+        "-fsycl",
+        "-fsycl-targets=nvptx64-nvidia-cuda,spir64",
+        #"-Xsycl-target-backend=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_89"
+    ],
+    linkopts = [
+        "-fsycl",
+        "-fsycl-targets=nvptx64-nvidia-cuda,spir64",
+        #"-Xsycl-target-backend=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_89"
+    ],
+)
+
+# Transforms are in device - memcopied - memory is aligned - scaling analysis
+drake_cc_binary(
+    name = "sycl_mesh_benchmark_device_aligned_scale",
+    srcs = ["sycl_mesh_benchmark_device_aligned_scale.cc"],
+    copts = [
+        "-fsycl",
+        "-fsycl-targets=nvptx64-nvidia-cuda,spir64",
+        #"-Xsycl-target-backend=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_89"
+    ],
+    linkopts = [
+        "-fsycl",
+        "-fsycl-targets=nvptx64-nvidia-cuda,spir64",
+        #"-Xsycl-target-backend=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_89"
+    ],
+)
+
+
+alias(
+    name = "benchmark_host",
+    actual = ":sycl_mesh_benchmark_host",
+)
+
+alias(
+    name = "benchmark_host_scale",
+    actual = ":sycl_mesh_benchmark_host_scale",
+)
+
+alias(
+    name = "benchmark_shared",
+    actual = ":sycl_mesh_benchmark_shared",
+)
+
+alias(
+    name = "benchmark_device",
+    actual = ":sycl_mesh_benchmark_device",
+)
+
+alias(
+    name = "benchmark_device_sharedMem",
+    actual = ":sycl_mesh_benchmark_device_sharedMem",
+)
+
+
+alias(
+    name = "benchmark_device_aligned",
+    actual = ":sycl_mesh_benchmark_device_aligned",
+)
+
+alias(
+    name = "benchmark_device_scale",
+    actual = ":sycl_mesh_benchmark_device_scale",
+)
+
+alias(
+    name = "benchmark_device_aligned_scale",
+    actual = ":sycl_mesh_benchmark_device_aligned_scale",
+)
