@@ -578,6 +578,24 @@ class GeometryState {
                                                     kinematics_data_.X_WGs);
   }
 
+  /** Implementation of QueryObject::ComputeContactSurfacesWithSycl().  */
+  template <typename T1 = T>
+  typename std::enable_if_t<
+      std::is_same_v<T1, double>,
+      std::vector<internal::sycl_impl::SYCLHydroelasticSurface>>
+  ComputeContactSurfacesWithSycl(
+      HydroelasticContactRepresentation representation) const {
+    return geometry_engine_->ComputeContactSurfacesWithSycl(
+        representation, kinematics_data_.X_WGs);
+  }
+
+  /** Implementation of QueryObject::PrintSyclTimingStats().  */
+  template <typename T1 = T>
+  typename std::enable_if_t<std::is_same_v<T1, double>, void>
+  PrintSyclTimingStats() const {
+    geometry_engine_->PrintSyclTimingStats();
+  }
+
   /** Implementation of QueryObject::ComputeContactSurfacesWithFallback().  */
   template <typename T1 = T>
   typename std::enable_if_t<scalar_predicate<T1>::is_bool, void>
@@ -737,6 +755,13 @@ class GeometryState {
                               GeometryId geometry_id);
 
   //@}
+
+  /** Implementation of QueryObject::PrintSyclTimingStatsJson().  */
+  template <typename T1 = T>
+  typename std::enable_if_t<std::is_same_v<T1, double>, void>
+  PrintSyclTimingStatsJson(const std::string& path) const {
+    geometry_engine_->PrintSyclTimingStatsJson(path);
+  }
 
  private:
   // GeometryState of one scalar type is friends with all other scalar types.

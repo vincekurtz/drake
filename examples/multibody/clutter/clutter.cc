@@ -64,7 +64,7 @@ DEFINE_double(dissipation_time_constant, 0.01,
               "Dissipation time constant in seconds.");
 DEFINE_double(hc_dissipation, 10.0, "Hunt & Crossley dissipation [s/m].");
 DEFINE_double(stiction_tolerance, 1.0e-4, "Stiction tolerance [m/s].");
-
+DEFINE_bool(use_sycl, true, "Use SYCL for hydroelastic contact.");
 // Contact geometry parameters.
 DEFINE_bool(
     emulate_box_multicontact, true,
@@ -263,8 +263,8 @@ const RigidBody<double>& AddBox(const std::string& name,
             add_sphere(name_spherei, x, y, z, radius_x);
           }
         }  // k
-      }  // j
-    }  // i
+      }    // j
+    }      // i
   }
 
   if (add_box_collision) {
@@ -622,7 +622,10 @@ int do_main() {
     ie.set_use_full_newton(FLAGS_full_newton);
     ie.set_use_implicit_trapezoid_error_estimation(FLAGS_trapezoid);
   }
-
+  // Use SYCL if required
+  if (FLAGS_use_sycl) {
+    plant.set_sycl_for_hydroelastic_contact(true);
+  }
   simulator->set_publish_every_time_step(true);
   simulator->Initialize();
   if (FLAGS_visualize) {

@@ -10,7 +10,9 @@
 
 #include <fmt/ranges.h>
 
+#include "drake/common/cpu_timing_logger.h"
 #include "drake/common/drake_throw.h"
+#include "drake/common/problem_size_logger.h"
 #include "drake/common/ssize.h"
 #include "drake/common/text_logging.h"
 #include "drake/geometry/geometry_frame.h"
@@ -2258,9 +2260,8 @@ void MultibodyPlant<T>::CalcContactResultsContinuous(
 template <typename T>
 void MultibodyPlant<T>::CalcContactResultsHydroelasticContinuous(
     const systems::Context<T>& context,
-    std::vector<HydroelasticContactInfo<T>>* contact_results_hydroelastic) const
-  requires scalar_predicate<T>::is_bool
-{  // NOLINT(whitespace/braces)
+    std::vector<HydroelasticContactInfo<T>>* contact_results_hydroelastic)
+    const requires scalar_predicate<T>::is_bool {  // NOLINT(whitespace/braces)
   this->ValidateContext(context);
   DRAKE_DEMAND(contact_results_hydroelastic != nullptr);
   DRAKE_DEMAND(!is_discrete());
@@ -2469,9 +2470,8 @@ void MultibodyPlant<T>::CalcAndAddPointContactForcesContinuous(
 template <typename T>
 void MultibodyPlant<T>::CalcHydroelasticContactForcesContinuous(
     const Context<T>& context,
-    internal::HydroelasticContactForcesContinuousCacheData<T>* output) const
-  requires scalar_predicate<T>::is_bool
-{  // NOLINT(whitespace/braces)
+    internal::HydroelasticContactForcesContinuousCacheData<T>* output)
+    const requires scalar_predicate<T>::is_bool {  // NOLINT(whitespace/braces)
   this->ValidateContext(context);
   DRAKE_DEMAND(output != nullptr);
   DRAKE_DEMAND(!is_discrete());
@@ -2571,9 +2571,8 @@ void MultibodyPlant<T>::CalcHydroelasticContactForcesContinuous(
 template <typename T>
 const internal::HydroelasticContactForcesContinuousCacheData<T>&
 MultibodyPlant<T>::EvalHydroelasticContactForcesContinuous(
-    const systems::Context<T>& context) const
-  requires scalar_predicate<T>::is_bool
-{  // NOLINT(whitespace/braces)
+    const systems::Context<T>& context) const requires
+    scalar_predicate<T>::is_bool {  // NOLINT(whitespace/braces)
   this->ValidateContext(context);
   DRAKE_DEMAND(!is_discrete());
   return this
@@ -2915,12 +2914,24 @@ void MultibodyPlant<T>::CalcGeometryContactData(
     }
     case ContactModel::kHydroelastic: {
       if constexpr (scalar_predicate<T>::is_bool) {
-        storage.surfaces = query_object.ComputeContactSurfaces(
-            get_contact_surface_representation());
+        // Need to do this so that we get the current counter for problem size
+        drake::common::ProblemSizeLogger::GetInstance().AddCount(
+            "HydroelasticQuery", 1);
+        DRAKE_CPU_SCOPED_TIMER("HydroelasticQuery");
+        if constexpr (std::is_same_v<T, double>) {
+          if (sycl_for_hydroelastic_contact_) {
+            storage.sycl_surfaces = query_object.ComputeContactSurfacesWithSycl(
+                get_contact_surface_representation());
+          } else {
+            storage.surfaces = query_object.ComputeContactSurfaces(
+                get_contact_surface_representation());
+          }
+        } else {
+          storage.surfaces = query_object.ComputeContactSurfaces(
+              get_contact_surface_representation());
+        }
         break;
       } else {
-        // TODO(SeanCurtis-TRI): Special case the QueryObject scalar support
-        //  such that it works as long as there are no collisions.
         throw std::logic_error(
             "MultibodyPlant::CalcGeometryContactData(): This method doesn't "
             "support T=Expression once collision geometries have been added.");
@@ -2928,13 +2939,26 @@ void MultibodyPlant<T>::CalcGeometryContactData(
     }
     case ContactModel::kHydroelasticWithFallback: {
       if constexpr (scalar_predicate<T>::is_bool) {
-        query_object.ComputeContactSurfacesWithFallback(
-            get_contact_surface_representation(), &storage.surfaces,
-            &storage.point_pairs);
+        // Need to do this so that we get the current counter for problem size
+        drake::common::ProblemSizeLogger::GetInstance().AddCount(
+            "HydroelasticQuery", 1);
+        DRAKE_CPU_SCOPED_TIMER("HydroelasticQuery");
+        if constexpr (std::is_same_v<T, double>) {
+          if (sycl_for_hydroelastic_contact_) {
+            storage.sycl_surfaces = query_object.ComputeContactSurfacesWithSycl(
+                get_contact_surface_representation());
+          } else {
+            query_object.ComputeContactSurfacesWithFallback(
+                get_contact_surface_representation(), &storage.surfaces,
+                &storage.point_pairs);
+          }
+        } else {
+          query_object.ComputeContactSurfacesWithFallback(
+              get_contact_surface_representation(), &storage.surfaces,
+              &storage.point_pairs);
+        }
         break;
       } else {
-        // TODO(SeanCurtis-TRI): Special case the QueryObject scalar support
-        //  such that it works as long as there are no collisions.
         throw std::logic_error(
             "MultibodyPlant::CalcGeometryContactData(): This method doesn't "
             "support T=Expression once collision geometries have been added.");

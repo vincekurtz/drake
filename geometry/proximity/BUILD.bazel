@@ -193,6 +193,7 @@ drake_cc_library(
         ":polygon_surface_mesh",
         ":triangle_surface_mesh",
         "//common:default_scalars",
+        "//common:problem_size_logger"
     ],
 )
 
@@ -945,6 +946,15 @@ drake_cc_library(
     hdrs = [
         "volume_mesh.h",
         "volume_mesh_field.h",
+    ],
+    copts = [
+        "-fsycl",
+        "-fsycl-targets=nvptx64-nvidia-cuda,spir64",
+        "-DEIGEN_DONT_VECTORIZE"
+    ],
+    linkopts = [
+        "-fsycl",
+        "-fsycl-targets=nvptx64-nvidia-cuda,spir64",
     ],
     deps = [
         ":mesh_traits",

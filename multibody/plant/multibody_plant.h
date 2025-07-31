@@ -2690,6 +2690,18 @@ class MultibodyPlant final : public internal::MultibodyTreeSystem<T> {
       double penetration_allowance =
           MultibodyPlantConfig{}.penetration_allowance);
 
+  /// Set whether to use SYCL for hydroelastic contact
+  /// SYCL needs to be installed otherwise the simulation will throw
+  /// an error
+  void set_sycl_for_hydroelastic_contact(bool use_sycl) {
+    sycl_for_hydroelastic_contact_ = use_sycl;
+  }
+
+  // Getter for sycl_for_hydroelastic_contact_
+  bool is_sycl_for_hydroelastic_contact() const {
+    return sycl_for_hydroelastic_contact_;
+  }
+
   // TODO(amcastro-tri): deprecate. Defaults should always come from
   // DefaultProximityProperties.
   /// Returns a time-scale estimate `tc` based on the requested penetration
@@ -5004,19 +5016,25 @@ class MultibodyPlant final : public internal::MultibodyTreeSystem<T> {
   /// This property of the plant is specified at construction and therefore this
   /// query can be performed either pre- or post-finalize, see Finalize().
   /// @see MultibodyPlant::MultibodyPlant(double)
-  double time_step() const { return time_step_; }
+  double time_step() const {
+    return time_step_;
+  }
 
   /// Returns `true` if this %MultibodyPlant was finalized with a call to
   /// Finalize().
   /// @see Finalize().
-  bool is_finalized() const { return internal_tree().topology_is_valid(); }
+  bool is_finalized() const {
+    return internal_tree().topology_is_valid();
+  }
 
   /// (Advanced) If `this` plant is continuous (i.e., is_discrete() is `false`),
   /// returns false. If `this` plant is discrete, returns whether or not the
   /// output ports are sampled (change only at a time step boundary) or
   /// live (instantaneously reflect changes to the input ports).
   /// See @ref output_port_sampling "Output port sampling" for details.
-  bool has_sampled_output_ports() const { return use_sampled_output_ports_; }
+  bool has_sampled_output_ports() const {
+    return use_sampled_output_ports_;
+  }
 
   /// Returns a constant reference to the *world* body.
   const RigidBody<T>& world_body() const {
@@ -5031,7 +5049,9 @@ class MultibodyPlant final : public internal::MultibodyTreeSystem<T> {
   /// Returns the number of RigidBody elements in the model, including the
   /// "world" RigidBody, which is always part of the model.
   /// @see AddRigidBody().
-  int num_bodies() const { return internal_tree().num_bodies(); }
+  int num_bodies() const {
+    return internal_tree().num_bodies();
+  }
 
   /// Returns `true` if plant has a rigid body with unique index `body_index`.
   bool has_body(BodyIndex body_index) const {
@@ -5188,7 +5208,9 @@ class MultibodyPlant final : public internal::MultibodyTreeSystem<T> {
 
   /// Returns the number of joints in the model.
   /// @see AddJoint().
-  int num_joints() const { return internal_tree().num_joints(); }
+  int num_joints() const {
+    return internal_tree().num_joints();
+  }
 
   /// Returns true if plant has a joint with unique index `joint_index`. The
   /// value could be false if the joint was removed using RemoveJoint().
@@ -5294,7 +5316,9 @@ class MultibodyPlant final : public internal::MultibodyTreeSystem<T> {
   /// Frames include body frames associated with each of the bodies,
   /// including the _world_ body. This means the minimum number of frames is
   /// one.
-  int num_frames() const { return internal_tree().num_frames(); }
+  int num_frames() const {
+    return internal_tree().num_frames();
+  }
 
   /// Returns a constant reference to the frame with unique index `frame_index`.
   /// @throws std::exception if `frame_index` does not correspond to a frame in
@@ -5350,7 +5374,9 @@ class MultibodyPlant final : public internal::MultibodyTreeSystem<T> {
 
   /// Returns the number of joint actuators in the model.
   /// @see AddJointActuator().
-  int num_actuators() const { return internal_tree().num_actuators(); }
+  int num_actuators() const {
+    return internal_tree().num_actuators();
+  }
 
   /// Returns the number of actuators for a specific model instance.
   /// @throws std::exception if called pre-finalize.
@@ -5361,7 +5387,9 @@ class MultibodyPlant final : public internal::MultibodyTreeSystem<T> {
   /// Returns the total number of actuated degrees of freedom.
   /// That is, the vector of actuation values u has this size.
   /// See AddJointActuator().
-  int num_actuated_dofs() const { return internal_tree().num_actuated_dofs(); }
+  int num_actuated_dofs() const {
+    return internal_tree().num_actuated_dofs();
+  }
 
   /// Returns the total number of actuated degrees of freedom for a specific
   /// model instance.  That is, the vector of actuation values u has this size.
@@ -5528,7 +5556,9 @@ class MultibodyPlant final : public internal::MultibodyTreeSystem<T> {
 
   /// Returns the size of the generalized position vector q for this model.
   /// @throws std::exception if called pre-finalize.
-  int num_positions() const { return internal_tree().num_positions(); }
+  int num_positions() const {
+    return internal_tree().num_positions();
+  }
 
   /// Returns the size of the generalized position vector qᵢ for model
   /// instance i.
@@ -5539,7 +5569,9 @@ class MultibodyPlant final : public internal::MultibodyTreeSystem<T> {
 
   /// Returns the size of the generalized velocity vector v for this model.
   /// @throws std::exception if called pre-finalize.
-  int num_velocities() const { return internal_tree().num_velocities(); }
+  int num_velocities() const {
+    return internal_tree().num_velocities();
+  }
 
   /// Returns the size of the generalized velocity vector vᵢ for model
   /// instance i.
@@ -5553,7 +5585,9 @@ class MultibodyPlant final : public internal::MultibodyTreeSystem<T> {
   /// Returns the size of the multibody system state vector x = [q v]. This
   /// will be `num_positions()` plus `num_velocities()`.
   /// @throws std::exception if called pre-finalize.
-  int num_multibody_states() const { return internal_tree().num_states(); }
+  int num_multibody_states() const {
+    return internal_tree().num_states();
+  }
 
   /// Returns the size of the multibody system state vector xᵢ = [qᵢ vᵢ] for
   /// model instance i. (Here qᵢ ⊆ q and vᵢ ⊆ v.)
@@ -5641,7 +5675,9 @@ class MultibodyPlant final : public internal::MultibodyTreeSystem<T> {
   /// This method can be called at any time during the lifetime of `this` plant,
   /// either pre- or post-finalize, see Finalize().
   /// Post-finalize calls will always return the same value.
-  int num_visual_geometries() const { return num_visual_geometries_; }
+  int num_visual_geometries() const {
+    return num_visual_geometries_;
+  }
 
   /// Returns the number of geometries registered for contact modeling.
   /// This method can be called at any time during the lifetime of `this` plant,
@@ -5658,7 +5694,9 @@ class MultibodyPlant final : public internal::MultibodyTreeSystem<T> {
   /// only assigned once at the first call of any of this plant's geometry
   /// registration methods, and it does not change after that.
   /// Post-finalize calls will always return the same value.
-  std::optional<geometry::SourceId> get_source_id() const { return source_id_; }
+  std::optional<geometry::SourceId> get_source_id() const {
+    return source_id_;
+  }
 
   /// Returns `true` if `this` %MultibodyPlant was registered with a
   /// SceneGraph.
@@ -6104,8 +6142,7 @@ class MultibodyPlant final : public internal::MultibodyTreeSystem<T> {
   void CalcContactResultsHydroelasticContinuous(
       const systems::Context<T>& context,
       std::vector<HydroelasticContactInfo<T>>* contact_results_hydroelastic)
-      const
-    requires scalar_predicate<T>::is_bool;
+      const requires scalar_predicate<T>::is_bool;
 
   // Calc method for the "reaction_forces" output port.
   // This is responsible for handling the sampled vs unsampled branching logic.
@@ -6261,14 +6298,13 @@ class MultibodyPlant final : public internal::MultibodyTreeSystem<T> {
   // hydroelastic model for continuous plants.
   void CalcHydroelasticContactForcesContinuous(
       const systems::Context<T>& context,
-      internal::HydroelasticContactForcesContinuousCacheData<T>* output) const
-    requires scalar_predicate<T>::is_bool;
+      internal::HydroelasticContactForcesContinuousCacheData<T>* output)
+      const requires scalar_predicate<T>::is_bool;
 
   // Eval version of CalcHydroelasticContactForces().
   const internal::HydroelasticContactForcesContinuousCacheData<T>&
-  EvalHydroelasticContactForcesContinuous(
-      const systems::Context<T>& context) const
-    requires scalar_predicate<T>::is_bool;
+  EvalHydroelasticContactForcesContinuous(const systems::Context<T>& context)
+      const requires scalar_predicate<T>::is_bool;
 
   // Helper method to apply penalty forces that enforce joint limits.
   // At each joint with joint limits this penalty method applies a force law of
@@ -6337,6 +6373,9 @@ class MultibodyPlant final : public internal::MultibodyTreeSystem<T> {
   // Penetration allowance used to estimate ContactByPenaltyMethodParameters.
   // See set_penetration_allowance() for details.
   double penetration_allowance_{MultibodyPlantConfig{}.penetration_allowance};
+
+  // Switch to use SYCL for hydroelastic contact
+  bool sycl_for_hydroelastic_contact_{false};
 
   // Stribeck model of friction.
   class StribeckModel {

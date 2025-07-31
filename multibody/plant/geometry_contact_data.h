@@ -4,6 +4,7 @@
 #include <vector>
 
 #include "drake/common/drake_copyable.h"
+#include "drake/geometry/proximity/sycl/sycl_hydroelastic_surface.h"
 #include "drake/geometry/query_results/contact_surface.h"
 #include "drake/geometry/query_results/deformable_contact.h"
 #include "drake/geometry/query_results/penetration_as_point_pair.h"
@@ -30,6 +31,8 @@ struct NestedGeometryContactData {
   std::vector<geometry::PenetrationAsPointPair<T>> point_pairs;
   std::vector<geometry::ContactSurface<T>> surfaces;
   geometry::internal::DeformableContact<T> deformable;
+  std::vector<geometry::internal::sycl_impl::SYCLHydroelasticSurface>
+      sycl_surfaces;
 };
 
 /* Full specialization of NestedGeometryContactData for T = AutoDiffXd.

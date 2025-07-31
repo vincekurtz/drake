@@ -404,6 +404,11 @@ class Geometries final : public ShapeReifier {
   void MaybeAddGeometry(const Shape& shape, GeometryId id,
                         const ProximityProperties& properties);
 
+  // Get SoftGeometry map for SYCL
+  const std::unordered_map<GeometryId, SoftGeometry>& SoftGeometries() const {
+    return soft_geometries_;
+  }
+
  private:
   // Data to be used during reification. It is passed as the `user_data`
   // parameter in the ImplementGeometry API.

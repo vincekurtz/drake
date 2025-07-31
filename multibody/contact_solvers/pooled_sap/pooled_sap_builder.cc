@@ -1,5 +1,7 @@
 #include "drake/multibody/contact_solvers/pooled_sap/pooled_sap_builder.h"
 
+#include <type_traits>
+
 #include "drake/geometry/scene_graph_inspector.h"
 #include "drake/multibody/plant/contact_properties.h"
 #include "drake/multibody/topology/graph.h"
@@ -58,14 +60,35 @@ void PooledSapBuilder<T>::CalcGeometryContactData(
       break;
     }
     case ContactModel::kHydroelastic: {
-      surfaces = query_object.ComputeContactSurfaces(
-          plant().get_contact_surface_representation());
+      if constexpr (std::is_same_v<T, double>) {
+        if (plant().is_sycl_for_hydroelastic_contact()) {
+          scratch_.sycl_surfaces = query_object.ComputeContactSurfacesWithSycl(
+              plant().get_contact_surface_representation());
+        } else {
+          surfaces = query_object.ComputeContactSurfaces(
+              plant().get_contact_surface_representation());
+        }
+      } else {
+        surfaces = query_object.ComputeContactSurfaces(
+            plant().get_contact_surface_representation());
+      }
       break;
     }
     case ContactModel::kHydroelasticWithFallback: {
-      query_object.ComputeContactSurfacesWithFallback(
-          plant().get_contact_surface_representation(), &surfaces,
-          &point_pairs);
+      if constexpr (std::is_same_v<T, double>) {
+        if (plant().is_sycl_for_hydroelastic_contact()) {
+          scratch_.sycl_surfaces = query_object.ComputeContactSurfacesWithSycl(
+              plant().get_contact_surface_representation());
+        } else {
+          query_object.ComputeContactSurfacesWithFallback(
+              plant().get_contact_surface_representation(), &surfaces,
+              &point_pairs);
+        }
+      } else {
+        query_object.ComputeContactSurfacesWithFallback(
+            plant().get_contact_surface_representation(), &surfaces,
+            &point_pairs);
+      }
       break;
     }
   }
@@ -256,7 +279,16 @@ void PooledSapBuilder<T>::UpdateModel(const systems::Context<T>& context,
   // here to avoid conflicting hydro and point contact constraints.
   model->patch_constraints_pool().Clear();
   CalcGeometryContactData(context);
-  AddPatchConstraintsForHydroelasticContact(context, model);
+  if (plant().is_sycl_for_hydroelastic_contact()) {
+    if constexpr (std::is_same_v<T, double>) {
+      AddPatchConstraintsForHydroelasticContactSYCL(context, model);
+    } else {
+      AddPatchConstraintsForHydroelasticContact(context, model);
+    }
+  } else {
+    AddPatchConstraintsForHydroelasticContact(context, model);
+  }
+
   AddPatchConstraintsForPointContact(context, model);
 
   // Add other constraints to the problem
@@ -575,6 +607,108 @@ void PooledSapBuilder<T>::AddPatchConstraintsForHydroelasticContact(
       const T k = Ae * g;
       patches.AddPair(p_BoC_W, nhat_AB_W, fn0, k);
     }
+  }
+}
+
+template <typename T>
+void PooledSapBuilder<T>::AddPatchConstraintsForHydroelasticContactSYCL(
+    const systems::Context<T>& context,
+    PooledSapModel<T>* model) const requires std::is_same_v<T, double> {
+  // Add contact constraints for hydro.
+  const std::vector<geometry::internal::sycl_impl::SYCLHydroelasticSurface>&
+      sycl_surfaces = scratch_.sycl_surfaces;
+
+  // Extract for now just the first element of the vector - this has all the
+  // polygons
+  if (sycl_surfaces.empty()) {
+    return;
+  }
+
+  const auto& sycl_surface = sycl_surfaces[0];
+  const size_t num_polygons = sycl_surface.num_polygons();
+
+  const geometry::SceneGraphInspector<T>& inspector =
+      plant().EvalSceneGraphInspector(context);
+
+  // TODO(amcastro-tri): This should be retrieved from the default contact
+  // properties.
+  const double kDefaultDissipation = 50.0;
+
+  typename PooledSapModel<T>::PatchConstraintsPool& patches =
+      model->patch_constraints_pool();
+  std::stack<SortedPair<geometry::GeometryId>> body_pairs;
+  for (size_t face = 0; face < num_polygons; ++face) {
+    const auto& geometry_id_M = sycl_surface.geometry_ids_M()[face];
+    const auto& geometry_id_N = sycl_surface.geometry_ids_N()[face];
+
+    // Retrieve participating geometries and bodies.
+    const geometry::FrameId Mid = inspector.GetFrameId(geometry_id_M);
+    const geometry::FrameId Nid = inspector.GetFrameId(geometry_id_N);
+    const RigidBody<T>* bodyM = plant().GetBodyFromFrameId(Mid);
+    const RigidBody<T>* bodyN = plant().GetBodyFromFrameId(Nid);
+    DRAKE_DEMAND(bodyM != nullptr && bodyN != nullptr);
+
+    const bool M_not_anchored = !plant().IsAnchored(*bodyM);
+    const bool N_not_anchored = !plant().IsAnchored(*bodyN);
+    // Sanity check at least one body is not anchored.
+    DRAKE_DEMAND(M_not_anchored || N_not_anchored);
+
+    // By convention, body B is always not-anchored.
+    const RigidBody<T>* bodyB = N_not_anchored ? bodyN : bodyM;
+    const RigidBody<T>* bodyA = bodyB == bodyN ? bodyM : bodyN;
+
+    // Get compliance properties.
+    const T Em = multibody::internal::GetHydroelasticModulus(
+        geometry_id_M, std::numeric_limits<double>::infinity(), inspector);
+    const T En = multibody::internal::GetHydroelasticModulus(
+        geometry_id_N, std::numeric_limits<double>::infinity(), inspector);
+    const T d = multibody::internal::GetCombinedHuntCrossleyDissipation(
+        geometry_id_M, geometry_id_N, Em, En, kDefaultDissipation, inspector);
+
+    // Get friction properties
+    const auto& mu_A = GetCoulombFriction(geometry_id_M, inspector);
+    const auto& mu_B = GetCoulombFriction(geometry_id_N, inspector);
+    CoulombFriction<double> mu =
+        CalcContactFrictionFromSurfaceProperties(mu_A, mu_B);
+
+    const auto& X_WA = bodyA->EvalPoseInWorld(context);
+    const auto& X_WB = bodyB->EvalPoseInWorld(context);
+    const Vector3<T>& p_WAo = X_WA.translation();
+    const Vector3<T>& p_WBo = X_WB.translation();
+    const Vector3<T> p_AB_W = p_WBo - p_WAo;
+
+    // Check if we've seen this body pair before
+    const SortedPair<geometry::GeometryId> current_body_pair(geometry_id_M,
+                                                             geometry_id_N);
+    if (body_pairs.empty() || body_pairs.top() != current_body_pair) {
+      if (!body_pairs.empty()) {
+        body_pairs.pop();
+      }
+      body_pairs.push(current_body_pair);
+      patches.AddPatch(bodyA->index(), bodyB->index(), d, mu.static_friction(),
+                       mu.dynamic_friction(), Vector3<T>::Zero());
+    }
+
+    const auto& Ae = sycl_surface.areas()[face];
+    const auto& nhat_NM_W = sycl_surface.normals()[face];
+    const auto& g_M = sycl_surface.g_M()[face];
+    const auto& g_N = sycl_surface.g_N()[face];
+    constexpr double kGradientEpsilon = 1.0e-14;
+    if (g_M < kGradientEpsilon || g_N < kGradientEpsilon) {
+      continue;
+    }
+    const T g = 1.0 / (1.0 / g_M + 1.0 / g_N);
+    const auto& p_WC = sycl_surface.centroids()[face];
+    const Vector3<T> p_BoC_W = p_WC - p_WBo;
+
+    // Normal must always point from A to B, by convention.
+    const Vector3<T> nhat_AB_W = bodyB == bodyN ? -nhat_NM_W : nhat_NM_W;
+
+    const auto& p0 = sycl_surface.pressures()[face];
+
+    const T fn0 = Ae * p0;
+    const T k = Ae * g;
+    patches.AddPair(p_BoC_W, nhat_AB_W, fn0, k);
   }
 }
 

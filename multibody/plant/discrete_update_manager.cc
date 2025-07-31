@@ -620,8 +620,20 @@ void DiscreteUpdateManager<T>::CalcDiscreteContactPairs(
   AppendDiscreteContactPairsForPointContact(context, result);
   if constexpr (std::is_same_v<T, symbolic::Expression>) {
     throw std::logic_error("This method doesn't support T = Expression.");
-  } else {
-    AppendDiscreteContactPairsForHydroelasticContact(context, result);
+  } else if constexpr (scalar_predicate<T>::is_bool) {
+    // Handle hydroelastic contact with cleaner conditional logic
+    if constexpr (std::is_same_v<T, double>) {
+      // Only call SYCL version when T is double AND SYCL is enabled
+      if (plant().is_sycl_for_hydroelastic_contact()) {
+        AppendDiscreteContactPairsForHydroelasticContactWithSYCL(context,
+                                                                 result);
+      } else {
+        AppendDiscreteContactPairsForHydroelasticContact(context, result);
+      }
+    } else {
+      // For non-double types, always use regular hydroelastic contact
+      AppendDiscreteContactPairsForHydroelasticContact(context, result);
+    }
   }
   if constexpr (std::is_same_v<T, double>) {
     if (deformable_driver_ != nullptr) {
@@ -790,9 +802,8 @@ void DiscreteUpdateManager<T>::AppendDiscreteContactPairsForPointContact(
 template <typename T>
 void DiscreteUpdateManager<T>::AppendDiscreteContactPairsForHydroelasticContact(
     const systems::Context<T>& context,
-    DiscreteContactData<DiscreteContactPair<T>>* contact_pairs) const
-  requires scalar_predicate<T>::is_bool
-{  // NOLINT(whitespace/braces)
+    DiscreteContactData<DiscreteContactPair<T>>* contact_pairs) const requires
+    scalar_predicate<T>::is_bool {  // NOLINT(whitespace/braces)
   const std::vector<geometry::ContactSurface<T>>& surfaces =
       EvalGeometryContactData(context).get().surfaces;
   // N.B. For discrete hydro we use a first order quadrature rule. As such,
@@ -1032,6 +1043,207 @@ void DiscreteUpdateManager<T>::AppendDiscreteContactPairsForHydroelasticContact(
             .point_pair_index = {} /* no point pair index */};
         contact_pairs->AppendHydroData(std::move(contact_pair));
       }
+    }
+  }
+}
+
+template <typename T>
+void DiscreteUpdateManager<T>::
+    AppendDiscreteContactPairsForHydroelasticContactWithSYCL(
+        const systems::Context<T>& context,
+        DiscreteContactData<DiscreteContactPair<T>>* contact_pairs)
+        const requires std::is_same_v<T, double> {  // NOLINT(whitespace/braces)
+  const std::vector<geometry::internal::sycl_impl::SYCLHydroelasticSurface>&
+      sycl_surfaces = EvalGeometryContactData(context).get().sycl_surfaces;
+
+  // Extract for now just the first element of the vector - this has all the
+  // polygons
+  if (sycl_surfaces.empty()) {
+    return;
+  }
+  const auto sycl_surface = sycl_surfaces[0];
+  const size_t num_polygons = sycl_surface.num_polygons();
+
+  contact_pairs->Reserve(0, num_polygons, 0);
+  const geometry::SceneGraphInspector<T>& inspector =
+      plant().EvalSceneGraphInspector(context);
+  const MultibodyTreeTopology& topology = internal_tree().get_topology();
+  const Eigen::VectorBlock<const VectorX<T>> v = plant().GetVelocities(context);
+  const Frame<T>& frame_W = plant().world_frame();
+
+  // Scratch workspace variables.
+  const int nv = plant().num_velocities();
+  Matrix3X<T> Jv_WAc_W(3, nv);
+  Matrix3X<T> Jv_WBc_W(3, nv);
+  Matrix3X<T> Jv_AcBc_W(3, nv);
+
+  // Right now we don't have a concept of "surface"
+  // We just have a soup of polygons and each polygon has a geometry ID pair
+  for (size_t face = 0; face < num_polygons; ++face) {
+    const auto& geometry_id_M = sycl_surface.geometry_ids_M()[face];
+    const auto& geometry_id_N = sycl_surface.geometry_ids_N()[face];
+
+    // Geometry level parameters
+    const BodyIndex body_A_index = FindBodyByGeometryId(geometry_id_M);
+    const RigidBody<T>& body_A = plant().get_body(body_A_index);
+    const BodyIndex body_B_index = FindBodyByGeometryId(geometry_id_N);
+    const RigidBody<T>& body_B = plant().get_body(body_B_index);
+
+    const TreeIndex& tree_A_index = topology.body_to_tree_index(body_A_index);
+    const TreeIndex& tree_B_index = topology.body_to_tree_index(body_B_index);
+    const bool treeA_has_dofs = topology.tree_has_dofs(tree_A_index);
+    const bool treeB_has_dofs = topology.tree_has_dofs(tree_B_index);
+
+    // TODO(amcastro-tri): Consider making the modulus required, instead of
+    // a default infinite value.
+    const T hydro_modulus_M = GetHydroelasticModulus(
+        geometry_id_M, std::numeric_limits<double>::infinity(), inspector);
+    const T hydro_modulus_N = GetHydroelasticModulus(
+        geometry_id_N, std::numeric_limits<double>::infinity(), inspector);
+    // Hunt & Crossley dissipation. Used by the Tamsi, Lagged, and Similar
+    // contact models. Ignored by Sap. See
+    // multibody::DiscreteContactApproximation for details about these contact
+    // models.
+    const T d = GetCombinedHuntCrossleyDissipation(
+        geometry_id_M, geometry_id_N, hydro_modulus_M, hydro_modulus_N,
+        default_contact_dissipation(), inspector);
+    // Dissipation time scale. Used by Sap contact model. Ignored by Tamsi,
+    // Lagged, and Similar contact model. See
+    // multibody::DiscreteContactApproximation for details about these contact
+    // models.
+    const double default_dissipation_time_constant = 0.1;
+    const T tau = GetCombinedDissipationTimeConstant(
+        geometry_id_M, geometry_id_N, default_dissipation_time_constant,
+        body_A.name(), body_B.name(), inspector);
+    // Combine friction coefficients.
+    const T mu = GetCombinedDynamicCoulombFriction(geometry_id_M, geometry_id_N,
+                                                   inspector);
+
+    const auto& Ae = sycl_surface.areas()[face];
+    if (Ae > 1.0e-14) {
+      const auto& nhat_BA_W = sycl_surface.normals()[face];
+      const auto& g_M = sycl_surface.g_M()[face];
+      const auto& g_N = sycl_surface.g_N()[face];
+
+      constexpr double kGradientEpsilon = 1.0e-14;
+      if (g_M < kGradientEpsilon || g_N < kGradientEpsilon) {
+        // Mathematically g = gN*gM/(gN+gM) and therefore g = 0 when
+        // either gradient on one of the bodies is zero. A zero gradient
+        // means there is no contact constraint, and therefore we
+        // ignore it to avoid numerical problems in the discrete solver.
+        continue;
+      }
+
+      // Effective hydroelastic pressure gradient g result of
+      // compliant-compliant interaction, see [Masterjohn 2022].
+      // The expression below is mathematically equivalent to g =
+      // gN*gM/(gN+gM) but it has the advantage of also being valid if
+      // one of the gradients is infinity.
+      const double g = 1.0 / (1.0 / g_M + 1.0 / g_N);
+
+      const auto& p_WC = sycl_surface.centroids()[face];
+
+      // Since v_AcBc_W = v_WBc - v_WAc the relative velocity Jacobian
+      // will be:
+      //   J_AcBc_W = Jv_WBc_W - Jv_WAc_W.
+      // That is the relative velocity at C is v_AcBc_W = J_AcBc_W * v.
+      internal_tree().CalcJacobianTranslationalVelocity(
+          context, JacobianWrtVariable::kV, body_A.body_frame(), frame_W, p_WC,
+          frame_W, frame_W, &Jv_WAc_W);
+      internal_tree().CalcJacobianTranslationalVelocity(
+          context, JacobianWrtVariable::kV, body_B.body_frame(), frame_W, p_WC,
+          frame_W, frame_W, &Jv_WBc_W);
+      Jv_AcBc_W = Jv_WBc_W - Jv_WAc_W;
+
+      // Define a contact frame C at the contact point such that the
+      // z-axis Cz equals nhat_AB_W. The tangent vectors are arbitrary,
+      // with the only requirement being that they form a valid right
+      // handed basis with nhat_AB_W.
+      const Vector3<T> nhat_AB_W = -nhat_BA_W;
+      math::RotationMatrix<T> R_WC =
+          math::RotationMatrix<T>::MakeFromOneVector(nhat_AB_W, 2);
+
+      // Contact velocity stored in the current context (previous time
+      // step).
+      const Vector3<T> v_AcBc_W = Jv_AcBc_W * v;
+      const Vector3<T> v_AcBc_C = R_WC.transpose() * v_AcBc_W;
+      const T vn0 = v_AcBc_C(2);
+
+      // We have at most two blocks per contact.
+      std::vector<typename DiscreteContactPair<T>::JacobianTreeBlock>
+          jacobian_blocks;
+      jacobian_blocks.reserve(2);
+
+      // Tree A contribution to contact Jacobian Jv_W_AcBc_C.
+      if (treeA_has_dofs) {
+        Matrix3X<T> J =
+            R_WC.matrix().transpose() *
+            Jv_AcBc_W.middleCols(
+                tree_topology().tree_velocities_start_in_v(tree_A_index),
+                tree_topology().num_tree_velocities(tree_A_index));
+        jacobian_blocks.emplace_back(tree_A_index,
+                                     MatrixBlock<T>(std::move(J)));
+      }
+
+      // Tree B contribution to contact Jacobian Jv_W_AcBc_C.
+      // This contribution must be added only if B is different from A.
+      if ((treeB_has_dofs && !treeA_has_dofs) ||
+          (treeB_has_dofs && tree_B_index != tree_A_index)) {
+        Matrix3X<T> J =
+            R_WC.matrix().transpose() *
+            Jv_AcBc_W.middleCols(
+                tree_topology().tree_velocities_start_in_v(tree_B_index),
+                tree_topology().num_tree_velocities(tree_B_index));
+        jacobian_blocks.emplace_back(tree_B_index,
+                                     MatrixBlock<T>(std::move(J)));
+      }
+      const auto& p0 = sycl_surface.pressures()[face];
+
+      // Force contribution by this quadrature point.
+      const double fn0 = Ae * p0;
+
+      // Effective compliance in the normal direction for the given
+      // discrete patch, refer to [Masterjohn 2022] for details.
+      // [Masterjohn 2022] Masterjohn J., Guoy D., Shepherd J. and
+      // Castro A., 2022. Velocity Level Approximation of Pressure Field
+      // Contact Patches. Available at https://arxiv.org/abs/2110.04157.
+      const double k = Ae * g;
+
+      // phi < 0 when in penetration.
+      const double phi0 = -p0 / g;
+
+      // Contact point position relative to each body.
+      const RigidTransform<double>& X_WA =
+          plant().EvalBodyPoseInWorld(context, body_A);
+      const Vector3<double>& p_WA = X_WA.translation();
+      const Vector3<double> p_AC_W = p_WC - p_WA;
+      const RigidTransform<double>& X_WB =
+          plant().EvalBodyPoseInWorld(context, body_B);
+      const Vector3<double>& p_WB = X_WB.translation();
+      const Vector3<double> p_BC_W = p_WC - p_WB;
+
+      DiscreteContactPair<double> contact_pair{
+          .jacobian = std::move(jacobian_blocks),
+          .id_A = geometry_id_M,
+          .object_A = body_A_index,
+          .id_B = geometry_id_N,
+          .object_B = body_B_index,
+          .R_WC = R_WC,
+          .p_WC = p_WC,
+          .p_ApC_W = p_AC_W,
+          .p_BqC_W = p_BC_W,
+          .nhat_BA_W = nhat_BA_W,
+          .phi0 = phi0,
+          .vn0 = vn0,
+          .fn0 = fn0,
+          .stiffness = k,
+          .damping = d,
+          .dissipation_time_scale = tau,
+          .friction_coefficient = mu,
+          .surface_index = 0,  // todo(huzaifa) - Check with Joe if this is okay
+          .face_index = face,
+          .point_pair_index = {} /* no point pair index */};
+      contact_pairs->AppendHydroData(std::move(contact_pair));
     }
   }
 }

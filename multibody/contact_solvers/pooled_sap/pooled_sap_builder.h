@@ -9,6 +9,7 @@
 #include "drake/common/drake_assert.h"
 #include "drake/common/drake_copyable.h"
 #include "drake/common/eigen_types.h"
+#include "drake/geometry/proximity/sycl/sycl_hydroelastic_surface.h"
 #include "drake/geometry/query_results/contact_surface.h"
 #include "drake/geometry/query_results/penetration_as_point_pair.h"
 #include "drake/multibody/contact_solvers/pooled_sap/pooled_sap.h"
@@ -75,6 +76,10 @@ class PooledSapBuilder {
                                           PooledSapModel<T>* model) const;
   void AddPatchConstraintsForHydroelasticContact(
       const systems::Context<T>& context, PooledSapModel<T>* model) const;
+  void AddPatchConstraintsForHydroelasticContactSYCL(
+      const systems::Context<T>& context,
+      PooledSapModel<T>* model) const requires std::is_same_v<T, double>;
+
   void AddCouplerConstraints(const systems::Context<T>& context,
                              PooledSapModel<T>* model) const;
   void AddLimitConstraints(const systems::Context<T>& context,
@@ -97,6 +102,8 @@ class PooledSapBuilder {
     std::unique_ptr<MultibodyForces<T>> forces;
     std::vector<geometry::PenetrationAsPointPair<T>> point_pairs;
     std::vector<geometry::ContactSurface<T>> surfaces;
+    std::vector<geometry::internal::sycl_impl::SYCLHydroelasticSurface>
+        sycl_surfaces;
   };
   /* This space is not intended for long-term storage and is often cleared or
    overwritten as needed. */

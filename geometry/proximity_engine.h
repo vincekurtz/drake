@@ -17,6 +17,8 @@
 #include "drake/geometry/proximity/collision_filter.h"
 #include "drake/geometry/proximity/deformable_contact_internal.h"
 #include "drake/geometry/proximity/hydroelastic_internal.h"
+#include "drake/geometry/proximity/sycl/sycl_hydroelastic_surface.h"
+#include "drake/geometry/proximity/sycl/sycl_proximity_engine.h"
 #include "drake/geometry/query_results/contact_surface.h"
 #include "drake/geometry/query_results/deformable_contact.h"
 #include "drake/geometry/query_results/penetration_as_point_pair.h"
@@ -303,6 +305,32 @@ class ProximityEngine {
       std::vector<ContactSurface<T>>* surfaces,
       std::vector<PenetrationAsPointPair<T>>* point_pairs) const;
 
+  /* Implementation of GeometryState::ComputeContactSurfacesWithSycl(). Computed
+on the GPU with SYCL
+@param X_WGs the current poses of all geometries in World in the
+          current scalar type, keyed on each geometry's GeometryId.  */
+  template <typename T1 = T>
+  typename std::enable_if_t<std::is_same_v<T1, double>,
+                            std::vector<sycl_impl::SYCLHydroelasticSurface>>
+  ComputeContactSurfacesWithSycl(
+      HydroelasticContactRepresentation representation,
+      const std::unordered_map<GeometryId, math::RigidTransform<T>>& X_WGs)
+      const;
+
+  /* Prints timing statistics for all SYCL kernels if timing is enabled.
+   * This method has no effect if DRAKE_SYCL_TIMING_ENABLED is not defined.
+   * This method has no effect if SYCL is not available or not being used. */
+  template <typename T1 = T>
+  typename std::enable_if_t<std::is_same_v<T1, double>, void>
+  PrintSyclTimingStats() const;
+
+  /* Prints timing statistics for all SYCL kernels in JSON format if timing is
+   * enabled. This method has no effect if DRAKE_SYCL_TIMING_ENABLED is not
+   * defined. This method has no effect if SYCL is not available or not being
+   * used. */
+  template <typename T1 = T>
+  typename std::enable_if_t<std::is_same_v<T1, double>, void>
+  PrintSyclTimingStatsJson(const std::string& path) const;
   /* Implementation of GeometryState::ComputeDeformableContact(). Assumes
    the poses of rigid bodies and the vertex positions of the deformable bodies
    are up-to-date. */

@@ -5,6 +5,7 @@
 #include <string>
 #include <vector>
 
+#include "drake/geometry/proximity/sycl/sycl_hydroelastic_surface.h"
 #include "drake/geometry/query_results/contact_surface.h"
 #include "drake/geometry/query_results/deformable_contact.h"
 #include "drake/geometry/query_results/penetration_as_point_pair.h"
@@ -390,6 +391,29 @@ class QueryObject {
                             std::vector<ContactSurface<T>>>
   ComputeContactSurfaces(
       HydroelasticContactRepresentation representation) const;
+
+  // SYCL Contact Surface Computation
+  template <typename T1 = T>
+  typename std::enable_if_t<
+      std::is_same_v<T1, double>,
+      std::vector<internal::sycl_impl::SYCLHydroelasticSurface>>
+  ComputeContactSurfacesWithSycl(
+      HydroelasticContactRepresentation representation) const;
+
+  /** Prints timing statistics for all SYCL kernels if timing is enabled.
+   * This method has no effect if DRAKE_SYCL_TIMING_ENABLED is not defined.
+   * This method has no effect if SYCL is not available or not being used. */
+  template <typename T1 = T>
+  typename std::enable_if_t<std::is_same_v<T1, double>, void>
+  PrintSyclTimingStats() const;
+
+  /** Prints timing statistics for all SYCL kernels in JSON format if timing is
+   * enabled. This method has no effect if DRAKE_SYCL_TIMING_ENABLED is not
+   * defined. This method has no effect if SYCL is not available or not being
+   * used. */
+  template <typename T1 = T>
+  typename std::enable_if_t<std::is_same_v<T1, double>, void>
+  PrintSyclTimingStatsJson(const std::string& path) const;
 
   /** Reports pairwise intersections and characterizes each non-empty
    intersection as a ContactSurface _where possible_ and as a

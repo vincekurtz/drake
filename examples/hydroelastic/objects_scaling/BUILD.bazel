@@ -1,0 +1,64 @@
+load("//tools/lint:lint.bzl", "add_lint_tests")
+load(
+    "//tools/skylark:drake_cc.bzl",
+    "drake_cc_binary",
+    "drake_cc_library",
+)
+
+package(default_visibility = ["//visibility:private"])
+
+filegroup(
+    name = "models",
+    srcs = [
+        "floor.sdf",
+        "schunk_wsg_50_hydro_bubble.sdf",
+        "yellow_bell_pepper_no_stem_low.sdf",
+    ],
+    visibility = ["//:__pkg__"],
+)
+
+drake_cc_library(
+    name = "make_objects_plant",
+    srcs = [
+        "make_objects_plant.cc",
+    ],
+    hdrs = [
+        "make_objects_plant.h",
+    ],
+    data = [
+        ":models",
+        "@drake_models//:wsg_50_description",
+        "@drake_models//:veggies",
+    ],
+    deps = [
+        "//common:default_scalars",
+        "//geometry:geometry_ids",
+        "//geometry:scene_graph",
+        "//math:geometric_transform",
+        "//multibody/parsing",
+        "//multibody/plant",
+    ],
+)
+
+drake_cc_binary(
+    name = "objects_scaling_run_dynamics",
+    srcs = ["objects_scaling_run_dynamics.cc"],
+    add_test_rule = 1,
+    test_rule_args = [
+        "--simulation_time=0.1",
+        "--simulator_target_realtime_rate=0.0",
+    ],
+    deps = [
+        ":make_objects_plant",
+        "//common:add_text_logging_gflags",
+        "//systems/analysis:simulator",
+        "//systems/analysis:simulator_gflags",
+        "//systems/analysis:simulator_print_stats",
+        "//systems/framework:diagram",
+        "//visualization:visualization_config_functions",
+        "//geometry:proximity_properties",
+        "@gflags",
+    ],
+)
+
+add_lint_tests(enable_clang_format_lint = False)
