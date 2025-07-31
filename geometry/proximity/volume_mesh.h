@@ -16,6 +16,15 @@
 #include "drake/math/linear_solve.h"
 #include "drake/math/rigid_transform.h"
 
+// Conditionally include SYCL headers and define SYCL macros
+#if defined(SYCL_LANGUAGE_VERSION)
+#include <sycl/sycl.hpp>
+#else
+// Provide a benign fallback for SYCL_EXTERNAL if it's used in the header
+// unconditionally
+#define SYCL_EXTERNAL
+#endif
+
 namespace drake {
 namespace geometry {
 /** %VolumeElement represents a tetrahedral element in a VolumeMesh. It is a
@@ -69,6 +78,8 @@ class VolumeElement {
   bool Equal(const VolumeElement& e) const {
     return this->vertex_ == e.vertex_;
   }
+
+  const std::array<int, 4>& getAllVertices() const { return vertex_; }
 
  private:
   // The vertices of this element.
@@ -195,6 +206,21 @@ class VolumeMesh {
   const std::vector<Vector3<T>>& vertices() const { return vertices_M_; }
 
   const std::vector<VolumeElement>& tetrahedra() const { return elements_; }
+
+  std::vector<std::array<int, 4>> pack_element_vertices() const {
+    std::vector<std::array<int, 4>> vertices;
+    vertices.reserve(elements_.size());
+    for (const auto& element : elements_) {
+      vertices.push_back(element.getAllVertices());
+    }
+    return vertices;
+  }
+  const std::vector<std::array<Vector3<T>, 4>>& inward_normals() const {
+    return inward_normals_M_;
+  }
+  const std::vector<std::array<Vector3<T>, 6>>& edge_vectors() const {
+    return edge_vectors_M_;
+  }
 
   /** Returns the number of tetrahedral elements in the mesh.
    */
@@ -357,6 +383,8 @@ class VolumeMesh {
     return *result;
   }
 
+  void TransformVerticesImpl(const math::RigidTransform<T>& transform);
+
   // Calculates the inward facing normals and element edge vectors.
   void ComputePositionDependentQuantities();
 
@@ -469,6 +497,10 @@ std::optional<Vector3<T>> VolumeMesh<T>::MaybeCalcGradBarycentric(int e,
   }
   return area_vector_M / signed_volume;
 }
+
+template <>
+SYCL_EXTERNAL void VolumeMesh<double>::TransformVertices(
+    const math::RigidTransform<double>& transform);
 
 DRAKE_DECLARE_CLASS_TEMPLATE_INSTANTIATIONS_ON_DEFAULT_NONSYMBOLIC_SCALARS(
     class VolumeMesh);

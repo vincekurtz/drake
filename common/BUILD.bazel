@@ -608,10 +608,16 @@ drake_cc_library(
 drake_cc_library(
     name = "timer",
     srcs = ["timer.cc"],
-    hdrs = ["timer.h"],
+    hdrs = ["timer.h", "cpu_timing_logger.h"],
     deps = [
         ":essential",
     ],
+)
+
+drake_cc_library(
+    name = "problem_size_logger",
+    hdrs = ["problem_size_logger.h"],
+    deps = [":essential"],
 )
 
 drake_cc_library(

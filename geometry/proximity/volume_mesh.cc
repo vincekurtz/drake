@@ -16,7 +16,7 @@ VolumeMesh<T>::VolumeMesh(std::vector<VolumeElement>&& elements,
 }
 
 template <typename T>
-void VolumeMesh<T>::TransformVertices(
+void VolumeMesh<T>::TransformVerticesImpl(
     const math::RigidTransform<T>& transform) {
   const math::RigidTransform<T>& X_NM = transform;
   for (Vector3<T>& vertex : vertices_M_) {
@@ -35,6 +35,18 @@ void VolumeMesh<T>::TransformVertices(
       edge_vectors_M_[i][j] = R_NM * edge_vectors_M_[i][j];
     }
   }
+}
+
+template <typename T>
+void VolumeMesh<T>::TransformVertices(
+    const math::RigidTransform<T>& transform) {
+  TransformVerticesImpl(transform);
+}
+
+template <>
+SYCL_EXTERNAL void VolumeMesh<double>::TransformVertices(
+    const math::RigidTransform<double>& transform) {
+  TransformVerticesImpl(transform);
 }
 
 template <typename T>

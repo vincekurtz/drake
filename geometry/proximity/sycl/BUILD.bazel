@@ -1,0 +1,124 @@
+load(
+    "//tools/skylark:drake_cc.bzl",
+    "drake_cc_binary",
+    "drake_cc_library",
+    "drake_cc_googletest",
+)
+
+package(default_visibility = ["//visibility:private"])
+
+drake_cc_library(
+       name = "sycl_memory_manager",
+       srcs = ["utils/sycl_memory_manager.cc"],
+       hdrs = ["utils/sycl_memory_manager.h", "utils/sycl_kernel_utils.h", "utils/sycl_bvh_structs.h"],
+       visibility = ["//geometry:__pkg__"],
+       copts = [
+          "-fsycl",
+          "-fsycl-targets=spir64,nvptx64-nvidia-cuda",
+        ],
+       deps = [
+           "//common:essential",
+           "//geometry:geometry_ids",
+       ],
+)
+drake_cc_library(
+    name = "sycl_hydroelastic_surface",
+    srcs = ["sycl_hydroelastic_surface.cc"],
+    hdrs = ["sycl_hydroelastic_surface.h"],
+    deps = [
+        "//common:essential",
+        "//geometry:geometry_ids",
+        "//geometry/proximity:hydroelastic_internal",
+        "//math:geometric_transform",
+    ],
+)
+
+drake_cc_library(
+    name = "sycl_bvh",
+    srcs = ["bvh/sycl_bvh.cc"],
+    hdrs = ["bvh/sycl_bvh.h", "utils/sycl_kernel_utils.h"],
+    visibility = ["//geometry:__pkg__"],
+    copts = [
+        "-fsycl",
+        "-fsycl-targets=spir64,nvptx64-nvidia-cuda",
+        "--cuda-gpu-arch=sm_89",
+        #"-gline-tables-only",
+        "-DEIGEN_DONT_VECTORIZE",
+        "-I/opt/intel/oneapi/dpl/2022.8/include",
+        "-Wno-old-style-cast",
+        "-Wno-logical-op-parentheses",
+        "-Wno-unknown-pragmas",
+        "-Wno-deprecated-copy-with-dtor",
+        "-Wno-deprecated-copy-with-user-provided-copy",
+        "-Wno-sign-compare",
+        "-Wno-unused-but-set-variable",
+        "-Wno-c++23-lambda-attributes"
+    ],
+    deps = [
+        "//geometry:geometry_ids",
+        "//common:essential",
+        ":sycl_memory_manager",
+    ]
+)
+
+drake_cc_library(
+    name = "sycl_proximity_engine",
+    srcs = ["sycl_proximity_engine.cc"],
+    hdrs = ["sycl_proximity_engine.h"] + glob(["utils/sycl_*.h"]),
+    visibility = ["//geometry:__pkg__"],
+    copts = [
+        "-fsycl",
+        "-fsycl-targets=spir64,nvptx64-nvidia-cuda",
+        #"-Xsycl-target-backend=nvptx64-nvidia-cuda -arch=sm_89",
+        "--cuda-gpu-arch=sm_89",
+        #"-Xsycl-target-backend=nvptx64-nvidia-cuda",
+        #"-lineinfo",
+        #"-gline-tables-only",
+        #"-Xsycl-target-backend=nvptx64-nvidia-cuda -lineinfo",
+        "-DEIGEN_DONT_VECTORIZE",
+        "-I/opt/intel/oneapi/dpl/2022.8/include",
+        "-Wno-old-style-cast",
+        "-Wno-logical-op-parentheses",
+        "-Wno-unknown-pragmas",
+        "-Wno-deprecated-copy-with-dtor",
+        "-Wno-deprecated-copy-with-user-provided-copy",
+        "-Wno-sign-compare",
+        "-Wno-unused-but-set-variable",
+        "-Wno-c++23-lambda-attributes"
+    ],
+    linkopts = [
+        "-fsycl",
+        "-fsycl-targets=spir64,nvptx64-nvidia-cuda",
+    ],
+    deps = [
+        "//common:essential",
+        "//common:problem_size_logger",
+        "//geometry:geometry_ids",
+        "//math:geometric_transform",
+        ":sycl_hydroelastic_surface",
+        ":sycl_memory_manager",
+        ":sycl_bvh"
+    ]
+)
+
+drake_cc_googletest(
+    name = "sycl_proximity_engine_test",
+    srcs = ["test/sycl_proximity_engine_test.cc"],
+    copts = [
+        "-fsycl",
+        "-fsycl-targets=spir64,nvptx64-nvidia-cuda",
+        "-DEIGEN_DONT_VECTORIZE",
+    ],
+    linkopts = [
+        "-fsycl",
+        "-fsycl-targets=spir64,nvptx64-nvidia-cuda",
+    ],
+    deps = [
+        "//common:essential",
+        "//geometry:geometry_ids",
+        "//geometry/proximity:field_intersection",
+        "//math:geometric_transform",
+        ":sycl_hydroelastic_surface",
+        ":sycl_proximity_engine"
+    ],
+)

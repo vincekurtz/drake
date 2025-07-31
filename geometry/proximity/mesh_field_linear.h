@@ -401,6 +401,10 @@ class MeshFieldLinear {
   const std::vector<T>& min_values() const { return min_values_; }
   /** The maximum field value on each element. */
   const std::vector<T>& max_values() const { return max_values_; }
+  /** The gradients of the field on each element. */
+  const std::vector<Vector3<T>>& gradients() const { return gradients_; }
+  /** The value of the field at the mesh origin on each element. */
+  const std::vector<T>& values_at_Mo() const { return values_at_Mo_; }
 
   // TODO(#12173): Consider NaN==NaN to be true in equality tests.
   /** Checks to see whether the given MeshFieldLinear object is equal via deep
