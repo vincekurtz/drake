@@ -45,7 +45,7 @@ namespace {
 constexpr double kHuge = 1.0e40;
 
 // Simulation parameters.
-DEFINE_double(simulation_time, 1.0, "Simulation duration in seconds");
+DEFINE_double(simulation_time, 10.0, "Simulation duration in seconds");
 DEFINE_double(
     mbp_time_step, 0.0,
     "If mbp_time_step > 0, the fixed-time step period (in seconds) of discrete "
