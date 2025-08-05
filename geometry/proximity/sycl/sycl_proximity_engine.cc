@@ -140,8 +140,19 @@ class SyclProximityEngine::Impl {
     SyclMemoryHelper::AllocateBVHAllMeshTempMemory(mem_mgr_, bvh_data_,
                                                    total_elements_);
 
-    // Copy data for each mesh
-    std::vector<sycl::event> transfer_events;  // Store all transfer events
+    // Create host vectors to pack all data before transferring to device
+    std::vector<std::array<int, 4>> host_elements(total_elements_);
+    std::vector<uint32_t> host_element_mesh_ids(total_elements_);
+    std::vector<uint32_t> host_node_mesh_ids(total_nodes_);
+    std::vector<Vector3<double>> host_vertices_M(total_vertices_);
+    std::vector<double> host_pressures(total_vertices_);
+    std::vector<uint32_t> host_vertex_mesh_ids(total_vertices_);
+    std::vector<std::array<Vector3<double>, 4>> host_inward_normals_M(
+        total_elements_);
+    std::vector<double> host_min_pressures(total_elements_);
+    std::vector<double> host_max_pressures(total_elements_);
+    std::vector<Vector4<double>> host_gradient_M_pressure_at_Mo(
+        total_elements_);
 
     // Use the sorted IDs for deterministic ordering
     for (uint32_t id_index = 0; id_index < sorted_ids_.size(); ++id_index) {
@@ -160,77 +171,112 @@ class SyclProximityEngine::Impl {
       uint32_t num_nodes = bvh_data_.node_counts_per_mesh[id_index];
       uint32_t num_vertices = mesh_data_.vertex_counts[id_index];
 
+      // Pack elements
       const auto& mesh_elements = mesh.tetrahedra();
       for (uint32_t i = 0; i < num_elements; ++i) {
         const std::array<int, 4>& vertices = mesh_elements[i].getAllVertices();
-        // Copy element by element to maintain lifetime safety
-        q_device_
-            .memcpy(mesh_data_.elements + element_offset + i, &vertices,
-                    sizeof(std::array<int, 4>))
-            .wait();
+        host_elements[element_offset + i] = vertices;
       }
 
-      q_device_
-          .fill(mesh_data_.element_mesh_ids + element_offset, id_index,
-                num_elements)
-          .wait();
+      // Pack element mesh IDs
+      for (uint32_t i = 0; i < num_elements; ++i) {
+        host_element_mesh_ids[element_offset + i] = id_index;
+      }
 
-      q_device_.fill(bvh_data_.node_mesh_ids + node_offset, id_index, num_nodes)
-          .wait();
+      // Pack node mesh IDs
+      for (uint32_t i = 0; i < num_nodes; ++i) {
+        host_node_mesh_ids[node_offset + i] = id_index;
+      }
 
-      // Vertices
-      transfer_events.push_back(q_device_.memcpy(
-          mesh_data_.vertices_M + vertex_offset, mesh.vertices().data(),
-          num_vertices * sizeof(Vector3<double>)));
+      // Pack vertices
+      for (uint32_t i = 0; i < num_vertices; ++i) {
+        host_vertices_M[vertex_offset + i] = mesh.vertices()[i];
+      }
 
-      // Pressures
-      transfer_events.push_back(q_device_.memcpy(
-          mesh_data_.pressures + vertex_offset, pressure_field.values().data(),
-          num_vertices * sizeof(double)));
+      // Pack pressures
+      for (uint32_t i = 0; i < num_vertices; ++i) {
+        host_pressures[vertex_offset + i] = pressure_field.values()[i];
+      }
 
-      // Fill in the mesh id for all vertices in this mesh
-      q_device_
-          .fill(mesh_data_.vertex_mesh_ids + vertex_offset, id_index,
-                num_vertices)
-          .wait();
+      // Pack vertex mesh IDs
+      for (uint32_t i = 0; i < num_vertices; ++i) {
+        host_vertex_mesh_ids[vertex_offset + i] = id_index;
+      }
 
-      // Inward Normals
-      transfer_events.push_back(q_device_.memcpy(
-          mesh_data_.inward_normals_M + element_offset,
-          mesh.inward_normals().data(),
-          num_elements * sizeof(std::array<Vector3<double>, 4>)));
+      // Pack inward normals
+      for (uint32_t i = 0; i < num_elements; ++i) {
+        host_inward_normals_M[element_offset + i] = mesh.inward_normals()[i];
+      }
 
-      // Min Pressures
-      transfer_events.push_back(q_device_.memcpy(
-          mesh_data_.min_pressures + element_offset,
-          pressure_field.min_values().data(), num_elements * sizeof(double)));
+      // Pack min pressures
+      for (uint32_t i = 0; i < num_elements; ++i) {
+        host_min_pressures[element_offset + i] = pressure_field.min_values()[i];
+      }
 
-      // Max Pressures
-      transfer_events.push_back(q_device_.memcpy(
-          mesh_data_.max_pressures + element_offset,
-          pressure_field.max_values().data(), num_elements * sizeof(double)));
+      // Pack max pressures
+      for (uint32_t i = 0; i < num_elements; ++i) {
+        host_max_pressures[element_offset + i] = pressure_field.max_values()[i];
+      }
 
-      // Create a temporary host buffer to pack gradient and pressure data
-      std::vector<Vector4<double>> packed_gradient_pressure(num_elements);
-
-      // Pack the gradient data (first 3 components) and pressure at Mo (4th
-      // component)
+      // Pack gradient and pressure data
       const auto& gradients = pressure_field.gradients();
       const auto& pressuresat_Mo = pressure_field.values_at_Mo();
 
       for (uint32_t i = 0; i < num_elements; ++i) {
-        packed_gradient_pressure[i][0] = gradients[i][0];    // x component
-        packed_gradient_pressure[i][1] = gradients[i][1];    // y component
-        packed_gradient_pressure[i][2] = gradients[i][2];    // z component
-        packed_gradient_pressure[i][3] = pressuresat_Mo[i];  // pressure at Mo
+        host_gradient_M_pressure_at_Mo[i + element_offset][0] =
+            gradients[i][0];  // x component
+        host_gradient_M_pressure_at_Mo[i + element_offset][1] =
+            gradients[i][1];  // y component
+        host_gradient_M_pressure_at_Mo[i + element_offset][2] =
+            gradients[i][2];  // z component
+        host_gradient_M_pressure_at_Mo[i + element_offset][3] =
+            pressuresat_Mo[i];  // pressure at Mo
       }
-
-      q_device_
-          .memcpy(mesh_data_.gradient_M_pressure_at_Mo + element_offset,
-                  packed_gradient_pressure.data(),
-                  num_elements * sizeof(Vector4<double>))
-          .wait();
     }
+
+    // Transfer all data to device at once
+    std::vector<sycl::event> transfer_events;
+
+    transfer_events.push_back(
+        q_device_.memcpy(mesh_data_.elements, host_elements.data(),
+                         total_elements_ * sizeof(std::array<int, 4>)));
+
+    transfer_events.push_back(q_device_.memcpy(
+        mesh_data_.element_mesh_ids, host_element_mesh_ids.data(),
+        total_elements_ * sizeof(uint32_t)));
+
+    transfer_events.push_back(
+        q_device_.memcpy(bvh_data_.node_mesh_ids, host_node_mesh_ids.data(),
+                         total_nodes_ * sizeof(uint32_t)));
+
+    transfer_events.push_back(
+        q_device_.memcpy(mesh_data_.vertices_M, host_vertices_M.data(),
+                         total_vertices_ * sizeof(Vector3<double>)));
+
+    transfer_events.push_back(
+        q_device_.memcpy(mesh_data_.pressures, host_pressures.data(),
+                         total_vertices_ * sizeof(double)));
+
+    transfer_events.push_back(q_device_.memcpy(
+        mesh_data_.vertex_mesh_ids, host_vertex_mesh_ids.data(),
+        total_vertices_ * sizeof(uint32_t)));
+
+    transfer_events.push_back(q_device_.memcpy(
+        mesh_data_.inward_normals_M, host_inward_normals_M.data(),
+        total_elements_ * sizeof(std::array<Vector3<double>, 4>)));
+
+    transfer_events.push_back(
+        q_device_.memcpy(mesh_data_.min_pressures, host_min_pressures.data(),
+                         total_elements_ * sizeof(double)));
+
+    transfer_events.push_back(
+        q_device_.memcpy(mesh_data_.max_pressures, host_max_pressures.data(),
+                         total_elements_ * sizeof(double)));
+
+    transfer_events.push_back(
+        q_device_.memcpy(mesh_data_.gradient_M_pressure_at_Mo,
+                         host_gradient_M_pressure_at_Mo.data(),
+                         total_elements_ * sizeof(Vector4<double>)));
 
     // We try and heuristically estimate the number of polygons as 1% of the
     // total checks possible
@@ -366,15 +412,17 @@ class SyclProximityEngine::Impl {
     // Set the offsets for the collision counters
     uint32_t running_offset = 0;
     counters_offsets_chunk_.size_ = 0;
+    std::vector<uint32_t> offsets_scan(num_mesh_collisions_);
     for (uint32_t i = 0; i < num_mesh_collisions_; i++) {
       uint32_t mesh_a = mesh_pair_ids_.meshAs[i];
-      q_device_
-          .memcpy(counters_offsets_chunk_.mesh_a_offsets + i, &running_offset,
-                  sizeof(uint32_t))
-          .wait();
+      offsets_scan[i] = running_offset;
       running_offset += mesh_data_.element_counts[mesh_a];
       counters_offsets_chunk_.size_++;
     }
+    q_device_
+        .memcpy(counters_offsets_chunk_.mesh_a_offsets, offsets_scan.data(),
+                num_mesh_collisions_ * sizeof(uint32_t))
+        .wait();
   }
 
   // Compute hydroelastic surfaces
