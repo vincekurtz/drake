@@ -10,7 +10,9 @@
 #include <gflags/gflags.h>
 #include <valgrind/callgrind.h>
 
+#include "drake/common/cpu_timing_logger.h"
 #include "drake/common/nice_type_name.h"
+#include "drake/common/problem_size_logger.h"
 #include "drake/common/temp_directory.h"
 #include "drake/geometry/collision_filter_declaration.h"
 #include "drake/geometry/drake_visualizer.h"
@@ -43,7 +45,7 @@ namespace {
 constexpr double kHuge = 1.0e40;
 
 // Simulation parameters.
-DEFINE_double(simulation_time, 10.0, "Simulation duration in seconds");
+DEFINE_double(simulation_time, 1.0, "Simulation duration in seconds");
 DEFINE_double(
     mbp_time_step, 0.0,
     "If mbp_time_step > 0, the fixed-time step period (in seconds) of discrete "
@@ -60,11 +62,13 @@ DEFINE_double(sphere_stiffness, 1.0e7,
               "Sphere point contact stiffness in N/m.");
 DEFINE_bool(use_hydro, true, "If true, use hydro. Otherwise point contact.");
 DEFINE_double(sphere_resolution, 0.02, "Resolution hint for the sphere");
+DEFINE_double(box_resolution, 1.0, "Resolution hint for the box.");
 DEFINE_double(dissipation_time_constant, 0.01,
               "Dissipation time constant in seconds.");
 DEFINE_double(hc_dissipation, 10.0, "Hunt & Crossley dissipation [s/m].");
 DEFINE_double(stiction_tolerance, 1.0e-4, "Stiction tolerance [m/s].");
 DEFINE_bool(use_sycl, true, "Use SYCL for hydroelastic contact.");
+DEFINE_bool(print_perf, true, "Print performance stats.");
 // Contact geometry parameters.
 DEFINE_bool(
     emulate_box_multicontact, true,
@@ -159,6 +163,134 @@ const double length(0.8);
 
 std::vector<geometry::GeometryId> box_geometry_ids;
 
+struct BenchmarkConfig {
+  int objects_per_pile;
+  int num_spheres_per_face;
+  double box_resolution;
+  double sphere_resolution;
+};
+
+BenchmarkConfig GetBenchmarkConfig() {
+  BenchmarkConfig config;
+  config.objects_per_pile = FLAGS_objects_per_pile;
+  config.num_spheres_per_face = FLAGS_num_spheres_per_face;
+  config.box_resolution = FLAGS_box_resolution;
+  config.sphere_resolution = FLAGS_sphere_resolution;
+  return config;
+}
+void PrintPerformanceStats(
+    const drake::multibody::MultibodyPlant<double>& plant,
+    const drake::geometry::SceneGraph<double>& scene_graph,
+    const drake::systems::Context<double>& scene_graph_context, bool sycl_used,
+    const BenchmarkConfig& config) {
+  // Create a descriptive name for output files
+  std::string demo_name = "clutter";
+
+  demo_name += "_" + std::to_string(config.objects_per_pile);
+  demo_name += "_" + std::to_string(config.box_resolution);
+  demo_name += "_" + std::to_string(config.sphere_resolution);
+  demo_name += "_" + std::to_string(config.num_spheres_per_face);
+
+  std::string runtime_device;
+  const char* env_var = std::getenv("ONEAPI_DEVICE_SELECTOR");
+  if (env_var != nullptr) {
+    runtime_device = env_var;
+  }
+  std::string out_dir =
+      "/home/huzaifaunjhawala/drake_vince/performance_jsons_clutter/";
+  // Create output directory if it doesn't exist
+  if (!std::filesystem::exists(out_dir)) {
+    std::filesystem::create_directories(out_dir);
+  }
+
+  std::string run_type;
+  if (runtime_device.empty()) {
+    run_type = sycl_used ? "sycl-gpu" : "drake-cpu";
+  } else if (runtime_device == "cuda:*" || runtime_device == "cuda:gpu") {
+    run_type = sycl_used ? "sycl-gpu" : "drake-cpu";
+  } else {
+    run_type = "sycl-cpu";
+  }
+
+  std::string json_path =
+      out_dir + "/" + demo_name + "_" + run_type + "_problem_size.json";
+
+  // Ensure output directory exists
+  if (!std::filesystem::exists(out_dir)) {
+    std::cerr << "Performance output directory does not exist: " << out_dir
+              << std::endl;
+    return;
+  }
+
+  fmt::print("Problem Size Stats:\n");
+  const auto& inspector = scene_graph.model_inspector();
+  int hydro_bodies = 0;
+  std::ostringstream hydro_json;
+  hydro_json << "\"hydroelastic_bodies\": [";
+  bool first = true;
+  for (int i = 0; i < plant.num_bodies(); ++i) {
+    const auto& body = plant.get_body(drake::multibody::BodyIndex(i));
+    bool has_hydro = false;
+    int tet_count = 0;
+    for (const auto& gid : plant.GetCollisionGeometriesForBody(body)) {
+      const auto* props = inspector.GetProximityProperties(gid);
+      if (props && props->HasProperty(geometry::internal::kHydroGroup,
+                                      geometry::internal::kComplianceType)) {
+        has_hydro = true;
+      }
+      auto mesh_variant = inspector.maybe_get_hydroelastic_mesh(gid);
+      if (std::holds_alternative<const drake::geometry::VolumeMesh<double>*>(
+              mesh_variant)) {
+        const auto* mesh =
+            std::get<const drake::geometry::VolumeMesh<double>*>(mesh_variant);
+        if (mesh) tet_count += mesh->num_elements();
+      }
+    }
+    if (has_hydro) ++hydro_bodies;
+    if (tet_count > 0) {
+      if (!first) hydro_json << ",";
+      first = false;
+      hydro_json << "{ \"body\": \"" << body.name()
+                 << "\", \"tetrahedra\": " << tet_count << "}";
+    }
+  }
+  hydro_json << "]";
+  fmt::print("Number of bodies with hydroelastic contact: {}\n", hydro_bodies);
+  for (int i = 0; i < plant.num_bodies(); ++i) {
+    const auto& body = plant.get_body(drake::multibody::BodyIndex(i));
+    int tet_count = 0;
+    for (const auto& gid : plant.GetCollisionGeometriesForBody(body)) {
+      auto mesh_variant = inspector.maybe_get_hydroelastic_mesh(gid);
+      if (std::holds_alternative<const drake::geometry::VolumeMesh<double>*>(
+              mesh_variant)) {
+        const auto* mesh =
+            std::get<const drake::geometry::VolumeMesh<double>*>(mesh_variant);
+        if (mesh) tet_count += mesh->num_elements();
+      }
+    }
+    if (tet_count > 0) {
+      fmt::print("Body '{}' has {} tetrahedra in its hydroelastic mesh.\n",
+                 body.name(), tet_count);
+    }
+  }
+  drake::common::ProblemSizeLogger::GetInstance().PrintStats();
+  drake::common::ProblemSizeLogger::GetInstance().PrintStatsJson(
+      json_path, hydro_json.str());
+
+  fmt::print("Timing Stats:\n");
+  json_path =
+      out_dir + "/" + demo_name + "_" + run_type + "_timing_overall.json";
+
+  drake::common::CpuTimingLogger::GetInstance().PrintStats();
+  drake::common::CpuTimingLogger::GetInstance().PrintStatsJson(json_path);
+  json_path = out_dir + "/" + demo_name + "_" + run_type + "_timing.json";
+  const auto& query_object =
+      scene_graph.get_query_output_port().Eval<geometry::QueryObject<double>>(
+          scene_graph_context);
+  query_object.PrintSyclTimingStats();
+  query_object.PrintSyclTimingStatsJson(json_path);
+}
+
 const RigidBody<double>& AddBox(const std::string& name,
                                 const Vector3<double>& block_dimensions,
                                 double mass, double stiffness,
@@ -201,8 +333,8 @@ const RigidBody<double>& AddBox(const std::string& name,
     if (stiffness == kHuge) {
       AddRigidHydroelasticProperties(1.0 /* Not used for boxes */, &props);
     } else {
-      AddCompliantHydroelasticProperties(1.0 /* Not used for boxes */,
-                                         stiffness, &props);
+      AddCompliantHydroelasticProperties(FLAGS_box_resolution, stiffness,
+                                         &props);
     }
   }
 
@@ -657,6 +789,20 @@ int do_main() {
   }
 
   PrintSimulatorStatistics(*simulator);
+  systems::Context<double>& mutable_root_context =
+      simulator->get_mutable_context();
+  systems::Context<double>& scene_graph_context =
+      diagram->GetMutableSubsystemContext(scene_graph, &mutable_root_context);
+  BenchmarkConfig benchmark_config = GetBenchmarkConfig();
+  if (FLAGS_print_perf) {
+    if (FLAGS_use_sycl) {
+      PrintPerformanceStats(plant, scene_graph, scene_graph_context,
+                            /*sycl_used=*/true, benchmark_config);
+    } else {
+      PrintPerformanceStats(plant, scene_graph, scene_graph_context,
+                            /*sycl_used=*/false, benchmark_config);
+    }
+  }
 
   if (FLAGS_visualize) {
     // Wait for meshcat to finish rendering.
@@ -678,8 +824,8 @@ int main(int argc, char* argv[]) {
 
   // Set some reasonable defaults for the simulator options (these can be
   // overridden from the command line).
-  // FLAGS_simulator_integration_scheme = "implicit_euler";
-  FLAGS_simulator_integration_scheme = "convex";
+  FLAGS_simulator_integration_scheme = "implicit_euler";
+  // FLAGS_simulator_integration_scheme = "convex";
   FLAGS_simulator_accuracy = 1e-3;
   FLAGS_simulator_max_time_step = 0.1;
   FLAGS_simulator_use_error_control = true;
