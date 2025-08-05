@@ -686,7 +686,7 @@ void PooledSapBuilder<T>::AddPatchConstraintsForHydroelasticContactSYCL(
       }
       body_pairs.push(current_body_pair);
       patches.AddPatch(bodyA->index(), bodyB->index(), d, mu.static_friction(),
-                       mu.dynamic_friction(), Vector3<T>::Zero());
+                       mu.dynamic_friction(), p_AB_W);
     }
 
     const auto& Ae = sycl_surface.areas()[face];
