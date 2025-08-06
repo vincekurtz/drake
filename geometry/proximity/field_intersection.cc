@@ -5,7 +5,9 @@
 #include <unordered_map>
 #include <unordered_set>
 
+#include "drake/common/cpu_timing_logger.h"
 #include "drake/common/default_scalars.h"
+#include "drake/common/problem_size_logger.h"
 #include "drake/geometry/proximity/contact_surface_utility.h"
 #include "drake/geometry/proximity/mesh_intersection.h"
 #include "drake/geometry/proximity/mesh_plane_intersection.h"
@@ -237,18 +239,27 @@ void VolumeIntersector<MeshBuilder, BvType>::IntersectFields(
     candidate_tetrahedra.emplace_back(tet0, tet1);
     return BvttCallbackResult::Continue;
   };
-
-  bvh0_M.Collide(bvh1_N, convert_to_double(X_MN), callback);
-
+  {
+    DRAKE_CPU_SCOPED_TIMER("BroadPhase");
+    bvh0_M.Collide(bvh1_N, convert_to_double(X_MN), callback);
+  }
   MeshBuilder builder_M;
   const math::RotationMatrix<T> R_NM = X_MN.rotation().inverse();
-  for (const auto& [tet0, tet1] : candidate_tetrahedra) {
-    CalcContactPolygon(field0_M, field1_N, X_MN, R_NM, tet0, tet1, &builder_M);
+  drake::common::ProblemSizeLogger::GetInstance().AddCount(
+      "CandidateTets", candidate_tetrahedra.size());
+  {
+    DRAKE_CPU_SCOPED_TIMER("NarrowPhase");
+    for (const auto& [tet0, tet1] : candidate_tetrahedra) {
+      CalcContactPolygon(field0_M, field1_N, X_MN, R_NM, tet0, tet1,
+                         &builder_M);
+    }
+
+    if (builder_M.num_faces() == 0) return;
+
+    std::tie(*surface_01_M, *e_01_M) = builder_M.MakeMeshAndField();
   }
-
-  if (builder_M.num_faces() == 0) return;
-
-  std::tie(*surface_01_M, *e_01_M) = builder_M.MakeMeshAndField();
+  drake::common::ProblemSizeLogger::GetInstance().AddCount(
+      "FacesInserted", builder_M.num_faces());
 }
 
 template <class MeshBuilder, class BvType>
@@ -456,45 +467,47 @@ void HydroelasticVolumeIntersector<MeshBuilder>::IntersectCompliantVolumes(
   }
 
   if (surface01_M == nullptr) return;
+  {
+    DRAKE_CPU_SCOPED_TIMER("TransformToWorld");
+    const int num_contact_polygons = surface01_M->num_elements();
 
-  const int num_contact_polygons = surface01_M->num_elements();
+    // TODO(DamrongGuoy): Compute the mesh and field with the quantities
+    //  expressed in World frame by construction so that we can delete these
+    //  transforming methods.
 
-  // TODO(DamrongGuoy): Compute the mesh and field with the quantities
-  //  expressed in World frame by construction so that we can delete these
-  //  transforming methods.
+    // N.B. After this transformation, surface01_M and field01_M are expressed
+    // in World frame. We will violate the frame notations briefly.
+    surface01_M->TransformVertices(X_WM);
+    field01_M->Transform(X_WM);
 
-  // N.B. After this transformation, surface01_M and field01_M are expressed
-  // in World frame. We will violate the frame notations briefly.
-  surface01_M->TransformVertices(X_WM);
-  field01_M->Transform(X_WM);
+    auto grad_field0_W = std::make_unique<std::vector<Vector3<T>>>();
+    grad_field0_W->reserve(num_contact_polygons);
+    for (int i = 0; i < num_contact_polygons; ++i) {
+      const Vector3<T>& grad_field0_M = compliant_M.pressure().EvaluateGradient(
+          volume_intersector.tet0_of_polygon(i));
+      grad_field0_W->emplace_back(X_WM.rotation() * grad_field0_M);
+    }
+    auto grad_field1_W = std::make_unique<std::vector<Vector3<T>>>();
+    grad_field1_W->reserve(num_contact_polygons);
+    for (int i = 0; i < num_contact_polygons; ++i) {
+      const Vector3<T>& grad_field1_N = compliant_N.pressure().EvaluateGradient(
+          volume_intersector.tet1_of_polygon(i));
+      grad_field1_W->emplace_back(X_WN.rotation() * grad_field1_N);
+    }
 
-  auto grad_field0_W = std::make_unique<std::vector<Vector3<T>>>();
-  grad_field0_W->reserve(num_contact_polygons);
-  for (int i = 0; i < num_contact_polygons; ++i) {
-    const Vector3<T>& grad_field0_M = compliant_M.pressure().EvaluateGradient(
-        volume_intersector.tet0_of_polygon(i));
-    grad_field0_W->emplace_back(X_WM.rotation() * grad_field0_M);
+    // ContactSurface(id_first, id_second, mesh_W,...) requires that the face
+    // normals in `mesh_W` are:
+    //     - *out of* the second geometry and
+    //     - *into* the first geometry.
+    // This is the same convention that IntersectFields() create a mesh
+    // with normals in the direction of
+    //     - increasing pressure field0 (going *into* the first geometry) and
+    //     - decreasing pressure field1 (going *out* of the second geometry),
+    // so we create ContactSurface with the ids in the order of (id_M, id_N).
+    *contact_surface_W = std::make_unique<ContactSurface<T>>(
+        id_M, id_N, std::move(surface01_M), std::move(field01_M),
+        std::move(grad_field0_W), std::move(grad_field1_W));
   }
-  auto grad_field1_W = std::make_unique<std::vector<Vector3<T>>>();
-  grad_field1_W->reserve(num_contact_polygons);
-  for (int i = 0; i < num_contact_polygons; ++i) {
-    const Vector3<T>& grad_field1_N = compliant_N.pressure().EvaluateGradient(
-        volume_intersector.tet1_of_polygon(i));
-    grad_field1_W->emplace_back(X_WN.rotation() * grad_field1_N);
-  }
-
-  // ContactSurface(id_first, id_second, mesh_W,...) requires that the face
-  // normals in `mesh_W` are:
-  //     - *out of* the second geometry and
-  //     - *into* the first geometry.
-  // This is the same convention that IntersectFields() create a mesh
-  // with normals in the direction of
-  //     - increasing pressure field0 (going *into* the first geometry) and
-  //     - decreasing pressure field1 (going *out* of the second geometry),
-  // so we create ContactSurface with the ids in the order of (id_M, id_N).
-  *contact_surface_W = std::make_unique<ContactSurface<T>>(
-      id_M, id_N, std::move(surface01_M), std::move(field01_M),
-      std::move(grad_field0_W), std::move(grad_field1_W));
 }
 
 template <typename T>

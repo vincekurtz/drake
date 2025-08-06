@@ -49,6 +49,7 @@ class GenerateCollisionFilterKernel;
 class FillNarrowPhaseCheckIndicesKernel;
 class FillValidPolygonIndicesKernel;
 class CompactPolygonDataKernel;
+class TransformInwardNormalsAndPressureKernel;
 
 // Implementation class for SyclProximityEngine that contains all SYCL-specific
 // code
@@ -508,13 +509,15 @@ class SyclProximityEngine::Impl {
           const uint32_t work_group_size = 256;
           const uint32_t global_elements =
               RoundUpToWorkGroupSize(total_elements_, work_group_size);
-          h.parallel_for<TransformInwardNormalsKernel>(
+          h.parallel_for<TransformInwardNormalsAndPressureKernel>(
               sycl::nd_range<1>(sycl::range<1>(global_elements),
                                 sycl::range<1>(work_group_size)),
               [=, inward_normals_M = mesh_data_.inward_normals_M,
                inward_normals_W = mesh_data_.inward_normals_W,
                element_mesh_ids = mesh_data_.element_mesh_ids,
                transforms = mesh_data_.transforms,
+               gradient_M_pressure_at_Mo = mesh_data_.gradient_M_pressure_at_Mo,
+               gradient_W_pressure_at_Wo = mesh_data_.gradient_W_pressure_at_Wo,
                total_elements_ =
                    total_elements_] [[intel::kernel_args_restrict]]
 #ifdef __NVPTX__
@@ -546,60 +549,30 @@ class SyclProximityEngine::Impl {
                   inward_normals_W[element_index][j][2] =
                       T[8] * nx + T[9] * ny + T[10] * nz;
                 }
+
+                // Each element has 1 pressure gradient
+                const double gp_mx =
+                    gradient_M_pressure_at_Mo[element_index][0];
+                const double gp_my =
+                    gradient_M_pressure_at_Mo[element_index][1];
+                const double gp_mz =
+                    gradient_M_pressure_at_Mo[element_index][2];
+                const double p_mo = gradient_M_pressure_at_Mo[element_index][3];
+
+                // Only rotation for the gradient pressures
+                const double gp_wx = T[0] * gp_mx + T[1] * gp_my + T[2] * gp_mz;
+                const double gp_wy = T[4] * gp_mx + T[5] * gp_my + T[6] * gp_mz;
+                const double gp_wz =
+                    T[8] * gp_mx + T[9] * gp_my + T[10] * gp_mz;
+
+                const double p_wo =
+                    p_mo - (gp_wx * T[3] + gp_wy * T[7] + gp_wz * T[11]);
+                gradient_W_pressure_at_Wo[element_index][0] = gp_wx;
+                gradient_W_pressure_at_Wo[element_index][1] = gp_wy;
+                gradient_W_pressure_at_Wo[element_index][2] = gp_wz;
+                gradient_W_pressure_at_Wo[element_index][3] = p_wo;
               });
         });
-
-    // Transform pressure gradients
-    auto transform_elem_quantities_event2 = q_device_.submit([&](sycl::handler&
-                                                                     h) {
-      const uint32_t work_group_size = 256;
-      const uint32_t global_elements =
-          RoundUpToWorkGroupSize(total_elements_, work_group_size);
-      h.parallel_for<TransformPressureGradientsKernel>(
-          sycl::nd_range<1>(sycl::range<1>(global_elements),
-                            sycl::range<1>(work_group_size)),
-          [=, gradient_M_pressure_at_Mo = mesh_data_.gradient_M_pressure_at_Mo,
-           gradient_W_pressure_at_Wo = mesh_data_.gradient_W_pressure_at_Wo,
-           element_mesh_ids = mesh_data_.element_mesh_ids,
-           transforms = mesh_data_.transforms,
-           total_elements_ = total_elements_] [[intel::kernel_args_restrict]]
-#ifdef __NVPTX__
-          [[sycl::reqd_work_group_size(256)]]
-#endif
-          (sycl::nd_item<1> item) {
-            const uint32_t element_index = item.get_global_id(0);
-            if (element_index >= total_elements_) return;
-
-            const uint32_t mesh_index = element_mesh_ids[element_index];
-
-            double T[12];
-#pragma unroll
-            for (uint32_t i = 0; i < 12; ++i) {
-              T[i] = transforms[mesh_index * 12 + i];
-            }
-            // Each element has 1 pressure gradient
-            const double gp_mx = gradient_M_pressure_at_Mo[element_index][0];
-            const double gp_my = gradient_M_pressure_at_Mo[element_index][1];
-            const double gp_mz = gradient_M_pressure_at_Mo[element_index][2];
-            const double p_mo = gradient_M_pressure_at_Mo[element_index][3];
-
-            // Only rotation for the gradient pressures
-            const double gp_wx = T[0] * gp_mx + T[1] * gp_my + T[2] * gp_mz;
-            const double gp_wy = T[4] * gp_mx + T[5] * gp_my + T[6] * gp_mz;
-            const double gp_wz = T[8] * gp_mx + T[9] * gp_my + T[10] * gp_mz;
-
-            // TODO(huzaifa): Check this computation
-            // By equating the rotated pressure field with the original
-            // pressure field, we can solve for the pressure at the origin
-            // of the world frame
-            const double p_wo =
-                p_mo - (gp_wx * T[3] + gp_wy * T[7] + gp_wz * T[11]);
-            gradient_W_pressure_at_Wo[element_index][0] = gp_wx;
-            gradient_W_pressure_at_Wo[element_index][1] = gp_wy;
-            gradient_W_pressure_at_Wo[element_index][2] = gp_wz;
-            gradient_W_pressure_at_Wo[element_index][3] = p_wo;
-          });
-    });
 
     // Compute AABBs of all the elements in all the meshes
     auto element_aabb_event = q_device_.submit([&](sycl::handler& h) {
@@ -716,8 +689,7 @@ class SyclProximityEngine::Impl {
         .wait();
 
     // Create dependency vector
-    std::vector<sycl::event> dependencies = {transform_elem_quantities_event1,
-                                             transform_elem_quantities_event2};
+    std::vector<sycl::event> dependencies = {transform_elem_quantities_event1};
 #ifdef DRAKE_SYCL_TIMING_ENABLED
     timing_logger_.StartKernel("compute_contact_polygons");
 #endif

@@ -215,9 +215,12 @@ void BVHBroadPhase::build(
   q_device.wait();
 
   // Initialize the global num_childrenAll array to 0 for atomic operations
-  auto init_children_event =
-      memory_manager.Memset(bvh_data.num_childrenAll, bvh_data.total_nodes);
-  init_children_event.wait();
+  // auto init_children_event =
+  //     memory_manager.Memset(bvh_data.num_childrenAll, bvh_data.total_nodes);
+  q_device
+      .memset(bvh_data.num_childrenAll, 0,
+              bvh_data.total_nodes * sizeof(uint32_t))
+      .wait();
 
   // Build the leaves of the BVH
   // Most of the complication is making the mesh local index to the global index
@@ -543,9 +546,10 @@ sycl::event BVHBroadPhase::refit(const DeviceMeshData& mesh_data,
                                  SyclMemoryManager& memory_manager,
                                  sycl::queue& q_device) {
   // Reinitialize the num_childrenAll array to 0 for atomic operations
-  auto init_children_event =
-      memory_manager.Memset(bvh_data.num_childrenAll, bvh_data.total_nodes);
-
+  // auto init_children_event =
+  //     memory_manager.Memset(bvh_data.num_childrenAll, bvh_data.total_nodes);
+  auto init_children_event = q_device.memset(
+      bvh_data.num_childrenAll, 0, bvh_data.total_nodes * sizeof(uint32_t));
   // Reinitialize the indicesAll array to 0 for atomic operations
   const uint32_t work_group_size = 1024;
   const uint32_t global_elements =

@@ -1,6 +1,8 @@
 #include <chrono>
 #include <cstdio>
+#include <filesystem>
 #include <fstream>
+#include <iomanip>
 #include <iostream>
 #include <memory>
 #include <random>
@@ -182,13 +184,23 @@ void PrintPerformanceStats(
     const drake::multibody::MultibodyPlant<double>& plant,
     const drake::geometry::SceneGraph<double>& scene_graph,
     const drake::systems::Context<double>& scene_graph_context, bool sycl_used,
-    const BenchmarkConfig& config) {
+    const BenchmarkConfig& config, const double sim_time) {
   // Create a descriptive name for output files
   std::string demo_name = "clutter";
 
   demo_name += "_" + std::to_string(config.objects_per_pile);
-  demo_name += "_" + std::to_string(config.box_resolution);
-  demo_name += "_" + std::to_string(config.sphere_resolution);
+
+  // Format doubles with max 4 decimal places for cleaner file names
+  std::ostringstream box_resolution_stream;
+  box_resolution_stream << std::fixed << std::setprecision(4)
+                        << config.box_resolution;
+  demo_name += "_" + box_resolution_stream.str();
+
+  std::ostringstream sphere_resolution_stream;
+  sphere_resolution_stream << std::fixed << std::setprecision(4)
+                           << config.sphere_resolution;
+  demo_name += "_" + sphere_resolution_stream.str();
+
   demo_name += "_" + std::to_string(config.num_spheres_per_face);
 
   std::string runtime_device;
@@ -289,6 +301,18 @@ void PrintPerformanceStats(
           scene_graph_context);
   query_object.PrintSyclTimingStats();
   query_object.PrintSyclTimingStatsJson(json_path);
+
+  fmt::print("AdvanceTo() time [sec]: {}\n", sim_time);
+  json_path =
+      out_dir + "/" + demo_name + "_" + run_type + "_timing_advance_to.json";
+  // Write to simple json file
+  std::ofstream ofs(json_path);
+  if (ofs.is_open()) {
+    ofs << "{\"advance_to_time\": " << sim_time << "}";
+    ofs.close();
+  } else {
+    std::cerr << "Failed to open file for writing: " << json_path << std::endl;
+  }
 }
 
 const RigidBody<double>& AddBox(const std::string& name,
@@ -797,10 +821,10 @@ int do_main() {
   if (FLAGS_print_perf) {
     if (FLAGS_use_sycl) {
       PrintPerformanceStats(plant, scene_graph, scene_graph_context,
-                            /*sycl_used=*/true, benchmark_config);
+                            /*sycl_used=*/true, benchmark_config, sim_time);
     } else {
       PrintPerformanceStats(plant, scene_graph, scene_graph_context,
-                            /*sycl_used=*/false, benchmark_config);
+                            /*sycl_used=*/false, benchmark_config, sim_time);
     }
   }
 

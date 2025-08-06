@@ -17,6 +17,7 @@
 #include <fcl/fcl.h>
 #include <fmt/format.h>
 
+#include "drake/common/cpu_timing_logger.h"
 #include "drake/common/default_scalars.h"
 #include "drake/common/eigen_types.h"
 #include "drake/geometry/geometry_ids.h"
@@ -824,8 +825,11 @@ class ProximityEngine<T>::Impl : public ShapeReifier {
   ComputeContactSurfaces(
       HydroelasticContactRepresentation representation,
       const unordered_map<GeometryId, RigidTransform<T>>& X_WGs) const {
-    std::vector<SortedPair<GeometryId>> candidates = FindCollisionCandidates();
-
+    std::vector<SortedPair<GeometryId>> candidates;
+    {
+      DRAKE_CPU_SCOPED_TIMER("FCLBroadPhase");
+      candidates = FindCollisionCandidates();
+    }
     vector<ContactSurface<T>> surfaces;
     // All these quantities are aliased in the calculator.
     hydroelastic::ContactCalculator<T> calculator{
