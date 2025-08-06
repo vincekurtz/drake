@@ -8,7 +8,6 @@
 #include <utility>
 
 #include <gflags/gflags.h>
-#include <ittnotify.h>
 #include <valgrind/callgrind.h>
 
 #include "drake/common/nice_type_name.h"
@@ -116,18 +115,18 @@ DEFINE_bool(full_newton, false, "Update Jacobian every iteration.");
 DEFINE_bool(trapezoid, false, "Implicit trapezoid rule for error estimation.");
 
 // Convex integrator parameters.
-DEFINE_bool(enable_hessian_reuse, true,
+DEFINE_bool(enable_hessian_reuse, false,
             "Whether to reuse the Hessian factorization between iterations.");
 DEFINE_int32(k_max, 10,
              "Maximum number of iterations before re-computing the Hessian.");
-DEFINE_double(kappa, 0.05,
+DEFINE_double(kappa, 0.001,
               "Scaling factor for the relaxed convergence check (θ method of "
               "Hairer 1996) used to exit early under loose accuracies.");
 DEFINE_double(
     alpha_max, 1.0,
     "Maximum line search step size for the convex integrator (α_max).");
 DEFINE_double(
-    ls_tolerance, 1e-6,
+    ls_tolerance, 1e-8,
     "Tolerance for the exact line search performed by the convex integrator.");
 DEFINE_double(tolerance, 1e-8, "Main solver tolerance");
 DEFINE_string(error_estimation_strategy, "half_stepping",
@@ -505,8 +504,6 @@ void SetObjectsIntoAPile(const MultibodyPlant<double>& plant,
 }
 
 int do_main() {
-  __itt_pause();  // Stop VTune collection
-
   // Build a generic multibody plant.
   systems::DiagramBuilder<double> builder;
 
@@ -640,13 +637,11 @@ int do_main() {
 
   clock::time_point sim_start_time = clock::now();
 
-  __itt_resume();  // Start VTune collection
   CALLGRIND_START_INSTRUMENTATION;
   // CALLGRIND_TOGGLE_COLLECT;  // Start collection
   simulator->AdvanceTo(FLAGS_simulation_time);
   // CALLGRIND_TOGGLE_COLLECT;  // Stop collection
   CALLGRIND_STOP_INSTRUMENTATION;
-  __itt_pause();  // Stop collection again
 
   clock::time_point sim_end_time = clock::now();
   const double sim_time =
@@ -681,8 +676,8 @@ int main(int argc, char* argv[]) {
   // Set some reasonable defaults for the simulator options (these can be
   // overridden from the command line).
   FLAGS_simulator_integration_scheme = "convex";
-  FLAGS_simulator_accuracy = 0.1;
-  FLAGS_simulator_max_time_step = 0.01;
+  FLAGS_simulator_accuracy = 1e-3;
+  FLAGS_simulator_max_time_step = 0.1;
   FLAGS_simulator_use_error_control = true;
 
   gflags::ParseCommandLineFlags(&argc, &argv, true);
