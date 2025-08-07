@@ -395,12 +395,29 @@ class SyclProximityEngine::Impl {
 
       // Can't have same ID
       DRAKE_DEMAND(indexA != indexB);
-      if (indexA < indexB) {
+      double workA = mesh_data_.element_counts[indexA] *
+                     std::log(mesh_data_.element_counts[indexB]);
+      double workB = mesh_data_.element_counts[indexB] *
+                     std::log(mesh_data_.element_counts[indexA]);
+      if (std::abs(workA - workB) < 1e-6) {
+        if (indexA < indexB) {
+          collision_candidates_.push_back(std::make_pair(indexA, indexB));
+        } else {
+          collision_candidates_.push_back(std::make_pair(indexB, indexA));
+        }
+      } else if (workA < workB) {
         collision_candidates_.push_back(std::make_pair(indexA, indexB));
       } else {
         collision_candidates_.push_back(std::make_pair(indexB, indexA));
       }
     }
+
+    // Sort collision_candidates in lexicographical order
+    std::sort(collision_candidates_.begin(), collision_candidates_.end(),
+              [](const std::pair<uint32_t, uint32_t>& a,
+                 const std::pair<uint32_t, uint32_t>& b) {
+                return a.first < b.first;
+              });
 
     num_mesh_collisions_ = collision_candidates_.size();
 
