@@ -848,10 +848,10 @@ int main(int argc, char* argv[]) {
 
   // Set some reasonable defaults for the simulator options (these can be
   // overridden from the command line).
-  FLAGS_simulator_integration_scheme = "implicit_euler";
-  // FLAGS_simulator_integration_scheme = "convex";
+  // FLAGS_simulator_integration_scheme = "implicit_euler";
+  FLAGS_simulator_integration_scheme = "convex";
   FLAGS_simulator_accuracy = 1e-3;
-  FLAGS_simulator_max_time_step = 0.1;
+  FLAGS_simulator_max_time_step = 0.005;
   FLAGS_simulator_use_error_control = true;
 
   gflags::ParseCommandLineFlags(&argc, &argv, true);

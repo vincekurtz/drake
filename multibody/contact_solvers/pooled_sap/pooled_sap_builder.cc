@@ -2,6 +2,8 @@
 
 #include <type_traits>
 
+#include "drake/common/cpu_timing_logger.h"
+#include "drake/common/problem_size_logger.h"
 #include "drake/geometry/scene_graph_inspector.h"
 #include "drake/multibody/plant/contact_properties.h"
 #include "drake/multibody/topology/graph.h"
@@ -60,6 +62,9 @@ void PooledSapBuilder<T>::CalcGeometryContactData(
       break;
     }
     case ContactModel::kHydroelastic: {
+      drake::common::ProblemSizeLogger::GetInstance().AddCount(
+          "HydroelasticQuery", 1);
+      DRAKE_CPU_SCOPED_TIMER("HydroelasticQuery");
       if constexpr (std::is_same_v<T, double>) {
         if (plant().is_sycl_for_hydroelastic_contact()) {
           scratch_.sycl_surfaces = query_object.ComputeContactSurfacesWithSycl(
@@ -75,6 +80,9 @@ void PooledSapBuilder<T>::CalcGeometryContactData(
       break;
     }
     case ContactModel::kHydroelasticWithFallback: {
+      drake::common::ProblemSizeLogger::GetInstance().AddCount(
+          "HydroelasticQuery", 1);
+      DRAKE_CPU_SCOPED_TIMER("HydroelasticQuery");
       if constexpr (std::is_same_v<T, double>) {
         if (plant().is_sycl_for_hydroelastic_contact()) {
           scratch_.sycl_surfaces = query_object.ComputeContactSurfacesWithSycl(
