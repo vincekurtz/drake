@@ -714,6 +714,10 @@ void ConvexIntegrator<double>::ComputeSearchDirection(
     if (!reuse_factorization) {
       MatrixXd H = model.MakeHessian(data)->MakeDenseMatrix();
       dense_hessian_factorization_ = H.ldlt();
+      if (dense_hessian_factorization_.info() != Eigen::Success) {
+        throw std::runtime_error(
+            "ConvexIntegrator: Dense Hessian factorization failed!");
+      }
       total_hessian_factorizations_++;
       reuse_hessian_factorization_ = true;
     }
