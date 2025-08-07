@@ -522,6 +522,8 @@ void PooledSapModel<T>::PatchConstraintsPool::AccumulateHessian(
     const Matrix6<T>& G_Bp = G_Bp_pool[p];
     const ConstJacobianView J_WB = model().get_jacobian(body_b);
     if (model().is_floating(body_b)) {
+      fmt::print("H_BB.shape: {} x {}\n", H_BB.rows(), H_BB.cols());
+      fmt::print("G_Bp.shape: {} x {}\n", G_Bp.rows(), G_Bp.cols());
       H_BB.noalias() = G_Bp;
     } else {
       auto GJb = GetMatrixXScratch(6, nv_b);
