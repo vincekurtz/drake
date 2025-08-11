@@ -147,6 +147,10 @@ class JointActuator final : public MultibodyElement<T> {
   /// Returns the actuator effort limit.
   double effort_limit() const { return effort_limit_; }
 
+  void set_effort_limit(const double effort_limit) {
+    effort_limit_ = effort_limit;
+  }
+
   // Don't let clang-format wrap long @image lines.
   // clang-format off
   /// @anchor reflected_inertia

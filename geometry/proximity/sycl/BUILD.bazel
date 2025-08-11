@@ -15,6 +15,7 @@ drake_cc_library(
        copts = [
           "-fsycl",
           "-fsycl-targets=spir64,nvptx64-nvidia-cuda",
+          "-fno-openmp",
         ],
        deps = [
            "//common:essential",
@@ -42,6 +43,7 @@ drake_cc_library(
         "-fsycl",
         "-fsycl-targets=spir64,nvptx64-nvidia-cuda",
         "--cuda-gpu-arch=sm_89",
+        "-fno-openmp",
         #"-gline-tables-only",
         "-DEIGEN_DONT_VECTORIZE",
         "-I/opt/intel/oneapi/dpl/2022.8/include",
@@ -71,6 +73,7 @@ drake_cc_library(
         "-fsycl-targets=spir64,nvptx64-nvidia-cuda",
         #"-Xsycl-target-backend=nvptx64-nvidia-cuda -arch=sm_89",
         "--cuda-gpu-arch=sm_89",
+        "-fno-openmp",
         #"-Xsycl-target-backend=nvptx64-nvidia-cuda",
         #"-lineinfo",
         #"-gline-tables-only",
@@ -107,6 +110,7 @@ drake_cc_googletest(
     copts = [
         "-fsycl",
         "-fsycl-targets=spir64,nvptx64-nvidia-cuda",
+        "-fno-openmp",
         "-DEIGEN_DONT_VECTORIZE",
     ],
     linkopts = [

@@ -5744,6 +5744,11 @@ class MultibodyPlant final : public internal::MultibodyTreeSystem<T> {
 
 #endif
 
+  void PrintPerformanceStats(const drake::geometry::SceneGraph<T>& scene_graph,
+                             const systems::Context<T>& context,
+                             const std::string& base_json_path,
+                             const double sim_time = 0.0) const;
+
   using internal::MultibodyTreeSystem<T>::is_discrete;
   using internal::MultibodyTreeSystem<T>::EvalPositionKinematics;
   using internal::MultibodyTreeSystem<T>::EvalVelocityKinematics;

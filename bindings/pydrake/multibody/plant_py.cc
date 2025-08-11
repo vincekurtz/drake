@@ -275,7 +275,7 @@ void DoScalarDependentDefinitions(py::module m, T) {
             cls_doc.RenameModelInstance.doc)
         .def(
             "AddRigidBody",
-            [](Class* self, const std::string& name,
+            [](Class * self, const std::string& name,
                 const SpatialInertia<double>& s) -> auto& {
               return self->AddRigidBody(name, s);
             },
@@ -344,7 +344,13 @@ void DoScalarDependentDefinitions(py::module m, T) {
             py::arg("X_AP"), py::arg("body_B"), py::arg("X_BQ"),
             py_rvp::reference_internal, cls_doc.AddWeldConstraint.doc)
         .def("RemoveConstraint", &Class::RemoveConstraint, py::arg("id"),
-            cls_doc.RemoveConstraint.doc);
+            cls_doc.RemoveConstraint.doc)
+        .def("set_sycl_for_hydroelastic_contact",
+            &Class::set_sycl_for_hydroelastic_contact, py::arg("use_sycl"),
+            cls_doc.set_sycl_for_hydroelastic_contact.doc)
+        .def("is_sycl_for_hydroelastic_contact",
+            &Class::is_sycl_for_hydroelastic_contact,
+            cls_doc.is_sycl_for_hydroelastic_contact.doc);
     // Mathy bits
     cls  // BR
         .def(
@@ -947,7 +953,7 @@ void DoScalarDependentDefinitions(py::module m, T) {
             py_rvp::reference_internal, cls_doc.GetJointByName.doc)
         .def(
             "GetMutableJointByName",
-            [](Class* self, string_view name,
+            [](Class * self, string_view name,
                 std::optional<ModelInstanceIndex> model_instance) -> auto& {
               return self->GetMutableJointByName(name, model_instance);
             },
@@ -1352,7 +1358,10 @@ void DoScalarDependentDefinitions(py::module m, T) {
                 bool>(&Class::GetActuatorNames),
             py::arg("model_instance"),
             py::arg("add_model_instance_prefix") = false,
-            cls_doc.GetActuatorNames.doc_2args);
+            cls_doc.GetActuatorNames.doc_2args)
+        .def("PrintPerformanceStats", &Class::PrintPerformanceStats,
+            py::arg("scene_graph"), py::arg("context"),
+            py::arg("base_json_path"), py::arg("sim_time") = 0.0);
   }
 
   {

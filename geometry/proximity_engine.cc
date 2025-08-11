@@ -895,7 +895,11 @@ class ProximityEngine<T>::Impl : public ShapeReifier {
           hydroelastic_geometries_.SoftGeometries(), total_lower_map,
           total_upper_map);
     }
-    std::vector<SortedPair<GeometryId>> candidates = FindCollisionCandidates();
+    std::vector<SortedPair<GeometryId>> candidates;
+    {
+      DRAKE_CPU_SCOPED_TIMER("FCLBroadPhase");
+      candidates = FindCollisionCandidates();
+    }
     sycl_engine_->UpdateCollisionCandidates(candidates);
     return sycl_engine_->ComputeSYCLHydroelasticSurface(X_WGs);
   }
@@ -927,8 +931,11 @@ class ProximityEngine<T>::Impl : public ShapeReifier {
       std::vector<PenetrationAsPointPair<T>>* point_pairs) const {
     DRAKE_DEMAND(surfaces != nullptr);
     DRAKE_DEMAND(point_pairs != nullptr);
-
-    std::vector<SortedPair<GeometryId>> candidates = FindCollisionCandidates();
+    std::vector<SortedPair<GeometryId>> candidates;
+    {
+      DRAKE_CPU_SCOPED_TIMER("FCLBroadPhase");
+      candidates = FindCollisionCandidates();
+    }
 
     // All these quantities are aliased.
     hydroelastic::ContactCalculator<T> calculator{

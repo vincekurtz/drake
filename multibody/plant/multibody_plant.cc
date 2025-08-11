@@ -929,6 +929,93 @@ int MultibodyPlant<T>::num_collision_geometries() const {
 }
 
 template <typename T>
+void MultibodyPlant<T>::PrintPerformanceStats(
+    const drake::geometry::SceneGraph<T>& scene_graph,
+    const systems::Context<T>& context, const std::string& base_json_path,
+    const double sim_time) const {
+  fmt::print("Problem Size Stats:\n");
+  const auto& inspector = scene_graph.model_inspector();
+  int hydro_bodies = 0;
+  std::ostringstream hydro_json;
+  hydro_json << "\"hydroelastic_bodies\": [";
+  bool first = true;
+  for (int i = 0; i < num_bodies(); ++i) {
+    const auto& body = get_body(drake::multibody::BodyIndex(i));
+    bool has_hydro = false;
+    int tet_count = 0;
+    for (const auto& gid : GetCollisionGeometriesForBody(body)) {
+      const auto* props = inspector.GetProximityProperties(gid);
+      if (props && props->HasProperty(geometry::internal::kHydroGroup,
+                                      geometry::internal::kComplianceType)) {
+        has_hydro = true;
+      }
+      auto mesh_variant = inspector.maybe_get_hydroelastic_mesh(gid);
+      if (std::holds_alternative<const drake::geometry::VolumeMesh<double>*>(
+              mesh_variant)) {
+        const auto* mesh =
+            std::get<const drake::geometry::VolumeMesh<double>*>(mesh_variant);
+        if (mesh) tet_count += mesh->num_elements();
+      }
+    }
+    if (has_hydro) ++hydro_bodies;
+    if (tet_count > 0) {
+      if (!first) hydro_json << ",";
+      first = false;
+      hydro_json << "{ \"body\": \"" << body.name()
+                 << "\", \"tetrahedra\": " << tet_count << "}";
+    }
+  }
+  hydro_json << "]";
+  fmt::print("Number of bodies with hydroelastic contact: {}\n", hydro_bodies);
+  for (int i = 0; i < num_bodies(); ++i) {
+    const auto& body = get_body(drake::multibody::BodyIndex(i));
+    int tet_count = 0;
+    for (const auto& gid : GetCollisionGeometriesForBody(body)) {
+      auto mesh_variant = inspector.maybe_get_hydroelastic_mesh(gid);
+      if (std::holds_alternative<const drake::geometry::VolumeMesh<double>*>(
+              mesh_variant)) {
+        const auto* mesh =
+            std::get<const drake::geometry::VolumeMesh<double>*>(mesh_variant);
+        if (mesh) tet_count += mesh->num_elements();
+      }
+    }
+    if (tet_count > 0) {
+      fmt::print("Body '{}' has {} tetrahedra in its hydroelastic mesh.\n",
+                 body.name(), tet_count);
+    }
+  }
+  drake::common::ProblemSizeLogger::GetInstance().PrintStats();
+  std::string json_path = base_json_path + "_problem_size.json";
+  drake::common::ProblemSizeLogger::GetInstance().PrintStatsJson(
+      json_path, hydro_json.str());
+
+  fmt::print("Timing Stats:\n");
+  json_path = base_json_path + "_timing_overall.json";
+
+  drake::common::CpuTimingLogger::GetInstance().PrintStats();
+  drake::common::CpuTimingLogger::GetInstance().PrintStatsJson(json_path);
+  json_path = base_json_path + "_timing.json";
+  const auto& query_object =
+      scene_graph.get_query_output_port()
+          .template Eval<geometry::QueryObject<double>>(context);
+  query_object.PrintSyclTimingStats();
+  query_object.PrintSyclTimingStatsJson(json_path);
+  if (sim_time > 0.0) {
+    fmt::print("AdvanceTo() time [sec]: {}\n", sim_time);
+    json_path = base_json_path + "_timing_advance_to.json";
+    // Write to simple json file
+    std::ofstream ofs(json_path);
+    if (ofs.is_open()) {
+      ofs << "{\"advance_to_time\": " << sim_time << "}";
+      ofs.close();
+    } else {
+      std::cerr << "Failed to open file for writing: " << json_path
+                << std::endl;
+    }
+  }
+}
+
+template <typename T>
 void MultibodyPlant<T>::SetFreeBodyRandomRotationDistributionToUniform(
     const RigidBody<T>& body) {
   RandomGenerator generator;

@@ -90,8 +90,10 @@ VolumeMeshFieldLinear<T, T> MakeVolumeMeshPressureField(
 
   DRAKE_DEMAND(max_value > margin);
 
+  max_value = 1e-4;
+
   for (T& p : values) {
-    p = hydroelastic_modulus * (p - margin) / (max_value - margin);
+    p = hydroelastic_modulus * (p - margin) / (max_value);
   }
 
   return {std::move(values), mesh_M, MeshGradientMode::kOkOrThrow};

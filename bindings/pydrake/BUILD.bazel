@@ -59,6 +59,7 @@ generate_pybind_documentation_header(
     # Anonymous namespace and deduction guides both confuse pybind.
     exclude_hdr_patterns = [
         "drake/common/overloaded.h",
+        "drake/geometry/proximity/sycl/**",
         "drake/multibody/contact_solvers/pooled_sap/patch_constraints_pool.h",
         "drake/multibody/contact_solvers/pooled_sap/gain_constraints_pool.h",
         "drake/multibody/contact_solvers/pooled_sap/limit_constraints_pool.h",
