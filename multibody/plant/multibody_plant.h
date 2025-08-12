@@ -6380,7 +6380,7 @@ class MultibodyPlant final : public internal::MultibodyTreeSystem<T> {
   double penetration_allowance_{MultibodyPlantConfig{}.penetration_allowance};
 
   // Switch to use SYCL for hydroelastic contact
-  bool sycl_for_hydroelastic_contact_{false};
+  bool sycl_for_hydroelastic_contact_{true};
 
   // Stribeck model of friction.
   class StribeckModel {
