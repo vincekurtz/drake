@@ -33,6 +33,8 @@ namespace drake {
 namespace geometry {
 namespace internal {
 namespace sycl_impl {
+#define TIME_MEMCPY
+#define TIME_KERNEL
 
 #ifdef __SYCL_DEVICE_ONLY__
 #define DRAKE_SYCL_DEVICE_INLINE [[sycl::device]]
@@ -454,7 +456,9 @@ class SyclProximityEngine::Impl {
     // Build the BVH for each mesh with the untransformed
 
 #ifdef DRAKE_SYCL_TIMING_ENABLED
+#ifdef TIME_MEMCPY
     timing_logger_.StartKernel("unpack_transforms");
+#endif
 #endif
 
     // Get transfomers in host
@@ -472,8 +476,12 @@ class SyclProximityEngine::Impl {
       }
     }
 #ifdef DRAKE_SYCL_TIMING_ENABLED
+#ifdef TIME_MEMCPY
     timing_logger_.EndKernel("unpack_transforms");
+#endif
+#ifdef TIME_KERNEL
     timing_logger_.StartKernel("transform_and_broad_phase");
+#endif
 #endif
     // ========================================
     // Command group 1: Transform quantities to world frame
@@ -674,7 +682,9 @@ class SyclProximityEngine::Impl {
     // Chunk size gives us all the element checks that we need to perform
     total_narrow_phase_checks_ = pair_chunk_.size_;
 #ifdef DRAKE_SYCL_TIMING_ENABLED
+#ifdef TIME_KERNEL
     timing_logger_.EndKernel("transform_and_broad_phase");
+#endif
 #endif
     if (total_narrow_phase_checks_ == 0) {
       return {};
@@ -708,7 +718,9 @@ class SyclProximityEngine::Impl {
     // Create dependency vector
     std::vector<sycl::event> dependencies = {transform_elem_quantities_event1};
 #ifdef DRAKE_SYCL_TIMING_ENABLED
+#ifdef TIME_KERNEL
     timing_logger_.StartKernel("compute_contact_polygons");
+#endif
 #endif
     sycl::event compute_contact_polygon_event;
     if (q_device_.get_device().get_info<sycl::info::device::device_type>() ==
@@ -762,7 +774,9 @@ class SyclProximityEngine::Impl {
     // If last check is 1, then we need to add one more check
     total_polygons_ += static_cast<uint32_t>(last_check_flag);
 #ifdef DRAKE_SYCL_TIMING_ENABLED
+#ifdef TIME_KERNEL
     timing_logger_.EndKernel("compute_contact_polygons");
+#endif
 #endif
     if (total_polygons_ == 0) {
       return {};
@@ -770,7 +784,9 @@ class SyclProximityEngine::Impl {
     drake::common::ProblemSizeLogger::GetInstance().AddCount("SYCFacesInserted",
                                                              total_polygons_);
 #ifdef DRAKE_SYCL_TIMING_ENABLED
+#ifdef TIME_KERNEL
     timing_logger_.StartKernel("compact_polygon_data");
+#endif
 #endif
     if (total_polygons_ > current_polygon_indices_size_) {
       // Give a 10 % bigger size
@@ -860,11 +876,17 @@ class SyclProximityEngine::Impl {
     compact_event.wait_and_throw();
 
 #ifdef DRAKE_SYCL_TIMING_ENABLED
+#ifdef TIME_KERNEL
     timing_logger_.EndKernel("compact_polygon_data");
 #endif
-
-    // For now return a vector
-    return {CreateHydroelasticSurface(
+#endif
+    std::vector<SYCLHydroelasticSurface> surfaces;
+#ifdef DRAKE_SYCL_TIMING_ENABLED
+#ifdef TIME_MEMCPY
+    timing_logger_.StartKernel("device_to_host_memcpy");
+#endif
+#endif
+    auto surface = CreateHydroelasticSurface(
         q_device_, polygon_data_.compacted_polygon_centroids,
         polygon_data_.compacted_polygon_areas,
         polygon_data_.compacted_polygon_pressure_W,
@@ -872,7 +894,15 @@ class SyclProximityEngine::Impl {
         polygon_data_.compacted_polygon_g_M,
         polygon_data_.compacted_polygon_g_N,
         polygon_data_.compacted_polygon_geom_index_A,
-        polygon_data_.compacted_polygon_geom_index_B, total_polygons_)};
+        polygon_data_.compacted_polygon_geom_index_B, total_polygons_);
+#ifdef DRAKE_SYCL_TIMING_ENABLED
+#ifdef TIME_MEMCPY
+    timing_logger_.EndKernel("device_to_host_memcpy");
+#endif
+#endif
+    surfaces.push_back(surface);
+    // For now return a vector
+    return surfaces;
   }  // namespace sycl_impl
 
  private:
