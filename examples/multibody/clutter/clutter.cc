@@ -129,9 +129,8 @@ DEFINE_double(
     ls_tolerance, 1e-8,
     "Tolerance for the exact line search performed by the convex integrator.");
 DEFINE_double(tolerance, 1e-8, "Main solver tolerance");
-DEFINE_string(error_estimation_strategy, "half_stepping",
-              "Error estimation strategy for the convex integrator. "
-              "Options are: 'half_stepping', 'sdirk', 'implicit_trapezoid'.");
+DEFINE_string(error_estimation_strategy, "richardson",
+              "Error estimation strategy for the convex integrator. ");
 
 using drake::geometry::CollisionFilterDeclaration;
 using drake::math::RigidTransform;

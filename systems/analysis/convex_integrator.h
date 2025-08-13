@@ -65,8 +65,8 @@ struct ConvexIntegratorSolverParameters {
   bool use_dense_algebra{false};
 
   // How to compute the error estimate ||x̂ₜ₊ₕ - xₜ₊ₕ||.
-  // Options are "half_stepping", "sdirk", "implicit_trapezoid".
-  std::string error_estimation_strategy{"half_stepping"};
+  // Options are "half_stepping", "richardson"
+  std::string error_estimation_strategy{"richardson"};
 };
 
 /**
@@ -251,16 +251,12 @@ class ConvexIntegrator final : public IntegratorBase<T> {
   bool DoStep(const T& h) override;
 
   // Do the main integration step, using two half-sized steps for error
-  // estimation. This requires a total of 3 SAP solves.
+  // estimation. This requires a total of 3 SAP solves and is first order.
   bool StepWithHalfSteppingErrorEstimate(const T& h);
 
-  // Do the main integration step using a 2nd-order L-stable SDIRK scheme. This
-  // requires a total of 2 SAP solves, and includes an embedded error estimate.
-  bool StepWithSDIRKErrorEstimate(const T& h);
-
-  // Do the main integration step, using the implicit trapezoid rule for error
-  // estimation. This requires a total of 2 SAP solves.
-  bool StepWithImplicitTrapezoidErrorEstimate(const T& h);
+  // Do the main integration step using two half-sized steps and Richardson
+  // extrapolation. This requires a total of 3 SAP solves and is second order.
+  bool StepWithRichardsonExtrapolationErrorEstimate(const T& h);
 
   // Solve the SAP problem to compute x_{t+h} at a given step size. This will be
   // called multiple times for each DoStep to compute the error estimate.
