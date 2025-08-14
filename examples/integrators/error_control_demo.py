@@ -333,7 +333,7 @@ def run_simulation(
         # We can also set some solver parameters for the integrator here
         ci_params = ci.get_solver_parameters()
         ci_params.use_dense_algebra = True
-        ci_params.error_estimation_strategy = "sdirk2"
+        ci_params.error_estimation_strategy = "richardson"
         ci.set_solver_parameters(ci_params)
 
     simulator.Initialize()
