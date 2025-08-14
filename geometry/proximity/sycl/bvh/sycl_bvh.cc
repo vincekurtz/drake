@@ -540,11 +540,11 @@ void BVHBroadPhase::build(
   bvh_built_ = true;
 }
 
-sycl::event BVHBroadPhase::refit(const DeviceMeshData& mesh_data,
-                                 DeviceBVHData& bvh_data,
-                                 sycl::event& element_aabb_event,
-                                 SyclMemoryManager& memory_manager,
-                                 sycl::queue& q_device) {
+sycl::event BVHBroadPhase::refit(
+    const DeviceMeshData& mesh_data, DeviceBVHData& bvh_data,
+    sycl::event& element_aabb_event, SyclMemoryManager& memory_manager,
+    const uint32_t* mesh_as, const uint32_t* mesh_bs,
+    const uint32_t num_mesh_as, sycl::queue& q_device) {
   // Reinitialize the num_childrenAll array to 0 for atomic operations
   // auto init_children_event =
   //     memory_manager.Memset(bvh_data.num_childrenAll, bvh_data.total_nodes);
@@ -565,8 +565,9 @@ sycl::event BVHBroadPhase::refit(const DeviceMeshData& mesh_data,
          indicesAll = bvh_data.indicesAll,
          element_mesh_ids = mesh_data.element_mesh_ids,
          bvhAll = bvh_data.bvhAll, num_childrenAll = bvh_data.num_childrenAll,
-         node_offsets = bvh_data.node_offsets] [[intel::kernel_args_restrict]] (
-            sycl::nd_item<1> item) {
+         node_offsets = bvh_data.node_offsets, mesh_as = mesh_as,
+         mesh_bs =
+             mesh_bs] [[intel::kernel_args_restrict]] (sycl::nd_item<1> item) {
           uint32_t global_eI = item.get_global_id(0);
           if (global_eI < mesh_data.total_elements) {
             uint32_t mesh_id = element_mesh_ids[global_eI];
@@ -574,6 +575,29 @@ sycl::event BVHBroadPhase::refit(const DeviceMeshData& mesh_data,
             uint32_t global_node_offset = node_offsets[mesh_id];
             uint32_t local_element_index = global_eI - global_element_offset;
             BVH& bvh = bvhAll[mesh_id];
+            // Don't process meshes that are not in mesh_as or mesh_bs
+            // See if mesh_ids are in mesh_as and mesh_bs
+            bool found_mesh_a = false;
+            bool found_mesh_b = false;
+            for (uint32_t i = 0; i < num_mesh_as; i++) {
+              if (mesh_id == mesh_as[i]) {
+                found_mesh_a = true;
+                break;
+              }
+            }
+            if (!found_mesh_a) {
+              for (uint32_t i = 0; i < num_mesh_as; i++) {
+                if (mesh_id == mesh_bs[i]) {
+                  found_mesh_b = true;
+                  break;
+                }
+              }
+            }
+
+            if (!found_mesh_a && !found_mesh_b) {
+              return;
+            }
+
             bool is_leaf = bvh.node_lowers[local_element_index].b;
             int parent = bvh.node_parents[local_element_index];
 
@@ -1271,8 +1295,9 @@ void BVHBroadPhase::BroadPhase(
   // TODO(Huzaifa): Refit only colliding meshes and compare the performance
   sycl::event refit_event;
   // if (!IsBVHRefitted()) {
-  refit_event =
-      refit(mesh_data, bvh_data, element_aabb_event, memory_manager, q_device);
+  refit_event = refit(mesh_data, bvh_data, element_aabb_event, memory_manager,
+                      mesh_pair_ids.meshAs, mesh_pair_ids.meshBs,
+                      num_mesh_collisions, q_device);
   // }
 
   // Process the collision pairs

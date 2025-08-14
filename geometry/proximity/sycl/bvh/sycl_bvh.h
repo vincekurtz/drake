@@ -118,7 +118,9 @@ class BVHBroadPhase {
   };
   sycl::event refit(const DeviceMeshData& mesh_data, DeviceBVHData& bvh_data,
                     sycl::event& element_aabb_event,
-                    SyclMemoryManager& memory_manager, sycl::queue& q_device);
+                    SyclMemoryManager& memory_manager, const uint32_t* mesh_as,
+                    const uint32_t* mesh_bs, const uint32_t num_mesh_as,
+                    sycl::queue& q_device);
   sycl::event ComputeCollisionCounts(const uint32_t mesh_a,
                                      const uint32_t mesh_b,
                                      const DeviceBVHData& bvh_data,

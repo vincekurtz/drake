@@ -554,7 +554,7 @@ SYCL_EXTERNAL inline void ComputeContactPolygonsNoReturn(
     // Write Polygon Area and Centroid
     const double polygon_area =
         slm_polygon[slm_polygon_offset + AREAS_OFFSET + 0] * 0.5;
-    if (polygon_area > 1e-15) {
+    if (polygon_area > 1e-18) {
       polygon_areas[narrow_phase_check_index] = polygon_area;
       const double inv_polygon_area_6 = 1.0 / (polygon_area * 6);
       const double centroid_x =

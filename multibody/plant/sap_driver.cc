@@ -8,6 +8,7 @@
 #include <utility>
 #include <vector>
 
+#include "drake/common/cpu_timing_logger.h"
 #include "drake/common/unused.h"
 #include "drake/multibody/contact_solvers/contact_configuration.h"
 #include "drake/multibody/contact_solvers/contact_solver_utils.h"
@@ -1113,16 +1114,19 @@ void SapDriver<T>::CalcSapSolverResults(
   sap.set_parameters(sap_parameters_);
 
   SapSolverStatus status;
-  if (has_locked_dofs) {
-    SapSolverResults<T> locked_sap_results;
-    status = sap.SolveWithGuess(*contact_problem_cache.sap_problem_locked, v0,
-                                &locked_sap_results);
-    if (status == SapSolverStatus::kSuccess) {
-      sap_problem.ExpandContactSolverResults(contact_problem_cache.mapping,
-                                             locked_sap_results, sap_results);
+  {
+    DRAKE_CPU_SCOPED_TIMER("solve_with_guess");
+    if (has_locked_dofs) {
+      SapSolverResults<T> locked_sap_results;
+      status = sap.SolveWithGuess(*contact_problem_cache.sap_problem_locked, v0,
+                                  &locked_sap_results);
+      if (status == SapSolverStatus::kSuccess) {
+        sap_problem.ExpandContactSolverResults(contact_problem_cache.mapping,
+                                               locked_sap_results, sap_results);
+      }
+    } else {
+      status = sap.SolveWithGuess(sap_problem, v0, sap_results);
     }
-  } else {
-    status = sap.SolveWithGuess(sap_problem, v0, sap_results);
   }
 
   if (status != SapSolverStatus::kSuccess) {

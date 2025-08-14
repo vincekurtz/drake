@@ -397,20 +397,47 @@ class SyclProximityEngine::Impl {
 
       // Can't have same ID
       DRAKE_DEMAND(indexA != indexB);
-      double workA = mesh_data_.element_counts[indexA] *
-                     std::log(mesh_data_.element_counts[indexB]);
-      double workB = mesh_data_.element_counts[indexB] *
-                     std::log(mesh_data_.element_counts[indexA]);
-      if (std::abs(workA - workB) < 1e-6) {
-        if (indexA < indexB) {
+      constexpr bool use_heuristic = true;
+      const uint32_t meshA_elements = mesh_data_.element_counts[indexA];
+      const uint32_t meshB_elements = mesh_data_.element_counts[indexB];
+      if (use_heuristic) {
+        double scaleDifference = std::max(meshA_elements, meshB_elements) /
+                                 std::min(meshA_elements, meshB_elements);
+        if (scaleDifference < 10) {
+          // If they are similar scale - choose the work efficient approach
+          double workA = meshA_elements * std::log(meshB_elements);
+          double workB = meshB_elements * std::log(meshA_elements);
+          if (std::abs(workA - workB) < 1e-6) {
+            if (indexA < indexB) {
+              collision_candidates_.push_back(std::make_pair(indexA, indexB));
+            } else {
+              collision_candidates_.push_back(std::make_pair(indexB, indexA));
+            }
+          } else if (workA < workB) {
+            collision_candidates_.push_back(std::make_pair(indexA, indexB));
+          } else {
+            collision_candidates_.push_back(std::make_pair(indexB, indexA));
+          }
+        } else {
+          // If they are of different scales - choose bigger mesh as A
+          if (meshA_elements > meshB_elements) {
+            collision_candidates_.push_back(std::make_pair(indexA, indexB));
+          } else {
+            collision_candidates_.push_back(std::make_pair(indexB, indexA));
+          }
+        }
+      } else {
+        if (meshA_elements > meshB_elements) {
           collision_candidates_.push_back(std::make_pair(indexA, indexB));
+        } else if (meshA_elements == meshB_elements) {
+          if (indexA < indexB) {
+            collision_candidates_.push_back(std::make_pair(indexA, indexB));
+          } else {
+            collision_candidates_.push_back(std::make_pair(indexB, indexA));
+          }
         } else {
           collision_candidates_.push_back(std::make_pair(indexB, indexA));
         }
-      } else if (workA < workB) {
-        collision_candidates_.push_back(std::make_pair(indexA, indexB));
-      } else {
-        collision_candidates_.push_back(std::make_pair(indexB, indexA));
       }
     }
 
@@ -1236,9 +1263,9 @@ SyclProximityEngineAttorney::get_collision_candidates_to_data(
            impl->counters_chunk_.collision_counts,
            impl->counters_chunk_.size_ * sizeof(uint32_t))
       .wait();
-  // For the tests we need to figure out how many collisions each mesh pair has.
-  // We will thus use the scanned array to extract the total collisions for each
-  // pair.
+  // For the tests we need to figure out how many collisions each mesh pair
+  // has. We will thus use the scanned array to extract the total collisions
+  // for each pair.
   uint32_t collisions_counted = 0;
   uint32_t size_passed = 0;
   for (int i = 0; i < impl->num_mesh_collisions_; i++) {
@@ -1246,8 +1273,8 @@ SyclProximityEngineAttorney::get_collision_candidates_to_data(
     uint32_t mesh_b = impl->mesh_pair_ids_.meshBs[i];
     uint64_t col_key = key(mesh_a, mesh_b);
     auto& [cc, ci] = impl->collision_candidates_to_data_[col_key];
-    // If we are in the last mesh collision pair, then direcly used the complete
-    // total collisions of the scene.
+    // If we are in the last mesh collision pair, then direcly used the
+    // complete total collisions of the scene.
     size_passed += cc.size_;
     if (i == impl->num_mesh_collisions_ - 1) {
       cc.total_collisions =
@@ -1258,8 +1285,8 @@ SyclProximityEngineAttorney::get_collision_candidates_to_data(
     }
     collisions_counted += cc.total_collisions;
   }
-  // With the total collisions set for each mesh pair set, we can find the right
-  // pointers to each pairs collision indices
+  // With the total collisions set for each mesh pair set, we can find the
+  // right pointers to each pairs collision indices
   uint32_t running_offset = 0;
   for (int i = 0; i < impl->num_mesh_collisions_; i++) {
     uint32_t mesh_a = impl->mesh_pair_ids_.meshAs[i];
@@ -1297,6 +1324,9 @@ SyclProximityEngineAttorney::get_collision_candidates_to_data(
     auto [mesh_a, mesh_b] = key_to_pair(key);
     GeometryId idA = impl->sorted_ids_[mesh_a];
     GeometryId idB = impl->sorted_ids_[mesh_b];
+    if (idA.get_value() > idB.get_value()) {
+      std::swap(host_ci.collision_indices_A, host_ci.collision_indices_B);
+    }
     SortedPair<GeometryId> sorted_pair(idA, idB);
     host_collision_candidates_to_data[sorted_pair] = {host_cc, host_ci};
   }

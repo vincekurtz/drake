@@ -409,6 +409,10 @@ class Geometries final : public ShapeReifier {
     return soft_geometries_;
   }
 
+  const std::unordered_map<GeometryId, RigidGeometry>& RigidGeometries() const {
+    return rigid_geometries_;
+  }
+
  private:
   // Data to be used during reification. It is passed as the `user_data`
   // parameter in the ImplementGeometry API.
