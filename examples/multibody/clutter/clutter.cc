@@ -209,7 +209,8 @@ void PrintPerformanceStats(
     runtime_device = env_var;
   }
   std::string out_dir =
-      "/home/huzaifaunjhawala/drake_vince/performance_jsons_clutter/";
+      "/home/huzaifaunjhawala/drake_vince/"
+      "performance_jsons_clutter_convex_Aug13/";
   // Create output directory if it doesn't exist
   if (!std::filesystem::exists(out_dir)) {
     std::filesystem::create_directories(out_dir);
@@ -781,6 +782,8 @@ int do_main() {
   // Use SYCL if required
   if (FLAGS_use_sycl) {
     plant.set_sycl_for_hydroelastic_contact(true);
+  } else {
+    plant.set_sycl_for_hydroelastic_contact(false);
   }
   simulator->set_publish_every_time_step(true);
   simulator->Initialize();

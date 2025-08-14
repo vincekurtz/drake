@@ -1,5 +1,6 @@
 #include "drake/systems/analysis/convex_integrator.h"
 
+#include "drake/common/cpu_timing_logger.h"
 #include "drake/math/quaternion.h"
 #include "drake/multibody/contact_solvers/newton_with_bisection.h"
 
@@ -341,8 +342,11 @@ void ConvexIntegrator<T>::ComputeNextContinuousState(const T& h,
   // Solve the optimization problem for next-step velocities v = min ℓ(v).
   VectorX<T>& v = scratch_.v;
   v = v_guess;
-  if (!SolveWithGuess(model, &v)) {
-    throw std::runtime_error("ConvexIntegrator: optimization failed.");
+  {
+    DRAKE_CPU_SCOPED_TIMER("solve_with_guess");
+    if (!SolveWithGuess(model, &v)) {
+      throw std::runtime_error("ConvexIntegrator: optimization failed.");
+    }
   }
 
   // Accumulate solver statistics
