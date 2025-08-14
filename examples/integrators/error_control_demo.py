@@ -97,16 +97,71 @@ def clutter():
     use_hydroelastic = False
     initial_state = np.array(
         [
-            1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
-            1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
-            1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
-            1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
-            1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
-            0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
-            0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
-            0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
-            0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
-            0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+            1.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
         ]
     )
     sim_time = 3.0
@@ -120,12 +175,36 @@ def plate_and_spatula():
     name = "Plate and spatula"
     url = "package://drake/examples/integrators/plate_and_spatula.sdf"
     use_hydroelastic = True
-    initial_state = np.array([
-        1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.02,   # plate pos
-        1.0, 0.0, 0.0, 0.0, -0.05, 0.0, 0.08,  # spatula pos
-        0.0, 0.0, 0.0, 0.0, 0.0, 0.0,         # plate vel
-        0.0, 0.0, 0.0, 0.0, 0.0, 0.0,         # spatula vel
-    ])
+    initial_state = np.array(
+        [
+            1.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.02,  # plate pos
+            1.0,
+            0.0,
+            0.0,
+            0.0,
+            -0.05,
+            0.0,
+            0.08,  # spatula pos
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,  # plate vel
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,  # spatula vel
+        ]
+    )
     sim_time = 2.0
     return SimulationExample(
         name, url, use_hydroelastic, initial_state, sim_time
@@ -254,6 +333,7 @@ def run_simulation(
         # We can also set some solver parameters for the integrator here
         ci_params = ci.get_solver_parameters()
         ci_params.use_dense_algebra = True
+        ci_params.error_estimation_strategy = "sdirk2"
         ci.set_solver_parameters(ci_params)
 
     simulator.Initialize()
@@ -261,6 +341,8 @@ def run_simulation(
     print(f"Running the {example.name} example with {integrator} integrator.")
     if visualize:
         input("Waiting for meshcat... [ENTER] to continue")
+
+    initial_energy = plant.CalcPotentialEnergy(plant_context) + plant.CalcKineticEnergy(plant_context)
 
     # Simulate
     meshcat.StartRecording()
@@ -270,6 +352,12 @@ def run_simulation(
     meshcat.StopRecording()
     meshcat.PublishRecording()
 
+    final_energy = plant.CalcPotentialEnergy(plant_context) + plant.CalcKineticEnergy(plant_context)
+    print(f"\nInitial energy: {initial_energy}")
+    print(f"Final energy: {final_energy}")
+    energy_delta = final_energy - initial_energy
+    print(f"Energy Delta: {energy_delta}")
+
     print(f"\nWall clock time: {wall_time}\n")
     PrintSimulatorStatistics(simulator)
 
@@ -278,7 +366,7 @@ def run_simulation(
     times = log.sample_times()
     timesteps = times[1:] - times[0:-1]
 
-    return np.asarray(timesteps), wall_time
+    return np.asarray(timesteps), wall_time, abs(energy_delta)
 
 
 if __name__ == "__main__":
@@ -346,14 +434,25 @@ if __name__ == "__main__":
 
     meshcat = StartMeshcat()
 
-    time_steps, _ = run_simulation(
-        example,
-        args.integrator,
-        args.accuracy,
-        max_step_size=args.max_step_size,
-        meshcat=meshcat,
-        visualize=False
-    )
+    wall_times = []
+    energy_deltas = []
+
+    for accuracy in [1e-1, 1e-2, 1e-3, 1e-4, 1e-5, 1e-6, 1e-7]:
+        time_steps, wall_time, delta_energy = run_simulation(
+            example,
+            args.integrator,
+            accuracy,
+            max_step_size=args.max_step_size,
+            meshcat=meshcat,
+            visualize=False,
+        )
+        wall_times.append(wall_time)
+        energy_deltas.append(delta_energy)
+
+    print("Wall times:")
+    print(repr(wall_times))
+    print("Energy Delta:")
+    print(repr(energy_deltas))
 
     if args.plot:
         times = np.cumsum(time_steps)
