@@ -199,32 +199,41 @@ bool ConvexIntegrator<T>::StepSecondOrder(const T& h) {
   x_next.get_mutable_vector().SetFrom(x_hat.get_vector());
   context.SetTime(t0 + h);
 
-  // Get the constraint impulses associated with x̂ₙ₊₁.
-  PooledSapModel<T>& model = model_;
-  const VectorX<T>& r = model.params().r;
-  const VectorX<T>& v_hat =
-      x_hat.get_generalized_velocity().CopyToVector();
-  VectorX<T> Av(v_hat.size());
-  model.MultiplyByDynamicsMatrix(v_hat, &Av);
-  VectorX<T> j = Av - r;
+  if (!this->get_fixed_step_mode()) {
+    // Get the constraint impulses associated with x̂ₙ₊₁.
+    PooledSapModel<T>& model = model_;
+    const VectorX<T>& r = model.params().r;
+    const VectorX<T>& v_hat =
+        x_hat.get_generalized_velocity().CopyToVector();
+    VectorX<T> Av(v_hat.size());
+    model.MultiplyByDynamicsMatrix(v_hat, &Av);
+    VectorX<T> j = Av - r;
 
-  // Solve for corrected second-order step
-  builder().UpdateModelSecondOrder(plant_context, h, j, &model);
-  VectorX<T>& v = scratch_.v;
-  v = v_guess;
-  if (!SolveWithGuess(model, &v)) {
-    throw std::runtime_error("Optimization failed in second-order step.");
+    // Solve for corrected second-order step
+    // TODO(vincekurtz): add support for external systems
+    builder().UpdateModelSecondOrder(plant_context, h, j, &model);
+    VectorX<T>& v = scratch_.v;
+    v = v_guess;
+    if (!SolveWithGuess(model, &v)) {
+      throw std::runtime_error("Optimization failed in second-order step.");
+    }
+    total_solver_iterations_ += stats_.iterations;
+    total_ls_iterations_ += std::accumulate(stats_.ls_iterations.begin(),
+                                            stats_.ls_iterations.end(), 0);
+    // q = q₀ + h N(q₀) v
+    VectorX<T>& q = scratch_.q;
+    AdvancePlantConfiguration(h, v, &q);
+ 
+    // Advance the second-order state
+    x_next.get_mutable_generalized_position().SetFromVector(q);
+    x_next.get_mutable_generalized_velocity().SetFromVector(v);
+    context.SetTime(t0 + h);
+   
+    // Compute the error estimate
+    ContinuousState<T>& err = *this->get_mutable_error_estimate();
+    err.get_mutable_vector().SetFrom(x_next.get_vector());
+    err.get_mutable_vector().PlusEqScaled(-1.0, x_hat.get_vector());
   }
-  total_solver_iterations_ += stats_.iterations;
-  total_ls_iterations_ += std::accumulate(stats_.ls_iterations.begin(),
-                                          stats_.ls_iterations.end(), 0);
-  // q = q₀ + h N(q₀) v
-  VectorX<T>& q = scratch_.q;
-  AdvancePlantConfiguration(h, v, &q);
-  
-  x_next.get_mutable_generalized_position().SetFromVector(q);
-  x_next.get_mutable_generalized_velocity().SetFromVector(v);
-  context.SetTime(t0 + h);
 
   return true;  // step was successful
 
