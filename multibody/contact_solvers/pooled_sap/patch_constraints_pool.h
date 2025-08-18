@@ -45,9 +45,11 @@ class PooledSapModel<T>::PatchConstraintsPool {
   const PooledSapModel<T>& model() const { return *model_; }
 
   // Reset to work in a model with the given cliques.
-  void Reset(const T& time_step, const std::vector<int>& clique_start,
+  void Reset(const T& time_step, const T& theta,
+             const std::vector<int>& clique_start,
              const std::vector<int>& clique_size) {
     time_step_ = time_step;
+    theta_ = theta;
     clique_start_ = clique_start;
     clique_size_ = clique_size;
     Clear();
@@ -333,6 +335,7 @@ class PooledSapModel<T>::PatchConstraintsPool {
   const PooledSapModel<T>* model_{nullptr};  // The parent model.
 
   T time_step_{0.0};
+  T theta_{1.0};
 
   /* Per-clique data. Indexed by c < num_cliques()  */
   std::vector<int> clique_start_;  // Velocity start index for the c-th clique.

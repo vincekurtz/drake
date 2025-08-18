@@ -369,6 +369,10 @@ void PooledSapModel<T>::PatchConstraintsPool::CalcPatchQuantities(
       // Accumulate onto the path Hessian Gp.
       G_Bp += ShiftPairToPatch(Gk, p_BC_W);
     }
+
+    cost_pool->at(p) *= theta_;
+    Gamma_Bo_W *= theta_;
+    G_Bp *= theta_;
   }
 }
 

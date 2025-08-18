@@ -60,6 +60,10 @@ struct PooledSapParameters {
 
   // Discrete time step.
   T time_step{0.0};
+  // Theta parameter for the constraints impulses.
+  //   - theta = 1.0 for fully implicit Euler.
+  //   - theta = 1/2 for implicit trapezoid.
+  T theta_constraints{1.0};
   // Linear dynamics matrix. Of size num_cliques.
   EigenPool<MatrixX<T>> A;
   // Cost linear term
@@ -154,7 +158,8 @@ class PooledSapModel {
     limit_constraints_pool_.Reset();
 
     patch_constraints_pool_.Clear();
-    patch_constraints_pool_.Reset(params_->time_step, clique_start_,
+    patch_constraints_pool_.Reset(params_->time_step,
+                                  params_->theta_constraints, clique_start_,
                                   clique_sizes_);
 
     V_WB0_.Resize(num_bodies_);

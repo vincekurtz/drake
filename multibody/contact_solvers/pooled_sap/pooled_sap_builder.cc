@@ -108,6 +108,122 @@ PooledSapBuilder<T>::PooledSapBuilder(const MultibodyPlant<T>& plant)
 }
 
 template <typename T>
+void PooledSapBuilder<T>::UpdateTrapezoidModel(
+    const systems::Context<T>& context, const T& time_step,
+    const PooledSapParameters<T>& params0, 
+    const VectorX<T>& j0,
+    PooledSapModel<T>* model) const {
+  const T theta = 0.5;
+  const T theta_constraints = 0.5;
+
+
+  const MultibodyTreeTopology& topology =
+      GetInternalTree(plant()).get_topology();
+  const LinkJointGraph& graph = GetInternalTree(plant()).graph();
+  DRAKE_DEMAND(graph.forest_is_valid());
+  const SpanningForest& forest = graph.forest();
+  (void)forest;
+
+  const int nv = plant().num_velocities();
+  MatrixX<T>& M_hat = scratch_.M;
+  Matrix6X<T>& J_V_WB = scratch_.J_V_WB;  
+  const VectorX<T> v_hat = plant().GetVelocities(context);
+
+  // We'll start from params0 and change only what's needed.
+  std::unique_ptr<PooledSapParameters<T>> params = model->ReleaseParameters();
+
+  *params = params0;
+  params->time_step = time_step;
+  params->theta_constraints = theta_constraints;
+  // params->v0 = params0->v0;
+    
+
+  //params->A.Clear();
+  //params->J_WB.Clear();
+
+  // Below we compute A_bar = (1-theta)*A0 + theta*M_hat + (2*theta-1)*dt*D.
+  plant().CalcMassMatrix(context, &M_hat);
+  M_hat *= theta;
+  M_hat.diagonal() +=
+      plant().EvalJointDampingCache(context) * (2.0 * theta - 1) * time_step;
+
+  // We only add a clique for tree's with non-zero number of velocities.
+  const std::vector<int>& tree_clique = params->tree_to_clique;
+  for (TreeIndex t(0); t < topology.num_trees(); ++t) {
+    const int tree_start_in_v = topology.tree_velocities_start_in_v(t);
+    const int tree_nv = topology.num_tree_velocities(t);
+    const int clique = tree_clique[t];
+    if (tree_nv > 0) {
+      const auto& At0 = params0->A[clique];
+      const auto& At = params->A[clique];
+
+      At = (1 - theta) * At0 +
+           M_hat.block(tree_start_in_v, tree_start_in_v, tree_nv, tree_nv);
+    }
+  }
+
+  // Update body Jacobians at q_hat.
+  params->J_WB.Clear();
+  for (int b = 0; b < plant().num_bodies(); ++b) {
+    const auto& body = plant().get_body(BodyIndex(b));
+
+    if (plant().IsAnchored(body)) {
+      params->body_cliques.push_back(-1);  // mark as anchored.
+      // Empty Jacobian.
+      // N.B. Eigen does not like 0-sized matrices. Thus we push a dummy
+      // one-column Jacobian.
+      params->J_WB.Add(6, 1);
+    } else {
+      const TreeIndex t = topology.body_to_tree_index(BodyIndex(b));
+      const int clique = tree_clique[t];
+      DRAKE_ASSERT(clique >= 0);
+      const bool tree_has_dofs = topology.tree_has_dofs(t);
+      DRAKE_ASSERT(tree_has_dofs);
+
+      const int vt_start = topology.tree_velocities_start_in_v(t);
+      const int nt = topology.num_tree_velocities(t);
+
+      params->body_cliques.push_back(clique);
+      typename EigenPool<Matrix6X<T>>::ElementView Jv_WBc_W =
+          params->J_WB.Add(6, nt);
+      if (body.is_floating()) {
+        Jv_WBc_W.setIdentity();
+      } else {
+        plant().CalcJacobianSpatialVelocity(
+            context, JacobianWrtVariable::kV, body.body_frame(),
+            Vector3<T>::Zero(), world_frame, world_frame, &J_V_WB);
+        Jv_WBc_W = J_V_WB.middleCols(vt_start, nt);
+      }
+    }
+  }
+
+  // Compute r_hat = r(x_hat)
+  const VectorX<T>& v0 = params->v0;
+  const VectorX<T>& r0 = params->r;
+  const T& dt = params->time_step;
+  VectorX<T> r_hat;
+  r_hat.resize(nv);
+  MultibodyForces<T>& forces = *scratch_.forces;
+  VectorX<T>& vdot = scratch_.tmp_v1;
+  vdot = -v0 / dt;
+  plant().CalcForceElementsContribution(context, &forces);  
+  r_hat = -dt * plant().CalcInverseDynamics(context, vdot, forces);
+
+  
+  VectorX<T>& r_bar = params->r;
+  r_bar = (1-theta) * r0 + theta * r_hat 
+
+
+  r += dt * (1 - theta_damping) *
+       plant().EvalJointDampingCache(context).asDiagonal() * v0;
+
+  // Add explicit contribution of constraints for the method on constraints.
+  r += (1 - theta_constraints) * j0;
+
+
+}
+
+template <typename T>
 void PooledSapBuilder<T>::UpdateModel(const systems::Context<T>& context,
                                       const T& time_step,
                                       PooledSapModel<T>* model) const {
@@ -230,7 +346,15 @@ void PooledSapBuilder<T>::UpdateModel(const systems::Context<T>& context,
   // TODO(vincekurtz): use a CalcInverseDynamics signature that doesn't allocate
   // a return value.
   r = -dt * plant().CalcInverseDynamics(context, vdot, forces);
-  r += dt * plant().EvalJointDampingCache(context).asDiagonal() * v0;
+
+  // This next line removes the term D*v0 added when computing the force
+  // elements contribution. The theta_damping component ads the explicit
+  // contribution back when using second order on damping.
+  r += dt * (1 - theta_damping) *
+       plant().EvalJointDampingCache(context).asDiagonal() * v0;
+
+  // Add explicit contribution of constraints for the method on constraints.
+  r += (1 - theta_constraints) * j0;
 
   // Collect effort limits for each clique.
   params->clique_nu.assign(num_cliques, 0);
