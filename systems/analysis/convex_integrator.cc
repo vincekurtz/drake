@@ -213,7 +213,7 @@ bool ConvexIntegrator<T>::StepSecondOrder(const T& h) {
     // TODO(vincekurtz): add support for external systems
     builder().UpdateModelSecondOrder(plant_context, h, j, &model);
     VectorX<T>& v = scratch_.v;
-    v = v_guess;
+    v = x_next.get_generalized_velocity().CopyToVector();
     if (!SolveWithGuess(model, &v)) {
       throw std::runtime_error("Optimization failed in second-order step.");
     }
