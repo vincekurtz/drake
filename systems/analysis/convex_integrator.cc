@@ -100,23 +100,25 @@ void ConvexIntegrator<T>::DoInitialize() {
 
 template <typename T>
 bool ConvexIntegrator<T>::DoStep(const T& h) {
-  const std::string& strategy = solver_parameters_.error_estimation_strategy;
+  // const std::string& strategy = solver_parameters_.error_estimation_strategy;
 
-  if (strategy == "half_stepping") {
-    return StepWithHalfSteppingErrorEstimate(h);
-  } else if (strategy == "sdirk") {
-    return StepWithSDIRKErrorEstimate(h);
-  } else if (strategy == "implicit_trapezoid") {
-    return StepWithImplicitTrapezoidErrorEstimate(h);
-  } else if (strategy == "richardson") {
-    return StepWithRichardsonExtrapolation(h);
-  } else {
-    throw std::runtime_error(
-        "ConvexIntegrator: unknown error estimation strategy: " +
-        solver_parameters_.error_estimation_strategy +
-        ". Supported strategies are 'half_stepping', 'sdirk', "
-        "'implicit_trapezoid', and 'richardson'.");
-  }
+  // if (strategy == "half_stepping") {
+  //   return StepWithHalfSteppingErrorEstimate(h);
+  // } else if (strategy == "sdirk") {
+  //   return StepWithSDIRKErrorEstimate(h);
+  // } else if (strategy == "implicit_trapezoid") {
+  //   return StepWithImplicitTrapezoidErrorEstimate(h);
+  // } else if (strategy == "richardson") {
+  //   return StepWithRichardsonExtrapolation(h);
+  // } else {
+  //   throw std::runtime_error(
+  //       "ConvexIntegrator: unknown error estimation strategy: " +
+  //       solver_parameters_.error_estimation_strategy +
+  //       ". Supported strategies are 'half_stepping', 'sdirk', "
+  //       "'implicit_trapezoid', and 'richardson'.");
+  // }
+  // TODO: list as a standard strategy
+  return StepSecondOrder(h);
 }
 
 template <typename T>
@@ -176,6 +178,56 @@ bool ConvexIntegrator<T>::StepWithHalfSteppingErrorEstimate(const T& h) {
   }
 
   return true;  // step was successful
+}
+
+template <typename T>
+bool ConvexIntegrator<T>::StepSecondOrder(const T& h) {
+  Context<T>& context = *this->get_mutable_context();
+  ContinuousState<T>& x_next = context.get_mutable_continuous_state();
+  const Context<T>& plant_context = plant().GetMyContextFromRoot(context);
+  const T t0 = context.get_time();
+
+  ContinuousState<T>& x_hat = *x_next_full_;
+
+  // Solve for the full step x̂ₙ₊₁. We'll need this regardless of whether
+  // error control is enabled or not.
+  VectorX<T>& v_guess = scratch_.v_guess;
+  v_guess = plant().GetVelocities(plant_context);
+  ComputeNextContinuousState(h, v_guess, &x_hat);
+
+  // Advance the state to x̂ₙ₊₁.
+  x_next.get_mutable_vector().SetFrom(x_hat.get_vector());
+  context.SetTime(t0 + h);
+
+  // Get the constraint impulses associated with x̂ₙ₊₁.
+  PooledSapModel<T>& model = model_;
+  const VectorX<T>& r = model.params().r;
+  const VectorX<T>& v_hat =
+      x_hat.get_generalized_velocity().CopyToVector();
+  VectorX<T> Av(v_hat.size());
+  model.MultiplyByDynamicsMatrix(v_hat, &Av);
+  VectorX<T> j = Av - r;
+
+  // Solve for corrected second-order step
+  builder().UpdateModelSecondOrder(plant_context, h, j, &model);
+  VectorX<T>& v = scratch_.v;
+  v = v_guess;
+  if (!SolveWithGuess(model, &v)) {
+    throw std::runtime_error("Optimization failed in second-order step.");
+  }
+  total_solver_iterations_ += stats_.iterations;
+  total_ls_iterations_ += std::accumulate(stats_.ls_iterations.begin(),
+                                          stats_.ls_iterations.end(), 0);
+  // q = q₀ + h N(q₀) v
+  VectorX<T>& q = scratch_.q;
+  AdvancePlantConfiguration(h, v, &q);
+  
+  x_next.get_mutable_generalized_position().SetFromVector(q);
+  x_next.get_mutable_generalized_velocity().SetFromVector(v);
+  context.SetTime(t0 + h);
+
+  return true;  // step was successful
+
 }
 
 template <typename T>

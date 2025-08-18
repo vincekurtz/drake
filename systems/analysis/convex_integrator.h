@@ -269,6 +269,9 @@ class ConvexIntegrator final : public IntegratorBase<T> {
   // that Richardson extrapolation breaks L-stability.
   bool StepWithRichardsonExtrapolation(const T& h);
 
+  // Experimental truly second-order method
+  bool StepSecondOrder(const T& h);
+
   // Solve the SAP problem to compute x_{t+h} at a given step size. This will be
   // called multiple times for each DoStep to compute the error estimate.
   //
