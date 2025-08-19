@@ -256,6 +256,7 @@ template <typename T>
 void ConvexIntegrator<T>::ComputeNextStateLeapfrog(const T& h,
                                                    const VectorX<T>& v_guess,
                                                    ContinuousState<T>* x_next) {
+  using std::sqrt;
   // TODO(vincekurtz): add geometry and linearization reuse
   Context<T>& context = *this->get_mutable_context();
   ContinuousState<T>& x = context.get_mutable_continuous_state();
@@ -270,9 +271,18 @@ void ConvexIntegrator<T>::ComputeNextStateLeapfrog(const T& h,
   x.get_mutable_generalized_position().SetFromVector(q);
   context.NoteContinuousStateChange();
 
-  // Full step on velocities
+  // Full step on velocities, but using SDIRK2 to get second-order
   // v = min ℓ(v; q̃, v₀, h)
-  AdvancePlantVelocity(h, v_guess, &v);
+  const double gamma = 1.0 - 1.0 / sqrt(2.0);
+  const VectorX<T> v0 =
+      context.get_continuous_state().get_generalized_velocity().CopyToVector();
+
+  AdvancePlantVelocity(gamma * h, v_guess, &v);
+  v = v0 + (1.0 - gamma) / gamma * (v - v0);
+  x.get_mutable_generalized_velocity().SetFromVector(v);
+  context.NoteContinuousStateChange();
+
+  AdvancePlantVelocity(gamma * h, v_guess, &v);
   x.get_mutable_generalized_velocity().SetFromVector(v);
   context.NoteContinuousStateChange();
 
