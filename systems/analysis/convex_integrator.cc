@@ -266,7 +266,7 @@ void ConvexIntegrator<T>::ComputeNextStateLeapfrog(const T& h,
 
   // First half-step on positions
   // q̃ = q₀ + 0.5 h N(q₀) v₀
-  AdvancePlantConfiguration(0.5 * h, v_guess, &q);
+  AdvancePlantConfigurationExplicitMidpoint(0.5 * h, v_guess, &q);
   x.get_mutable_generalized_position().SetFromVector(q);
   context.NoteContinuousStateChange();
 
@@ -278,7 +278,7 @@ void ConvexIntegrator<T>::ComputeNextStateLeapfrog(const T& h,
 
   // Second half-step on positions
   // q = q₀ + 0.5 h N(q̃) v
-  AdvancePlantConfiguration(0.5 * h, v, &q);
+  AdvancePlantConfigurationExplicitMidpoint(0.5 * h, v, &q);
   x.get_mutable_generalized_position().SetFromVector(q);
   context.NoteContinuousStateChange();
 
@@ -361,6 +361,45 @@ void ConvexIntegrator<T>::AdvancePlantConfiguration(const T& h,
   // q = q₀ + h N(q₀) v
   plant().MapVelocityToQDot(plant_context, h * v, q);  // δq = h N(q₀) v
   *q += q0;                                            // q = q₀ + δq
+
+  // Normalize quaternions. Note that the more exact solution would be
+  //   q = exp(h q̇ * q̅₀) * q₀,
+  // where "*" and "exp" are quaternion multiplication and exponentiation, and
+  // q̅₀ is the conjugate of q₀. However, just normalizing
+  //   q = q₀ + δq,
+  // is a fine approximation for small h, and error control ensure that the
+  // resulting error doesn't get out of hand.
+  for (JointIndex joint_index : plant().GetJointIndices()) {
+    const Joint<T>& joint = plant().get_joint(joint_index);
+
+    if (joint.type_name() == "quaternion_floating") {
+      const int i = joint.position_start();
+      q->template segment<4>(i).normalize();
+    }
+  }
+}
+
+template <typename T>
+void ConvexIntegrator<T>::AdvancePlantConfigurationExplicitMidpoint(const T& h,
+                                                    const VectorX<T>& v,
+                                                    VectorX<T>* q) {
+  const Context<T>& context = this->get_context();
+  const Context<T>& plant_context = plant().GetMyContextFromRoot(context);
+  const VectorX<T>& q0 = plant().GetPositions(plant_context);
+
+  // q̃ = q₀ + 0.5 h N(q₀) v
+  plant().MapVelocityToQDot(plant_context, 0.5 * h * v, q);
+  *q += q0;
+
+  // Set ̃q in the plant context.
+  this->get_mutable_context()
+      ->get_mutable_continuous_state()
+      .get_mutable_generalized_position()
+      .SetFromVector(*q);
+
+  // q = q₀ + h N(q̃) v
+  plant().MapVelocityToQDot(plant_context, h * v, q);
+  *q += q0;
 
   // Normalize quaternions. Note that the more exact solution would be
   //   q = exp(h q̇ * q̅₀) * q₀,
