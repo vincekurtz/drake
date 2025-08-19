@@ -289,6 +289,27 @@ class ConvexIntegrator final : public IntegratorBase<T> {
                                        bool reuse_geometry_data = false,
                                        bool reuse_linearization = false);
 
+  // Compute the state x = [q, v, z] at the next time step using a Leapfrog
+  // method:
+  //
+  //      ṽ = min ℓ(v; q₀, v₀, h/2)
+  //      q = q₀ + h N(q₀) ṽ
+  //      v = min ℓ(v; q, ṽ, h/2)
+  //      z = z₀ + h ż₀
+  //
+  // @param h the time step to use
+  // @param v_guess the initial guess for the MbP plant velocities.
+  // @param x_next the output continuous state, includes state for both the
+  //               plant and any external systems.
+  // @param reuse_geometry_data use previously computed geometry data, e.g., in
+  //                            the first half-step.
+  // @param reuse_linearization use previously computed external system
+  // linearization, e.g., in the half-steps.
+  //
+  // @note the starting state x₀ is stored in this->get_context().
+  void ComputeNextStateLeapfrog(const T& h, const VectorX<T>& v_guess,
+                                ContinuousState<T>* x_next);
+
   // Solve the convex problem to compute next-step velocities,
   // v = min ℓ(v; q₀, v₀, h).
   // N.B. the initial state (q₀, v₀) is stored in this->get_context().

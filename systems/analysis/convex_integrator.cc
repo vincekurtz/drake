@@ -205,7 +205,25 @@ bool ConvexIntegrator<T>::StepWithRichardsonExtrapolation(const T& h) {
 template <typename T>
 bool ConvexIntegrator<T>::StepWithLeapfrogErrorEstimate(const T& h) {
   // TODO(vincekurtz): implement
-  return StepWithHalfSteppingErrorEstimate(h);
+  Context<T>& context = *this->get_mutable_context();
+  ContinuousState<T>& x_next = context.get_mutable_continuous_state();
+  const Context<T>& plant_context = plant().GetMyContextFromRoot(context);
+  const T t0 = context.get_time();
+
+  // Solve for the full step x_{t+h}. We'll need this regardless of whether
+  // error control is enabled or not.
+  VectorX<T>& v_guess = scratch_.v_guess;
+  v_guess = plant().GetVelocities(plant_context);
+  ComputeNextStateLeapfrog(h, v_guess, x_next_full_.get());
+
+  if (this->get_fixed_step_mode()) {
+    x_next.get_mutable_vector().SetFrom(x_next_full_->get_vector());
+    context.SetTime(t0 + h);
+  } else {
+    throw std::runtime_error("Leapfrog doesn't support error control yet");
+  }
+
+  return true;  // step was successful
 }
 
 template <typename T>
@@ -226,6 +244,43 @@ void ConvexIntegrator<T>::ComputeNextStateSymplecticEuler(
   // Set the updated plant state
   x_next->get_mutable_generalized_position().SetFromVector(q);
   x_next->get_mutable_generalized_velocity().SetFromVector(v);
+
+  // z = z₀ + h ż.
+  if (x_next->num_z() > 0) {
+    AdvanceExternalState(h, &z);
+    x_next->get_mutable_misc_continuous_state().SetFromVector(z);
+  }
+}
+
+template <typename T>
+void ConvexIntegrator<T>::ComputeNextStateLeapfrog(const T& h,
+                                                   const VectorX<T>& v_guess,
+                                                   ContinuousState<T>* x_next) {
+  // TODO(vincekurtz): add geometry and linearization reuse
+  VectorX<T>& v = scratch_.v;
+  VectorX<T>& q = scratch_.q;
+  VectorX<T>& z = scratch_.z;
+
+  // First half-step on velocities
+  // ṽ = min ℓ(v; q₀, v₀, h/2)
+  AdvancePlantVelocity(0.5 * h, v_guess, &v);
+
+  // Full step on positions
+  // q = q₀ + h N(q₀) ṽ
+  AdvancePlantConfiguration(h, v, &q);
+
+  // Set internal plant state to [q, ṽ] to prepare for the second half-step
+  ContinuousState<T>& x =
+      this->get_mutable_context()->get_mutable_continuous_state();
+  x.get_mutable_generalized_position().SetFromVector(q);
+  x.get_mutable_generalized_velocity().SetFromVector(v);
+
+  // Second half-step on velocities
+  AdvancePlantVelocity(0.5 * h, v, &v);
+
+  // Set the updated plant state
+  x_next->get_mutable_generalized_velocity().SetFromVector(v);
+  x_next->get_mutable_generalized_position().SetFromVector(q);
 
   // z = z₀ + h ż.
   if (x_next->num_z() > 0) {
