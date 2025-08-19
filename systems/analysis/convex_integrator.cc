@@ -267,29 +267,32 @@ void ConvexIntegrator<T>::ComputeNextStateLeapfrog(const T& h,
 
   // First half-step on positions
   // q̃ = q₀ + 0.5 h N(q₀) v₀
-  AdvancePlantConfigurationExplicitMidpoint(0.5 * h, v_guess, &q);
-  x.get_mutable_generalized_position().SetFromVector(q);
+  // AdvancePlantConfiguration(0.5 * h, v_guess, &q);
+  // x.get_mutable_generalized_position().SetFromVector(q);
+  AdvanceStateExplicitMidpoint(0.5 * h);
+  q = x.get_generalized_position().CopyToVector();
   context.NoteContinuousStateChange();
 
   // Full step on velocities, but using SDIRK2 to get second-order
   // v = min ℓ(v; q̃, v₀, h)
-  const double gamma = 1.0 - 1.0 / sqrt(2.0);
-  const VectorX<T> v0 =
-      context.get_continuous_state().get_generalized_velocity().CopyToVector();
+  // const double gamma = 1.0 - 1.0 / sqrt(2.0);
+  // const VectorX<T> v0 =
+  //     context.get_continuous_state().get_generalized_velocity().CopyToVector();
 
-  AdvancePlantVelocity(gamma * h, v_guess, &v);
-  v = v0 + (1.0 - gamma) / gamma * (v - v0);
+  // AdvancePlantVelocity(gamma * h, v_guess, &v);
+  // v = v0 + (1.0 - gamma) / gamma * (v - v0);
+  // x.get_mutable_generalized_velocity().SetFromVector(v);
+  // context.NoteContinuousStateChange();
+
+  // AdvancePlantVelocity(gamma * h, v_guess, &v);
+  AdvancePlantVelocity(h, v_guess, &v);
   x.get_mutable_generalized_velocity().SetFromVector(v);
   context.NoteContinuousStateChange();
 
-  AdvancePlantVelocity(gamma * h, v_guess, &v);
-  x.get_mutable_generalized_velocity().SetFromVector(v);
-  context.NoteContinuousStateChange();
-
-  // Second half-step on positions
-  // q = q₀ + 0.5 h N(q̃) v
-  AdvancePlantConfigurationExplicitMidpoint(0.5 * h, v, &q);
-  x.get_mutable_generalized_position().SetFromVector(q);
+  // Second half-step on explicit terms
+  // AdvanceStateExplicitMidpoint(0.5 * h);
+  AdvanceStateExplicitMidpoint(0.5 * h);
+  q = x.get_generalized_position().CopyToVector();
   context.NoteContinuousStateChange();
 
   // Set the updated plant state
@@ -390,42 +393,39 @@ void ConvexIntegrator<T>::AdvancePlantConfiguration(const T& h,
 }
 
 template <typename T>
-void ConvexIntegrator<T>::AdvancePlantConfigurationExplicitMidpoint(const T& h,
-                                                    const VectorX<T>& v,
-                                                    VectorX<T>* q) {
-  const Context<T>& context = this->get_context();
-  const Context<T>& plant_context = plant().GetMyContextFromRoot(context);
-  const VectorX<T>& q0 = plant().GetPositions(plant_context);
+void ConvexIntegrator<T>::AdvanceStateExplicitMidpoint(const T& h) {
+  Context<T>& context = *this->get_mutable_context();
+  Context<T>& plant_context = plant().GetMyMutableContextFromRoot(&context);
+  const VectorX<T> q0 = plant().GetPositions(plant_context);
+  const VectorX<T> v0 = plant().GetVelocities(plant_context);
 
-  // q̃ = q₀ + 0.5 h N(q₀) v
-  plant().MapVelocityToQDot(plant_context, 0.5 * h * v, q);
-  *q += q0;
+  // Get derivatives at initial state
+  // q̇ = N(q)v 
+  VectorX<T> qdot(plant().num_positions());
+  plant().MapVelocityToQDot(plant_context, v0, &qdot);
+  
+  // M(q)v̇ +k(q, v) = 0
+  VectorX<T> k(plant().num_velocities());
+  MatrixX<T> M(plant().num_velocities(), plant().num_velocities());
+  plant().CalcMassMatrix(plant_context, &M);
+  MultibodyForces<T> forces(plant());
+  plant().CalcForceElementsContribution(plant_context, &forces);
+  plant().CalcGeneralizedForces(plant_context, forces, &k);
+  VectorX<T> vdot = M.ldlt().solve(k);
 
-  // Set ̃q in the plant context.
-  this->get_mutable_context()
-      ->get_mutable_continuous_state()
+  // First half-step, x̃ = x₀ + 0.5 h ẋ
+  VectorX<T> q_tilde = q0 + 1.0 * h * qdot;
+  VectorX<T> v_tilde = v0 + 1.0 * h * vdot;
+
+  context.get_mutable_continuous_state()
       .get_mutable_generalized_position()
-      .SetFromVector(*q);
+      .SetFromVector(q_tilde);
+  context.get_mutable_continuous_state()
+      .get_mutable_generalized_velocity()
+      .SetFromVector(v_tilde);
 
-  // q = q₀ + h N(q̃) v
-  plant().MapVelocityToQDot(plant_context, h * v, q);
-  *q += q0;
+  // TODO: second half-step
 
-  // Normalize quaternions. Note that the more exact solution would be
-  //   q = exp(h q̇ * q̅₀) * q₀,
-  // where "*" and "exp" are quaternion multiplication and exponentiation, and
-  // q̅₀ is the conjugate of q₀. However, just normalizing
-  //   q = q₀ + δq,
-  // is a fine approximation for small h, and error control ensure that the
-  // resulting error doesn't get out of hand.
-  for (JointIndex joint_index : plant().GetJointIndices()) {
-    const Joint<T>& joint = plant().get_joint(joint_index);
-
-    if (joint.type_name() == "quaternion_floating") {
-      const int i = joint.position_start();
-      q->template segment<4>(i).normalize();
-    }
-  }
 }
 
 template <typename T>

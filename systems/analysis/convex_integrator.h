@@ -323,9 +323,10 @@ class ConvexIntegrator final : public IntegratorBase<T> {
   void AdvancePlantConfiguration(const T& h, const VectorX<T>& v,
                                  VectorX<T>* q) const;
 
-  void AdvancePlantConfigurationExplicitMidpoint(const T& h,
-                                                 const VectorX<T>& v,
-                                                 VectorX<T>* q);
+  // Advance the internally-stored state (q, v) using the explicit midpoint rule,
+  //   q̇ = N(q)v
+  //   M(q)v̇ + k(q, v) = 0 
+  void AdvanceStateExplicitMidpoint(const T& h);
 
   // Advance the external state with explicit euler, z = z₀ + h ż₀
   void AdvanceExternalState(const T& h, VectorX<T>* z) const;
