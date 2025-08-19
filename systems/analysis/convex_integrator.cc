@@ -406,8 +406,16 @@ void ConvexIntegrator<T>::AdvanceStateExplicitMidpoint(const T& h) {
   plant().CalcMassMatrix(plant_context, &M);
   MultibodyForces<T> forces(plant());
   plant().CalcForceElementsContribution(plant_context, &forces);
-  plant().CalcGeneralizedForces(plant_context, forces, &k);
-  VectorX<T> vdot = M.ldlt().solve(k);
+  k = plant().CalcInverseDynamics(plant_context, VectorX<T>::Zero(plant().num_velocities()), forces);
+  VectorX<T> vdot = M.ldlt().solve(-k);
+  fmt::print("qdot0: {}\n", fmt_eigen(qdot.transpose()));
+  fmt::print("vdot0: {}\n", fmt_eigen(vdot.transpose()));
+
+  // DEBUG: reference time derivatives
+  const ContinuousState<T>& xdot =
+      this->EvalTimeDerivatives(this->get_context());
+  fmt::print("qdot0_ref: {}\n", fmt_eigen(xdot.get_generalized_position().CopyToVector().transpose()));
+  fmt::print("vdot0_ref: {}\n", fmt_eigen(xdot.get_generalized_velocity().CopyToVector().transpose()));
 
   // First half-step, x̃ = x₀ + 0.5 h ẋ
   VectorX<T> q_tilde = q0 + 0.5 * h * qdot;
@@ -419,13 +427,17 @@ void ConvexIntegrator<T>::AdvanceStateExplicitMidpoint(const T& h) {
   context.get_mutable_continuous_state()
       .get_mutable_generalized_velocity()
       .SetFromVector(v_tilde);
+  context.NoteContinuousStateChange();
 
   // Get derivatives at ̃x 
   plant().MapVelocityToQDot(plant_context, v_tilde, &qdot);
   plant().CalcMassMatrix(plant_context, &M);
   plant().CalcForceElementsContribution(plant_context, &forces);
-  plant().CalcGeneralizedForces(plant_context, forces, &k);
-  vdot = M.ldlt().solve(k);
+  k = plant().CalcInverseDynamics(plant_context, VectorX<T>::Zero(plant().num_velocities()), forces);
+  vdot = M.ldlt().solve(-k);
+  fmt::print("qdot1: {}\n", fmt_eigen(qdot.transpose()));
+  fmt::print("vdot1: {}\n", fmt_eigen(vdot.transpose()));
+  fmt::print("\n");
 
   // Full step x = x₀ + h ẋ
   VectorX<T> q = q0 + h * qdot;
@@ -437,6 +449,7 @@ void ConvexIntegrator<T>::AdvanceStateExplicitMidpoint(const T& h) {
   context.get_mutable_continuous_state()
       .get_mutable_generalized_velocity()
       .SetFromVector(v);
+  context.NoteContinuousStateChange();
 
 }
 
