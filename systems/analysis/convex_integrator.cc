@@ -267,26 +267,26 @@ void ConvexIntegrator<T>::ComputeNextStateLeapfrog(const T& h,
 
   // First half-step on positions
   // q̃ = q₀ + 0.5 h N(q₀) v₀
-  // AdvanceStateExplicitMidpoint(0.5 * h);
-  // context.NoteContinuousStateChange();
+  AdvanceStateExplicitMidpoint(0.5 * h);
+  context.NoteContinuousStateChange();
 
   // Full step on velocities, but using SDIRK2 to get second-order
   // v = min ℓ(v; q̃, v₀, h)
-  // const double gamma = 1.0 - 1.0 / sqrt(2.0);
-  // const VectorX<T> v0 =
-  //     context.get_continuous_state().get_generalized_velocity().CopyToVector();
+  const double gamma = 1.0 - 1.0 / sqrt(2.0);
+  const VectorX<T> v0 =
+      context.get_continuous_state().get_generalized_velocity().CopyToVector();
 
-  // AdvancePlantVelocity(gamma * h, v_guess, &v);
-  // v = v0 + (1.0 - gamma) / gamma * (v - v0);
-  // x.get_mutable_generalized_velocity().SetFromVector(v);
-  // context.NoteContinuousStateChange();
+  AdvancePlantVelocity(gamma * h, v_guess, &v);
+  v = v0 + (1.0 - gamma) / gamma * (v - v0);
+  x.get_mutable_generalized_velocity().SetFromVector(v);
+  context.NoteContinuousStateChange();
 
-  // AdvancePlantVelocity(gamma * h, v_guess, &v);
-  // x.get_mutable_generalized_velocity().SetFromVector(v);
-  // context.NoteContinuousStateChange();
+  AdvancePlantVelocity(gamma * h, v_guess, &v);
+  x.get_mutable_generalized_velocity().SetFromVector(v);
+  context.NoteContinuousStateChange();
 
   // Second half-step on explicit terms
-  AdvanceStateExplicitMidpoint(h);
+  AdvanceStateExplicitMidpoint(0.5 * h);
   q = x.get_generalized_position().CopyToVector();
   v = x.get_generalized_velocity().CopyToVector();
   context.NoteContinuousStateChange();
@@ -408,14 +408,6 @@ void ConvexIntegrator<T>::AdvanceStateExplicitMidpoint(const T& h) {
   plant().CalcForceElementsContribution(plant_context, &forces);
   k = plant().CalcInverseDynamics(plant_context, VectorX<T>::Zero(plant().num_velocities()), forces);
   VectorX<T> vdot = M.ldlt().solve(-k);
-  fmt::print("qdot0: {}\n", fmt_eigen(qdot.transpose()));
-  fmt::print("vdot0: {}\n", fmt_eigen(vdot.transpose()));
-
-  // DEBUG: reference time derivatives
-  const ContinuousState<T>& xdot =
-      this->EvalTimeDerivatives(this->get_context());
-  fmt::print("qdot0_ref: {}\n", fmt_eigen(xdot.get_generalized_position().CopyToVector().transpose()));
-  fmt::print("vdot0_ref: {}\n", fmt_eigen(xdot.get_generalized_velocity().CopyToVector().transpose()));
 
   // First half-step, x̃ = x₀ + 0.5 h ẋ
   VectorX<T> q_tilde = q0 + 0.5 * h * qdot;
@@ -435,11 +427,8 @@ void ConvexIntegrator<T>::AdvanceStateExplicitMidpoint(const T& h) {
   plant().CalcForceElementsContribution(plant_context, &forces);
   k = plant().CalcInverseDynamics(plant_context, VectorX<T>::Zero(plant().num_velocities()), forces);
   vdot = M.ldlt().solve(-k);
-  fmt::print("qdot1: {}\n", fmt_eigen(qdot.transpose()));
-  fmt::print("vdot1: {}\n", fmt_eigen(vdot.transpose()));
-  fmt::print("\n");
 
-  // Full step x = x₀ + h ẋ
+  // Full step x = x₀ + h ẋ, using derivatives evaluated at the midpoint
   VectorX<T> q = q0 + h * qdot;
   VectorX<T> v = v0 + h * vdot;
   
@@ -450,7 +439,6 @@ void ConvexIntegrator<T>::AdvanceStateExplicitMidpoint(const T& h) {
       .get_mutable_generalized_velocity()
       .SetFromVector(v);
   context.NoteContinuousStateChange();
-
 }
 
 template <typename T>
