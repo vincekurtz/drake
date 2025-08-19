@@ -210,18 +210,25 @@ bool ConvexIntegrator<T>::StepWithLeapfrogErrorEstimate(const T& h) {
   const Context<T>& plant_context = plant().GetMyContextFromRoot(context);
   const T t0 = context.get_time();
 
-  // Solve for the full step x_{t+h}. We'll need this regardless of whether
-  // error control is enabled or not.
+  // Solve for the full step x_{t+h} with second-order Strang-splitting.
   VectorX<T>& v_guess = scratch_.v_guess;
   v_guess = plant().GetVelocities(plant_context);
   ComputeNextStateLeapfrog(h, v_guess, x_next_full_.get());
 
-  if (this->get_fixed_step_mode()) {
-    x_next.get_mutable_vector().SetFrom(x_next_full_->get_vector());
-    context.SetTime(t0 + h);
-  } else {
-    throw std::runtime_error("Leapfrog doesn't support error control yet");
+  if (!this->get_fixed_step_mode()) {
+    // Get a next-state estimate with first-order symplectic euler
+    ComputeNextStateSymplecticEuler(h, v_guess, x_next_half_2_.get());
+
+    // Estimate the error as the difference between the second-order and
+    // the first-order steps.
+    ContinuousState<T>& err = *this->get_mutable_error_estimate();
+    err.get_mutable_vector().SetFrom(x_next_full_->get_vector());
+    err.get_mutable_vector().PlusEqScaled(-1.0, x_next_half_2_->get_vector());
+
   }
+  // Propagate the second-order solution, regardless of error control.
+  x_next.get_mutable_vector().SetFrom(x_next_full_->get_vector());
+  context.SetTime(t0 + h);
 
   return true;  // step was successful
 }
@@ -260,6 +267,7 @@ void ConvexIntegrator<T>::ComputeNextStateLeapfrog(const T& h,
   // TODO(vincekurtz): add geometry and linearization reuse
   Context<T>& context = *this->get_mutable_context();
   ContinuousState<T>& x = context.get_mutable_continuous_state();
+  const VectorX<T> x0 = context.get_continuous_state().CopyToVector();
 
   VectorX<T>& v = scratch_.v;
   VectorX<T>& q = scratch_.q;
@@ -282,6 +290,7 @@ void ConvexIntegrator<T>::ComputeNextStateLeapfrog(const T& h,
   context.NoteContinuousStateChange();
 
   AdvancePlantVelocity(gamma * h, v_guess, &v);
+  // AdvancePlantVelocity(h, v_guess, &v);  // DEBUG: full step (first order)
   x.get_mutable_generalized_velocity().SetFromVector(v);
   context.NoteContinuousStateChange();
 
@@ -302,6 +311,9 @@ void ConvexIntegrator<T>::ComputeNextStateLeapfrog(const T& h,
     // Set the updated external state
     x_next->get_mutable_misc_continuous_state().SetFromVector(z);
   }
+
+  // Reset the internally stored state for subsequent steps
+  x.SetFromVector(x0);
 }
 
 template <typename T>

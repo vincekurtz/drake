@@ -625,6 +625,10 @@ int do_main() {
 
   simulator->set_publish_every_time_step(true);
   simulator->Initialize();
+
+  const double start_energy = plant.CalcKineticEnergy(plant_context) +
+                              plant.CalcPotentialEnergy(plant_context);
+
   if (FLAGS_visualize) {
     // Wait for meshcat to load
     std::cout << "Press [ENTER] to continue ...\n";
@@ -652,6 +656,12 @@ int do_main() {
     meshcat->StopRecording();
     meshcat->PublishRecording();
   }
+
+  const double end_energy = plant.CalcKineticEnergy(plant_context) +
+                            plant.CalcPotentialEnergy(plant_context);
+
+  const double energy_change = end_energy - start_energy;
+  std::cout << "Energy change [J]: " << energy_change << std::endl;
 
   PrintSimulatorStatistics(*simulator);
 
