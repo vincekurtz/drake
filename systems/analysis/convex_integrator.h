@@ -281,11 +281,21 @@ class ConvexIntegrator final : public IntegratorBase<T> {
                                   bool reuse_geometry_data = false,
                                   bool reuse_linearization = false);
 
+  // Solve the convex problem to compute next-step velocities,
+  // v = min ℓ(v; q₀, v₀, h).
+  // N.B. the initial state (q₀, v₀) is stored in this->get_context().
+  void AdvancePlantVelocity(const T& h, const VectorX<T>& v_guess,
+                            VectorX<T>* v, bool reuse_geometry_data = false,
+                            bool reuse_linearization = false);
+
   // Advance the plant's generalized positions, q = q₀ + h N(q₀) v, taking care
   // to handle quaternion DoFs properly.
   // N.B. q₀ is stored in this->get_context().
   void AdvancePlantConfiguration(const T& h, const VectorX<T>& v,
                                  VectorX<T>* q) const;
+
+  // Advance the external state with explicit euler, z = z₀ + h ż₀
+  void AdvanceExternalState(const T& h, VectorX<T>* z) const;
 
   // Solve the convex SAP problem for next-step velocities v = min ℓ(v).
   // The solution is written back into the initial guess v. Returns true if

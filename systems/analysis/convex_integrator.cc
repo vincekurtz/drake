@@ -214,6 +214,33 @@ void ConvexIntegrator<T>::ComputeNextContinuousState(const T& h,
                                                      ContinuousState<T>* x_next,
                                                      bool reuse_geometry_data,
                                                      bool reuse_linearization) {
+  // Solve the optimization problem for next-step velocities v = min ℓ(v).
+  VectorX<T>& v = scratch_.v;
+  AdvancePlantVelocity(h, v_guess, &v, reuse_geometry_data,
+                       reuse_linearization);
+
+  // q = q₀ + h N(q₀) v
+  VectorX<T>& q = scratch_.q;
+  AdvancePlantConfiguration(h, v, &q);
+
+  // Set the updated plant state
+  x_next->get_mutable_generalized_position().SetFromVector(q);
+  x_next->get_mutable_generalized_velocity().SetFromVector(v);
+
+  // Advance the non-plant state, z = z₀ + h ż.
+  if (x_next->num_z() > 0) {
+    VectorX<T>& z = scratch_.z;
+    AdvanceExternalState(h, &z);
+    x_next->get_mutable_misc_continuous_state().SetFromVector(z);
+  }
+}
+
+template <typename T>
+void ConvexIntegrator<T>::AdvancePlantVelocity(const T& h,
+                                               const VectorX<T>& v_guess,
+                                               VectorX<T>* v,
+                                               bool reuse_geometry_data,
+                                               bool reuse_linearization) {
   // Get plant context storing initial state [q₀, v₀].
   const Context<T>& context = this->get_context();
   const Context<T>& plant_context = plant().GetMyContextFromRoot(context);
@@ -252,9 +279,8 @@ void ConvexIntegrator<T>::ComputeNextContinuousState(const T& h,
   }
 
   // Solve the optimization problem for next-step velocities v = min ℓ(v).
-  VectorX<T>& v = scratch_.v;
-  v = v_guess;
-  if (!SolveWithGuess(model, &v)) {
+  *v = v_guess;
+  if (!SolveWithGuess(model, v)) {
     throw std::runtime_error("ConvexIntegrator: optimization failed.");
   }
 
@@ -262,32 +288,6 @@ void ConvexIntegrator<T>::ComputeNextContinuousState(const T& h,
   total_solver_iterations_ += stats_.iterations;
   total_ls_iterations_ += std::accumulate(stats_.ls_iterations.begin(),
                                           stats_.ls_iterations.end(), 0);
-
-  // q = q₀ + h N(q₀) v
-  VectorX<T>& q = scratch_.q;
-  AdvancePlantConfiguration(h, v, &q);
-
-  // Set the updated plant state
-  x_next->get_mutable_generalized_position().SetFromVector(q);
-  x_next->get_mutable_generalized_velocity().SetFromVector(v);
-
-  // Advance the non-plant state with explicit euler,
-  //   z = z₀ + h ż.
-  // While we could use a more advanced integration scheme here, the non-plant
-  // dynamics are usually pretty simple (e.g., the integral term from a PID
-  // controller), so forward euler is sufficient.
-  if (x_next->num_z() > 0) {
-    VectorX<T>& z = scratch_.z;
-
-    this->get_system().CalcMiscStateTimeDerivatives(context, z_dot_.get());
-    VectorX<T> z_dot = z_dot_->get_misc_continuous_state().CopyToVector();
-
-    z = context.get_continuous_state()
-            .get_misc_continuous_state()
-            .CopyToVector();
-    z += h * z_dot;
-    x_next->get_mutable_misc_continuous_state().SetFromVector(z);
-  }
 }
 
 template <typename T>
@@ -317,6 +317,20 @@ void ConvexIntegrator<T>::AdvancePlantConfiguration(const T& h,
       q->template segment<4>(i).normalize();
     }
   }
+}
+
+template <typename T>
+void ConvexIntegrator<T>::AdvanceExternalState(const T& h,
+                                               VectorX<T>* z) const {
+  const Context<T>& context = this->get_context();
+
+  // While we could use a more advanced integration scheme here, the non-plant
+  // dynamics are usually pretty simple (e.g., the integral term from a PID
+  // controller), so forward euler is sufficient.
+  *z =
+      context.get_continuous_state().get_misc_continuous_state().CopyToVector();
+  this->get_system().CalcMiscStateTimeDerivatives(context, z_dot_.get());
+  *z = h * z_dot_->get_misc_continuous_state().CopyToVector();
 }
 
 template <typename T>
