@@ -267,11 +267,8 @@ void ConvexIntegrator<T>::ComputeNextStateLeapfrog(const T& h,
 
   // First half-step on positions
   // q̃ = q₀ + 0.5 h N(q₀) v₀
-  // AdvancePlantConfiguration(0.5 * h, v_guess, &q);
-  // x.get_mutable_generalized_position().SetFromVector(q);
-  AdvanceStateExplicitMidpoint(0.5 * h);
-  q = x.get_generalized_position().CopyToVector();
-  context.NoteContinuousStateChange();
+  // AdvanceStateExplicitMidpoint(0.5 * h);
+  // context.NoteContinuousStateChange();
 
   // Full step on velocities, but using SDIRK2 to get second-order
   // v = min ℓ(v; q̃, v₀, h)
@@ -285,14 +282,13 @@ void ConvexIntegrator<T>::ComputeNextStateLeapfrog(const T& h,
   // context.NoteContinuousStateChange();
 
   // AdvancePlantVelocity(gamma * h, v_guess, &v);
-  AdvancePlantVelocity(h, v_guess, &v);
-  x.get_mutable_generalized_velocity().SetFromVector(v);
-  context.NoteContinuousStateChange();
+  // x.get_mutable_generalized_velocity().SetFromVector(v);
+  // context.NoteContinuousStateChange();
 
   // Second half-step on explicit terms
-  // AdvanceStateExplicitMidpoint(0.5 * h);
-  AdvanceStateExplicitMidpoint(0.5 * h);
+  AdvanceStateExplicitMidpoint(h);
   q = x.get_generalized_position().CopyToVector();
+  v = x.get_generalized_velocity().CopyToVector();
   context.NoteContinuousStateChange();
 
   // Set the updated plant state
@@ -414,8 +410,8 @@ void ConvexIntegrator<T>::AdvanceStateExplicitMidpoint(const T& h) {
   VectorX<T> vdot = M.ldlt().solve(k);
 
   // First half-step, x̃ = x₀ + 0.5 h ẋ
-  VectorX<T> q_tilde = q0 + 1.0 * h * qdot;
-  VectorX<T> v_tilde = v0 + 1.0 * h * vdot;
+  VectorX<T> q_tilde = q0 + 0.5 * h * qdot;
+  VectorX<T> v_tilde = v0 + 0.5 * h * vdot;
 
   context.get_mutable_continuous_state()
       .get_mutable_generalized_position()
@@ -424,7 +420,23 @@ void ConvexIntegrator<T>::AdvanceStateExplicitMidpoint(const T& h) {
       .get_mutable_generalized_velocity()
       .SetFromVector(v_tilde);
 
-  // TODO: second half-step
+  // Get derivatives at ̃x 
+  plant().MapVelocityToQDot(plant_context, v_tilde, &qdot);
+  plant().CalcMassMatrix(plant_context, &M);
+  plant().CalcForceElementsContribution(plant_context, &forces);
+  plant().CalcGeneralizedForces(plant_context, forces, &k);
+  vdot = M.ldlt().solve(k);
+
+  // Full step x = x₀ + h ẋ
+  VectorX<T> q = q0 + h * qdot;
+  VectorX<T> v = v0 + h * vdot;
+  
+  context.get_mutable_continuous_state()
+      .get_mutable_generalized_position()
+      .SetFromVector(q);
+  context.get_mutable_continuous_state()
+      .get_mutable_generalized_velocity()
+      .SetFromVector(v);
 
 }
 

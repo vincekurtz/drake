@@ -354,22 +354,30 @@ if __name__ == "__main__":
 
     meshcat = StartMeshcat()
 
-    energy_changes = []
-    for time_step in [1e-2, 1e-3, 1e-4, 1e-5, 1e-6]:
+    # energy_changes = []
+    # for time_step in [1e-2, 1e-3, 1e-4, 1e-5, 1e-6]:
 
-        time_steps, _, energy_change = run_simulation(
-            example,
-            args.integrator,
-            args.accuracy,
-            max_step_size=time_step,
-            meshcat=meshcat,
-            visualize=False
-        )
-        energy_changes.append(energy_change)
+    #     time_steps, _, energy_change = run_simulation(
+    #         example,
+    #         args.integrator,
+    #         args.accuracy,
+    #         max_step_size=time_step,
+    #         meshcat=meshcat,
+    #         visualize=False
+    #     )
+    #     energy_changes.append(energy_change)
 
-    print("")
-    print(repr(energy_changes))
-    print("")
+    # print("")
+    # print(repr(energy_changes))
+    # print("")
+    time_steps, _, _ = run_simulation(
+        example,
+        args.integrator,
+        args.accuracy,
+        max_step_size=args.max_step_size,
+        meshcat=meshcat,
+        visualize=True
+    )
 
     if args.plot:
         times = np.cumsum(time_steps)
