@@ -265,8 +265,14 @@ class ConvexIntegrator final : public IntegratorBase<T> {
   // requires a total of 3 SAP solves, but produces a 2nd order solution
   bool StepWithLeapfrogErrorEstimate(const T& h);
 
-  // Solve the SAP problem to compute x_{t+h} at a given step size. This will be
-  // called multiple times for each DoStep to compute the error estimate.
+  // Compute the state x = [q, v, z] at the next time step using symplectic
+  // Euler:
+  //
+  //      v = min ℓ(v; q₀, v₀, h)
+  //      q = q₀ + h N(q₀) v
+  //      z = z₀ + h ż₀
+  //
+  // With a fixed time-step, this is the same as discrete SAP.
   //
   // @param h the time step to use
   // @param v_guess the initial guess for the MbP plant velocities.
@@ -276,10 +282,12 @@ class ConvexIntegrator final : public IntegratorBase<T> {
   //                            the first half-step.
   // @param reuse_linearization use previously computed external system
   // linearization, e.g., in the half-steps.
-  void ComputeNextContinuousState(const T& h, const VectorX<T>& v_guess,
-                                  ContinuousState<T>* x_next,
-                                  bool reuse_geometry_data = false,
-                                  bool reuse_linearization = false);
+  //
+  // @note the starting state x₀ is stored in this->get_context().
+  void ComputeNextStateSymplecticEuler(const T& h, const VectorX<T>& v_guess,
+                                       ContinuousState<T>* x_next,
+                                       bool reuse_geometry_data = false,
+                                       bool reuse_linearization = false);
 
   // Solve the convex problem to compute next-step velocities,
   // v = min ℓ(v; q₀, v₀, h).

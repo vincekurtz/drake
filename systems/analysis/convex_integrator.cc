@@ -129,7 +129,7 @@ bool ConvexIntegrator<T>::StepWithHalfSteppingErrorEstimate(const T& h) {
   // error control is enabled or not.
   VectorX<T>& v_guess = scratch_.v_guess;
   v_guess = plant().GetVelocities(plant_context);
-  ComputeNextContinuousState(h, v_guess, x_next_full_.get());
+  ComputeNextStateSymplecticEuler(h, v_guess, x_next_full_.get());
 
   if (this->get_fixed_step_mode()) {
     // We're using fixed step mode, so we can just set the state to x_{t+h} and
@@ -145,9 +145,9 @@ bool ConvexIntegrator<T>::StepWithHalfSteppingErrorEstimate(const T& h) {
     // initial guess
     v_guess += x_next_full_->get_generalized_velocity().CopyToVector();
     v_guess /= 2.0;
-    ComputeNextContinuousState(0.5 * h, v_guess, x_next_half_1_.get(),
-                               /* reuse_geometry_data = */ true,
-                               /* reuse_linearization = */ true);
+    ComputeNextStateSymplecticEuler(0.5 * h, v_guess, x_next_half_1_.get(),
+                                    /* reuse_geometry_data = */ true,
+                                    /* reuse_linearization = */ true);
 
     // For the second half-step to (t + h), we need to start from (t + h/2). So
     // we'll first set the system state to the result of the first half-step.
@@ -157,9 +157,9 @@ bool ConvexIntegrator<T>::StepWithHalfSteppingErrorEstimate(const T& h) {
     // Now we can take the second half-step. We'll use the solution of the full
     // step as our initial guess here.
     v_guess = x_next_full_->get_generalized_velocity().CopyToVector();
-    ComputeNextContinuousState(0.5 * h, v_guess, x_next_half_2_.get(),
-                               /* reuse_geometry_data = */ false,
-                               /* reuse_linearization = */ true);
+    ComputeNextStateSymplecticEuler(0.5 * h, v_guess, x_next_half_2_.get(),
+                                    /* reuse_geometry_data = */ false,
+                                    /* reuse_linearization = */ true);
 
     // Set the state to the result of the second half-step (since this is more
     // accurate than the full step, and we have it anyway).
@@ -209,27 +209,26 @@ bool ConvexIntegrator<T>::StepWithLeapfrogErrorEstimate(const T& h) {
 }
 
 template <typename T>
-void ConvexIntegrator<T>::ComputeNextContinuousState(const T& h,
-                                                     const VectorX<T>& v_guess,
-                                                     ContinuousState<T>* x_next,
-                                                     bool reuse_geometry_data,
-                                                     bool reuse_linearization) {
-  // Solve the optimization problem for next-step velocities v = min ℓ(v).
+void ConvexIntegrator<T>::ComputeNextStateSymplecticEuler(
+    const T& h, const VectorX<T>& v_guess, ContinuousState<T>* x_next,
+    bool reuse_geometry_data, bool reuse_linearization) {
   VectorX<T>& v = scratch_.v;
+  VectorX<T>& q = scratch_.q;
+  VectorX<T>& z = scratch_.z;
+
+  // v = min ℓ(v; q₀, v₀, h)
   AdvancePlantVelocity(h, v_guess, &v, reuse_geometry_data,
                        reuse_linearization);
 
   // q = q₀ + h N(q₀) v
-  VectorX<T>& q = scratch_.q;
   AdvancePlantConfiguration(h, v, &q);
 
   // Set the updated plant state
   x_next->get_mutable_generalized_position().SetFromVector(q);
   x_next->get_mutable_generalized_velocity().SetFromVector(v);
 
-  // Advance the non-plant state, z = z₀ + h ż.
+  // z = z₀ + h ż.
   if (x_next->num_z() > 0) {
-    VectorX<T>& z = scratch_.z;
     AdvanceExternalState(h, &z);
     x_next->get_mutable_misc_continuous_state().SetFromVector(z);
   }
