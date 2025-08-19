@@ -238,7 +238,7 @@ class ConvexIntegrator final : public IntegratorBase<T> {
    * Half-stepping error estimation gives a second-order error estimate. See
    * ImplicitEulerIntegrator for details.
    */
-  int get_error_estimate_order() const final { return 2; }
+  int get_error_estimate_order() const final { return 3; }
 
  private:
   friend class ConvexIntegratorTester;
