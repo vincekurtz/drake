@@ -257,26 +257,30 @@ void ConvexIntegrator<T>::ComputeNextStateLeapfrog(const T& h,
                                                    const VectorX<T>& v_guess,
                                                    ContinuousState<T>* x_next) {
   // TODO(vincekurtz): add geometry and linearization reuse
+  Context<T>& context = *this->get_mutable_context();
+  ContinuousState<T>& x = context.get_mutable_continuous_state();
+
   VectorX<T>& v = scratch_.v;
   VectorX<T>& q = scratch_.q;
   VectorX<T>& z = scratch_.z;
 
-  // First half-step on velocities
-  // ṽ = min ℓ(v; q₀, v₀, h/2)
-  AdvancePlantVelocity(0.5 * h, v_guess, &v);
-
-  // Full step on positions
-  // q = q₀ + h N(q₀) ṽ
-  AdvancePlantConfiguration(h, v, &q);
-
-  // Set internal plant state to [q, ṽ] to prepare for the second half-step
-  ContinuousState<T>& x =
-      this->get_mutable_context()->get_mutable_continuous_state();
+  // First half-step on positions
+  // q̃ = q₀ + 0.5 h N(q₀) v₀
+  AdvancePlantConfiguration(0.5 * h, v_guess, &q);
   x.get_mutable_generalized_position().SetFromVector(q);
-  x.get_mutable_generalized_velocity().SetFromVector(v);
+  context.NoteContinuousStateChange();
 
-  // Second half-step on velocities
-  AdvancePlantVelocity(0.5 * h, v, &v);
+  // Full step on velocities
+  // v = min ℓ(v; q̃, v₀, h)
+  AdvancePlantVelocity(h, v_guess, &v);
+  x.get_mutable_generalized_velocity().SetFromVector(v);
+  context.NoteContinuousStateChange();
+
+  // Second half-step on positions
+  // q = q₀ + 0.5 h N(q̃) v
+  AdvancePlantConfiguration(0.5 * h, v, &q);
+  x.get_mutable_generalized_position().SetFromVector(q);
+  context.NoteContinuousStateChange();
 
   // Set the updated plant state
   x_next->get_mutable_generalized_velocity().SetFromVector(v);
@@ -285,6 +289,8 @@ void ConvexIntegrator<T>::ComputeNextStateLeapfrog(const T& h,
   // z = z₀ + h ż.
   if (x_next->num_z() > 0) {
     AdvanceExternalState(h, &z);
+
+    // Set the updated external state
     x_next->get_mutable_misc_continuous_state().SetFromVector(z);
   }
 }
