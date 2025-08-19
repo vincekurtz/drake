@@ -210,69 +210,70 @@ bool ConvexIntegrator<T>::StepWithLeapfrogErrorEstimate(const T& h) {
   const Context<T>& plant_context = plant().GetMyContextFromRoot(context);
   const T t0 = context.get_time();
   
-  // Solve for the full step x_{t+h}. We'll need this regardless of whether
-  // error control is enabled or not.
-  VectorX<T>& v_guess = scratch_.v_guess;
-  v_guess = plant().GetVelocities(plant_context);
-  ComputeNextStateLeapfrog(h, v_guess, x_next_full_.get());
-
-  if (this->get_fixed_step_mode()) {
-    // We're using fixed step mode, so we can just set the state to x_{t+h} and
-    // move on. No need for error estimation.
-    // N.B. this is slightly faster than x_next.SetFrom(*x_next_full_), because
-    // it saves an intermediate Eigen representation.
-    x_next.get_mutable_vector().SetFrom(x_next_full_->get_vector());
-    context.SetTime(t0 + h);
-  } else {
-    // We're using error control, and will compare with two half-sized steps.
-
-    // First half-step to (t + h/2) uses the average of v_t and v_{t+1} as the
-    // initial guess
-    v_guess += x_next_full_->get_generalized_velocity().CopyToVector();
-    v_guess /= 2.0;
-    ComputeNextStateLeapfrog(0.5 * h, v_guess, x_next_half_1_.get());
-
-    // For the second half-step to (t + h), we need to start from (t + h/2). So
-    // we'll first set the system state to the result of the first half-step.
-    x_next.get_mutable_vector().SetFrom(x_next_half_1_->get_vector());
-    context.SetTimeAndNoteContinuousStateChange(t0 + 0.5 * h);
-
-    // Now we can take the second half-step. We'll use the solution of the full
-    // step as our initial guess here.
-    v_guess = x_next_full_->get_generalized_velocity().CopyToVector();
-    ComputeNextStateLeapfrog(0.5 * h, v_guess, x_next_half_2_.get());
-
-    // Set the state to the result of the second half-step (since this is more
-    // accurate than the full step, and we have it anyway).
-    x_next.get_mutable_vector().SetFrom(x_next_half_2_->get_vector());
-    context.SetTimeAndNoteContinuousStateChange(t0 + h);
-
-    // Estimate the error as the difference between the full step and the
-    // two half-steps.
-    ContinuousState<T>& err = *this->get_mutable_error_estimate();
-    err.get_mutable_vector().SetFrom(x_next_full_->get_vector());
-    err.get_mutable_vector().PlusEqScaled(-1.0, x_next_half_2_->get_vector());
-  }
-
-  // // Solve for the full step x_{t+h} with second-order Strang-splitting.
+  // // Solve for the full step x_{t+h}. We'll need this regardless of whether
+  // // error control is enabled or not.
   // VectorX<T>& v_guess = scratch_.v_guess;
   // v_guess = plant().GetVelocities(plant_context);
   // ComputeNextStateLeapfrog(h, v_guess, x_next_full_.get());
 
-  // if (!this->get_fixed_step_mode()) {
-  //   // Get a next-state estimate with first-order symplectic euler
-  //   ComputeNextStateSymplecticEuler(h, v_guess, x_next_half_2_.get());
+  // if (this->get_fixed_step_mode()) {
+  //   // We're using fixed step mode, so we can just set the state to x_{t+h} and
+  //   // move on. No need for error estimation.
+  //   // N.B. this is slightly faster than x_next.SetFrom(*x_next_full_), because
+  //   // it saves an intermediate Eigen representation.
+  //   x_next.get_mutable_vector().SetFrom(x_next_full_->get_vector());
+  //   context.SetTime(t0 + h);
+  // } else {
+  //   // We're using error control, and will compare with two half-sized steps.
 
-  //   // Estimate the error as the difference between the second-order and
-  //   // the first-order steps.
+  //   // First half-step to (t + h/2) uses the average of v_t and v_{t+1} as the
+  //   // initial guess
+  //   v_guess += x_next_full_->get_generalized_velocity().CopyToVector();
+  //   v_guess /= 2.0;
+  //   ComputeNextStateLeapfrog(0.5 * h, v_guess, x_next_half_1_.get());
+
+  //   // For the second half-step to (t + h), we need to start from (t + h/2). So
+  //   // we'll first set the system state to the result of the first half-step.
+  //   x_next.get_mutable_vector().SetFrom(x_next_half_1_->get_vector());
+  //   context.SetTimeAndNoteContinuousStateChange(t0 + 0.5 * h);
+
+  //   // Now we can take the second half-step. We'll use the solution of the full
+  //   // step as our initial guess here.
+  //   v_guess = x_next_full_->get_generalized_velocity().CopyToVector();
+  //   ComputeNextStateLeapfrog(0.5 * h, v_guess, x_next_half_2_.get());
+
+  //   // Set the state to the result of the second half-step (since this is more
+  //   // accurate than the full step, and we have it anyway).
+  //   x_next.get_mutable_vector().SetFrom(x_next_half_2_->get_vector());
+  //   context.SetTimeAndNoteContinuousStateChange(t0 + h);
+
+  //   // Estimate the error as the difference between the full step and the
+  //   // two half-steps.
   //   ContinuousState<T>& err = *this->get_mutable_error_estimate();
   //   err.get_mutable_vector().SetFrom(x_next_full_->get_vector());
   //   err.get_mutable_vector().PlusEqScaled(-1.0, x_next_half_2_->get_vector());
-
   // }
-  // // Propagate the second-order solution, regardless of error control.
-  // x_next.get_mutable_vector().SetFrom(x_next_full_->get_vector());
-  // context.SetTime(t0 + h);
+
+  // Solve for the full step x_{t+h} with second-order Strang-splitting.
+  VectorX<T>& v_guess = scratch_.v_guess;
+  v_guess = plant().GetVelocities(plant_context);
+  ComputeNextStateLeapfrog(h, v_guess, x_next_full_.get());
+
+  if (!this->get_fixed_step_mode()) {
+    // Get a next-state estimate with first-order symplectic euler
+    v_guess = x_next_full_->get_generalized_velocity().CopyToVector();
+    ComputeNextStateSymplecticEuler(h, v_guess, x_next_half_2_.get());
+
+    // Estimate the error as the difference between the second-order and
+    // the first-order steps.
+    ContinuousState<T>& err = *this->get_mutable_error_estimate();
+    err.get_mutable_vector().SetFrom(x_next_full_->get_vector());
+    err.get_mutable_vector().PlusEqScaled(-1.0, x_next_half_2_->get_vector());
+
+  }
+  // Propagate the second-order solution, regardless of error control.
+  x_next.get_mutable_vector().SetFrom(x_next_full_->get_vector());
+  context.SetTime(t0 + h);
 
   return true;  // step was successful
 }
