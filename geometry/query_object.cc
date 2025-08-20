@@ -1,5 +1,6 @@
 #include "drake/geometry/query_object.h"
 
+#include "drake/common/cpu_timing_logger.h"
 #include "drake/common/default_scalars.h"
 #include "drake/common/drake_assert.h"
 #include "drake/geometry/geometry_state.h"
@@ -139,8 +140,10 @@ typename std::enable_if_t<scalar_predicate<T1>::is_bool,
 QueryObject<T>::ComputeContactSurfaces(
     HydroelasticContactRepresentation representation) const {
   ThrowIfNotCallable();
-
-  FullPoseUpdate();
+  {
+    DRAKE_CPU_SCOPED_TIMER("FullPoseUpdate");
+    FullPoseUpdate();
+  }
   const GeometryState<T>& state = geometry_state();
   return state.ComputeContactSurfaces(representation);
 }
@@ -153,8 +156,10 @@ typename std::enable_if_t<
 QueryObject<T>::ComputeContactSurfacesWithSycl(
     HydroelasticContactRepresentation representation) const {
   ThrowIfNotCallable();
-
-  FullPoseUpdate();
+  {
+    DRAKE_CPU_SCOPED_TIMER("FullPoseUpdate");
+    FullPoseUpdate();
+  }
   const GeometryState<T>& state = geometry_state();
   return state.ComputeContactSurfacesWithSycl(representation);
 }
@@ -190,7 +195,10 @@ QueryObject<T>::ComputeContactSurfacesWithFallback(
 
   ThrowIfNotCallable();
 
-  FullPoseUpdate();
+  {
+    DRAKE_CPU_SCOPED_TIMER("FullPoseUpdate");
+    FullPoseUpdate();
+  }
   const GeometryState<T>& state = geometry_state();
   state.ComputeContactSurfacesWithFallback(representation, surfaces,
                                            point_pairs);

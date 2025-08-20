@@ -905,16 +905,23 @@ class ProximityEngine<T>::Impl : public ShapeReifier {
       candidates = FindCollisionCandidates();
     }
     std::vector<SortedPair<GeometryId>> supported_candidates;
-    std::copy_if(
-        candidates.begin(), candidates.end(),
-        std::back_inserter(supported_candidates), [this](const auto& pair) {
-          auto typeA = hydroelastic_geometries_.hydroelastic_type(pair.first());
-          auto typeB =
-              hydroelastic_geometries_.hydroelastic_type(pair.second());
-          return typeA == HydroelasticType::kSoft &&
-                 typeB == HydroelasticType::kSoft;
-        });
-    sycl_engine_->UpdateCollisionCandidates(supported_candidates);
+    {
+      DRAKE_CPU_SCOPED_TIMER("CopyIf");
+      std::copy_if(
+          candidates.begin(), candidates.end(),
+          std::back_inserter(supported_candidates), [this](const auto& pair) {
+            auto typeA =
+                hydroelastic_geometries_.hydroelastic_type(pair.first());
+            auto typeB =
+                hydroelastic_geometries_.hydroelastic_type(pair.second());
+            return typeA == HydroelasticType::kSoft &&
+                   typeB == HydroelasticType::kSoft;
+          });
+    }
+    {
+      DRAKE_CPU_SCOPED_TIMER("UpdateCollisionCandidates");
+      sycl_engine_->UpdateCollisionCandidates(supported_candidates);
+    }
     return sycl_engine_->ComputeSYCLHydroelasticSurface(X_WGs);
   }
 
