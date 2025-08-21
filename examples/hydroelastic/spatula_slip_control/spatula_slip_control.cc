@@ -96,7 +96,15 @@ using systems::SimulatorConfig;
 namespace examples {
 namespace spatula_slip_control {
 namespace {
-
+std::string GetBaseOutDir() {
+  if (const char* ws = std::getenv("BUILD_WORKSPACE_DIRECTORY")) {
+    return std::string(ws);
+  }
+  if (const char* wd = std::getenv("BUILD_WORKING_DIRECTORY")) {
+    return std::string(wd);
+  }
+  return std::filesystem::current_path().string();
+}
 // We create a simple leaf system that outputs a square wave signal for our
 // open loop controller. The Square system here supports an arbitrarily
 // dimensional signal, but we will use a 2-dimensional signal for our gripper.
@@ -157,7 +165,7 @@ void PrintPerformanceStats(
     const drake::multibody::MultibodyPlant<double>& plant,
     const drake::geometry::SceneGraph<double>& scene_graph,
     const drake::systems::Context<double>& scene_graph_context, bool sycl_used,
-    int mesh_res, int num_instances, double sim_time) {
+    int mesh_res, int num_instances, double sim_time, std::string out_dir) {
   std::string demo_name = "spatula_slip_control_" + std::to_string(mesh_res) +
                           "_" + std::to_string(num_instances);
   std::string runtime_device;
@@ -165,23 +173,6 @@ void PrintPerformanceStats(
   if (env_var != nullptr) {
     runtime_device = env_var;
   }
-  std::string out_dir;
-  if (FLAGS_integration_scheme == "convex") {
-    if (FLAGS_use_error_control) {
-      out_dir =
-          "/home/huzaifaunjhawala/drake_vince/"
-          "performance_jsons_spatula_slip_control_scale_convex_error_control";
-    } else {
-      out_dir =
-          "/home/huzaifaunjhawala/drake_vince/"
-          "performance_jsons_spatula_slip_control_scale_convex/";
-    }
-  } else {
-    out_dir =
-        "/home/huzaifaunjhawala/drake_vince/"
-        "performance_jsons_spatula_slip_control_scale/";
-  }
-  fmt::print("Out dir: {}\n", out_dir);
 
   // Create the output directory if it doesn't exist
   if (!std::filesystem::exists(out_dir)) {
@@ -289,6 +280,41 @@ void PrintPerformanceStats(
 }
 
 int DoMain() {
+  std::string base_out_dir = GetBaseOutDir();
+  // Add trailing slash if not present
+  if (base_out_dir.back() != '/') {
+    base_out_dir += '/';
+  }
+
+  if (FLAGS_print_perf || FLAGS_visualize) {
+    fmt::print("Base output directory: {}\n", base_out_dir);
+  }
+  std::string timing_out_dir;
+  std::string html_out_dir;
+  if (FLAGS_integration_scheme == "convex") {
+    if (FLAGS_use_error_control) {
+      timing_out_dir = base_out_dir +
+                       "performance_jsons_spatula_slip_control_scale_convex_"
+                       "error_control";
+      html_out_dir = base_out_dir + "spatula_convex_error_control_html/";
+    } else {
+      timing_out_dir =
+          base_out_dir + "performance_jsons_spatula_slip_control_scale_convex/";
+      html_out_dir = base_out_dir + "spatula_convex_html/";
+    }
+  } else {
+    timing_out_dir =
+        base_out_dir + "performance_jsons_spatula_slip_control_scale/";
+    html_out_dir = base_out_dir + "spatula_html/";
+  }
+  if (FLAGS_print_perf) {
+    fmt::print("Timing out dir: {}\n", timing_out_dir);
+  }
+
+  if (FLAGS_visualize) {
+    fmt::print("HTML out dir: {}\n", html_out_dir);
+  }
+
   // Construct a MultibodyPlant and a SceneGraph.
   systems::DiagramBuilder<double> builder;
 
@@ -577,17 +603,34 @@ int DoMain() {
           "contact_surface");
     }
     meshcat->PublishRecording();
+
+    if (!std::filesystem::exists(html_out_dir)) {
+      std::filesystem::create_directories(html_out_dir);
+    }
+
+    std::string device_type = FLAGS_use_sycl ? "sycl-gpu" : "drake-cpu";
+    std::string demo_name = "spatula_slip_control_" +
+                            std::to_string(FLAGS_mesh_res) + "_" +
+                            std::to_string(FLAGS_num_instances);
+
+    std::ofstream f(html_out_dir + demo_name + "_" + device_type + ".html");
+    fmt::print("Writing meshcat html to {}\n",
+               html_out_dir + demo_name + "_" + device_type + ".html");
+    f << meshcat->StaticHtml();
+    f.close();
   }
   PrintSimulatorStatistics(simulator);
   if (FLAGS_print_perf) {
     if (FLAGS_use_sycl) {
       PrintPerformanceStats(plant, scene_graph, scene_graph_context,
                             /*sycl_used=*/true, FLAGS_mesh_res,
-                            FLAGS_num_instances, total_advance_to_time);
+                            FLAGS_num_instances, total_advance_to_time,
+                            timing_out_dir);
     } else {
       PrintPerformanceStats(plant, scene_graph, scene_graph_context,
                             /*sycl_used=*/false, FLAGS_mesh_res,
-                            FLAGS_num_instances, total_advance_to_time);
+                            FLAGS_num_instances, total_advance_to_time,
+                            timing_out_dir);
     }
   }
   return 0;

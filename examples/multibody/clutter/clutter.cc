@@ -165,6 +165,15 @@ const double length(0.8);
 
 std::vector<geometry::GeometryId> box_geometry_ids;
 
+std::string GetBaseOutDir() {
+  if (const char* ws = std::getenv("BUILD_WORKSPACE_DIRECTORY")) {
+    return std::string(ws);
+  }
+  if (const char* wd = std::getenv("BUILD_WORKING_DIRECTORY")) {
+    return std::string(wd);
+  }
+  return std::filesystem::current_path().string();
+}
 struct BenchmarkConfig {
   int objects_per_pile;
   int num_spheres_per_face;
@@ -184,7 +193,8 @@ void PrintPerformanceStats(
     const drake::multibody::MultibodyPlant<double>& plant,
     const drake::geometry::SceneGraph<double>& scene_graph,
     const drake::systems::Context<double>& scene_graph_context, bool sycl_used,
-    const BenchmarkConfig& config, const double sim_time) {
+    const BenchmarkConfig& config, const double sim_time,
+    const std::string& out_dir) {
   // Create a descriptive name for output files
   std::string demo_name = "clutter";
 
@@ -208,9 +218,7 @@ void PrintPerformanceStats(
   if (env_var != nullptr) {
     runtime_device = env_var;
   }
-  std::string out_dir =
-      "/home/huzaifaunjhawala/drake_vince/"
-      "performance_jsons_clutter_convex_Aug13/";
+
   // Create output directory if it doesn't exist
   if (!std::filesystem::exists(out_dir)) {
     std::filesystem::create_directories(out_dir);
@@ -661,6 +669,27 @@ void SetObjectsIntoAPile(const MultibodyPlant<double>& plant,
 }
 
 int do_main() {
+  std::string base_out_dir = GetBaseOutDir();
+  // Add trailing slash if not present
+  if (base_out_dir.back() != '/') {
+    base_out_dir += '/';
+  }
+
+  if (FLAGS_print_perf || FLAGS_visualize) {
+    fmt::print("Base output directory: {}\n", base_out_dir);
+  }
+
+  std::string timing_out_dir =
+      base_out_dir + "performance_jsons_clutter_convex_Aug13/";
+  if (FLAGS_print_perf) {
+    fmt::print("Timing output directory: {}\n", timing_out_dir);
+  }
+
+  std::string html_out_dir = base_out_dir + "clutter_html/";
+  if (FLAGS_visualize) {
+    fmt::print("HTML output directory: {}\n", html_out_dir);
+  }
+
   // Build a generic multibody plant.
   systems::DiagramBuilder<double> builder;
 
@@ -788,10 +817,6 @@ int do_main() {
   simulator->set_publish_every_time_step(true);
   simulator->Initialize();
   if (FLAGS_visualize) {
-    // Wait for meshcat to load
-    std::cout << "Press [ENTER] to continue ...\n";
-    getchar();
-
     const double recording_frames_per_second =
         FLAGS_mbp_time_step == 0 ? 32 : 1.0 / FLAGS_mbp_time_step;
     meshcat->StartRecording(recording_frames_per_second);
@@ -809,10 +834,35 @@ int do_main() {
   const double sim_time =
       std::chrono::duration<double>(sim_end_time - sim_start_time).count();
   std::cout << "AdvanceTo() time [sec]: " << sim_time << std::endl;
-
+  BenchmarkConfig benchmark_config = GetBenchmarkConfig();
   if (FLAGS_visualize) {
     meshcat->StopRecording();
     meshcat->PublishRecording();
+    if (!std::filesystem::exists(html_out_dir)) {
+      std::filesystem::create_directories(html_out_dir);
+    }
+
+    std::string device_type = FLAGS_use_sycl ? "sycl-gpu" : "drake-cpu";
+    std::string demo_name = "clutter";
+
+    demo_name += "_" + std::to_string(benchmark_config.objects_per_pile);
+    std::ostringstream box_resolution_stream;
+    box_resolution_stream << std::fixed << std::setprecision(4)
+                          << benchmark_config.box_resolution;
+    demo_name += "_" + box_resolution_stream.str();
+
+    std::ostringstream sphere_resolution_stream;
+    sphere_resolution_stream << std::fixed << std::setprecision(4)
+                             << benchmark_config.sphere_resolution;
+    demo_name += "_" + sphere_resolution_stream.str();
+
+    demo_name += "_" + std::to_string(benchmark_config.num_spheres_per_face);
+
+    std::ofstream f(html_out_dir + demo_name + "_" + device_type + ".html");
+    fmt::print("Writing meshcat html to {}\n",
+               html_out_dir + demo_name + "_" + device_type + ".html");
+    f << meshcat->StaticHtml();
+    f.close();
   }
 
   PrintSimulatorStatistics(*simulator);
@@ -820,22 +870,24 @@ int do_main() {
       simulator->get_mutable_context();
   systems::Context<double>& scene_graph_context =
       diagram->GetMutableSubsystemContext(scene_graph, &mutable_root_context);
-  BenchmarkConfig benchmark_config = GetBenchmarkConfig();
+
   if (FLAGS_print_perf) {
     if (FLAGS_use_sycl) {
       PrintPerformanceStats(plant, scene_graph, scene_graph_context,
-                            /*sycl_used=*/true, benchmark_config, sim_time);
+                            /*sycl_used=*/true, benchmark_config, sim_time,
+                            timing_out_dir);
     } else {
       PrintPerformanceStats(plant, scene_graph, scene_graph_context,
-                            /*sycl_used=*/false, benchmark_config, sim_time);
+                            /*sycl_used=*/false, benchmark_config, sim_time,
+                            timing_out_dir);
     }
   }
 
-  if (FLAGS_visualize) {
-    // Wait for meshcat to finish rendering.
-    std::cout << "Press [ENTER] to quit ...\n";
-    getchar();
-  }
+  // if (FLAGS_visualize) {
+  //   // Wait for meshcat to finish rendering.
+  //   std::cout << "Press [ENTER] to quit ...\n";
+  //   getchar();
+  // }
 
   return 0;
 }
