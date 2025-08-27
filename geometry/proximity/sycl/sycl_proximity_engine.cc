@@ -77,6 +77,7 @@ class SyclProximityEngine::Impl {
     sorted_ids_.reserve(soft_geometries.size());
     for (const auto& [id, _] : soft_geometries) {
       sorted_ids_.push_back(id);
+      sorted_ids_map_[id] = sorted_ids_.size() - 1;
     }
     std::sort(sorted_ids_.begin(), sorted_ids_.end());
 
@@ -381,19 +382,11 @@ class SyclProximityEngine::Impl {
   void UpdateCollisionCandidates(
       const std::vector<SortedPair<GeometryId>>& collision_candidates) {
     collision_candidates_.clear();
+    collision_candidates_.reserve(collision_candidates.size());
     // Get a vector of sorted ids that we need to check collision for
     for (const auto& pair : collision_candidates) {
-      auto itA = std::lower_bound(sorted_ids_.begin(), sorted_ids_.end(),
-                                  pair.first());
-      auto itB = std::lower_bound(sorted_ids_.begin(), sorted_ids_.end(),
-                                  pair.second());
-      // Demand that the found ID is valid and what is being looked for
-      DRAKE_DEMAND(itA != sorted_ids_.end() && *itA == pair.first());
-      DRAKE_DEMAND(itB != sorted_ids_.end() && *itB == pair.second());
-      uint32_t indexA =
-          static_cast<uint32_t>(std::distance(sorted_ids_.begin(), itA));
-      uint32_t indexB =
-          static_cast<uint32_t>(std::distance(sorted_ids_.begin(), itB));
+      uint32_t indexA = sorted_ids_map_[pair.first()];
+      uint32_t indexB = sorted_ids_map_[pair.second()];
 
       // Can't have same ID
       DRAKE_DEMAND(indexA != indexB);
@@ -445,7 +438,8 @@ class SyclProximityEngine::Impl {
     std::sort(collision_candidates_.begin(), collision_candidates_.end(),
               [](const std::pair<uint32_t, uint32_t>& a,
                  const std::pair<uint32_t, uint32_t>& b) {
-                return a.first < b.first;
+                if (a.first != b.first) return a.first < b.first;
+                return a.second < b.second;
               });
 
     num_mesh_collisions_ = collision_candidates_.size();
@@ -983,6 +977,7 @@ class SyclProximityEngine::Impl {
   // The collision candidates.
   std::vector<std::pair<uint32_t, uint32_t>> collision_candidates_;
   std::vector<GeometryId> sorted_ids_;
+  std::unordered_map<GeometryId, uint32_t> sorted_ids_map_;
   std::unordered_map<uint64_t, std::pair<DeviceMeshACollisionCounters,
                                          DeviceMeshPairCollidingIndices>>
       collision_candidates_to_data_;
