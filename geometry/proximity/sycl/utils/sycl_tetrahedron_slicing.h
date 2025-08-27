@@ -75,28 +75,17 @@ constexpr std::array<std::array<int, 4>, 16> kMarchingTetsEdgeTable = {
  * Slices a tetrahedron with an equilibrium plane and stores the resulting
  * polygon vertices in shared local memory.
  *
- * @param item SYCL work item for synchronization
- * @param slm Shared local memory accessor for general data
- * @param slm_offset Offset into slm for this work group's data
- * @param slm_polygon Shared local memory accessor for polygon data
- * @param slm_polygon_offset Offset into slm_polygon for this work group's data
- * @param slm_ints Shared local memory accessor for integer data
- * @param slm_ints_offset Offset into slm_ints for this work group's data
- * @param vertex_offset Offset to vertex data in slm
- * @param eq_plane_offset Offset to equilibrium plane data in slm
- * @param random_scratch_offset Offset to scratch space in slm
- * @param polygon_offset Offset to polygon data in slm_polygon
- * @param check_local_item_id Local thread ID within the check
- * @param NUM_THREADS_PER_CHECK Number of threads per collision check
  */
 SYCL_EXTERNAL inline void SliceTetWithEqPlane(
     sycl::nd_item<1> item, const sycl::local_accessor<double, 1>& slm,
-    const uint32_t slm_offset, const sycl::local_accessor<double, 1>& slm_polygon,
+    const uint32_t slm_offset,
+    const sycl::local_accessor<double, 1>& slm_polygon,
     const uint32_t slm_polygon_offset,
-    const sycl::local_accessor<int, 1>& slm_ints, const uint32_t slm_ints_offset,
-    const uint32_t vertex_offset, const uint32_t eq_plane_offset,
-    const uint32_t random_scratch_offset, const uint32_t polygon_offset,
-    const uint32_t check_local_item_id, const uint32_t NUM_THREADS_PER_CHECK) {
+    const sycl::local_accessor<int, 1>& slm_ints,
+    const uint32_t slm_ints_offset, const uint32_t vertex_offset,
+    const uint32_t eq_plane_offset, const uint32_t random_scratch_offset,
+    const uint32_t polygon_offset, const uint32_t check_local_item_id,
+    const uint32_t NUM_THREADS_PER_CHECK) {
   for (uint32_t llid = check_local_item_id; llid < 4;
        llid += NUM_THREADS_PER_CHECK) {
     // Each thread gets 1 vertex of element A in slm
@@ -199,13 +188,14 @@ SYCL_EXTERNAL inline void SliceTetWithEqPlane(
 // returned upon invalid geometry calcs (no surfaces, no areas etc)
 SYCL_EXTERNAL inline void SliceTetWithEqPlaneNoReturn(
     sycl::nd_item<1> item, const sycl::local_accessor<double, 1>& slm,
-    const uint32_t slm_offset, const sycl::local_accessor<double, 1>& slm_polygon,
+    const uint32_t slm_offset,
+    const sycl::local_accessor<double, 1>& slm_polygon,
     const uint32_t slm_polygon_offset,
-    const sycl::local_accessor<int, 1>& slm_ints, const uint32_t slm_ints_offset,
-    const uint32_t vertex_offset, const uint32_t eq_plane_offset,
-    const uint32_t random_scratch_offset, const uint32_t polygon_offset,
-    const uint32_t check_local_item_id, const uint32_t NUM_THREADS_PER_CHECK,
-    bool valid_thread) {
+    const sycl::local_accessor<int, 1>& slm_ints,
+    const uint32_t slm_ints_offset, const uint32_t vertex_offset,
+    const uint32_t eq_plane_offset, const uint32_t random_scratch_offset,
+    const uint32_t polygon_offset, const uint32_t check_local_item_id,
+    const uint32_t NUM_THREADS_PER_CHECK, bool valid_thread) {
   if (valid_thread) {
     for (uint32_t llid = check_local_item_id; llid < 4;
          llid += NUM_THREADS_PER_CHECK) {

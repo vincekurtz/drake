@@ -44,8 +44,8 @@ SYCL_EXTERNAL inline void make_node(volatile BVHPackedNodeHalf* n,
   n->b = static_cast<unsigned int>(leaf ? 1 : 0);
 }
 
-// TODO - Can apparently be done more efficiently by loading as float4 and then
-// converting to BVHPackedNodeHalf (according to Warp). Try later
+// TODO(Huzaifa) - Can apparently be done more efficiently by loading as float4
+// and then converting to BVHPackedNodeHalf (according to Warp). Try later
 SYCL_EXTERNAL inline BVHPackedNodeHalf bvh_load_node(
     const BVHPackedNodeHalf* nodes, int index) {
   return nodes[index];
@@ -72,13 +72,9 @@ SYCL_EXTERNAL inline uint32_t morton3(float x, float y, float z) {
   return (part1by2(uz) << 2) | (part1by2(uy) << 1) | part1by2(ux);
 }
 
-// Broad Phase
-// Build the mesh BVH's if not already built otherwise just traverse it
-
-// Create a linear BVH as described in Fast and Simple Agglomerative LBVH
-// construction
-// this is a bottom-up clustering method that outputs one node per-leaf
-// This class creates BVHs for all meshes in parallel
+// BVH Broad Phae class
+// Uses LBVH as explained in Fast and Simple Agglomerative LBVH construction
+// (https://diglib.eg.org/server/api/core/bitstreams/ad092db2-6aec-4f2c-941d-8687de258f00/content)
 class BVHBroadPhase {
  public:
   BVHBroadPhase() = default;
@@ -116,11 +112,13 @@ class BVHBroadPhase {
     kMinPrimitivesPerLeaf = 8,  // Minimum primitives before creating leaf
     kMaxDepth = 32              // Maximum tree depth before forcing leaf
   };
+  // Refits the BVHs of all meshes that are colliding with updated AABBs
   sycl::event refit(const DeviceMeshData& mesh_data, DeviceBVHData& bvh_data,
                     sycl::event& element_aabb_event,
                     SyclMemoryManager& memory_manager, const uint32_t* mesh_as,
                     const uint32_t* mesh_bs, const uint32_t num_mesh_as,
                     sycl::queue& q_device);
+  // TODO(Huzaifa): This function is not used and must be removed
   sycl::event ComputeCollisionCounts(const uint32_t mesh_a,
                                      const uint32_t mesh_b,
                                      const DeviceBVHData& bvh_data,
@@ -128,12 +126,18 @@ class BVHBroadPhase {
                                      DeviceMeshACollisionCounters& cc,
                                      sycl::event& refit_event,
                                      sycl::queue& q_device);
+  // Computes for each primitive of mesh A the number of collision it has with
+  // the primitives of mesh B. These counts are then used for assigning the
+  // required memory to write the tet collision pairs. All the pairs of meshes
+  // are launched in one big kernel launch to eliminate SYCL kernel launch
+  // overhead.
   sycl::event ComputeCollisionCountsAll(
       const uint32_t* meshAs, const uint32_t* meshBs,
       const DeviceBVHData& bvh_data, const DeviceMeshData& mesh_data,
       DeviceCollisionCountersMemoryChunk& counters_chunk,
       DeviceCollisionCountersOffsetsMemoryChunk& counters_offsets_chunk,
       sycl::event& refit_event, sycl::queue& q_device);
+  // TODO(Huzaifa): This function is not used and must be removed
   sycl::event ComputeCollisionPairs(const uint32_t mesh_a,
                                     const uint32_t mesh_b,
                                     const DeviceBVHData& bvh_data,
@@ -141,6 +145,9 @@ class BVHBroadPhase {
                                     DeviceMeshACollisionCounters& cc,
                                     DeviceMeshPairCollidingIndices& ci,
                                     sycl::queue& q_device);
+  // Computes for each primitive of mesh A the global primitive ids of mesh B
+  // that it collides with. All the pairs of meshes are launched in one big
+  // kernel launch to eliminate SYCL kernel launch overhead.
   sycl::event ComputeCollisionPairsAll(
       const uint32_t* meshAs, const uint32_t* meshBs,
       const DeviceBVHData& bvh_data, const DeviceMeshData& mesh_data,

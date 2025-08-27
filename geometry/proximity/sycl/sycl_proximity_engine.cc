@@ -69,10 +69,6 @@ class SyclProximityEngine::Impl {
       : q_device_(InitializeQueue()), mem_mgr_(q_device_), timing_logger_() {
     DRAKE_THROW_UNLESS(soft_geometries.size() > 0);
 
-    // #ifdef DRAKE_SYCL_TIMING_ENABLED
-    //     timing_logger_.SetEnabled(true);
-    // #endif
-
     // Extract and sort geometry IDs for deterministic ordering
     sorted_ids_.reserve(soft_geometries.size());
     for (const auto& [id, _] : soft_geometries) {
@@ -114,7 +110,8 @@ class SyclProximityEngine::Impl {
       // Store the geometry's ID
       mesh_data_.geometry_ids[id_index] = id;
 
-      // Store offsets and counts directly (no memcpy needed with shared memory)
+      // Store offsets and counts directly (no memcpy needed with "shared"
+      // memory)
       mesh_data_.element_offsets[id_index] = total_elements_;
       mesh_data_.vertex_offsets[id_index] = total_vertices_;
       bvh_data_.node_offsets[id_index] = total_nodes_;
@@ -282,8 +279,6 @@ class SyclProximityEngine::Impl {
                          host_gradient_M_pressure_at_Mo.data(),
                          total_elements_ * sizeof(Vector4<double>)));
 
-    // We try and heuristically estimate the number of polygons as 1% of the
-    // total checks possible
     uint32_t max_checks = 0;
     uint32_t num_elements_in_last_geometry =
         mesh_data_.element_counts[num_geometries_ - 1];
@@ -321,8 +316,8 @@ class SyclProximityEngine::Impl {
 
   // Copy constructor
   Impl(const Impl& other) : q_device_(other.q_device_), mem_mgr_(q_device_) {
-    // TODO(huzaifa): Implement deep copy of SYCL resources
-    // For now, we'll just create a shallow copy which isn't ideal
+    // TODO(huzaifa): This function is incomplete. We need deep copy's of all
+    // the SYCL resources.
     collision_candidates_ = other.collision_candidates_;
     num_geometries_ = other.num_geometries_;
   }
@@ -330,8 +325,8 @@ class SyclProximityEngine::Impl {
   // Copy assignment operator
   Impl& operator=(const Impl& other) {
     if (this != &other) {
-      // TODO(huzaifa): Implement deep copy of SYCL resources
-      // For now, we'll just create a shallow copy which isn't ideal
+      // TODO(huzaifa): This function is incomplete. We need deep copy's of all
+      // the SYCL resources.
       q_device_ = other.q_device_;
       collision_candidates_ = other.collision_candidates_;
       num_geometries_ = other.num_geometries_;
@@ -355,8 +350,8 @@ class SyclProximityEngine::Impl {
                                                              counters_chunk_);
     SyclMemoryHelper::FreeDeviceCollisionCountersOffsetsMemoryChunk(
         mem_mgr_, counters_offsets_chunk_);
-    if (mesh_pair_ids_.meshAs) mem_mgr_.Free(mesh_pair_ids_.meshAs);
-    if (mesh_pair_ids_.meshBs) mem_mgr_.Free(mesh_pair_ids_.meshBs);
+    mem_mgr_.Free(mesh_pair_ids_.meshAs);
+    mem_mgr_.Free(mesh_pair_ids_.meshBs);
   }
 
   // Check if SYCL is available
@@ -383,7 +378,7 @@ class SyclProximityEngine::Impl {
       const std::vector<SortedPair<GeometryId>>& collision_candidates) {
     collision_candidates_.clear();
     collision_candidates_.reserve(collision_candidates.size());
-    // Get a vector of sorted ids that we need to check collision for
+
     for (const auto& pair : collision_candidates) {
       uint32_t indexA = sorted_ids_map_[pair.first()];
       uint32_t indexB = sorted_ids_map_[pair.second()];
@@ -470,11 +465,11 @@ class SyclProximityEngine::Impl {
   std::vector<SYCLHydroelasticSurface> ComputeSYCLHydroelasticSurface(
       const std::unordered_map<GeometryId, math::RigidTransform<double>>&
           X_WGs) {
+    // If we only have one geometry, we do not have any contact surface, so we
+    // return early
     if (num_geometries_ < 2) {
       return {};
     }
-
-    // Build the BVH for each mesh with the untransformed
 
 #ifdef DRAKE_SYCL_TIMING_ENABLED
 #ifdef TIME_MEMCPY
@@ -482,7 +477,7 @@ class SyclProximityEngine::Impl {
 #endif
 #endif
 
-    // Get transfomers in host
+    // Copy over transforms
     for (uint32_t geom_index = 0; geom_index < num_geometries_; ++geom_index) {
       GeometryId geometry_id = mesh_data_.geometry_ids[geom_index];
       const auto& X_WG = X_WGs.at(geometry_id);
@@ -505,7 +500,7 @@ class SyclProximityEngine::Impl {
 #endif
 #endif
     // ========================================
-    // Command group 1: Transform quantities to world frame
+    // Preprocess Step 1: Transform quantities to world frame
     // ========================================
 
     // Combine all transformation kernels into a single command group
@@ -549,7 +544,7 @@ class SyclProximityEngine::Impl {
           });
     });
 
-    // Transform inward normals
+    // Transform inward normals and pressure gradients
     auto transform_elem_quantities_event1 =
         q_device_.submit([&](sycl::handler& h) {
           const uint32_t work_group_size = 256;
@@ -620,7 +615,9 @@ class SyclProximityEngine::Impl {
               });
         });
 
-    // Compute AABBs of all the elements in all the meshes
+    // ========================================
+    // Preprocess Step 2: Compute AABBs of all the elements in all the meshes
+    // ========================================
     auto element_aabb_event = q_device_.submit([&](sycl::handler& h) {
       h.depends_on(transform_vertices_event);
       const uint32_t work_group_size = 256;
@@ -684,15 +681,20 @@ class SyclProximityEngine::Impl {
             element_aabb_max_W[element_index][2] = max_z;
           });
     });
+
+    // ========================================
+    // Broad Phase Step 1: Build BVH of all meshes if not built
+    // ========================================
     if (!bvh_broad_phase_.IsBVHBuilt()) {
       // Build BVH if not built
       bvh_broad_phase_.build(mesh_data_, sorted_total_lower_,
                              sorted_total_upper_, bvh_data_, element_aabb_event,
                              mem_mgr_, q_device_);
-      // Building refits the BVH
-      bvh_broad_phase_.SetBVHRefitted(true);
     }
 
+    // ========================================
+    // Broad Phase Step 2: Collide BVHs of mesh pairs to compute tet pairs
+    // ========================================
     // Blocking event call
     bvh_broad_phase_.BroadPhase(
         mesh_data_, sorted_total_lower_, sorted_total_upper_, bvh_data_,
@@ -713,6 +715,7 @@ class SyclProximityEngine::Impl {
     drake::common::ProblemSizeLogger::GetInstance().AddCount(
         "SYCLCandidateTets", total_narrow_phase_checks_);
 
+    // Check if we have enough memory - if not, allocate more
     if (total_narrow_phase_checks_ > current_polygon_areas_size_) {
       // Give a 10 % bigger size
       uint32_t new_size =
@@ -736,13 +739,18 @@ class SyclProximityEngine::Impl {
               static_cast<uint8_t>(1), current_polygon_areas_size_)
         .wait();
 
-    // Create dependency vector
+    // All the events that need to be completed before we move to the narrow
+    // phase
     std::vector<sycl::event> dependencies = {transform_elem_quantities_event1};
 #ifdef DRAKE_SYCL_TIMING_ENABLED
 #ifdef TIME_KERNEL
     timing_logger_.StartKernel("compute_contact_polygons");
 #endif
 #endif
+    // ========================================
+    // Narrow Phase Step: Compute soup of contact faces that need to be passed
+    // to the solver
+    // ========================================
     sycl::event compute_contact_polygon_event;
     if (q_device_.get_device().get_info<sycl::info::device::device_type>() ==
         sycl::info::device_type::gpu) {
@@ -809,6 +817,7 @@ class SyclProximityEngine::Impl {
     timing_logger_.StartKernel("compact_polygon_data");
 #endif
 #endif
+    // Check if we have enough memory - if not, allocate more
     if (total_polygons_ > current_polygon_indices_size_) {
       // Give a 10 % bigger size
       uint32_t new_size = static_cast<uint32_t>(1.1 * total_polygons_);
@@ -924,7 +933,7 @@ class SyclProximityEngine::Impl {
     surfaces.push_back(surface);
     // For now return a vector
     return surfaces;
-  }  // namespace sycl_impl
+  }
 
  private:
   // Helper method to initialize SYCL queue
@@ -1020,7 +1029,7 @@ class SyclProximityEngine::Impl {
                                      // be 1% of the narrow phase checks)
 
   friend class SyclProximityEngineAttorney;
-};  // namespace sycl_impl
+};
 
 bool SyclProximityEngine::is_available() {
   return Impl::is_available();
@@ -1385,12 +1394,6 @@ HostBVH SyclProximityEngineAttorney::get_host_bvh(
   HostBVH host_bvh;
   host_bvh.max_nodes = device_bvh.max_nodes;
 
-  // TODO - Set these post build in GPU BVH
-  // host_bvh.num_nodes =
-  //     device_bvh.num_nodes;  // Assuming this is set post-build.
-  // host_bvh.num_leaf_nodes =
-  //     device_bvh.num_leaf_nodes;  // Assuming set post-build.
-
   // Copy arrays to host vectors.
   host_bvh.node_lowers.resize(device_bvh.max_nodes);
   impl->mem_mgr_.CopyToHost(host_bvh.node_lowers.data(), device_bvh.node_lowers,
@@ -1404,7 +1407,7 @@ HostBVH SyclProximityEngineAttorney::get_host_bvh(
   impl->mem_mgr_.CopyToHost(host_bvh.node_parents.data(),
                             device_bvh.node_parents, device_bvh.max_nodes);
 
-  // Copy root index (single int).
+  // Copy root index (single int)
   int device_root;
   impl->mem_mgr_.CopyToHost(&device_root, device_bvh.root, 1);
   host_bvh.root_index = device_root;

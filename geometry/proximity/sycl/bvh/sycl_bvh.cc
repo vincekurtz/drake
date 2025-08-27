@@ -575,8 +575,8 @@ sycl::event BVHBroadPhase::refit(
             uint32_t global_node_offset = node_offsets[mesh_id];
             uint32_t local_element_index = global_eI - global_element_offset;
             BVH& bvh = bvhAll[mesh_id];
-            // Don't process meshes that are not in mesh_as or mesh_bs
-            // See if mesh_ids are in mesh_as and mesh_bs
+            // Don't process meshes that are not in mesh_as or mesh_bs since
+            // this means that they are not colliding
             bool found_mesh_a = false;
             bool found_mesh_b = false;
             for (uint32_t i = 0; i < num_mesh_as; i++) {
@@ -646,6 +646,8 @@ sycl::event BVHBroadPhase::refit(
             // Now update hierarchy by moving upwards
             while (parent != -1) {
               uint32_t parent_global_index = global_node_offset + parent;
+              // TODO(Huzaifa): Expensive (!!!!!) device level syncs - think of
+              // ways to eliminate this
               sycl::atomic_fence(sycl::memory_order::acq_rel,
                                  sycl::memory_scope::device);
               sycl::atomic_ref<uint32_t, sycl::memory_order::acq_rel,
@@ -769,6 +771,8 @@ sycl::event BVHBroadPhase::refit(
   return refit_event;
 }
 
+/// TODO(Huzaifa): This individual mesh pair kernel launch is not used and must
+/// be removed
 sycl::event BVHBroadPhase::ComputeCollisionCounts(
     const uint32_t mesh_a, const uint32_t mesh_b, const DeviceBVHData& bvh_data,
     const DeviceMeshData& mesh_data, DeviceMeshACollisionCounters& cc,
@@ -1011,6 +1015,7 @@ sycl::event BVHBroadPhase::ComputeCollisionCountsAll(
   return compute_collision_counts_all_event;
 }
 
+// TODO(Huzaifa): This kernel launch is not used and must be removed
 sycl::event BVHBroadPhase::ComputeCollisionPairs(
     const uint32_t mesh_a, const uint32_t mesh_b, const DeviceBVHData& bvh_data,
     const DeviceMeshData& mesh_data, DeviceMeshACollisionCounters& cc,
@@ -1288,57 +1293,17 @@ void BVHBroadPhase::BroadPhase(
     DeviceMeshPairIds& mesh_pair_ids, SyclMemoryManager& memory_manager,
     sycl::queue& q_device) {
   auto policy = oneapi::dpl::execution::make_device_policy(q_device);
-  // Run a refit with the new AABBs - If the BVH is just built, then we don't
-  // need to refit on the very first time step
-  // By default, we refit every single mesh every time step because otherwise
-  // the number of nodes will be too little for the GPU
-  // TODO(Huzaifa): Refit only colliding meshes and compare the performance
+  // Run a refit with the new AABBs - We only refit meshes that are colliding
   sycl::event refit_event;
-  // if (!IsBVHRefitted()) {
   refit_event = refit(mesh_data, bvh_data, element_aabb_event, memory_manager,
                       mesh_pair_ids.meshAs, mesh_pair_ids.meshBs,
                       num_mesh_collisions, q_device);
-  // }
 
-  // Process the collision pairs
-  // First the number of collisions for each element of mesh A is computed.
-  // sycl::event event_to_depend_on =
-  //     IsBVHRefitted() ? element_aabb_event : refit_event;
-  // sycl::event event_to_depend_on = refit_event;
-  // std::unordered_map<uint64_t, sycl::event> pair_events_map;
-  // for (auto& [key, value] : collision_candidates_to_data) {
-  //   auto& [cc, ci] = value;
-  //   auto [mesh_a, mesh_b] = key_to_pair(key);
-  //   pair_events_map[key] = ComputeCollisionCounts(
-  //       mesh_a, mesh_b, bvh_data, mesh_data, cc, event_to_depend_on,
-  //       q_device);
-  // }
   sycl::event event_to_depend_on = refit_event;
   sycl::event compute_collision_counts_all_event = ComputeCollisionCountsAll(
       mesh_pair_ids.meshAs, mesh_pair_ids.meshBs, bvh_data, mesh_data,
       counters_chunk_, counters_offsets_chunk_, event_to_depend_on, q_device);
   compute_collision_counts_all_event.wait_and_throw();
-
-  // for (int i = 0; i < num_mesh_collisions; i++) {
-  //   uint32_t mesh_a = mesh_pair_ids.meshAs[i];
-  //   uint32_t mesh_b = mesh_pair_ids.meshBs[i];
-  //   uint64_t col_key = key(mesh_a, mesh_b);
-  //   auto& [cc, ci] = collision_candidates_to_data[col_key];
-  //   // pair_events_map[key].wait();
-  //   // Store the last element's collision count
-  //   uint32_t last_element_collision_count = 0;
-  //   q_device
-  //       .memcpy(&last_element_collision_count,
-  //               cc.collision_counts + cc.size_ - 1, sizeof(uint32_t))
-  //       .wait();
-  //   cc.last_element_collision_count = last_element_collision_count;
-  //   // Scan and get total collision count
-  //   oneapi::dpl::exclusive_scan(policy, cc.collision_counts,
-  //                               cc.collision_counts + cc.size_,
-  //                               cc.collision_counts,
-  //                               static_cast<uint32_t>(0));
-  // }
-  // Wait for all the scans to complete
 
   // Get the last element count of last mesh
   uint32_t last_element_collision_count = 0;
@@ -1365,54 +1330,10 @@ void BVHBroadPhase::BroadPhase(
   counters_chunk_.total_collisions = total_collisions;
   pair_chunk_.size_ = total_collisions;
 
-  // // Compute the total collisions and assign the memory required to compute
-  // // the collision pairs
-  // for (int i = 0; i < num_mesh_collisions; i++) {
-  //   uint32_t mesh_a = mesh_pair_ids.meshAs[i];
-  //   uint32_t mesh_b = mesh_pair_ids.meshBs[i];
-  //   uint64_t col_key = key(mesh_a, mesh_b);
-  //   auto& [cc, ci] = collision_candidates_to_data[col_key];
-  //   uint32_t total_collisions = 0;
-  //   q_device
-  //       .memcpy(&total_collisions, cc.collision_counts + cc.size_ - 1,
-  //               sizeof(uint32_t))
-  //       .wait();
-  //   cc.total_collisions = total_collisions +
-  //   cc.last_element_collision_count;
-  // }
-
-  // Get pointers to the chunk of collision pair indices memory
-  // that we need to write to
-  // uint32_t offset = 0;
-  // for (int i = 0; i < num_mesh_collisions; i++) {
-  //   uint32_t mesh_a = mesh_pair_ids.meshAs[i];
-  //   uint32_t mesh_b = mesh_pair_ids.meshBs[i];
-  //   uint64_t col_key = key(mesh_a, mesh_b);
-  //   auto& [cc, ci] = collision_candidates_to_data[col_key];
-  //   SyclMemoryHelper::ResizeDeviceMeshPairCollidingIndicesMemory(
-  //       memory_manager, ci, pair_chunk_, cc.total_collisions, offset);
-  //   offset += cc.total_collisions;
-  // }
-  // pair_chunk_.size_ = offset;
-
-  // Compute the actual collision pairs
-  // std::vector<sycl::event> pair_events_vec;
-  // for (int i = 0; i < num_mesh_collisions; i++) {
-  //   uint32_t mesh_a = mesh_pair_ids.meshAs[i];
-  //   uint32_t mesh_b = mesh_pair_ids.meshBs[i];
-  //   uint64_t col_key = key(mesh_a, mesh_b);
-  //   auto& [cc, ci] = collision_candidates_to_data[col_key];
-  //   pair_events_vec.push_back(ComputeCollisionPairs(
-  //       mesh_a, mesh_b, bvh_data, mesh_data, cc, ci, q_device));
-  // }
   sycl::event compute_collision_pairs_all_event = ComputeCollisionPairsAll(
       mesh_pair_ids.meshAs, mesh_pair_ids.meshBs, bvh_data, mesh_data,
       counters_chunk_, counters_offsets_chunk_, pair_chunk_, q_device);
   compute_collision_pairs_all_event.wait();
-
-  // sycl::event::wait_and_throw(pair_events_vec);
-  // We need to refit every timestep except for the first one
-  SetBVHRefitted(false);
 }
 }  // namespace sycl_impl
 }  // namespace internal

@@ -12,6 +12,7 @@ namespace internal {
 namespace sycl_impl {
 
 // Struct to hold a deep-copied host version of BVH data.
+// Solely used for testing purposes
 struct HostBVH {
   std::vector<BVHPackedNodeHalf> node_lowers;
   std::vector<BVHPackedNodeHalf> node_uppers;

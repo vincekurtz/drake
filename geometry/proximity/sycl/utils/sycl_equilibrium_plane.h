@@ -19,26 +19,26 @@ namespace sycl_impl {
  * The equilibrium plane is defined as the plane where the pressure
  * values of both fields are equal.
  *
- * @param gradP_A_Wo_x X component of pressure gradient for geometry A in world
+ * gradP_A_Wo_x X component of pressure gradient for geometry A in world
  * frame
- * @param gradP_A_Wo_y Y component of pressure gradient for geometry A in world
+ * gradP_A_Wo_y Y component of pressure gradient for geometry A in world
  * frame
- * @param gradP_A_Wo_z Z component of pressure gradient for geometry A in world
+ * gradP_A_Wo_z Z component of pressure gradient for geometry A in world
  * frame
- * @param p_A_Wo Pressure at world origin for geometry A
- * @param gradP_B_Wo_x X component of pressure gradient for geometry B in world
+ * p_A_Wo Pressure at world origin for geometry A
+ * gradP_B_Wo_x X component of pressure gradient for geometry B in world
  * frame
- * @param gradP_B_Wo_y Y component of pressure gradient for geometry B in world
+ * gradP_B_Wo_y Y component of pressure gradient for geometry B in world
  * frame
- * @param gradP_B_Wo_z Z component of pressure gradient for geometry B in world
+ * gradP_B_Wo_z Z component of pressure gradient for geometry B in world
  * frame
- * @param p_B_Wo Pressure at world origin for geometry B
- * @param eq_plane_out Output array to store equilibrium plane data:
+ * p_B_Wo Pressure at world origin for geometry B
+ * eq_plane_out Output array to store equilibrium plane data:
  *   [0-2]: normalized normal vector
  *   [3-5]: point on plane
  *   [6]: gM value (dot product of gradient A with normal)
  *   [7]: gN value (negative dot product of gradient B with normal)
- * @return true if a valid equilibrium plane was found, false otherwise
+ * true if a valid equilibrium plane was found, false otherwise
  */
 SYCL_EXTERNAL inline bool ComputeEquilibriumPlane(
     double gradP_A_Wo_x, double gradP_A_Wo_y, double gradP_A_Wo_z,

@@ -13,9 +13,9 @@ namespace sycl_impl {
 // Struct's for BVH broad phase implementation
 // Reference: Warp (https://github.com/NVIDIA/warp/blob/main/warp/native/bvh.h)
 struct BVHPackedNodeHalf {
-  float x;
-  float y;
-  float z;
+  double x;
+  double y;
+  double z;
   // For non-leaf nodes:
   // - 'lower.i' represents the index of the left child node.
   // - 'upper.i' represents the index of the right child node.

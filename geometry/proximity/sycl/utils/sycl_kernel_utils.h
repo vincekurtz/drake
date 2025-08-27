@@ -65,7 +65,6 @@ SYCL_EXTERNAL inline bool PressuresIntersect(const double min_A,
   return !(max_B < min_A || max_A < min_B);
 }
 
-// AI Generated - tetsted externally
 template <class RandomIt, class T, class Compare = std::less<>>
 SYCL_EXTERNAL RandomIt upper_bound_device(RandomIt first, RandomIt last,
                                           const T& value,
