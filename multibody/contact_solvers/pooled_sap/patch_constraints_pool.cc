@@ -226,7 +226,6 @@ T PooledSapModel<T>::PatchConstraintsPool::CalcLaggedHuntCrossleyModel(
   const T& n0 = n0_[pk];
   const T& fe0 = fn0_[pk];
 
-  // const T& dt = time_step_;
   const T dt = use_half_step_signed_distances_ ? 0.5 * time_step_ : time_step_;
 
   // Cost

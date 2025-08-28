@@ -101,7 +101,7 @@ def create_bouncing_ball_sim():
     simulator = Simulator(diagram, context)
     config = SimulatorConfig()
     config.integration_scheme = "convex"
-    config.max_step_size = 1e-5
+    config.max_step_size = 1e-4
     config.use_error_control = False
     config.accuracy = 1e-6
     ApplySimulatorConfig(config, simulator)
