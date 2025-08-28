@@ -121,6 +121,23 @@ const char floating_double_pendulum_xml[] = R"""(
 </mujoco>
 )""";
 
+// MJCF model of an undamped double pendulum, for energy conservation tests
+const char undamped_double_pendulum_xml[] = R"""(
+<?xml version="1.0"?>
+<mujoco model="double_pendulum">
+<worldbody>
+  <body>
+  <joint type="hinge" axis="0 1 0" pos="0 0 0.1" damping="0.0"/>
+  <geom type="capsule" size="0.01 0.1"/>
+  <body>
+    <joint type="hinge" axis="0 1 0" pos="0 0 -0.1" damping="0.0"/>
+    <geom type="capsule" size="0.01 0.1" pos="0 0 -0.2"/>
+  </body>
+  </body>
+</worldbody>
+</mujoco> 
+)""";
+
 class ConvexIntegratorTester {
  public:
   ConvexIntegratorTester() = delete;
@@ -688,6 +705,54 @@ GTEST_TEST(ConvexIntegratorTest, FloatingDoublePendulum) {
   std::cout << std::endl;
   PrintSimulatorStatistics(simulator);
   std::cout << std::endl;
+}
+
+// Test energy conservation, to characterize the order of the integrator
+GTEST_TEST(ConvexIntegratorTest, UndampedDoublePendulum) {
+  DiagramBuilder<double> builder;
+  auto [plant, scene_graph] = AddMultibodyPlantSceneGraph(&builder, 0.0);
+  Parser(&plant).AddModelsFromString(undamped_double_pendulum_xml, "xml");
+  plant.Finalize();
+  auto diagram = builder.Build();
+
+  Simulator<double> simulator(*diagram);
+  SimulatorConfig config;
+  config.target_realtime_rate = 0.0;
+  config.publish_every_time_step = true;
+  ApplySimulatorConfig(config, &simulator);
+
+  ConvexIntegrator<double>& integrator =
+      simulator.reset_integrator<ConvexIntegrator<double>>();
+  integrator.get_mutable_solver_parameters().print_solver_stats = false;
+  integrator.get_mutable_solver_parameters().error_estimation_strategy =
+      "midpoint";
+  integrator.set_plant(&plant);
+  integrator.set_fixed_step_mode(true);
+  integrator.set_maximum_step_size(0.001);
+
+  auto& diagram_context = simulator.get_mutable_context();
+  Context<double>& plant_context =
+      plant.GetMyMutableContextFromRoot(&diagram_context);
+
+  VectorXd q0(2);
+  VectorXd v0(2);
+  q0 << 3.0, 0.1;
+  plant.SetPositions(&plant_context, q0);
+
+  const double start_energy = plant.CalcPotentialEnergy(plant_context) +
+                               plant.CalcKineticEnergy(plant_context);
+
+  simulator.Initialize();
+  simulator.AdvanceTo(10.0);
+  std::cout << std::endl;
+  PrintSimulatorStatistics(simulator);
+  std::cout << std::endl;
+
+  const double end_energy = plant.CalcPotentialEnergy(plant_context) +
+                             plant.CalcKineticEnergy(plant_context);
+  std::cout << "Start energy: " << start_energy << std::endl;
+  std::cout << "End energy: " << end_energy << std::endl;
+  std::cout << "Energy error: " << end_energy - start_energy << std::endl;
 }
 
 }  // namespace systems
