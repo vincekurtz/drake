@@ -324,7 +324,8 @@ class ConvexIntegrator final : public IntegratorBase<T> {
   // initial guess for the optimization problem.
   void AdvancePlantVelocity(const T& h, const VectorX<T>& v_start,
                             VectorX<T>* v, bool reuse_geometry_data = false,
-                            bool reuse_linearization = false);
+                            bool reuse_linearization = false,
+                            bool use_half_step_signed_distances = false);
 
   // Advance the plant's generalized positions, q = q₀ + h N(q₀) v, taking care
   // to handle quaternion DoFs properly.

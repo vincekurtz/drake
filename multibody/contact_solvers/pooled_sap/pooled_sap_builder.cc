@@ -113,8 +113,11 @@ void PooledSapBuilder<T>::UpdateModel(const systems::Context<T>& context,
                                       const T& time_step,
                                       bool reuse_geometry_data,
                                       PooledSapModel<T>* model) const {
+  // This is the default signature for a first-order (semi-implicit euler) step.
+  // We use the initial velocity v0 stored in the plant, and don't do any
+  // half-stepping when computing signed distances in the contact constraints.
   UpdateModel(context, plant().GetVelocities(context), time_step,
-              reuse_geometry_data, model);
+              reuse_geometry_data, false, model);
 }
 
 template <typename T>
@@ -122,6 +125,7 @@ void PooledSapBuilder<T>::UpdateModel(const systems::Context<T>& context,
                                       const VectorX<T>& v_start,
                                       const T& time_step,
                                       bool reuse_geometry_data,
+                                      bool use_half_step_signed_distances,
                                       PooledSapModel<T>* model) const {
   const MultibodyTreeTopology& topology =
       GetInternalTree(plant()).get_topology();
@@ -276,6 +280,8 @@ void PooledSapBuilder<T>::UpdateModel(const systems::Context<T>& context,
   // Add contact constraints. We'll need to clear the patch constraints pool
   // here to avoid conflicting hydro and point contact constraints.
   model->patch_constraints_pool().Clear();
+  model->patch_constraints_pool().set_use_half_step_signed_distances(
+      use_half_step_signed_distances);
   if (!reuse_geometry_data) {
     CalcGeometryContactData(context);
   }

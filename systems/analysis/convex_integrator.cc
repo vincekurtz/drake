@@ -234,7 +234,7 @@ bool ConvexIntegrator<T>::StepWithMidpointErrorEstimate(const T& h) {
   VectorX<T>& v = scratch_.v;
   const VectorX<T> v0 = x0.get_generalized_velocity().CopyToVector();
   v = x_hat.get_generalized_velocity().CopyToVector();  // initial guess is v̂
-  AdvancePlantVelocity(h, v0, &v);
+  AdvancePlantVelocity(h, v0, &v, false, false, true);
 
   // Full step in positions, q = q₀ + h N̅ (v − v₀) / 2
   // TODO: update AdvancePlantConfiguration
@@ -281,7 +281,7 @@ void ConvexIntegrator<T>::ComputeNextStateSymplecticEuler(
                              .get_generalized_velocity()
                              .CopyToVector();
   AdvancePlantVelocity(h, v0, &v, reuse_geometry_data,
-                       reuse_linearization);
+                       reuse_linearization, false);
 
   // q = q₀ + h N(q₀) v
   AdvancePlantConfiguration(h, v, &q);
@@ -298,18 +298,18 @@ void ConvexIntegrator<T>::ComputeNextStateSymplecticEuler(
 }
 
 template <typename T>
-void ConvexIntegrator<T>::AdvancePlantVelocity(const T& h,
-                                               const VectorX<T>& v_start,
-                                               VectorX<T>* v,
-                                               bool reuse_geometry_data,
-                                               bool reuse_linearization) {
+void ConvexIntegrator<T>::AdvancePlantVelocity(
+    const T& h, const VectorX<T>& v_start, VectorX<T>* v,
+    bool reuse_geometry_data, bool reuse_linearization,
+    bool use_half_step_signed_distances) {
   // Get plant context storing initial state [q₀, v₀].
   const Context<T>& context = this->get_context();
   const Context<T>& plant_context = plant().GetMyContextFromRoot(context);
 
   // Set up the convex optimization problem minᵥ ℓ(v; q₀, v₀, h)
   PooledSapModel<T>& model = get_model();
-  builder().UpdateModel(plant_context, v_start, h, reuse_geometry_data, &model);
+  builder().UpdateModel(plant_context, v_start, h, reuse_geometry_data,
+                        use_half_step_signed_distances, &model);
 
   // Linearize any external systems (e.g., controllers),
   //     τ = B u(x) + τₑₓₜ(x),

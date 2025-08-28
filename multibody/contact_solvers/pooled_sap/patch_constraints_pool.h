@@ -35,6 +35,13 @@ class PooledSapModel<T>::PatchConstraintsPool {
 
   int num_constraint_equations() const { return 3 * total_num_pairs(); }
 
+  void set_use_half_step_signed_distances(bool flag) {
+    use_half_step_signed_distances_ = flag;
+  }
+  bool get_use_half_step_signed_distances() const {
+    return use_half_step_signed_distances_;
+  }
+
   /* Constructor for an empty pool. */
   PatchConstraintsPool(const PooledSapModel<T>* parent_model)
       : model_(parent_model) {
@@ -333,6 +340,11 @@ class PooledSapModel<T>::PatchConstraintsPool {
   const PooledSapModel<T>* model_{nullptr};  // The parent model.
 
   T time_step_{0.0};
+
+  // Flag for using ϕ = ϕ₀ + δt/2 vₙ rather than ϕ = ϕ₀ + δt vₙ to compute
+  // signed distances. This is used for the second-order midpoint strategy, where
+  // x₀ represents a halfway point.
+  bool use_half_step_signed_distances_{false};
 
   /* Per-clique data. Indexed by c < num_cliques()  */
   std::vector<int> clique_start_;  // Velocity start index for the c-th clique.

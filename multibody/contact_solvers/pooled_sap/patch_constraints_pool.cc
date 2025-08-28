@@ -226,18 +226,21 @@ T PooledSapModel<T>::PatchConstraintsPool::CalcLaggedHuntCrossleyModel(
   const T& n0 = n0_[pk];
   const T& fe0 = fn0_[pk];
 
+  // const T& dt = time_step_;
+  const T dt = use_half_step_signed_distances_ ? 0.5 * time_step_ : time_step_;
+
   // Cost
   const T N =
-      CalcDiscreteHuntCrossleyAntiderivative(time_step_, vn, fe0, stiffness, d);
+      CalcDiscreteHuntCrossleyAntiderivative(dt, vn, fe0, stiffness, d);
   const T cost = mu * vt_soft * n0 - N;
 
   // Impulse
   auto calc_hunt_crossley_impulse = [&]() -> T {
-    const T fe = fe0 - time_step_ * stiffness * vn;
+    const T fe = fe0 - dt * stiffness * vn;
     if (fe <= 0.0) return 0.0;
     const T damping = 1.0 - d * vn;
     if (damping <= 0.0) return 0.0;
-    const T gn = time_step_ * fe * damping;
+    const T gn = dt * fe * damping;
     return gn;
   };
   const T gn = calc_hunt_crossley_impulse();
@@ -246,7 +249,7 @@ T PooledSapModel<T>::PatchConstraintsPool::CalcLaggedHuntCrossleyModel(
 
   // Hessian
   const T dn_dvn =
-      CalcDiscreteHuntCrossleyDerivative(time_step_, vn, fe0, stiffness, d);
+      CalcDiscreteHuntCrossleyDerivative(dt, vn, fe0, stiffness, d);
 
   // Pn is SPD projection matrix with eigenvalues {1, 0, 0}.
   const Matrix3<T> Pn = normal_W * normal_W.transpose();

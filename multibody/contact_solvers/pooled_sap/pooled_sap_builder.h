@@ -38,7 +38,9 @@ class PooledSapBuilder {
   // for half-stepping.
   void UpdateModel(const systems::Context<T>& context,
                    const VectorX<T>& v_start, const T& time_step,
-                   bool reuse_geometry_data, PooledSapModel<T>* model) const;
+                   bool reuse_geometry_data,
+                   bool use_half_step_signed_distances,
+                   PooledSapModel<T>* model) const;
 
   /* Updates the dynamics matrix A and the linear term r to incorporate modeling
    of external forces according to:
