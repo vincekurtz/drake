@@ -216,6 +216,18 @@ bool ConvexIntegrator<T>::StepWithMidpointErrorEstimate(const T& h) {
   // Record the initial state
   x0.get_mutable_vector().SetFrom(x_next.get_vector());
 
+  // Record the constraint impulses from the previous solve,
+  // τ₀ = A₀ v₀ − r₀ 
+  PooledSapModel<T>& model = get_model();
+  const VectorX<T>& v0 = plant().GetVelocities(plant_context);
+  VectorX<T> tau0(plant().num_velocities());
+  model.MultiplyByDynamicsMatrix(v0, &tau0);
+  tau0 -= model.params().r;
+  // TODO: when using error control, we'll probably need to account for change
+  // in time step. The old time step is stored in model.params().time_step
+  fmt::print("tau0: {}\n", fmt_eigen(tau0.transpose()));
+
+
   // Take the full step to x̂ 
   // TODO(vincekurtz): think through/add geometry and linearization reuse
   v_guess = plant().GetVelocities(plant_context);
@@ -226,34 +238,8 @@ bool ConvexIntegrator<T>::StepWithMidpointErrorEstimate(const T& h) {
   const VectorX<T> x_bar_vec = (x_hat.CopyToVector() + x0.CopyToVector()) / 2.0;
   x_bar.get_mutable_vector().SetFromVector(x_bar_vec);
 
-  // Set up the full step from x₀, using dynamics quantities evaluated at x̅
-  context.get_mutable_continuous_state().SetFromVector(x_bar_vec);
-  context.NoteContinuousStateChange();  // maybe unnecessary?
 
-  // Full step in velocities, M̅(v − v₀) + h k̅ = J̅γ(q, v; h)
-  VectorX<T>& v = scratch_.v;
-  const VectorX<T> v0 = x0.get_generalized_velocity().CopyToVector();
-  v = x_hat.get_generalized_velocity().CopyToVector();  // initial guess is v̂
-  AdvancePlantVelocity(h, v0, &v, false, false, true);
-
-  // Full step in positions, q = q₀ + h N̅ (v − v₀) / 2
-  // TODO: update AdvancePlantConfiguration
-  VectorX<T>& q = scratch_.q;
-  const VectorX<T> v_bar = (v + v0) / 2.0;
-  plant().MapVelocityToQDot(plant_context, h * v_bar, &q);  // δq = h N(q₀) v
-  q += x0.get_generalized_position().CopyToVector();        // q = q₀ + δq
-
-  // Full step in external state, z = z₀ + h ż̅
-  VectorX<T>& z = scratch_.z;
-  if (x_next.num_z() > 0) {
-    AdvanceExternalState(h, &z);
-  }
-
-  // DEBUG: propagate low-order solution
-  // x_next.get_mutable_vector().SetFrom(x_hat.get_vector());
-  x_next.get_mutable_generalized_position().SetFromVector(q);
-  x_next.get_mutable_generalized_velocity().SetFromVector(v);
-  x_next.get_mutable_misc_continuous_state().SetFromVector(z);
+  x_next.get_mutable_vector().SetFrom(x_hat.get_mutable_vector());
   context.SetTimeAndNoteContinuousStateChange(t0 + h);
 
   if (!this->get_fixed_step_mode()) {
