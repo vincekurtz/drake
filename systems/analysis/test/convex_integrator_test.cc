@@ -719,16 +719,18 @@ GTEST_TEST(ConvexIntegratorTest, UndampedDoublePendulum) {
   SimulatorConfig config;
   config.target_realtime_rate = 0.0;
   config.publish_every_time_step = true;
+  config.max_step_size = 0.001;
+  config.integration_scheme = "convex";
+  config.use_error_control = true;
   ApplySimulatorConfig(config, &simulator);
 
-  ConvexIntegrator<double>& integrator =
-      simulator.reset_integrator<ConvexIntegrator<double>>();
-  integrator.get_mutable_solver_parameters().print_solver_stats = false;
-  integrator.get_mutable_solver_parameters().error_estimation_strategy =
-      "midpoint";
-  integrator.set_plant(&plant);
-  integrator.set_fixed_step_mode(true);
-  integrator.set_maximum_step_size(0.001);
+  auto& integrator = simulator.get_mutable_integrator();
+  auto& ci = dynamic_cast<ConvexIntegrator<double>&>(integrator);
+  ci.set_plant(&plant);
+  ci.get_mutable_solver_parameters().error_estimation_strategy = "richardson";
+  ci.request_initial_step_size_target(0.001);
+  ci.set_requested_minimum_step_size(0.001);
+  ci.set_throw_on_minimum_step_size_violation(false);
 
   auto& diagram_context = simulator.get_mutable_context();
   Context<double>& plant_context =
