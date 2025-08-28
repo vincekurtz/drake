@@ -395,7 +395,7 @@ GTEST_TEST(ConvexIntegratorTest, ActuatedPendulum) {
   const PooledSapBuilder<double>& sap_builder = integrator.builder();
   PooledSapModel<double>& model = integrator.get_model();
   SapData<double>& data = integrator.get_data();
-  sap_builder.UpdateModel(plant_context, h, false, &model);
+  sap_builder.UpdateModel(plant_context, plant.GetVelocities(plant_context), h, false, &model);
   sap_builder.AddActuationGains(K, b, &model);
   model.ResizeData(&data);
   model.CalcData(v, &data);
@@ -721,13 +721,13 @@ GTEST_TEST(ConvexIntegratorTest, UndampedDoublePendulum) {
   config.publish_every_time_step = true;
   config.max_step_size = 0.001;
   config.integration_scheme = "convex";
-  config.use_error_control = true;
+  config.use_error_control = false;
   ApplySimulatorConfig(config, &simulator);
 
   auto& integrator = simulator.get_mutable_integrator();
   auto& ci = dynamic_cast<ConvexIntegrator<double>&>(integrator);
   ci.set_plant(&plant);
-  ci.get_mutable_solver_parameters().error_estimation_strategy = "richardson";
+  ci.get_mutable_solver_parameters().error_estimation_strategy = "midpoint";
   ci.request_initial_step_size_target(0.001);
   ci.set_requested_minimum_step_size(0.001);
   ci.set_throw_on_minimum_step_size_violation(false);

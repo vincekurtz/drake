@@ -110,6 +110,7 @@ PooledSapBuilder<T>::PooledSapBuilder(const MultibodyPlant<T>& plant)
 
 template <typename T>
 void PooledSapBuilder<T>::UpdateModel(const systems::Context<T>& context,
+                                      const VectorX<T>& v_start,
                                       const T& time_step,
                                       bool reuse_geometry_data,
                                       PooledSapModel<T>* model) const {
@@ -126,8 +127,8 @@ void PooledSapBuilder<T>::UpdateModel(const systems::Context<T>& context,
 
   std::unique_ptr<PooledSapParameters<T>> params = model->ReleaseParameters();
   params->time_step = time_step;
-  params->v0 = plant().GetVelocities(context);
-  const auto& v0 = params->v0;
+  // params->v0 = plant().GetVelocities(context);  // TODO: v_start?
+  params->v0 = v_start;
   params->A.Clear();
 
   // Dense linearized dynamics from MbP.
@@ -235,13 +236,13 @@ void PooledSapBuilder<T>::UpdateModel(const systems::Context<T>& context,
   r.resize(nv);
   MultibodyForces<T>& forces = *scratch_.forces;
   VectorX<T>& vdot = scratch_.tmp_v1;
-  vdot = -v0 / dt;
+  vdot = -v_start / dt;
   plant().CalcForceElementsContribution(context, &forces);
 
   // TODO(vincekurtz): use a CalcInverseDynamics signature that doesn't allocate
   // a return value.
   r = -dt * plant().CalcInverseDynamics(context, vdot, forces);
-  r += dt * plant().EvalJointDampingCache(context).asDiagonal() * v0;
+  r += dt * plant().EvalJointDampingCache(context).asDiagonal() * v_start;
 
   // Collect effort limits for each clique.
   params->clique_nu.assign(num_cliques, 0);

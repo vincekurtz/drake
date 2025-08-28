@@ -29,7 +29,8 @@ class PooledSapBuilder {
   PooledSapBuilder(const MultibodyPlant<T>& plant,
                    const systems::Context<T>& context);
 
-  void UpdateModel(const systems::Context<T>& context, const T& time_step,
+  void UpdateModel(const systems::Context<T>& context,
+                   const VectorX<T>& v_start, const T& time_step,
                    bool reuse_geometry_data, PooledSapModel<T>* model) const;
 
   /* Updates the dynamics matrix A and the linear term r to incorporate modeling

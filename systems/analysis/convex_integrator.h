@@ -263,6 +263,23 @@ class ConvexIntegrator final : public IntegratorBase<T> {
 
   // Do the main integration step using a second-order midpoint method. This
   // requires a total of 2 SAP solves, and produces a 2nd order error estimate.
+  //
+  // Specifically, compute the state x = [q, v, z] at the next time step using a
+  // custom second-order method:
+  //
+  //      v̂ = min ℓ(v; q₀, v₀, h)
+  //      q̂ = q₀ + h N(q₀) v̂
+  //      ẑ = z₀ + h g(z₀, q₀, v₀)
+  //
+  //      v̅ = (v̂ + v₀) / 2
+  //      q̅ = (q̂ + q₀) / 2
+  //      z̅ = (ẑ + z₀) / 2
+  //
+  //      v = min ℓ*(v; v₀, q̅, v̅, h)  [starts from v₀, h/2 for signed dist.]
+  //      q = q₀ + h N(q̅) (v + v₀) / 2
+  //      z = z₀ + h g(z̅, q̅, v̅)
+  //
+  // Here x̂ is a first-order estimate, which can be used for error control.
   bool StepWithMidpointErrorEstimate(const T& h);
 
   // Compute the state x = [q, v, z] at the next time step using symplectic
@@ -289,34 +306,23 @@ class ConvexIntegrator final : public IntegratorBase<T> {
                                        bool reuse_geometry_data = false,
                                        bool reuse_linearization = false);
 
-  // Compute the state x = [q, v, z] at the next time step using a custom
-  // second-order method:
-  //
-  //      v̂ = min ℓ(v; q₀, v₀, h)
-  //      q̂ = q₀ + h N(q₀) v̂
-  //      ẑ = z₀ + h g(z₀, q₀, v₀)
-  //
-  //      v̅ = (v̂ + v₀) / 2
-  //      q̅ = (q̂ + q₀) / 2
-  //      z̅ = (ẑ + z₀) / 2
-  //
-  //      v = min ℓ*(v; v₀, q̅, v̅, h)  [starts from v₀, h/2 for signed dist.]
-  //      q = q₀ + h N(q̅) (v + v₀) / 2
-  //      z = z₀ + h g(z̅, q̅, v̅)
-  //
-  // @param h the time step to use
-  // @param v_guess the initial guess for the MbP plant velocities.
-  // @param x_next the output continuous state, includes state for both the
-  //               plant and any external systems.
-  //
-  // @note the starting state x₀ is stored in this->get_context().
-  void ComputeNextStateMidpoint(const T& h, const VectorX<T>& v_guess,
-                                ContinuousState<T>* x_next);
-
   // Solve the convex problem to compute next-step velocities,
-  // v = min ℓ(v; q₀, v₀, h).
-  // N.B. the initial state (q₀, v₀) is stored in this->get_context().
-  void AdvancePlantVelocity(const T& h, const VectorX<T>& v_guess,
+  //
+  //    v = min ℓ(v; v_start, q₀, v₀, h),
+  //
+  // which corresponds to the optimality conditions
+  //
+  //    M(q₀)(v−vₛₜₐᵣₜ) + h k(q₀, v₀) = J(q₀)ᵀγ(q, v; h),
+  //
+  // where
+  //
+  //    q = q₀ + h N(q₀) v.
+  //
+  // The state (q₀, v₀) is stored in this->get_context(). In most cases, we have
+  // v_start = v₀, but this is not the case for the second-order midpoint
+  // method. Whatever is stored in the output argument `v` is used as the
+  // initial guess for the optimization problem.
+  void AdvancePlantVelocity(const T& h, const VectorX<T>& v_start,
                             VectorX<T>* v, bool reuse_geometry_data = false,
                             bool reuse_linearization = false);
 

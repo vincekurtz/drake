@@ -59,7 +59,8 @@ void ConvexIntegrator<T>::DoInitialize() {
   // Allocate and initialize SAP problem objects
   builder_ = std::make_unique<PooledSapBuilder<T>>(plant(), plant_context);
   const T& dt = this->get_initial_step_size_target();
-  builder_->UpdateModel(plant_context, dt, false, &model_);
+  const VectorX<T> v0 = plant().GetVelocities(plant_context);
+  builder_->UpdateModel(plant_context, v0, dt, false, &model_);
   model_.ResizeData(&data_);
   model_.ResizeData(&scratch_data_);
 
@@ -197,9 +198,72 @@ bool ConvexIntegrator<T>::StepWithRichardsonExtrapolation(const T& h) {
 
 template <typename T>
 bool ConvexIntegrator<T>::StepWithMidpointErrorEstimate(const T& h) {
-  // TODO(vincekurtz): implement
-  fmt::print("using custom midpoint rule!\n");
-  return StepWithHalfSteppingErrorEstimate(h);
+  Context<T>& context = *this->get_mutable_context();
+  const Context<T>& plant_context = plant().GetMyContextFromRoot(context);
+  const T t0 = context.get_time();
+
+  // Some aliases for convenience:
+  //   ̂x = full step estimate (first order)
+  //   ̅x = midpoint estimate (x̂ + x₀) / 2
+  //   x = propagated solution (second order)
+  //   x₀ = initial state
+  ContinuousState<T>& x_hat = *x_next_full_;
+  ContinuousState<T>& x_bar = *x_next_half_1_;
+  ContinuousState<T>& x_next = context.get_mutable_continuous_state();
+  ContinuousState<T>& x0 = *x_next_half_2_;
+  VectorX<T>& v_guess = scratch_.v_guess;
+
+  // Record the initial state
+  x0.get_mutable_vector().SetFrom(x_next.get_vector());
+
+  // Take the full step to x̂ 
+  // TODO(vincekurtz): think through/add geometry and linearization reuse
+  v_guess = plant().GetVelocities(plant_context);
+  ComputeNextStateSymplecticEuler(h, v_guess, &x_hat);
+
+  // Compute midpoint state x̅ = (x̂ + x₀) / 2
+  // TODO(vincekurtz): consider just using a pre-allocated vector for x_bar
+  const VectorX<T> x_bar_vec = (x_hat.CopyToVector() + x0.CopyToVector()) / 2.0;
+  x_bar.get_mutable_vector().SetFromVector(x_bar_vec);
+
+  // Set up the full step from x₀, using dynamics quantities evaluated at x̅
+  context.get_mutable_continuous_state().SetFromVector(x_bar_vec);
+  context.NoteContinuousStateChange();  // maybe unnecessary?
+
+  // Full step in velocities, M̅(v − v₀) + h k̅ = J̅γ(q, v; h)
+  VectorX<T>& v = scratch_.v;
+  const VectorX<T> v0 = x0.get_generalized_velocity().CopyToVector();
+  v = v_guess;  // TODO: use v_hat instead
+  AdvancePlantVelocity(h, v0, &v);
+
+  // Full step in positions, q = q₀ + h N̅ (v − v₀) / 2
+  // TODO: update AdvancePlantConfiguration
+  VectorX<T>& q = scratch_.q;
+  const VectorX<T> v_bar = (v + v0) / 2.0;
+  plant().MapVelocityToQDot(plant_context, h * v_bar, &q);  // δq = h N(q₀) v
+  q += x0.get_generalized_position().CopyToVector();        // q = q₀ + δq
+
+  // Full step in external state, z = z₀ + h ż̅
+  VectorX<T>& z = scratch_.z;
+  if (x_next.num_z() > 0) {
+    AdvanceExternalState(h, &z);
+  }
+
+  // DEBUG: propagate low-order solution
+  // x_next.get_mutable_vector().SetFrom(x_hat.get_vector());
+  x_next.get_mutable_generalized_position().SetFromVector(q);
+  x_next.get_mutable_generalized_velocity().SetFromVector(v);
+  x_next.get_mutable_misc_continuous_state().SetFromVector(z);
+  context.SetTimeAndNoteContinuousStateChange(t0 + h);
+
+  if (!this->get_fixed_step_mode()) {
+    // TODO(vincekurtz): add error estimation
+    throw std::runtime_error(
+        "ConvexIntegrator: error control with the midpoint method is not yet "
+        "implemented.");
+  }
+
+  return true; // Step was successful
 }
 
 template <typename T>
@@ -211,7 +275,12 @@ void ConvexIntegrator<T>::ComputeNextStateSymplecticEuler(
   VectorX<T>& z = scratch_.z;
 
   // v = min ℓ(v; q₀, v₀, h)
-  AdvancePlantVelocity(h, v_guess, &v, reuse_geometry_data,
+  v = v_guess;
+  const VectorX<T>& v0 = this->get_context()
+                             .get_continuous_state()
+                             .get_generalized_velocity()
+                             .CopyToVector();
+  AdvancePlantVelocity(h, v0, &v, reuse_geometry_data,
                        reuse_linearization);
 
   // q = q₀ + h N(q₀) v
@@ -229,16 +298,8 @@ void ConvexIntegrator<T>::ComputeNextStateSymplecticEuler(
 }
 
 template <typename T>
-void ConvexIntegrator<T>::ComputeNextStateMidpoint(const T& h,
-                                                   const VectorX<T>& v_guess,
-                                                   ContinuousState<T>* x_next) {
-  // TODO(vincekurtz): implement
-  return ComputeNextStateSymplecticEuler(h, v_guess, x_next);
-}
-
-template <typename T>
 void ConvexIntegrator<T>::AdvancePlantVelocity(const T& h,
-                                               const VectorX<T>& v_guess,
+                                               const VectorX<T>& v_start,
                                                VectorX<T>* v,
                                                bool reuse_geometry_data,
                                                bool reuse_linearization) {
@@ -248,7 +309,7 @@ void ConvexIntegrator<T>::AdvancePlantVelocity(const T& h,
 
   // Set up the convex optimization problem minᵥ ℓ(v; q₀, v₀, h)
   PooledSapModel<T>& model = get_model();
-  builder().UpdateModel(plant_context, h, reuse_geometry_data, &model);
+  builder().UpdateModel(plant_context, v_start, h, reuse_geometry_data, &model);
 
   // Linearize any external systems (e.g., controllers),
   //     τ = B u(x) + τₑₓₜ(x),
@@ -280,7 +341,6 @@ void ConvexIntegrator<T>::AdvancePlantVelocity(const T& h,
   }
 
   // Solve the optimization problem for next-step velocities v = min ℓ(v).
-  *v = v_guess;
   if (!SolveWithGuess(model, v)) {
     throw std::runtime_error("ConvexIntegrator: optimization failed.");
   }
