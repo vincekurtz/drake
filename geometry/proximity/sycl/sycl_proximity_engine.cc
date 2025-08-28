@@ -73,9 +73,11 @@ class SyclProximityEngine::Impl {
     sorted_ids_.reserve(soft_geometries.size());
     for (const auto& [id, _] : soft_geometries) {
       sorted_ids_.push_back(id);
-      sorted_ids_map_[id] = sorted_ids_.size() - 1;
     }
     std::sort(sorted_ids_.begin(), sorted_ids_.end());
+    for (uint32_t i = 0; i < sorted_ids_.size(); ++i) {
+      sorted_ids_map_[sorted_ids_[i]] = i;
+    }
 
     sorted_total_lower_.reserve(sorted_ids_.size());
     sorted_total_upper_.reserve(sorted_ids_.size());
