@@ -434,6 +434,10 @@ class ConvexIntegrator final : public IntegratorBase<T> {
   // Track previous sparsity pattern for hessian reuse
   std::unique_ptr<BlockSparsityPattern> previous_sparsity_pattern_;
 
+  // Track the net constraint impulse from the previous time step (used for the
+  // second-order midpoint method)
+  VectorX<T> previous_constraint_impulse_;
+
   // Flag for Hessian factorization re-use (changes between iterations)
   bool reuse_hessian_factorization_{true};
 

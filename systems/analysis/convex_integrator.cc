@@ -82,6 +82,9 @@ void ConvexIntegrator<T>::DoInitialize() {
   scratch_.x_prime.resize(nq + nv + nz);
   scratch_.N.resize(nq, nv);
 
+  // previous constraint impulse tau0 = 0
+  previous_constraint_impulse_ = VectorX<T>::Zero(nv);
+
   // Allocate intermediate states for error control
   x_next_full_ = this->get_system().AllocateTimeDerivatives();
   x_next_half_1_ = this->get_system().AllocateTimeDerivatives();
@@ -218,17 +221,7 @@ bool ConvexIntegrator<T>::StepWithMidpointErrorEstimate(const T& h) {
 
   // Record the constraint impulses from the previous step 
   // τ₀ = A₀ v₀ − r₀ 
-  // TODO: when using error control, we'll probably need to account for change
-  // in time step. The old time step is stored in model.params().time_step
-  PooledSapModel<T>& model = get_model();
-  const VectorX<T> v_hat0 = x_hat.get_generalized_velocity().CopyToVector();
-  VectorX<T> tau0(plant().num_velocities());
-  model.MultiplyByDynamicsMatrix(v_hat0, &tau0);
-  tau0 -= model.params().r;
-  if (tau0.hasNaN()) {
-    // Assume zero impulses from the previous step in the first time-step.
-    tau0.setZero();
-  }
+  const VectorX<T> tau0 = previous_constraint_impulse_;
 
   // Take the full step to x̂ 
   // TODO(vincekurtz): think through/add geometry and linearization reuse
@@ -238,6 +231,7 @@ bool ConvexIntegrator<T>::StepWithMidpointErrorEstimate(const T& h) {
   // Record the constraint impulses at the full step
   const VectorX<T>& v_hat = x_hat.get_generalized_velocity().CopyToVector();
   VectorX<T> tau_hat(plant().num_velocities());
+  PooledSapModel<T>& model = get_model();
   model.MultiplyByDynamicsMatrix(v_hat, &tau_hat);
   tau_hat -= model.params().r;
 
@@ -270,6 +264,10 @@ bool ConvexIntegrator<T>::StepWithMidpointErrorEstimate(const T& h) {
   const VectorX<T> q0 = x0.get_generalized_position().CopyToVector();
   plant().MapVelocityToQDot(plant_context, h * (v + v0) / 2.0, &q);
   q += q0;
+
+  // Record the constraint impulses associated with the full step, which will
+  // be used as tau0 in the next time step.
+  previous_constraint_impulse_ = tau_hat;
 
   // Propagate the second-order solution
   // x_next.get_mutable_vector().SetFrom(x_hat.get_mutable_vector());
