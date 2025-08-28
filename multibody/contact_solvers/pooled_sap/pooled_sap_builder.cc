@@ -116,23 +116,25 @@ void PooledSapBuilder<T>::UpdateModel(const systems::Context<T>& context,
   // This is the default signature for a first-order (semi-implicit euler) step.
   // We use the initial velocity v0 stored in the plant, and don't do any
   // half-stepping when computing signed distances in the contact constraints.
-  UpdateModel(context, plant().GetVelocities(context), time_step,
+  const VectorX<T>& v0 = plant().GetVelocities(context);
+  const VectorX<T> tau0 = VectorX<T>::Zero(plant().num_velocities());
+  UpdateModel(context, v0, tau0, time_step,
               reuse_geometry_data, false, model);
 }
 
 template <typename T>
 void PooledSapBuilder<T>::UpdateModel(const systems::Context<T>& context,
                                       const VectorX<T>& v_start,
+                                      const VectorX<T>& tau_start,
                                       const T& time_step,
                                       bool reuse_geometry_data,
-                                      bool use_half_step_signed_distances,
+                                      bool is_half_step,
                                       PooledSapModel<T>* model) const {
   const MultibodyTreeTopology& topology =
       GetInternalTree(plant()).get_topology();
   const LinkJointGraph& graph = GetInternalTree(plant()).graph();
   DRAKE_DEMAND(graph.forest_is_valid());
   const SpanningForest& forest = graph.forest();
-  (void)forest;
 
   const int nv = plant().num_velocities();
   MatrixX<T>& M = scratch_.M;
@@ -150,6 +152,13 @@ void PooledSapBuilder<T>::UpdateModel(const systems::Context<T>& context,
   // Implicit damping.
   // N.B. The mass matrix already includes reflected inertia terms.
   M.diagonal() += plant().EvalJointDampingCache(context) * time_step;
+
+  if (is_half_step) {
+    // For the half-step formulation, we use
+    //    M̅ (v − vₙ) + h k̅ = 1/2 (τₙ + J̅(q̅ + h/2 N̅ v, v))
+    //    2 M̅ (v − vₙ) + 2 h k̅ -τₙ = J̅(q̅ + h/2 N̅ v, v)
+    M *= 2;
+  }
 
   // We only add a clique for tree's with non-zero number of velocities.
   int num_cliques = 0;
@@ -243,19 +252,36 @@ void PooledSapBuilder<T>::UpdateModel(const systems::Context<T>& context,
     }
   }
 
-  // r = dt⋅(u₀ + τᵉˣ - C(q₀,v₀)) + A⋅v₀
+  // In the default case, we have
+  //    r = A v₀ - h k
+  // In the half-stepping case, we have
+  //    r = Av₀ - 2 h k + τ₀
   const T& dt = params->time_step;
   auto& r = params->r;
   r.resize(nv);
-  MultibodyForces<T>& forces = *scratch_.forces;
-  VectorX<T>& vdot = scratch_.tmp_v1;
-  vdot = -v0 / dt;
-  plant().CalcForceElementsContribution(context, &forces);
 
-  // TODO(vincekurtz): use a CalcInverseDynamics signature that doesn't allocate
-  // a return value.
-  r = -dt * plant().CalcInverseDynamics(context, vdot, forces);
-  r += dt * plant().EvalJointDampingCache(context).asDiagonal() * v0;
+  // TODO(vincekurtz): we should be able to get r with just one
+  // CalcInverseDynamics call, rather than dealing with the dense A matrix.
+  MultibodyForces<T>& forces = *scratch_.forces;
+  plant().CalcForceElementsContribution(context, &forces);
+  VectorX<T> k =
+      plant().CalcInverseDynamics(context, VectorX<T>::Zero(nv), forces);
+  if (is_half_step) {
+    // N.B. M = A has already been doubled above
+    r = M * v0 - 2 * dt * k + tau_start;
+  } else {
+    r = M * v0 - dt * k;
+  }
+
+  // MultibodyForces<T>& forces = *scratch_.forces;
+  // VectorX<T>& vdot = scratch_.tmp_v1;
+  // vdot = -v0 / dt;
+  // plant().CalcForceElementsContribution(context, &forces);
+
+  // // TODO(vincekurtz): use a CalcInverseDynamics signature that doesn't allocate
+  // // a return value.
+  // r = -dt * plant().CalcInverseDynamics(context, vdot, forces);
+  // r += dt * plant().EvalJointDampingCache(context).asDiagonal() * v0;
 
   // Collect effort limits for each clique.
   params->clique_nu.assign(num_cliques, 0);
@@ -281,7 +307,7 @@ void PooledSapBuilder<T>::UpdateModel(const systems::Context<T>& context,
   // here to avoid conflicting hydro and point contact constraints.
   model->patch_constraints_pool().Clear();
   model->patch_constraints_pool().set_use_half_step_signed_distances(
-      use_half_step_signed_distances);
+      is_half_step);
   if (!reuse_geometry_data) {
     CalcGeometryContactData(context);
   }

@@ -220,7 +220,6 @@ bool ConvexIntegrator<T>::StepWithMidpointErrorEstimate(const T& h) {
   x0.get_mutable_vector().SetFrom(x_next.get_vector());
 
   // Record the constraint impulses from the previous step 
-  // τ₀ = A₀ v₀ − r₀ 
   const VectorX<T> tau0 = previous_constraint_impulse_;
 
   // Take the full step to x̂ 
@@ -239,24 +238,16 @@ bool ConvexIntegrator<T>::StepWithMidpointErrorEstimate(const T& h) {
   // TODO(vincekurtz): consider just using a pre-allocated vector for x_bar
   const VectorX<T> x_bar_vec = (x_hat.CopyToVector() + x0.CopyToVector()) / 2.0;
   x_bar.get_mutable_vector().SetFromVector(x_bar_vec);
-
-  // Compute dynamics quantities at ̅x. This is essentially using the midpoint
-  // rule for dynamics terms (M, k), and the trapezoid rule for impulses.
   context.get_mutable_continuous_state().SetFromVector(x_bar_vec);
-  MatrixX<T> M_bar(plant().num_velocities(), plant().num_velocities());
-  plant().CalcMassMatrix(plant_context, &M_bar);
-  MultibodyForces<T>& forces = *scratch_.f_ext;
-  plant().CalcForceElementsContribution(plant_context, &forces);
-  VectorX<T> k_bar = plant().CalcInverseDynamics(
-      plant_context, VectorX<T>::Zero(plant().num_velocities()), forces);
-
-  VectorX<T> tau_bar = (tau0 + tau_hat) / 2.0;
 
   // Compute next-step velocities using the second-order terms,
-  // M̅(v − v₀) + h k̅ = τ̅
-  VectorX<T>& v = scratch_.v;
+  //    M̅ (v − v₀) + h k̅ = 1/2 (τ₀ + J̅(q̅ + h/2 N̅ v, v)).
   const VectorX<T> v0 = x0.get_generalized_velocity().CopyToVector();
-  v = v0 + M_bar.ldlt().solve(tau_bar - h * k_bar);
+  VectorX<T>& v = scratch_.v;
+  v = x_bar.get_generalized_velocity().CopyToVector();  // initial guess
+  AdvancePlantVelocity(h, v0, tau0, &v, /* reuse_geometry_data */ false,
+                       /* reuse_linearization */ false,
+                       /* is_half_step */ true);
 
   // Compute next-step positions as second-order
   // q = q₀ + h N(q̅) (v + v₀) / 2
@@ -300,7 +291,8 @@ void ConvexIntegrator<T>::ComputeNextStateSymplecticEuler(
                              .get_continuous_state()
                              .get_generalized_velocity()
                              .CopyToVector();
-  AdvancePlantVelocity(h, v0, &v, reuse_geometry_data,
+  VectorX<T> tau0 = VectorX<T>::Zero(plant().num_velocities());
+  AdvancePlantVelocity(h, v0, tau0, &v, reuse_geometry_data,
                        reuse_linearization, false);
 
   // q = q₀ + h N(q₀) v
@@ -319,8 +311,8 @@ void ConvexIntegrator<T>::ComputeNextStateSymplecticEuler(
 
 template <typename T>
 void ConvexIntegrator<T>::AdvancePlantVelocity(
-    const T& h, const VectorX<T>& v_start, VectorX<T>* v,
-    bool reuse_geometry_data, bool reuse_linearization,
+    const T& h, const VectorX<T>& v_start, const VectorX<T>& tau_start,
+    VectorX<T>* v, bool reuse_geometry_data, bool reuse_linearization,
     bool use_half_step_signed_distances) {
   // Get plant context storing initial state [q₀, v₀].
   const Context<T>& context = this->get_context();
@@ -328,7 +320,7 @@ void ConvexIntegrator<T>::AdvancePlantVelocity(
 
   // Set up the convex optimization problem minᵥ ℓ(v; q₀, v₀, h)
   PooledSapModel<T>& model = get_model();
-  builder().UpdateModel(plant_context, v_start, h, reuse_geometry_data,
+  builder().UpdateModel(plant_context, v_start, tau_start, h, reuse_geometry_data,
                         use_half_step_signed_distances, &model);
 
   // Linearize any external systems (e.g., controllers),

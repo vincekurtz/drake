@@ -31,15 +31,26 @@ class PooledSapBuilder {
   
  
   // Default signature for setting up the model, uses v0 from context.
+  // Resulting optimality conditions look like
+  //   Mₙ (v − vₙ) + h kₙ = Jₙ γ(qₙ + h Nₙ v, v),
+  // the default SAP step.
   void UpdateModel(const systems::Context<T>& context, const T& time_step,
                    bool reuse_geometry_data, PooledSapModel<T>* model) const;
 
-  // Full signature for setting up the model, uses provided v0. This is useful
-  // for half-stepping.
+  // Full signature for setting up the model, allows for a user-specified
+  // initial velocity (which may not match the context), a previous-step
+  // constraint impulse τₙ, and flags for enabling the second-half step problem,
+  //
+  //    M̅ (v − vₙ) + h k̅ = 1/2 (τₙ + J̅(q̅ + h/2 N̅ v, v)).
+  //
+  // In that case q̅, v̅ are stored in the context, and the user provides
+  // vₙ = v_start, τₙ = previous_constraint_impulse
   void UpdateModel(const systems::Context<T>& context,
-                   const VectorX<T>& v_start, const T& time_step,
+                   const VectorX<T>& v_start, 
+                   const VectorX<T>& previous_constraint_impulse,
+                   const T& time_step,
                    bool reuse_geometry_data,
-                   bool use_half_step_signed_distances,
+                   bool is_half_step,
                    PooledSapModel<T>* model) const;
 
   /* Updates the dynamics matrix A and the linear term r to incorporate modeling

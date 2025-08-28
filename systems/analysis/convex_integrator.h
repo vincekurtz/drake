@@ -323,7 +323,8 @@ class ConvexIntegrator final : public IntegratorBase<T> {
   // method. Whatever is stored in the output argument `v` is used as the
   // initial guess for the optimization problem.
   void AdvancePlantVelocity(const T& h, const VectorX<T>& v_start,
-                            VectorX<T>* v, bool reuse_geometry_data = false,
+                            const VectorX<T>& tau_start, VectorX<T>* v,
+                            bool reuse_geometry_data = false,
                             bool reuse_linearization = false,
                             bool use_half_step_signed_distances = false);
 
