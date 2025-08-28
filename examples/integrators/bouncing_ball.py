@@ -46,8 +46,8 @@ def create_bouncing_ball_sim():
     )
 
     # Ground
-    ground_shape = Box(2.0, 2.0, 0.1)
-    ground_pose = RigidTransform([0, 0, -0.05])
+    ground_shape = Box(2.0, 2.0, 2.0)
+    ground_pose = RigidTransform([0, 0, -1.0])
     plant.RegisterCollisionGeometry(
         plant.world_body(),
         ground_pose,
@@ -101,7 +101,7 @@ def create_bouncing_ball_sim():
     simulator = Simulator(diagram, context)
     config = SimulatorConfig()
     config.integration_scheme = "convex"
-    config.max_step_size = 1e-4
+    config.max_step_size = 1e-5
     config.use_error_control = False
     config.accuracy = 1e-6
     ApplySimulatorConfig(config, simulator)
