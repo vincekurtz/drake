@@ -216,30 +216,66 @@ bool ConvexIntegrator<T>::StepWithMidpointErrorEstimate(const T& h) {
   // Record the initial state
   x0.get_mutable_vector().SetFrom(x_next.get_vector());
 
-  // Record the constraint impulses from the previous solve,
+  // Record the constraint impulses from the previous step 
   // τ₀ = A₀ v₀ − r₀ 
-  PooledSapModel<T>& model = get_model();
-  const VectorX<T>& v0 = plant().GetVelocities(plant_context);
-  VectorX<T> tau0(plant().num_velocities());
-  model.MultiplyByDynamicsMatrix(v0, &tau0);
-  tau0 -= model.params().r;
   // TODO: when using error control, we'll probably need to account for change
   // in time step. The old time step is stored in model.params().time_step
-  fmt::print("tau0: {}\n", fmt_eigen(tau0.transpose()));
-
+  PooledSapModel<T>& model = get_model();
+  const VectorX<T> v_hat0 = x_hat.get_generalized_velocity().CopyToVector();
+  VectorX<T> tau0(plant().num_velocities());
+  model.MultiplyByDynamicsMatrix(v_hat0, &tau0);
+  tau0 -= model.params().r;
+  if (tau0.hasNaN()) {
+    // Assume zero impulses from the previous step in the first time-step.
+    tau0.setZero();
+  }
 
   // Take the full step to x̂ 
   // TODO(vincekurtz): think through/add geometry and linearization reuse
   v_guess = plant().GetVelocities(plant_context);
   ComputeNextStateSymplecticEuler(h, v_guess, &x_hat);
 
+  // Record the constraint impulses at the full step
+  const VectorX<T>& v_hat = x_hat.get_generalized_velocity().CopyToVector();
+  VectorX<T> tau_hat(plant().num_velocities());
+  model.MultiplyByDynamicsMatrix(v_hat, &tau_hat);
+  tau_hat -= model.params().r;
+
   // Compute midpoint state x̅ = (x̂ + x₀) / 2
   // TODO(vincekurtz): consider just using a pre-allocated vector for x_bar
   const VectorX<T> x_bar_vec = (x_hat.CopyToVector() + x0.CopyToVector()) / 2.0;
   x_bar.get_mutable_vector().SetFromVector(x_bar_vec);
 
+  // Compute dynamics quantities at ̅x. This is essentially using the midpoint
+  // rule for dynamics terms (M, k), and the trapezoid rule for impulses.
+  context.get_mutable_continuous_state().SetFromVector(x_bar_vec);
+  MatrixX<T> M_bar(plant().num_velocities(), plant().num_velocities());
+  plant().CalcMassMatrix(plant_context, &M_bar);
+  MultibodyForces<T>& forces = *scratch_.f_ext;
+  plant().CalcForceElementsContribution(plant_context, &forces);
+  VectorX<T> k_bar = plant().CalcInverseDynamics(
+      plant_context, VectorX<T>::Zero(plant().num_velocities()), forces);
 
-  x_next.get_mutable_vector().SetFrom(x_hat.get_mutable_vector());
+  VectorX<T> tau_bar = (tau0 + tau_hat) / 2.0;
+
+  // Compute next-step velocities using the second-order terms,
+  // M̅(v − v₀) + h k̅ = τ̅
+  VectorX<T>& v = scratch_.v;
+  const VectorX<T> v0 = x0.get_generalized_velocity().CopyToVector();
+  v = v0 + M_bar.ldlt().solve(tau_bar - h * k_bar);
+
+  // Compute next-step positions as second-order
+  // q = q₀ + h N(q̅) (v + v₀) / 2
+  VectorX<T>& q = scratch_.q;
+  const VectorX<T> q0 = x0.get_generalized_position().CopyToVector();
+  plant().MapVelocityToQDot(plant_context, h * (v + v0) / 2.0, &q);
+  q += q0;
+
+  // Propagate the second-order solution
+  // x_next.get_mutable_vector().SetFrom(x_hat.get_mutable_vector());
+  x_next.get_mutable_generalized_position().SetFromVector(q);
+  x_next.get_mutable_generalized_velocity().SetFromVector(v);
+
   context.SetTimeAndNoteContinuousStateChange(t0 + h);
 
   if (!this->get_fixed_step_mode()) {
