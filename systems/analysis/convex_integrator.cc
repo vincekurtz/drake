@@ -106,8 +106,8 @@ bool ConvexIntegrator<T>::DoStep(const T& h) {
     return StepWithHalfSteppingErrorEstimate(h);
   } else if (strategy == "richardson") {
     return StepWithRichardsonExtrapolation(h);
-  } else if (strategy == "leapfrog") {
-    return StepWithLeapfrogErrorEstimate(h);
+  } else if (strategy == "midpoint") {
+    return StepWithMidpointErrorEstimate(h);
   } else {
     throw std::runtime_error(
         "ConvexIntegrator: unknown error estimation strategy: " +
@@ -203,79 +203,10 @@ bool ConvexIntegrator<T>::StepWithRichardsonExtrapolation(const T& h) {
 }
 
 template <typename T>
-bool ConvexIntegrator<T>::StepWithLeapfrogErrorEstimate(const T& h) {
+bool ConvexIntegrator<T>::StepWithMidpointErrorEstimate(const T& h) {
   // TODO(vincekurtz): implement
-  Context<T>& context = *this->get_mutable_context();
-  ContinuousState<T>& x_next = context.get_mutable_continuous_state();
-  const Context<T>& plant_context = plant().GetMyContextFromRoot(context);
-  const T t0 = context.get_time();
-  
-  // // Solve for the full step x_{t+h}. We'll need this regardless of whether
-  // // error control is enabled or not.
-  // VectorX<T>& v_guess = scratch_.v_guess;
-  // v_guess = plant().GetVelocities(plant_context);
-  // ComputeNextStateLeapfrog(h, v_guess, x_next_full_.get());
-
-  // if (this->get_fixed_step_mode()) {
-  //   // We're using fixed step mode, so we can just set the state to x_{t+h} and
-  //   // move on. No need for error estimation.
-  //   // N.B. this is slightly faster than x_next.SetFrom(*x_next_full_), because
-  //   // it saves an intermediate Eigen representation.
-  //   x_next.get_mutable_vector().SetFrom(x_next_full_->get_vector());
-  //   context.SetTime(t0 + h);
-  // } else {
-  //   // We're using error control, and will compare with two half-sized steps.
-
-  //   // First half-step to (t + h/2) uses the average of v_t and v_{t+1} as the
-  //   // initial guess
-  //   v_guess += x_next_full_->get_generalized_velocity().CopyToVector();
-  //   v_guess /= 2.0;
-  //   ComputeNextStateLeapfrog(0.5 * h, v_guess, x_next_half_1_.get());
-
-  //   // For the second half-step to (t + h), we need to start from (t + h/2). So
-  //   // we'll first set the system state to the result of the first half-step.
-  //   x_next.get_mutable_vector().SetFrom(x_next_half_1_->get_vector());
-  //   context.SetTimeAndNoteContinuousStateChange(t0 + 0.5 * h);
-
-  //   // Now we can take the second half-step. We'll use the solution of the full
-  //   // step as our initial guess here.
-  //   v_guess = x_next_full_->get_generalized_velocity().CopyToVector();
-  //   ComputeNextStateLeapfrog(0.5 * h, v_guess, x_next_half_2_.get());
-
-  //   // Set the state to the result of the second half-step (since this is more
-  //   // accurate than the full step, and we have it anyway).
-  //   x_next.get_mutable_vector().SetFrom(x_next_half_2_->get_vector());
-  //   context.SetTimeAndNoteContinuousStateChange(t0 + h);
-
-  //   // Estimate the error as the difference between the full step and the
-  //   // two half-steps.
-  //   ContinuousState<T>& err = *this->get_mutable_error_estimate();
-  //   err.get_mutable_vector().SetFrom(x_next_full_->get_vector());
-  //   err.get_mutable_vector().PlusEqScaled(-1.0, x_next_half_2_->get_vector());
-  // }
-
-  // Solve for the full step x_{t+h} with second-order Strang-splitting.
-  VectorX<T>& v_guess = scratch_.v_guess;
-  v_guess = plant().GetVelocities(plant_context);
-  ComputeNextStateLeapfrog(h, v_guess, x_next_full_.get());
-
-  if (!this->get_fixed_step_mode()) {
-    // Get a next-state estimate with first-order symplectic euler
-    v_guess = x_next_full_->get_generalized_velocity().CopyToVector();
-    ComputeNextStateSymplecticEuler(h, v_guess, x_next_half_2_.get());
-
-    // Estimate the error as the difference between the second-order and
-    // the first-order steps.
-    ContinuousState<T>& err = *this->get_mutable_error_estimate();
-    err.get_mutable_vector().SetFrom(x_next_full_->get_vector());
-    err.get_mutable_vector().PlusEqScaled(-1.0, x_next_half_2_->get_vector());
-
-  }
-  // Propagate the second-order solution, regardless of error control.
-  x_next.get_mutable_vector().SetFrom(x_next_full_->get_vector());
-  context.SetTime(t0 + h);
-
-  return true;  // step was successful
+  fmt::print("using custom midpoint rule!\n");
+  return StepWithHalfSteppingErrorEstimate(h);
 }
 
 template <typename T>
@@ -305,60 +236,11 @@ void ConvexIntegrator<T>::ComputeNextStateSymplecticEuler(
 }
 
 template <typename T>
-void ConvexIntegrator<T>::ComputeNextStateLeapfrog(const T& h,
+void ConvexIntegrator<T>::ComputeNextStateMidpoint(const T& h,
                                                    const VectorX<T>& v_guess,
                                                    ContinuousState<T>* x_next) {
-  using std::sqrt;
-  // TODO(vincekurtz): add geometry and linearization reuse
-  Context<T>& context = *this->get_mutable_context();
-  ContinuousState<T>& x = context.get_mutable_continuous_state();
-  const VectorX<T> x0 = context.get_continuous_state().CopyToVector();
-
-  VectorX<T>& v = scratch_.v;
-  VectorX<T>& q = scratch_.q;
-  VectorX<T>& z = scratch_.z;
-
-  // First half-step on positions
-  // q̃ = q₀ + 0.5 h N(q₀) v₀
-  AdvanceStateExplicitMidpoint(0.5 * h);
-  context.NoteContinuousStateChange();
-
-  // Full step on velocities, but using SDIRK2 to get second-order
-  // v = min ℓ(v; q̃, v₀, h)
-  const double gamma = 1.0 - 1.0 / sqrt(2.0);
-  const VectorX<T> v0 =
-      context.get_continuous_state().get_generalized_velocity().CopyToVector();
-
-  AdvancePlantVelocity(gamma * h, v_guess, &v);
-  v = v0 + (1.0 - gamma) / gamma * (v - v0);
-  x.get_mutable_generalized_velocity().SetFromVector(v);
-  context.NoteContinuousStateChange();
-
-  AdvancePlantVelocity(gamma * h, v_guess, &v);
-  // AdvancePlantVelocity(h, v_guess, &v);  // DEBUG: full step (first order)
-  x.get_mutable_generalized_velocity().SetFromVector(v);
-  context.NoteContinuousStateChange();
-
-  // Second half-step on explicit terms
-  AdvanceStateExplicitMidpoint(0.5 * h);
-  q = x.get_generalized_position().CopyToVector();
-  v = x.get_generalized_velocity().CopyToVector();
-  context.NoteContinuousStateChange();
-
-  // Set the updated plant state
-  x_next->get_mutable_generalized_velocity().SetFromVector(v);
-  x_next->get_mutable_generalized_position().SetFromVector(q);
-
-  // z = z₀ + h ż.
-  if (x_next->num_z() > 0) {
-    AdvanceExternalState(h, &z);
-
-    // Set the updated external state
-    x_next->get_mutable_misc_continuous_state().SetFromVector(z);
-  }
-
-  // Reset the internally stored state for subsequent steps
-  x.SetFromVector(x0);
+  // TODO(vincekurtz): implement
+  return ComputeNextStateSymplecticEuler(h, v_guess, x_next);
 }
 
 template <typename T>
@@ -443,59 +325,6 @@ void ConvexIntegrator<T>::AdvancePlantConfiguration(const T& h,
       q->template segment<4>(i).normalize();
     }
   }
-}
-
-template <typename T>
-void ConvexIntegrator<T>::AdvanceStateExplicitMidpoint(const T& h) {
-  Context<T>& context = *this->get_mutable_context();
-  Context<T>& plant_context = plant().GetMyMutableContextFromRoot(&context);
-  const VectorX<T> q0 = plant().GetPositions(plant_context);
-  const VectorX<T> v0 = plant().GetVelocities(plant_context);
-
-  // Get derivatives at initial state
-  // q̇ = N(q)v 
-  VectorX<T> qdot(plant().num_positions());
-  plant().MapVelocityToQDot(plant_context, v0, &qdot);
-  
-  // M(q)v̇ +k(q, v) = 0
-  VectorX<T> k(plant().num_velocities());
-  MatrixX<T> M(plant().num_velocities(), plant().num_velocities());
-  plant().CalcMassMatrix(plant_context, &M);
-  MultibodyForces<T> forces(plant());
-  plant().CalcForceElementsContribution(plant_context, &forces);
-  k = plant().CalcInverseDynamics(plant_context, VectorX<T>::Zero(plant().num_velocities()), forces);
-  VectorX<T> vdot = M.ldlt().solve(-k);
-
-  // First half-step, x̃ = x₀ + 0.5 h ẋ
-  VectorX<T> q_tilde = q0 + 0.5 * h * qdot;
-  VectorX<T> v_tilde = v0 + 0.5 * h * vdot;
-
-  context.get_mutable_continuous_state()
-      .get_mutable_generalized_position()
-      .SetFromVector(q_tilde);
-  context.get_mutable_continuous_state()
-      .get_mutable_generalized_velocity()
-      .SetFromVector(v_tilde);
-  context.NoteContinuousStateChange();
-
-  // Get derivatives at ̃x 
-  plant().MapVelocityToQDot(plant_context, v_tilde, &qdot);
-  plant().CalcMassMatrix(plant_context, &M);
-  plant().CalcForceElementsContribution(plant_context, &forces);
-  k = plant().CalcInverseDynamics(plant_context, VectorX<T>::Zero(plant().num_velocities()), forces);
-  vdot = M.ldlt().solve(-k);
-
-  // Full step x = x₀ + h ẋ, using derivatives evaluated at the midpoint
-  VectorX<T> q = q0 + h * qdot;
-  VectorX<T> v = v0 + h * vdot;
-  
-  context.get_mutable_continuous_state()
-      .get_mutable_generalized_position()
-      .SetFromVector(q);
-  context.get_mutable_continuous_state()
-      .get_mutable_generalized_velocity()
-      .SetFromVector(v);
-  context.NoteContinuousStateChange();
 }
 
 template <typename T>

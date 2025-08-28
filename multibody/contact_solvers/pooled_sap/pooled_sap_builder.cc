@@ -243,12 +243,6 @@ void PooledSapBuilder<T>::UpdateModel(const systems::Context<T>& context,
   r = -dt * plant().CalcInverseDynamics(context, vdot, forces);
   r += dt * plant().EvalJointDampingCache(context).asDiagonal() * v0;
 
-  // r.setZero();
-  // AccumulateForceElementForces(context, &r);
-  // r *= dt;
-  // r += M * v0;
-  r = M * v0;
-
   // Collect effort limits for each clique.
   params->clique_nu.assign(num_cliques, 0);
   params->effort_limits.resize(nv);

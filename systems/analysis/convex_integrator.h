@@ -65,7 +65,7 @@ struct ConvexIntegratorSolverParameters {
   bool use_dense_algebra{false};
 
   // How to compute the error estimate ||x̂ₜ₊ₕ - xₜ₊ₕ||.
-  // Options are "half_stepping", "richardson", "leapfrog".
+  // Options are "half_stepping", "richardson", "midpoint".
   std::string error_estimation_strategy{"half_stepping"};
 };
 
@@ -261,9 +261,9 @@ class ConvexIntegrator final : public IntegratorBase<T> {
   // that Richardson extrapolation breaks L-stability.
   bool StepWithRichardsonExtrapolation(const T& h);
 
-  // Do the main integration step using the "Leapfrog" method. This
-  // requires a total of 3 SAP solves, but produces a 2nd order solution
-  bool StepWithLeapfrogErrorEstimate(const T& h);
+  // Do the main integration step using a second-order midpoint method. This
+  // requires a total of 2 SAP solves, and produces a 2nd order error estimate.
+  bool StepWithMidpointErrorEstimate(const T& h);
 
   // Compute the state x = [q, v, z] at the next time step using symplectic
   // Euler:
@@ -289,25 +289,28 @@ class ConvexIntegrator final : public IntegratorBase<T> {
                                        bool reuse_geometry_data = false,
                                        bool reuse_linearization = false);
 
-  // Compute the state x = [q, v, z] at the next time step using a Leapfrog
-  // method:
+  // Compute the state x = [q, v, z] at the next time step using a custom
+  // second-order method:
   //
-  //      ṽ = min ℓ(v; q₀, v₀, h/2)
-  //      q = q₀ + h N(q₀) ṽ
-  //      v = min ℓ(v; q, ṽ, h/2)
-  //      z = z₀ + h ż₀
+  //      v̂ = min ℓ(v; q₀, v₀, h)
+  //      q̂ = q₀ + h N(q₀) v̂
+  //      ẑ = z₀ + h g(z₀, q₀, v₀)
+  //
+  //      v̅ = (v̂ + v₀) / 2
+  //      q̅ = (q̂ + q₀) / 2
+  //      z̅ = (ẑ + z₀) / 2
+  //
+  //      v = min ℓ*(v; v₀, q̅, v̅, h)  [starts from v₀, h/2 for signed dist.]
+  //      q = q₀ + h N(q̅) (v + v₀) / 2
+  //      z = z₀ + h g(z̅, q̅, v̅)
   //
   // @param h the time step to use
   // @param v_guess the initial guess for the MbP plant velocities.
   // @param x_next the output continuous state, includes state for both the
   //               plant and any external systems.
-  // @param reuse_geometry_data use previously computed geometry data, e.g., in
-  //                            the first half-step.
-  // @param reuse_linearization use previously computed external system
-  // linearization, e.g., in the half-steps.
   //
   // @note the starting state x₀ is stored in this->get_context().
-  void ComputeNextStateLeapfrog(const T& h, const VectorX<T>& v_guess,
+  void ComputeNextStateMidpoint(const T& h, const VectorX<T>& v_guess,
                                 ContinuousState<T>* x_next);
 
   // Solve the convex problem to compute next-step velocities,
@@ -322,11 +325,6 @@ class ConvexIntegrator final : public IntegratorBase<T> {
   // N.B. q₀ is stored in this->get_context().
   void AdvancePlantConfiguration(const T& h, const VectorX<T>& v,
                                  VectorX<T>* q) const;
-
-  // Advance the internally-stored state (q, v) using the explicit midpoint rule,
-  //   q̇ = N(q)v
-  //   M(q)v̇ + k(q, v) = 0 
-  void AdvanceStateExplicitMidpoint(const T& h);
 
   // Advance the external state with explicit euler, z = z₀ + h ż₀
   void AdvanceExternalState(const T& h, VectorX<T>* z) const;
