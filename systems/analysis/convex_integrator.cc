@@ -60,7 +60,7 @@ void ConvexIntegrator<T>::DoInitialize() {
   builder_ = std::make_unique<PooledSapBuilder<T>>(plant(), plant_context);
   const T& dt = this->get_initial_step_size_target();
   const VectorX<T> v0 = plant().GetVelocities(plant_context);
-  builder_->UpdateModel(plant_context, v0, dt, false, &model_);
+  builder_->UpdateModel(plant_context, dt, false, &model_);
   model_.ResizeData(&data_);
   model_.ResizeData(&scratch_data_);
 
@@ -233,7 +233,7 @@ bool ConvexIntegrator<T>::StepWithMidpointErrorEstimate(const T& h) {
   // Full step in velocities, M̅(v − v₀) + h k̅ = J̅γ(q, v; h)
   VectorX<T>& v = scratch_.v;
   const VectorX<T> v0 = x0.get_generalized_velocity().CopyToVector();
-  v = v_guess;  // TODO: use v_hat instead
+  v = x_hat.get_generalized_velocity().CopyToVector();  // initial guess is v̂
   AdvancePlantVelocity(h, v0, &v);
 
   // Full step in positions, q = q₀ + h N̅ (v − v₀) / 2

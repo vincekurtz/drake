@@ -28,7 +28,14 @@ class PooledSapBuilder {
 
   PooledSapBuilder(const MultibodyPlant<T>& plant,
                    const systems::Context<T>& context);
+  
+ 
+  // Default signature for setting up the model, uses v0 from context.
+  void UpdateModel(const systems::Context<T>& context, const T& time_step,
+                   bool reuse_geometry_data, PooledSapModel<T>* model) const;
 
+  // Full signature for setting up the model, uses provided v0. This is useful
+  // for half-stepping.
   void UpdateModel(const systems::Context<T>& context,
                    const VectorX<T>& v_start, const T& time_step,
                    bool reuse_geometry_data, PooledSapModel<T>* model) const;
