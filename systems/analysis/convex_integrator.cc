@@ -220,7 +220,10 @@ bool ConvexIntegrator<T>::StepWithMidpointErrorEstimate(const T& h) {
   x0.get_mutable_vector().SetFrom(x_next.get_vector());
 
   // Record the constraint impulses from the previous step 
-  const VectorX<T> tau0 = previous_constraint_impulse_;
+  // N.B. if we're in error control mode, we need to account for the fact that
+  // the time step may have changed.
+  const T scale = this->get_fixed_step_mode() ? 1.0 : h;
+  const VectorX<T> tau0 = previous_constraint_impulse_ * scale;
 
   // Take the full step to x̂ 
   // TODO(vincekurtz): think through/add geometry and linearization reuse
@@ -255,7 +258,7 @@ bool ConvexIntegrator<T>::StepWithMidpointErrorEstimate(const T& h) {
   PooledSapModel<T>& model = get_model();
   model.MultiplyByDynamicsMatrix(v, &tau);
   tau -= model.params().r;
-  previous_constraint_impulse_ = tau;
+  previous_constraint_impulse_ = tau / scale;
 
   // Propagate the second-order solution
   x_next.get_mutable_generalized_position().SetFromVector(q);
