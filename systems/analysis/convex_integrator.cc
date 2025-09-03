@@ -227,16 +227,6 @@ bool ConvexIntegrator<T>::StepWithMidpointErrorEstimate(const T& h) {
   v_guess = plant().GetVelocities(plant_context);
   ComputeNextStateSymplecticEuler(h, v_guess, &x_hat);
 
-  // Record the constraint impulses at the full step
-  // const VectorX<T>& v_hat = x_hat.get_generalized_velocity().CopyToVector();
-  // VectorX<T> tau_hat(plant().num_velocities());
-  // PooledSapModel<T>& model = get_model();
-  // model.MultiplyByDynamicsMatrix(v_hat, &tau_hat);
-  // tau_hat -= model.params().r;
-  // fmt::print("r: {}\n", fmt_eigen(model.params().r.transpose()));
-  // fmt::print("v_hat: {}\n", fmt_eigen(v_hat.transpose()));
-  // fmt::print("tau_hat: {}\n", fmt_eigen(tau_hat.transpose()));
-
   // Compute midpoint state x̅ = (x̂ + x₀) / 2
   // TODO(vincekurtz): consider just using a pre-allocated vector for x_bar
   const VectorX<T> x_bar_vec = (x_hat.CopyToVector() + x0.CopyToVector()) / 2.0;
@@ -260,30 +250,24 @@ bool ConvexIntegrator<T>::StepWithMidpointErrorEstimate(const T& h) {
   plant().MapVelocityToQDot(plant_context, h * (v + v0) / 2.0, &q);
   q += q0;
 
-  // Compute the next-step constraint impulses  J̅ γ(q̅ + h/2 N̅ v, v)
+  // Record the next-step constraint impulses τ = J̅ γ(q̅ + h/2 N̅ v, v)
   VectorX<T> tau(plant().num_velocities());
   PooledSapModel<T>& model = get_model();
   model.MultiplyByDynamicsMatrix(v, &tau);
   tau -= model.params().r;
-  // tau /= 2.0;
-  fmt::print("tau: {}\n", fmt_eigen(tau.transpose()));
-
-  // Record the constraint impulses associated with the full step, which will
-  // be used as tau0 in the next time step.
   previous_constraint_impulse_ = tau;
 
   // Propagate the second-order solution
-  // x_next.get_mutable_vector().SetFrom(x_hat.get_mutable_vector());
   x_next.get_mutable_generalized_position().SetFromVector(q);
   x_next.get_mutable_generalized_velocity().SetFromVector(v);
-
   context.SetTimeAndNoteContinuousStateChange(t0 + h);
 
   if (!this->get_fixed_step_mode()) {
-    // TODO(vincekurtz): add error estimation
-    throw std::runtime_error(
-        "ConvexIntegrator: error control with the midpoint method is not yet "
-        "implemented.");
+    // Estimate the error as the difference between the first and second-order
+    // solutions.
+    ContinuousState<T>& err = *this->get_mutable_error_estimate();
+    err.get_mutable_vector().SetFrom(x_next.get_vector());
+    err.get_mutable_vector().PlusEqScaled(-1.0, x_hat.get_vector());
   }
 
   return true; // Step was successful

@@ -101,7 +101,7 @@ def create_bouncing_ball_sim():
     simulator = Simulator(diagram, context)
     config = SimulatorConfig()
     config.integration_scheme = "convex"
-    config.max_step_size = 1e-4
+    config.max_step_size = 1e-6
     config.use_error_control = False
     config.accuracy = 1e-6
     ApplySimulatorConfig(config, simulator)
@@ -109,7 +109,7 @@ def create_bouncing_ball_sim():
     ci = simulator.get_mutable_integrator()
     ci.set_plant(plant)
     ci_params = ci.get_solver_parameters()
-    ci_params.error_estimation_strategy = "midpoint"
+    ci_params.error_estimation_strategy = "half_stepping"
     ci.set_solver_parameters(ci_params)
 
     return simulator, plant, ball_body
