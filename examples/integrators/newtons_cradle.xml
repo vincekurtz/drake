@@ -1,0 +1,41 @@
+<mujoco model="newtons_cradle">
+    <compiler angle="degree" coordinate="local"/>
+    <worldbody>
+        <body name="rod1" pos="0 0 0.5">
+            <joint type="hinge" axis="0 1 0"/>
+            <geom type="capsule" fromto="0 0 0 0 0 -0.4" size="0.005" rgba="0.6 0.6 0.6 1"/>
+            <body pos="0 0 -0.4">
+                <geom type="sphere" size="0.05" rgba="0.9 0.9 0.9 1"/>
+            </body>
+        </body>
+        <body name="rod2" pos="0.1 0 0.5">
+            <joint type="hinge" axis="0 1 0"/>
+            <geom type="capsule" fromto="0 0 0 0 0 -0.4" size="0.005" rgba="0.6 0.6 0.6 1"/>
+            <body pos="0 0 -0.4">
+                <geom type="sphere" size="0.05" rgba="0.9 0.9 0.9 1"/>
+            </body>
+        </body>
+        <body name="rod3" pos="0.2 0 0.5">
+            <joint type="hinge" axis="0 1 0"/>
+            <geom type="capsule" fromto="0 0 0 0 0 -0.4" size="0.005" rgba="0.6 0.6 0.6 1"/>
+            <body pos="0 0 -0.4">
+                <geom type="sphere" size="0.05" rgba="0.9 0.9 0.9 1"/>
+            </body>
+        </body>
+        <body name="rod4" pos="0.3 0 0.5">
+            <joint type="hinge" axis="0 1 0"/>
+            <geom type="capsule" fromto="0 0 0 0 0 -0.4" size="0.005" rgba="0.6 0.6 0.6 1"/>
+            <body pos="0 0 -0.4">
+                <geom type="sphere" size="0.05" rgba="0.9 0.9 0.9 1"/>
+            </body>
+        </body>
+        <body name="rod5" pos="0.4 0 0.5">
+            <joint type="hinge" axis="0 1 0"/>
+            <geom type="capsule" fromto="0 0 0 0 0 -0.4" size="0.005" rgba="0.6 0.6 0.6 1"/>
+            <body pos="0 0 -0.4">
+                <geom type="sphere" size="0.05" rgba="0.9 0.9 0.9 1"/>
+            </body>
+        </body>
+    </worldbody>
+    <actuator/>
+</mujoco>

@@ -12,6 +12,7 @@ filegroup(
         "double_pendulum.xml",
         "gripper.xml",
         "plate_and_spatula.sdf",
+        "newtons_cradle.xml",
     ],
     visibility = ["//:__pkg__"],
 )
@@ -57,5 +58,17 @@ drake_py_binary(
         "//bindings/pydrake",
     ],
 )
+
+drake_py_binary(
+    name = "newtons_cradle",
+    srcs = ["newtons_cradle.py"],
+    data = [
+        ":models",
+    ],
+    deps = [
+        "//bindings/pydrake",
+    ],
+)
+
 
 add_lint_tests()
