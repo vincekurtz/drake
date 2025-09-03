@@ -241,7 +241,7 @@ bool ConvexIntegrator<T>::StepWithMidpointErrorEstimate(const T& h) {
   //    2 (M̅ (v − v₀) + h k̅ - τ₀) = J̅ γ(q̅ + h/2 N̅ v, v).
   const VectorX<T> v0 = x0.get_generalized_velocity().CopyToVector();
   VectorX<T>& v = scratch_.v;
-  v = x_bar.get_generalized_velocity().CopyToVector();  // initial guess
+  v = x_hat.get_generalized_velocity().CopyToVector();  // initial guess
   AdvancePlantVelocity(h, v0, tau0, &v, /* reuse_geometry_data */ false,
                        /* reuse_linearization */ false,
                        /* is_half_step */ true);
