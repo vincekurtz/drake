@@ -228,11 +228,14 @@ bool ConvexIntegrator<T>::StepWithMidpointErrorEstimate(const T& h) {
   ComputeNextStateSymplecticEuler(h, v_guess, &x_hat);
 
   // Record the constraint impulses at the full step
-  const VectorX<T>& v_hat = x_hat.get_generalized_velocity().CopyToVector();
-  VectorX<T> tau_hat(plant().num_velocities());
-  PooledSapModel<T>& model = get_model();
-  model.MultiplyByDynamicsMatrix(v_hat, &tau_hat);
-  tau_hat -= model.params().r;
+  // const VectorX<T>& v_hat = x_hat.get_generalized_velocity().CopyToVector();
+  // VectorX<T> tau_hat(plant().num_velocities());
+  // PooledSapModel<T>& model = get_model();
+  // model.MultiplyByDynamicsMatrix(v_hat, &tau_hat);
+  // tau_hat -= model.params().r;
+  // fmt::print("r: {}\n", fmt_eigen(model.params().r.transpose()));
+  // fmt::print("v_hat: {}\n", fmt_eigen(v_hat.transpose()));
+  // fmt::print("tau_hat: {}\n", fmt_eigen(tau_hat.transpose()));
 
   // Compute midpoint state x̅ = (x̂ + x₀) / 2
   // TODO(vincekurtz): consider just using a pre-allocated vector for x_bar
@@ -241,7 +244,8 @@ bool ConvexIntegrator<T>::StepWithMidpointErrorEstimate(const T& h) {
   context.get_mutable_continuous_state().SetFromVector(x_bar_vec);
 
   // Compute next-step velocities using the second-order terms,
-  //    M̅ (v − v₀) + h k̅ = 1/2 (τ₀ + J̅(q̅ + h/2 N̅ v, v)).
+  //    M̅ (v − v₀) + h k̅ = 1/2 (τ₀ + J̅ γ(q̅ + h/2 N̅ v, v)).
+  //    2 (M̅ (v − v₀) + h k̅ - τ₀) = J̅ γ(q̅ + h/2 N̅ v, v).
   const VectorX<T> v0 = x0.get_generalized_velocity().CopyToVector();
   VectorX<T>& v = scratch_.v;
   v = x_bar.get_generalized_velocity().CopyToVector();  // initial guess
@@ -256,9 +260,17 @@ bool ConvexIntegrator<T>::StepWithMidpointErrorEstimate(const T& h) {
   plant().MapVelocityToQDot(plant_context, h * (v + v0) / 2.0, &q);
   q += q0;
 
+  // Compute the next-step constraint impulses  J̅ γ(q̅ + h/2 N̅ v, v)
+  VectorX<T> tau(plant().num_velocities());
+  PooledSapModel<T>& model = get_model();
+  model.MultiplyByDynamicsMatrix(v, &tau);
+  tau -= model.params().r;
+  // tau /= 2.0;
+  fmt::print("tau: {}\n", fmt_eigen(tau.transpose()));
+
   // Record the constraint impulses associated with the full step, which will
   // be used as tau0 in the next time step.
-  previous_constraint_impulse_ = tau_hat;
+  previous_constraint_impulse_ = tau;
 
   // Propagate the second-order solution
   // x_next.get_mutable_vector().SetFrom(x_hat.get_mutable_vector());
