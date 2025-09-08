@@ -1,6 +1,8 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
+import time
+
 from pydrake.all import (
     MultibodyPlant,
     DiagramBuilder,
@@ -29,8 +31,7 @@ from pydrake.multibody.math import SpatialVelocity
 #
 ##
 
-
-def create_bouncing_ball_sim():
+def create_bouncing_ball_sim(acc):
     builder = DiagramBuilder()
 
     # Discrete plant with small time step
@@ -46,8 +47,9 @@ def create_bouncing_ball_sim():
     )
 
     # Ground
+    ground_height = -0.05 + 0.001962  # zero potential energy at rest
     ground_shape = Box(2.0, 2.0, 2.0)
-    ground_pose = RigidTransform([0, 0, -1.0])
+    ground_pose = RigidTransform([0, 0, -1.0 + ground_height])
     plant.RegisterCollisionGeometry(
         plant.world_body(),
         ground_pose,
@@ -101,68 +103,84 @@ def create_bouncing_ball_sim():
     simulator = Simulator(diagram, context)
     config = SimulatorConfig()
     config.integration_scheme = "convex"
-    config.max_step_size = 1e-3
-    config.use_error_control = False
-    config.accuracy = 1e-4
+    config.max_step_size = 1e-1
+    config.use_error_control = True
+    config.accuracy = acc
     ApplySimulatorConfig(config, simulator)
 
     ci = simulator.get_mutable_integrator()
     ci.set_plant(plant)
     ci_params = ci.get_solver_parameters()
-    ci_params.error_estimation_strategy = "midpoint"
+    ci_params.error_estimation_strategy = "half_stepping"
     ci.set_solver_parameters(ci_params)
 
     return simulator, plant, ball_body
 
+accuracies = [1e-1, 1e-2, 1e-3, 1e-4, 1e-5, 1e-6, 1e-7, 1e-8]
+wall_times = []
+energy_errors = []
 
-# Run simulation
-simulator, plant, ball_body = create_bouncing_ball_sim()
+for accuracy in accuracies:
+    print(f"Running at accuracy {accuracy}")
+    simulator, plant, ball_body = create_bouncing_ball_sim(accuracy)
 
-# Simulate and collect data
-time_steps = []
-z_positions = []
-energies = []
+    # Simulate and collect data
+    time_steps = []
+    z_positions = []
+    energies = []
 
-sim_time = 5.0
-dt = 0.01
-simulator.Initialize()
+    sim_time = 2.0
+    dt = 0.01
+    simulator.Initialize()
 
-while simulator.get_context().get_time() < sim_time:
-    context = simulator.get_context()
-    plant_context = plant.GetMyContextFromRoot(context)
-    pose = plant.EvalBodyPoseInWorld(plant_context, ball_body)
-    z = pose.translation()[2]
-    t = context.get_time()
+    wall_time = 0.0
+    while simulator.get_context().get_time() < sim_time:
+        context = simulator.get_context()
+        plant_context = plant.GetMyContextFromRoot(context)
+        pose = plant.EvalBodyPoseInWorld(plant_context, ball_body)
+        z = pose.translation()[2]
+        t = context.get_time()
 
-    e = plant.CalcPotentialEnergy(plant_context) + plant.CalcKineticEnergy(
-        plant_context
-    )
+        e = plant.CalcPotentialEnergy(plant_context) + plant.CalcKineticEnergy(
+            plant_context
+        )
 
-    z_positions.append(z)
-    energies.append(e)
-    time_steps.append(t)
+        z_positions.append(z)
+        energies.append(e)
+        time_steps.append(t)
 
-    simulator.AdvanceTo(t + dt)
+        st = time.time()
+        simulator.AdvanceTo(t + dt)
+        wall_time += time.time() - st
 
-PrintSimulatorStatistics(simulator)
+    # PrintSimulatorStatistics(simulator)
 
-print(f"\nEnergy error: {energies[-1] - energies[0]}")
+    print(f"==> Wall time: {wall_time} s")
+    energy_loss = abs(energies[-1] - energies[0]) / energies[0] * 100
+    print(f"==> Energy loss: {energy_loss} %")
 
-# Plotting
-plt.figure(figsize=(8, 4))
-plt.subplot(2, 1, 1)
-plt.plot(time_steps, z_positions, label="Ball height (z)")
-plt.xlabel("Time [s]")
-plt.ylabel("Height [m]")
-plt.grid(True)
-plt.legend()
+    energy_errors.append(energy_loss)
+    wall_times.append(wall_time)
 
-plt.subplot(2, 1, 2)
-plt.plot(time_steps, energies, label="Total energy")
-plt.xlabel("Time [s]")
-plt.ylabel("Energy [J]")
-plt.grid(True)
-plt.legend()
+print(repr(accuracies))
+print(repr(wall_times))
+print(repr(energy_errors))
 
-plt.tight_layout()
-plt.show()
+# # Plotting
+# plt.figure(figsize=(8, 4))
+# plt.subplot(2, 1, 1)
+# plt.plot(time_steps, z_positions, label="Ball height (z)")
+# plt.xlabel("Time [s]")
+# plt.ylabel("Height [m]")
+# plt.grid(True)
+# plt.legend()
+
+# plt.subplot(2, 1, 2)
+# plt.plot(time_steps, energies, label="Total energy")
+# plt.xlabel("Time [s]")
+# plt.ylabel("Energy [J]")
+# plt.grid(True)
+# plt.legend()
+
+# plt.tight_layout()
+# plt.show()
