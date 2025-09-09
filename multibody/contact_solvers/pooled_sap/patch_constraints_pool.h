@@ -199,8 +199,7 @@ class PooledSapModel<T>::PatchConstraintsPool {
     const T vn0 = v_AcBc_W.dot(normal_W);
     const T damping = max(0.0, 1.0 - d * vn0);
 
-    const T dt = use_half_step_signed_distances_ ? 0.5 * time_step_ : time_step_;
-    const T n0 = max(0.0, dt * fn0) * damping;
+    const T n0 = max(0.0, time_step_ * fn0) * damping;
     n0_.push_back(n0);
 
     // Coefficient of friction is determined based on previous velocity. This
