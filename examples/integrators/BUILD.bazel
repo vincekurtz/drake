@@ -70,5 +70,12 @@ drake_py_binary(
     ],
 )
 
+drake_py_binary(
+    name = "conservation_test",
+    srcs = ["conservation_test.py"],
+    deps = [
+        "//bindings/pydrake",
+    ],
+)
 
 add_lint_tests()
