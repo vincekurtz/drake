@@ -149,39 +149,52 @@ def run_conservation_test(time_step, integration_scheme, convex_scheme, visualiz
 
     return energy_error, linear_momentum_error, angular_momentum_error
 
-if __name__ == "__main__":
-    # Set options for what data to collect
-    integration_scheme = "convex"
-    convex_scheme = "half_stepping"
-    time_steps = [1e-2, 3e-3, 1e-3, 3e-4, 1e-4, 3e-5, 1e-5]
-
-    # Collect data
+def collect_data(integration_scheme, convex_scheme, time_steps):
     energy_errors = []
     linear_momentum_errors = []
     angular_momentum_errors = []
 
     for time_step in time_steps:
         e_err, p_err, L_err = run_conservation_test(
-            time_step, integration_scheme, convex_scheme, visualize=False
+            time_step, integration_scheme, convex_scheme
         )
         energy_errors.append(e_err)
         linear_momentum_errors.append(p_err)
         angular_momentum_errors.append(L_err)
+    
+    name = f"{integration_scheme}"
+    if integration_scheme == "convex":
+        name += f" ({convex_scheme})"
 
-    # Make plots
+    return name, energy_errors, linear_momentum_errors, angular_momentum_errors
+
+if __name__ == "__main__":
+    # Set options for what data to collect
+    time_steps = [1e-2, 3e-3, 1e-3, 3e-4, 1e-4]
+
+    # Set up plots 
     fig, ax = plt.subplots(3, 1, figsize=(7, 10), sharex=True)
 
-    ax[0].plot(time_steps, energy_errors, "o-", label="Energy error")
+    for method in [("convex", "midpoint"), ("convex", "half_stepping")]:
+        # Collect data
+        name, energy_errors, linear_momentum_errors, angular_momentum_errors = collect_data(
+            method[0], method[1], time_steps
+        )
+
+        # Add data to plots
+        ax[0].plot(time_steps, energy_errors, "o-", label=name)
+        ax[1].plot(time_steps, linear_momentum_errors, "o-", label=name)
+        ax[2].plot(time_steps, angular_momentum_errors, "o-", label=name)
+
+    # Plot formatting
     ax[0].plot(time_steps, np.array(time_steps) ** 2, "k--", label="O(dt²)")
     ax[0].plot(time_steps, np.array(time_steps), "k:", label="O(dt)")
     ax[0].set_ylabel("Kinetic Energy Error")
 
-    ax[1].plot(time_steps, linear_momentum_errors, "o-", label="Linear momentum error")
     ax[1].plot(time_steps, np.array(time_steps) ** 2, "k--", label="O(dt²)")
     ax[1].plot(time_steps, np.array(time_steps), "k:", label="O(dt)")
     ax[1].set_ylabel("Linear Momentum Error")
 
-    ax[2].plot(time_steps, angular_momentum_errors, "o-", label="Angular momentum error")
     ax[2].plot(time_steps, np.array(time_steps) ** 2, "k--", label="O(dt²)")
     ax[2].plot(time_steps, np.array(time_steps), "k:", label="O(dt)")
     ax[2].set_ylabel("Angular Momentum Error")
@@ -190,15 +203,10 @@ if __name__ == "__main__":
         a.set_xscale("log")
         a.set_yscale("log")
         a.grid(True)
-        a.legend()
 
+    ax[0].legend()
     ax[2].invert_xaxis()
     ax[2].set_xlabel("Time step (s)")
-
-    name = f"{integration_scheme}"
-    if integration_scheme == "convex":
-        name += f" ({convex_scheme})"
-    ax[0].set_title(f"Integration Scheme: {name}")
 
     plt.tight_layout()
     plt.show()
