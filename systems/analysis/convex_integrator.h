@@ -254,6 +254,10 @@ class ConvexIntegrator final : public IntegratorBase<T> {
   // estimation. This requires a total of 3 SAP solves.
   bool StepWithHalfSteppingErrorEstimate(const T& h);
 
+  // Do the main integration step using a 2nd-order L-stable SDIRK scheme. This
+  // requires a total of 2 SAP solves, and includes an embedded error estimate.
+  bool StepWithSDIRKErrorEstimate(const T& h);
+
   // Do the main integration step with half-stepping, but use Richardson
   // extrapolation to propagate a 2nd order solution. This requires a total of 3
   // SAP solves. Note that while this increases the order of the propagated
