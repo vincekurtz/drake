@@ -128,7 +128,7 @@ def create_bouncing_ball_sim(acc, dt, use_error_control):
         ci = simulator.get_mutable_integrator()
         ci.set_plant(plant)
         ci_params = ci.get_solver_parameters()
-        ci_params.error_estimation_strategy = "midpoint"
+        ci_params.error_estimation_strategy = "trapezoid"
         ci.set_solver_parameters(ci_params)
 
     return simulator, plant, None
@@ -172,6 +172,23 @@ for time_step in time_steps:
 print("time_steps =", repr(time_steps))
 print("wall_times =", repr(wall_times))
 print("energy_errors =", repr(energy_errors))
+
+time_steps = np.array(time_steps)
+plt.plot(time_steps, energy_errors, "o-")
+plt.plot(time_steps, 1e4 * time_steps, "k--", label="O(dt)")
+plt.plot(time_steps, 1e4 * time_steps**2, "k-.", label="O(dt^2)")
+plt.legend()
+
+plt.xscale('log')
+plt.yscale('log')
+plt.gca().invert_xaxis()
+plt.xlabel('Time Step (s)')
+plt.ylabel('Energy Error (J)')
+plt.grid()
+
+plt.show()
+
+
 
 # # Plotting
 # plt.figure(figsize=(8, 4))

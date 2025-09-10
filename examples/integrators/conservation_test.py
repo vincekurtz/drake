@@ -175,7 +175,7 @@ if __name__ == "__main__":
     # Set up plots 
     fig, ax = plt.subplots(3, 1, figsize=(7, 10), sharex=True)
 
-    for method in [("convex", "midpoint"), ("convex", "half_stepping")]:
+    for method in [("convex", "midpoint"), ("convex", "half_stepping"), ("convex", "trapezoid")]:
         # Collect data
         name, energy_errors, linear_momentum_errors, angular_momentum_errors = collect_data(
             method[0], method[1], time_steps

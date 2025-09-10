@@ -286,6 +286,31 @@ class ConvexIntegrator final : public IntegratorBase<T> {
   // Here x̂ is a first-order estimate, which can be used for error control.
   bool StepWithMidpointErrorEstimate(const T& h);
 
+  // Do the main integration step using a second-order trapezoid method for
+  // error estimation. This requires a total of only 1 SAP solve for the
+  // propagated 1st order solution, 
+  //
+  //      v̂ = min ℓ(v; q₀, v₀, h)
+  //      q̂ = q₀ + h N(q₀) v̂
+  //      ẑ = z₀ + h g(z₀, q₀, v₀).
+  //
+  // The 2nd order error estimate is produced using the trapezoid rule:
+  //
+  //      q = q₀ + h N(q₀) (v₀ + v̂) / 2
+  //      M̅ (v - v₀) + h k̅  = τ̅
+  //      z = z₀ + h (g(z₀, q₀, v₀) + g(z₀, q̂, v̂)) / 2,
+  //
+  // where
+  //
+  //       M̅ = (M(q₀) + M(q̂)) / 2, 
+  //       k̅ = (k(q₀, v₀) + k(q̂, v̂)) / 2, 
+  //       τ̅ = (J(q₀)'γ(q₀, v₀) + J(q̂)'γ(q̂, v̂)) / 2.
+  //
+  // are averaged over this and the previous time step. The resulting
+  // second-order method is not particularly stable, so the solution is not good
+  // to propagate, but it does provide a cheap error estimate.
+  bool StepWithTrapezoidErrorEstimate(const T& h);
+
   // Compute the state x = [q, v, z] at the next time step using symplectic
   // Euler:
   //

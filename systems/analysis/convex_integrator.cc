@@ -112,6 +112,8 @@ bool ConvexIntegrator<T>::DoStep(const T& h) {
     return StepWithRichardsonExtrapolation(h);
   } else if (strategy == "midpoint") {
     return StepWithMidpointErrorEstimate(h);
+  } else if (strategy == "trapezoid") {
+    return StepWithTrapezoidErrorEstimate(h);
   } else if (strategy == "sdirk") {
     return StepWithSDIRKErrorEstimate(h);
   } else {
@@ -331,6 +333,92 @@ bool ConvexIntegrator<T>::StepWithMidpointErrorEstimate(const T& h) {
   model.MultiplyByDynamicsMatrix(v, &tau);
   tau -= model.params().r;
   previous_constraint_impulse_ = tau / scale;
+
+  // Propagate the second-order solution
+  x_next.get_mutable_generalized_position().SetFromVector(q);
+  x_next.get_mutable_generalized_velocity().SetFromVector(v);
+  context.SetTimeAndNoteContinuousStateChange(t0 + h);
+
+  if (!this->get_fixed_step_mode()) {
+    // Estimate the error as the difference between the first and second-order
+    // solutions.
+    ContinuousState<T>& err = *this->get_mutable_error_estimate();
+    err.get_mutable_vector().SetFrom(x_next.get_vector());
+    err.get_mutable_vector().PlusEqScaled(-1.0, x_hat.get_vector());
+  }
+
+  return true; // Step was successful
+}
+
+template <typename T>
+bool ConvexIntegrator<T>::StepWithTrapezoidErrorEstimate(const T& h) {
+  Context<T>& context = *this->get_mutable_context();
+  const Context<T>& plant_context = plant().GetMyContextFromRoot(context);
+  const T t0 = context.get_time();
+
+  // Some aliases for convenience:
+  //   ̂x = full step estimate (first order)
+  //   ̅x = midpoint estimate (x̂ + x₀) / 2
+  //   x = propagated solution (second order)
+  //   x₀ = initial state
+  ContinuousState<T>& x_hat = *x_next_full_;
+  ContinuousState<T>& x_bar = *x_next_half_1_;
+  ContinuousState<T>& x_next = context.get_mutable_continuous_state();
+  ContinuousState<T>& x0 = *x_next_half_2_;
+  VectorX<T>& v_guess = scratch_.v_guess;
+
+  // Record the initial state
+  x0.get_mutable_vector().SetFrom(x_next.get_vector());
+
+  // Record the constraint impulses from the previous step 
+  // N.B. if we're in error control mode, we need to account for the fact that
+  // the time step may have changed.
+  const T scale = this->get_fixed_step_mode() ? 1.0 : h;
+  const VectorX<T> tau0 = previous_constraint_impulse_ * scale;
+
+  // Take the full step to x̂ 
+  // TODO(vincekurtz): think through/add geometry and linearization reuse
+  v_guess = plant().GetVelocities(plant_context);
+  ComputeNextStateSymplecticEuler(h, v_guess, &x_hat);
+
+  // Compute midpoint state x̅ = (x̂ + x₀) / 2
+  // TODO(vincekurtz): consider just using a pre-allocated vector for x_bar
+  const VectorX<T> x_bar_vec = (x_hat.CopyToVector() + x0.CopyToVector()) / 2.0;
+  x_bar.get_mutable_vector().SetFromVector(x_bar_vec);
+  context.get_mutable_continuous_state().SetFromVector(x_bar_vec);
+
+  // Record the next-step constraint impulses τ̂  = J γ(q̂, v̂)
+  const VectorX<T> v_hat = x_hat.get_generalized_velocity().CopyToVector();
+  VectorX<T> tau_hat(plant().num_velocities());
+  PooledSapModel<T>& model = get_model();
+  model.MultiplyByDynamicsMatrix(v_hat, &tau_hat);
+  tau_hat -= model.params().r;
+
+  // Compute next-step velocities using the second-order terms,
+  //    M̅ (v − v₀) + h k̅ = 1/2 (τ₀ + τ̂ )
+  const int nv = plant().num_velocities();
+  MatrixX<T> Mbar(nv, nv);
+  plant().CalcMassMatrix(plant_context, &Mbar);
+
+  MultibodyForces<T>& forces = *scratch_.f_ext;
+  plant().CalcForceElementsContribution(plant_context, &forces);
+  VectorX<T> kbar =
+      plant().CalcInverseDynamics(plant_context, VectorXd::Zero(nv), forces);
+  VectorX<T> tau_bar = 0.5 * (tau0 + tau_hat);
+
+  const VectorX<T> v0 = x0.get_generalized_velocity().CopyToVector();
+  VectorX<T>& v = scratch_.v;
+  v = v0 + Mbar.ldlt().solve(tau_bar - h * kbar);
+
+  // Compute next-step positions as second-order
+  // q = q₀ + h N(q̅) (v + v₀) / 2
+  VectorX<T>& q = scratch_.q;
+  const VectorX<T> q0 = x0.get_generalized_position().CopyToVector();
+  plant().MapVelocityToQDot(plant_context, h * (v + v0) / 2.0, &q);
+  q += q0;
+ 
+  // Record the constraint impulses for the next step
+  previous_constraint_impulse_ = tau_hat / scale;
 
   // Propagate the second-order solution
   x_next.get_mutable_generalized_position().SetFromVector(q);
