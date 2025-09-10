@@ -420,16 +420,16 @@ bool ConvexIntegrator<T>::StepWithTrapezoidErrorEstimate(const T& h) {
   // Record the constraint impulses for the next step
   previous_constraint_impulse_ = tau_hat / scale;
 
-  // Propagate the second-order solution
-  x_next.get_mutable_generalized_position().SetFromVector(q);
-  x_next.get_mutable_generalized_velocity().SetFromVector(v);
+  // Propagate the first-order solution
+  x_next.get_mutable_vector().SetFrom(x_hat.get_vector());
   context.SetTimeAndNoteContinuousStateChange(t0 + h);
 
   if (!this->get_fixed_step_mode()) {
     // Estimate the error as the difference between the first and second-order
     // solutions.
     ContinuousState<T>& err = *this->get_mutable_error_estimate();
-    err.get_mutable_vector().SetFrom(x_next.get_vector());
+    err.get_mutable_generalized_position().SetFromVector(q);
+    err.get_mutable_generalized_velocity().SetFromVector(v);
     err.get_mutable_vector().PlusEqScaled(-1.0, x_hat.get_vector());
   }
 
