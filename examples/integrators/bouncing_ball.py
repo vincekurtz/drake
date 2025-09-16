@@ -30,7 +30,9 @@ from pydrake.multibody.math import SpatialVelocity
 ##
 
 
-def create_bouncing_ball_sim():
+def create_bouncing_ball_sim(
+    integration_scheme, error_estimation_strategy, time_step
+):
     builder = DiagramBuilder()
 
     # Discrete plant with small time step
@@ -100,67 +102,104 @@ def create_bouncing_ball_sim():
 
     simulator = Simulator(diagram, context)
     config = SimulatorConfig()
-    config.integration_scheme = "convex"
-    config.max_step_size = 0.1
-    config.use_error_control = True
-    config.accuracy = 1e-6
+    config.integration_scheme = integration_scheme
+    config.max_step_size = time_step
+    config.use_error_control = False
+    config.accuracy = 1e-3
     ApplySimulatorConfig(config, simulator)
 
-    ci = simulator.get_mutable_integrator()
-    ci.set_plant(plant)
-    ci_params = ci.get_solver_parameters()
-    ci_params.error_estimation_strategy = "richardson"
-    ci.set_solver_parameters(ci_params)
+    if config.integration_scheme == "convex":
+        ci = simulator.get_mutable_integrator()
+        ci.set_plant(plant)
+        ci_params = ci.get_solver_parameters()
+        ci_params.error_estimation_strategy = error_estimation_strategy
+        ci.set_solver_parameters(ci_params)
 
     return simulator, plant, ball_body
 
 
-# Run simulation
-simulator, plant, ball_body = create_bouncing_ball_sim()
+def run_simulation(integration_scheme, error_estimation_strategy, time_step, plot=False):
+    simulator, plant, ball_body = create_bouncing_ball_sim(integration_scheme, error_estimation_strategy, time_step)
 
-# Simulate and collect data
-time_steps = []
-z_positions = []
-energies = []
+    # Simulate and collect data
+    time_steps = []
+    z_positions = []
+    energies = []
 
-sim_time = 10.0
-dt = 0.01
-simulator.Initialize()
+    sim_time = 5.0
+    dt = 0.01
+    simulator.Initialize()
 
-while simulator.get_context().get_time() < sim_time:
-    context = simulator.get_context()
-    plant_context = plant.GetMyContextFromRoot(context)
-    pose = plant.EvalBodyPoseInWorld(plant_context, ball_body)
-    z = pose.translation()[2]
-    t = context.get_time()
+    while simulator.get_context().get_time() < sim_time:
+        context = simulator.get_context()
+        plant_context = plant.GetMyContextFromRoot(context)
+        pose = plant.EvalBodyPoseInWorld(plant_context, ball_body)
+        z = pose.translation()[2]
+        t = context.get_time()
 
-    e = plant.CalcPotentialEnergy(plant_context) + plant.CalcKineticEnergy(
-        plant_context
-    )
+        e = plant.CalcPotentialEnergy(plant_context) + plant.CalcKineticEnergy(
+            plant_context
+        )
 
-    z_positions.append(z)
-    energies.append(e)
-    time_steps.append(t)
+        z_positions.append(z)
+        energies.append(e)
+        time_steps.append(t)
 
-    simulator.AdvanceTo(t + dt)
+        simulator.AdvanceTo(t + dt)
 
-PrintSimulatorStatistics(simulator)
+    # avoid getting unlucky with contact at the very last time step
+    final_energy = np.max(energies[-4:])  
+    initial_energy = energies[0]
 
-# Plotting
-plt.figure(figsize=(8, 4))
-plt.subplot(2, 1, 1)
-plt.plot(time_steps, z_positions, label="Ball height (z)")
-plt.xlabel("Time [s]")
-plt.ylabel("Height [m]")
-plt.grid(True)
-plt.legend()
+    print("  Initial Energy: ", initial_energy)
+    print("  Final Energy:   ", final_energy)
 
-plt.subplot(2, 1, 2)
-plt.plot(time_steps, energies, label="Total energy")
-plt.xlabel("Time [s]")
-plt.ylabel("Energy [J]")
-plt.grid(True)
-plt.legend()
+    if plot:
+        # Plotting
+        plt.figure(figsize=(8, 4))
+        plt.subplot(2, 1, 1)
+        plt.plot(time_steps, z_positions, label="Ball height (z)")
+        plt.xlabel("Time [s]")
+        plt.ylabel("Height [m]")
+        plt.grid(True)
+        plt.legend()
 
-plt.tight_layout()
-plt.show()
+        plt.subplot(2, 1, 2)
+        plt.plot(time_steps, energies, label="Total energy")
+        plt.xlabel("Time [s]")
+        plt.ylabel("Energy [J]")
+        plt.grid(True)
+        plt.legend()
+
+        plt.tight_layout()
+        plt.show()
+
+    return abs(initial_energy - final_energy)
+
+if __name__ == "__main__":
+    # Run a single simulation, plot bounce height and energy over time
+    # run_simulation("convex", "half_stepping", 1e-4, plot=True)
+
+    # Run a bunch of simulations at different time steps, estimate integration
+    # order.
+    time_steps = [1e-2, 5e-3, 1e-3, 5e-4, 1e-4, 5e-5]
+    errors = []
+    for time_step in time_steps:
+        print("Time step:", time_step)
+        err = run_simulation("convex", "half_stepping", time_step, plot=False)
+        errors.append(err)
+
+    plt.plot(time_steps, errors, "o-")
+    plt.plot(time_steps, 1e2 * np.array(time_steps), "k--", label="O(h)")
+    plt.plot(time_steps, 1e3 * np.array(time_steps) ** 2, "k:", label="O(h²)")
+    plt.legend()
+
+    plt.xscale("log")
+    plt.yscale("log")
+    plt.xlabel("Time step [s]")
+    plt.ylabel("Energy error [J]")
+    plt.grid(True)
+    plt.gca().invert_xaxis()
+
+    plt.tight_layout()
+    plt.show()
