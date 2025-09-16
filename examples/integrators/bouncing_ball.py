@@ -34,8 +34,6 @@ def create_bouncing_ball_sim(
     integration_scheme, error_estimation_strategy, time_step
 ):
     builder = DiagramBuilder()
-
-    # Discrete plant with small time step
     plant, scene_graph = AddMultibodyPlantSceneGraph(builder, time_step=0.0)
 
     # Proximity properties for bouncy contact

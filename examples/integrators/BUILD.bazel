@@ -59,6 +59,14 @@ drake_py_binary(
 )
 
 drake_py_binary(
+    name = "double_pendulum",
+    srcs = ["double_pendulum.py"],
+    deps = [
+        "//bindings/pydrake",
+    ],
+)
+
+drake_py_binary(
     name = "simulate_mjcf",
     srcs = ["simulate_mjcf.py"],
     deps = [
