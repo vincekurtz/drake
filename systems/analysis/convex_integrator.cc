@@ -258,45 +258,51 @@ bool ConvexIntegrator<T>::StepWithImplicitTrapezoidErrorEstimate(const T& h) {
   const Context<T>& plant_context =
       plant().GetMyContextFromRoot(diagram_context);
   const T t0 = diagram_context.get_time();
-  VectorX<T>& v_guess = scratch_.v_guess;
+  const int nv = plant().num_velocities();
 
-  // Solve the for the full step x_{t+h}
-  v_guess = plant().GetVelocities(plant_context);
-  ComputeNextContinuousState(h, v_guess, x_next_full_.get());
+  // Placeholders for the initial state x₀, the first order estimate of the
+  // next state x̂, and second-order estimate x.
+  ContinuousState<T>& x0 = *x_next_half_1_;
+  ContinuousState<T>& x_hat = *x_next_half_2_;
+  ContinuousState<T>& x = *x_next_full_;
 
-  Context<T>& mutable_context = *this->get_mutable_context();
-  ContinuousState<T>& x_next = mutable_context.get_mutable_continuous_state();
+  // Record the mass matrix and nonlinear terms at x0
+  x0.SetFromVector(diagram_context.get_continuous_state().CopyToVector());
+  const VectorX<T> v0 = x0.get_generalized_velocity().CopyToVector();
+
+  MatrixX<T> M0(nv, nv);
+  plant().CalcMassMatrix(plant_context, &M0);
+
+  MultibodyForces<T>& f0 = *scratch_.f_ext;
+  plant().CalcForceElementsContribution(plant_context, &f0);
+  const VectorX<T> k0 =
+      plant().CalcInverseDynamics(plant_context, VectorX<T>::Zero(nv), f0);
+
+  // Take a full first-order step to x̂
+  ComputeNextContinuousState(h, v0, &x_hat);
+
+  // Advance the stored internal state to x̂
+  this->get_mutable_context()->get_mutable_continuous_state().SetFrom(x_hat);
+  this->get_mutable_context()->SetTimeAndNoteContinuousStateChange(t0 + h);
+
+  // Perform the second-order corrected step to x, averaging dynamics quantities
+  // between x₀ and x̂.
+
+  (void)k0;
+  (void)M0;
+  (void)x_hat;
+  (void)x;
+
 
   if (this->get_fixed_step_mode()) {
     // We're using fixed step mode, so we can just set the state to x_{t+h} and
     // move on. No need for error estimation.
-    x_next.SetFrom(*x_next_full_);
+    Context<T>& mutable_context = *this->get_mutable_context();
+    mutable_context.get_mutable_continuous_state().SetFrom(x_hat);
     mutable_context.SetTimeAndNoteContinuousStateChange(t0 + h);
   } else {
-    // We're using error control, and will compare with the implicit trapezoidal
-    // rule, x = x₀ + h/2 ( f(x₀) + f(x) )
-
-    // First we'll advance the state to x₁ = x₀ + h/2 f(x₀) explicitly
-    const VectorX<T> x0 = diagram_context.get_continuous_state().CopyToVector();
-    const VectorX<T> f0 =
-        this->EvalTimeDerivatives(diagram_context).CopyToVector();
-    x_next_half_1_->SetFromVector(x0 + 0.5 * h * f0);
-
-    // Then we'll advance to x = x₁ + h/2 f(x) implicitly using SAP.
-    x_next.SetFrom(*x_next_half_1_);
-    mutable_context.SetTimeAndNoteContinuousStateChange(t0 + 0.5 * h);
-    v_guess = x_next_full_->get_generalized_velocity().CopyToVector();
-    ComputeNextContinuousState(0.5 * h, v_guess, x_next_half_2_.get());
-
-    // Set the state to the second-order implicit trapezoidal solution.
-    x_next.SetFrom(*x_next_half_2_);
-    mutable_context.SetTimeAndNoteContinuousStateChange(t0 + h);
-
-    // Estimate the error as the difference between the full step and the
-    // two half-steps.
-    ContinuousState<T>& err = *this->get_mutable_error_estimate();
-    err.SetFrom(*x_next_full_);
-    err.get_mutable_vector().PlusEqScaled(-1.0, x_next_half_2_->get_vector());
+    throw std::runtime_error(
+        "ConvexIntegrator: trapezoid doesn't support error control yet.");
   }
 
   return true;  // step was successful

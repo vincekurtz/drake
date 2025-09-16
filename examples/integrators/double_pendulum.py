@@ -99,7 +99,7 @@ if __name__ == "__main__":
     errors = []
     for time_step in time_steps:
         print("Time step:", time_step)
-        err = run_simulation("convex", "half_stepping", time_step)
+        err = run_simulation("convex", "implicit_trapezoid", time_step)
         errors.append(err)
 
     plt.plot(time_steps, errors, "o-")
