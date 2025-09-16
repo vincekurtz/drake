@@ -2,26 +2,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from pydrake.all import (
-    MultibodyPlant,
     DiagramBuilder,
-    RigidTransform,
-    SpatialInertia,
-    UnitInertia,
-    CoulombFriction,
     AddMultibodyPlantSceneGraph,
     Simulator,
-    PrintSimulatorStatistics,
     SimulatorConfig,
     ApplySimulatorConfig,
     Parser,
 )
-from pydrake.geometry import (
-    Box,
-    Sphere,
-    ProximityProperties,
-    AddContactMaterial,
-)
-from pydrake.multibody.math import SpatialVelocity
 
 ##
 #
