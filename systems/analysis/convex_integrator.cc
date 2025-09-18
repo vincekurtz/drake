@@ -329,8 +329,9 @@ bool ConvexIntegrator<T>::StepWithImplicitTrapezoidErrorEstimate(const T& h) {
     mutable_context.get_mutable_continuous_state().SetFrom(x);
     mutable_context.SetTimeAndNoteContinuousStateChange(t0 + h);
   } else {
-    throw std::runtime_error(
-        "ConvexIntegrator: trapezoid doesn't support error control yet.");
+    ContinuousState<T>& err = *this->get_mutable_error_estimate();
+    err.get_mutable_vector().SetFrom(x.get_vector());
+    err.get_mutable_vector().PlusEqScaled(-1.0, x_hat.get_vector());
   }
 
   return true;  // step was successful
