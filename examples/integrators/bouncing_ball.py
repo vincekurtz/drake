@@ -46,8 +46,9 @@ def create_bouncing_ball_sim(
     )
 
     # Ground
-    ground_shape = Box(2.0, 2.0, 0.1)
-    ground_pose = RigidTransform([0, 0, -0.05])
+    ground_shape = Box(2.0, 2.0, 2.0)
+    ground_height = -0.05 + 0.001962  # zero potential energy at rest
+    ground_pose = RigidTransform([0, 0, -1.0 + ground_height])
     plant.RegisterCollisionGeometry(
         plant.world_body(),
         ground_pose,
@@ -124,7 +125,7 @@ def run_simulation(integration_scheme, error_estimation_strategy, time_step, plo
     z_positions = []
     energies = []
 
-    sim_time = 5.0
+    sim_time = 10.0
     dt = 0.01
     simulator.Initialize()
 
@@ -151,6 +152,7 @@ def run_simulation(integration_scheme, error_estimation_strategy, time_step, plo
 
     print("  Initial Energy: ", initial_energy)
     print("  Final Energy:   ", final_energy)
+    print("  Delta:          ", abs(initial_energy - final_energy))
 
     if plot:
         # Plotting
@@ -172,7 +174,7 @@ def run_simulation(integration_scheme, error_estimation_strategy, time_step, plo
         plt.tight_layout()
         plt.show()
 
-    return abs(initial_energy - final_energy)
+    return abs(initial_energy - final_energy) / initial_energy * 100
 
 if __name__ == "__main__":
     # Run a single simulation, plot bounce height and energy over time
@@ -180,7 +182,7 @@ if __name__ == "__main__":
 
     # Run a bunch of simulations at different time steps, estimate integration
     # order.
-    time_steps = [1e-2, 5e-3, 1e-3, 5e-4, 1e-4, 5e-5]
+    time_steps = [1e-2, 3e-3, 1e-3, 3e-4, 1e-4, 3e-5, 1e-5]
     errors = []
     for time_step in time_steps:
         print("Time step:", time_step)
@@ -188,14 +190,14 @@ if __name__ == "__main__":
         errors.append(err)
 
     plt.plot(time_steps, errors, "o-")
-    plt.plot(time_steps, 1e2 * np.array(time_steps), "k--", label="O(h)")
-    plt.plot(time_steps, 1e3 * np.array(time_steps) ** 2, "k:", label="O(h²)")
+    plt.plot(time_steps, 1e4 * np.array(time_steps), "k--", label="O(h)")
+    plt.plot(time_steps, 1e6 * np.array(time_steps) ** 2, "k:", label="O(h²)")
     plt.legend()
 
     plt.xscale("log")
     plt.yscale("log")
     plt.xlabel("Time step [s]")
-    plt.ylabel("Energy error [J]")
+    plt.ylabel("Energy error [%]")
     plt.grid(True)
     plt.gca().invert_xaxis()
 
