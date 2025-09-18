@@ -60,6 +60,7 @@ def create_double_pendulum_sim(
         ci.set_plant(plant)
         ci_params = ci.get_solver_parameters()
         ci_params.error_estimation_strategy = error_estimation_strategy
+        ci_params.tolerance = 1e-12
         ci.set_solver_parameters(ci_params)
 
     return simulator, plant

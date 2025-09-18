@@ -270,9 +270,6 @@ bool ConvexIntegrator<T>::StepWithImplicitTrapezoidErrorEstimate(const T& h) {
   x0.SetFromVector(diagram_context.get_continuous_state().CopyToVector());
   const VectorX<T> q0 = x0.get_generalized_position().CopyToVector();
   const VectorX<T> v0 = x0.get_generalized_velocity().CopyToVector();
-
-  fmt::print("q0: {}\n", fmt_eigen(q0.transpose()));
-  fmt::print("v0: {}\n", fmt_eigen(v0.transpose()));
   
   MatrixX<T> M0(nv, nv);
   plant().CalcMassMatrix(plant_context, &M0);
@@ -287,8 +284,6 @@ bool ConvexIntegrator<T>::StepWithImplicitTrapezoidErrorEstimate(const T& h) {
   // Take a full first-order step to x̂
   ComputeNextContinuousState(h, v0, &x_hat);
   const VectorX<T> v_hat = x_hat.get_generalized_velocity().CopyToVector();
-
-  fmt::print("v_hat: {}\n", fmt_eigen(v_hat.transpose()));
 
   // Advance the stored internal state to x̂
   this->get_mutable_context()->get_mutable_continuous_state().SetFrom(x_hat);
@@ -314,14 +309,13 @@ bool ConvexIntegrator<T>::StepWithImplicitTrapezoidErrorEstimate(const T& h) {
 
   // q = q₀ + h N v̅
   VectorX<T>& q = scratch_.q;
-  AdvancePlantConfiguration(h, 0.5 * (v + v0) - v_hat, &q);
+  const VectorX<T> v_bar = 0.5 * (v + v0);
+  plant().MapVelocityToQDot(plant_context, h * v_bar, &q);
+  q += q0;
 
   // Set the second-order solution
   x.get_mutable_generalized_position().SetFromVector(q);
   x.get_mutable_generalized_velocity().SetFromVector(v);
-
-  fmt::print("q: {}\n", fmt_eigen(q.transpose()));
-  fmt::print("v: {}\n", fmt_eigen(v.transpose()));
 
   if (this->get_fixed_step_mode()) {
     // We're using fixed step mode, so we can just set the state to x_{t+h} and
