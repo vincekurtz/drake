@@ -88,6 +88,7 @@ def run_simulation(integration_scheme, error_estimation_strategy, time_step):
 
     print("  Initial Energy: ", initial_energy)
     print("  Final Energy:   ", final_energy)
+    print("  Delta:          ", abs(initial_energy - final_energy))
 
     return abs(initial_energy - final_energy)
 
