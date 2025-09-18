@@ -32,6 +32,14 @@ class PooledSapBuilder {
   void UpdateModel(const systems::Context<T>& context, const T& time_step,
                    bool reuse_geometry_data, PooledSapModel<T>* model) const;
 
+  void UpdateModelForSecondOrderRefinement(const systems::Context<T>& context,
+                                           const T& time_step,
+                                           const MatrixX<T>& v0,
+                                           const MatrixX<T>& M0,
+                                           const MatrixX<T>& k0,
+                                           const MatrixX<T>& tau0,
+                                           PooledSapModel<T>* model) const;
+
   /* Updates the dynamics matrix A and the linear term r to incorporate modeling
    of external forces according to:
      τ = −Kₑ⋅v + bₑ

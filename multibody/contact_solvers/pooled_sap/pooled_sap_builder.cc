@@ -283,6 +283,171 @@ void PooledSapBuilder<T>::UpdateModel(const systems::Context<T>& context,
 }
 
 template <typename T>
+void PooledSapBuilder<T>::UpdateModelForSecondOrderRefinement(
+    const systems::Context<T>& context, const T& time_step,
+    const MatrixX<T>& v0, const MatrixX<T>& M0, const MatrixX<T>& k0,
+    const MatrixX<T>& tau0, PooledSapModel<T>* model) const {
+  const MultibodyTreeTopology& topology =
+      GetInternalTree(plant()).get_topology();
+  const LinkJointGraph& graph = GetInternalTree(plant()).graph();
+  DRAKE_DEMAND(graph.forest_is_valid());
+  const SpanningForest& forest = graph.forest();
+
+  const int nv = plant().num_velocities();
+  MatrixX<T>& M = scratch_.M;
+  Matrix6X<T>& J_V_WB = scratch_.J_V_WB;
+
+  std::unique_ptr<PooledSapParameters<T>> params = model->ReleaseParameters();
+  params->time_step = time_step;
+  params->v0 = v0;
+  params->A.Clear();
+
+  // Dense linearized dynamics from MbP, at (q̂, v̂).
+  plant().CalcMassMatrix(context, &M);
+  M = 0.5 * (M0 + M);  // Average to get M̅ = 0.5(M₀ + M̂)
+
+  // Implicit damping.
+  // N.B. The mass matrix already includes reflected inertia terms.
+  M.diagonal() += plant().EvalJointDampingCache(context) * time_step;
+
+  // We only add a clique for tree's with non-zero number of velocities.
+  int num_cliques = 0;
+  std::vector<int>& tree_clique = params->tree_to_clique;
+  tree_clique.resize(topology.num_trees());
+  std::fill(tree_clique.begin(), tree_clique.end(), -1);
+  for (TreeIndex t(0); t < topology.num_trees(); ++t) {
+    const int tree_start_in_v = topology.tree_velocities_start_in_v(t);
+    const int tree_nv = topology.num_tree_velocities(t);
+    if (tree_nv > 0) {
+      tree_clique[t] = num_cliques;
+      ++num_cliques;
+      typename EigenPool<MatrixX<T>>::ElementView At =
+          params->A.Add(tree_nv, tree_nv);
+      At = M.block(tree_start_in_v, tree_start_in_v, tree_nv, tree_nv);
+    }
+  }
+
+  // Update rigid body cliques and body Jacobians.
+  const auto& world_frame = plant().world_frame();
+  params->D = M.diagonal().cwiseSqrt().cwiseInverse();
+
+  // TODO(vincekurtz): consider reusing mass matrix as well. Note that
+  // A = M + hD includes the time step, so M would need to be stored separately.
+  params->J_WB.Clear();
+  params->body_cliques.clear();
+  params->body_cliques.reserve(plant().num_bodies());
+  params->body_mass.clear();
+  params->body_mass.reserve(plant().num_bodies());
+  params->body_is_floating.clear();
+  params->body_is_floating.reserve(plant().num_bodies());
+  for (int b = 0; b < plant().num_bodies(); ++b) {
+    const auto& body = plant().get_body(BodyIndex(b));
+
+    // Distinguish between "free floating body" and "free floating base". The
+    // former has an identity Jacobian, the latter does not.
+    const auto& link = forest.link_by_index(BodyIndex(b));
+    const auto& mobod = forest.mobods(link.mobod_index());
+    const bool is_free_floating = body.is_floating() && mobod.is_leaf_mobod();
+    params->body_is_floating.push_back(is_free_floating ? 1 : 0);
+
+    // TODO(amcastro-tri): consider using forest.link_composites() in
+    // combination with LinkJointGraph::Link::composite() to precompute
+    // composite's masses.
+
+    // If the body has zero mass, we assign it the mass of its composite.
+    if (body.default_mass() == 0.0) {
+      const auto composite = graph.GetLinksWeldedTo(body.index());
+      T composite_mass = 0.0;
+      for (BodyIndex c : composite) {
+        composite_mass += plant().get_body(c).default_mass();
+      }
+      if (composite_mass == 0.0) {
+        throw std::logic_error(fmt::format(
+            "Composite for body '{}' has zero mass.", body.name()));
+      }
+      params->body_mass.push_back(composite_mass);
+    } else {
+      params->body_mass.push_back(body.default_mass());
+    }
+
+    if (plant().IsAnchored(body)) {
+      params->body_cliques.push_back(-1);  // mark as anchored.
+      // Empty Jacobian.
+      // N.B. Eigen does not like 0-sized matrices. Thus we push a dummy
+      // one-column Jacobian.
+      params->J_WB.Add(6, 1);
+    } else {
+      const TreeIndex t = topology.body_to_tree_index(BodyIndex(b));
+      const int clique = tree_clique[t];
+      DRAKE_ASSERT(clique >= 0);
+      const bool tree_has_dofs = topology.tree_has_dofs(t);
+      DRAKE_ASSERT(tree_has_dofs);
+
+      const int vt_start = topology.tree_velocities_start_in_v(t);
+      const int nt = topology.num_tree_velocities(t);
+
+      params->body_cliques.push_back(clique);
+      typename EigenPool<Matrix6X<T>>::ElementView Jv_WBc_W =
+          params->J_WB.Add(6, nt);
+      if (body.is_floating()) {
+        Jv_WBc_W.setIdentity();
+      } else {
+        plant().CalcJacobianSpatialVelocity(
+            context, JacobianWrtVariable::kV, body.body_frame(),
+            Vector3<T>::Zero(), world_frame, world_frame, &J_V_WB);
+        Jv_WBc_W = J_V_WB.middleCols(vt_start, nt);
+      }
+    }
+  }
+
+  // r = A⋅v₀ - dt⋅k
+  const T& dt = params->time_step;
+  auto& r = params->r;
+  r.resize(nv);
+  MultibodyForces<T>& forces = *scratch_.forces;
+  plant().CalcForceElementsContribution(context, &forces);
+  VectorX<T> k = plant().CalcInverseDynamics(context, VectorX<T>::Zero(nv), forces);
+  k = 0.5 * (k0 + k);  // Average to get k̅ = 0.5(k₀ + k̂)
+
+  // TODO(vincekurtz): use a CalcInverseDynamics signature that doesn't allocate
+  // a return value.
+  r = M * v0 - dt * k;
+
+  // Collect effort limits for each clique.
+  params->clique_nu.assign(num_cliques, 0);
+  params->effort_limits.resize(nv);
+  params->effort_limits.setZero();
+
+  for (JointActuatorIndex actuator_index : plant().GetJointActuatorIndices()) {
+    const JointActuator<T>& actuator =
+        plant().get_joint_actuator(actuator_index);
+    const Joint<T>& joint = actuator.joint();
+    const int dof = joint.velocity_start();
+    const TreeIndex t = topology.velocity_to_tree_index(dof);
+    const int c = tree_clique[t];
+    DRAKE_ASSERT(c >= 0);
+    ++params->clique_nu[c];
+    params->effort_limits[dof] = actuator.effort_limit();
+  }
+
+  model->ResetParameters(std::move(params));
+  model->set_stiction_tolerance(plant().stiction_tolerance());
+
+  // Add contact constraints. We'll need to clear the patch constraints pool
+  // here to avoid conflicting hydro and point contact constraints.
+  model->patch_constraints_pool().Clear();
+  CalcGeometryContactData(context);
+  AddPatchConstraintsForHydroelasticContact(context, model);
+  AddPatchConstraintsForPointContact(context, model);
+
+  // Add other constraints to the problem
+  AddCouplerConstraints(context, model);
+  AddLimitConstraints(context, model);
+
+  model->SetSparsityPattern();
+}
+
+template <typename T>
 void PooledSapBuilder<T>::AccumulateForceElementForces(
     const systems::Context<T>& context, VectorX<T>* r) const {
   MultibodyForces<T>& forces = *scratch_.forces;

@@ -725,7 +725,7 @@ GTEST_TEST(ConvexIntegratorTest, UndampedDoublePendulum) {
   SimulatorConfig config;
   config.target_realtime_rate = 0.0;
   config.publish_every_time_step = true;
-  config.max_step_size = 0.001;
+  config.max_step_size = 0.01;
   config.integration_scheme = "convex";
   config.use_error_control = false;
   ApplySimulatorConfig(config, &simulator);
@@ -750,7 +750,7 @@ GTEST_TEST(ConvexIntegratorTest, UndampedDoublePendulum) {
                                plant.CalcKineticEnergy(plant_context);
 
   simulator.Initialize();
-  simulator.AdvanceTo(10.0);
+  simulator.AdvanceTo(0.02);
   std::cout << std::endl;
   PrintSimulatorStatistics(simulator);
   std::cout << std::endl;

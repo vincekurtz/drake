@@ -268,8 +268,12 @@ bool ConvexIntegrator<T>::StepWithImplicitTrapezoidErrorEstimate(const T& h) {
 
   // Record the mass matrix and nonlinear terms at x0
   x0.SetFromVector(diagram_context.get_continuous_state().CopyToVector());
+  const VectorX<T> q0 = x0.get_generalized_position().CopyToVector();
   const VectorX<T> v0 = x0.get_generalized_velocity().CopyToVector();
 
+  fmt::print("q0: {}\n", fmt_eigen(q0.transpose()));
+  fmt::print("v0: {}\n", fmt_eigen(v0.transpose()));
+  
   MatrixX<T> M0(nv, nv);
   plant().CalcMassMatrix(plant_context, &M0);
 
@@ -278,27 +282,52 @@ bool ConvexIntegrator<T>::StepWithImplicitTrapezoidErrorEstimate(const T& h) {
   const VectorX<T> k0 =
       plant().CalcInverseDynamics(plant_context, VectorX<T>::Zero(nv), f0);
 
+  const VectorX<T> tau0 = VectorX<T>::Zero(nv);
+
   // Take a full first-order step to x̂
   ComputeNextContinuousState(h, v0, &x_hat);
+  const VectorX<T> v_hat = x_hat.get_generalized_velocity().CopyToVector();
+
+  fmt::print("v_hat: {}\n", fmt_eigen(v_hat.transpose()));
 
   // Advance the stored internal state to x̂
   this->get_mutable_context()->get_mutable_continuous_state().SetFrom(x_hat);
   this->get_mutable_context()->SetTimeAndNoteContinuousStateChange(t0 + h);
 
-  // Perform the second-order corrected step to x, averaging dynamics quantities
+  // Set up the second-order corrected step to x, averaging dynamics quantities
   // between x₀ and x̂.
+  PooledSapModel<T>& model = get_model();
+  builder().UpdateModelForSecondOrderRefinement(plant_context, h, v0, M0, k0,
+                                                tau0, &model);
+  
+  // Solve the optimization problem for next-step velocities,
+  //   M̅(v − v₀) + h k̅ = 1/2(τ₀ + Ĵ'γ)
+  //   γ = γ(q̂ − h v̂ + h v, v)
+  VectorX<T>& v = scratch_.v;
+  v = v_hat;  // initial guess
+  if (!SolveWithGuess(model, &v)) {
+    throw std::runtime_error("ConvexIntegrator: optimization failed.");
+  }
+  total_solver_iterations_ += stats_.iterations;
+  total_ls_iterations_ += std::accumulate(stats_.ls_iterations.begin(),
+                                          stats_.ls_iterations.end(), 0);
 
-  (void)k0;
-  (void)M0;
-  (void)x_hat;
-  (void)x;
+  // q = q₀ + h N v̅
+  VectorX<T>& q = scratch_.q;
+  AdvancePlantConfiguration(h, 0.5 * (v + v0) - v_hat, &q);
 
+  // Set the second-order solution
+  x.get_mutable_generalized_position().SetFromVector(q);
+  x.get_mutable_generalized_velocity().SetFromVector(v);
+
+  fmt::print("q: {}\n", fmt_eigen(q.transpose()));
+  fmt::print("v: {}\n", fmt_eigen(v.transpose()));
 
   if (this->get_fixed_step_mode()) {
     // We're using fixed step mode, so we can just set the state to x_{t+h} and
     // move on. No need for error estimation.
     Context<T>& mutable_context = *this->get_mutable_context();
-    mutable_context.get_mutable_continuous_state().SetFrom(x_hat);
+    mutable_context.get_mutable_continuous_state().SetFrom(x);
     mutable_context.SetTimeAndNoteContinuousStateChange(t0 + h);
   } else {
     throw std::runtime_error(
