@@ -438,6 +438,7 @@ void PooledSapBuilder<T>::UpdateModelForSecondOrderRefinement(
   // Add contact constraints. We'll need to clear the patch constraints pool
   // here to avoid conflicting hydro and point contact constraints.
   model->patch_constraints_pool().Clear();
+  model->patch_constraints_pool().set_second_order_refinement(true);
   CalcGeometryContactData(context);
   AddPatchConstraintsForHydroelasticContact(context, model);
   AddPatchConstraintsForPointContact(context, model);

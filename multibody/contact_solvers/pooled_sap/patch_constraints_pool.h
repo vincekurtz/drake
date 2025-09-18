@@ -160,13 +160,12 @@ class PooledSapModel<T>::PatchConstraintsPool {
 
    @param[in] normal_W Contact normal, from A into B by convention. */
   void AddPair(const Vector3<T>& p_BoC_W, const Vector3<T>& normal_W,
-               const T& fn0, const T& stiffness) {
+               const T& fn, const T& stiffness) {
     const int p = num_patches() - 1;
     ++num_pairs_[p];
 
     p_BC_W_.PushBack(p_BoC_W);
     normal_W_.PushBack(normal_W);
-    fn0_.push_back(fn0);
     stiffness_.push_back(stiffness);
 
     // Pre-computed quantities.
@@ -186,13 +185,20 @@ class PooledSapModel<T>::PatchConstraintsPool {
       const auto v_WA = V_WA.template tail<3>();
       v_AcBc_W -= (v_WA + w_WA.cross(p_AC_W));
     }
+  
 
     using std::max;
     const T& d = dissipation_[p];
     const T vn0 = v_AcBc_W.dot(normal_W);
+    T fn0 = fn;
     const T damping = max(0.0, 1.0 - d * vn0);
     const T n0 = max(0.0, time_step_ * fn0) * damping;
     n0_.push_back(n0);
+    
+    if (second_order_refinement_) {
+      fn0 += time_step_ * stiffness * vn0;
+    }
+    fn0_.push_back(fn0);
 
     // Coefficient of friction is determined based on previous velocity. This
     // allows us to consider a Streibeck-like curve while maintaining a convex
@@ -260,6 +266,10 @@ class PooledSapModel<T>::PatchConstraintsPool {
 
   /* Total number of pairs across all patches. */
   int total_num_pairs() const { return ssize(fn0_); }
+
+  void set_second_order_refinement(bool second_order_refinement) {
+    second_order_refinement_ = second_order_refinement;
+  }
 
   int num_pairs(int patch_index) const {
     DRAKE_ASSERT(0 <= patch_index && patch_index < num_patches());
@@ -333,6 +343,10 @@ class PooledSapModel<T>::PatchConstraintsPool {
   const PooledSapModel<T>* model_{nullptr};  // The parent model.
 
   T time_step_{0.0};
+
+  /* Flag for whether these constrains are for a second-order refinedment step,
+     in which case we set initial normal forces based on ϕ₀ ≈ ϕ(q̂) − h v̂ₙ */
+  bool second_order_refinement_{false};
 
   /* Per-clique data. Indexed by c < num_cliques()  */
   std::vector<int> clique_start_;  // Velocity start index for the c-th clique.
