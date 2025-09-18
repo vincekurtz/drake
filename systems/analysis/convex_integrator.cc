@@ -259,6 +259,7 @@ bool ConvexIntegrator<T>::StepWithImplicitTrapezoidErrorEstimate(const T& h) {
       plant().GetMyContextFromRoot(diagram_context);
   const T t0 = diagram_context.get_time();
   const int nv = plant().num_velocities();
+  PooledSapModel<T>& model = get_model();
 
   // Placeholders for the initial state x₀, the first order estimate of the
   // next state x̂, and second-order estimate x.
@@ -279,7 +280,12 @@ bool ConvexIntegrator<T>::StepWithImplicitTrapezoidErrorEstimate(const T& h) {
   const VectorX<T> k0 =
       plant().CalcInverseDynamics(plant_context, VectorX<T>::Zero(nv), f0);
 
-  const VectorX<T> tau0 = VectorX<T>::Zero(nv);
+  // Record the constraint forces from the previous step
+  VectorX<T> tau0 = VectorX<T>::Zero(nv);
+  if (diagram_context.get_time() > 0) {
+    model.MultiplyByDynamicsMatrix(v0, &tau0);  // tau0 = A v0 - r
+    tau0 -= model.params().r;
+  }
 
   // Take a full first-order step to x̂
   ComputeNextContinuousState(h, v0, &x_hat);
@@ -291,7 +297,6 @@ bool ConvexIntegrator<T>::StepWithImplicitTrapezoidErrorEstimate(const T& h) {
 
   // Set up the second-order corrected step to x, averaging dynamics quantities
   // between x₀ and x̂.
-  PooledSapModel<T>& model = get_model();
   builder().UpdateModelForSecondOrderRefinement(plant_context, h, v0, M0, k0,
                                                 tau0, &model);
   

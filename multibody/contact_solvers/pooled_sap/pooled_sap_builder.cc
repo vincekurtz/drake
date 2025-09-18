@@ -304,7 +304,8 @@ void PooledSapBuilder<T>::UpdateModelForSecondOrderRefinement(
 
   // Dense linearized dynamics from MbP, at (q̂, v̂).
   plant().CalcMassMatrix(context, &M);
-  M = 0.5 * (M0 + M);  // Average to get M̅ = 0.5(M₀ + M̂)
+  M = M0 + M;  // Average to get M̅ = 0.5(M₀ + M̂), then double so that 
+               // constraint forces are divided by 2 [M + h k = 0.5(τ₀ + Ĵ'γ)].
 
   // Implicit damping.
   // N.B. The mass matrix already includes reflected inertia terms.
@@ -407,11 +408,12 @@ void PooledSapBuilder<T>::UpdateModelForSecondOrderRefinement(
   MultibodyForces<T>& forces = *scratch_.forces;
   plant().CalcForceElementsContribution(context, &forces);
   VectorX<T> k = plant().CalcInverseDynamics(context, VectorX<T>::Zero(nv), forces);
-  k = 0.5 * (k0 + k);  // Average to get k̅ = 0.5(k₀ + k̂)
+  k = k0 + k;  // Average to get k̅ = 0.5(k₀ + k̂), then double to scale forces
+               // by factor of 2 [M + h k = 0.5(τ₀ + Ĵ'γ)].
 
   // TODO(vincekurtz): use a CalcInverseDynamics signature that doesn't allocate
   // a return value.
-  r = M * v0 - dt * k;
+  r = M * v0 - dt * k + tau0;
 
   // Collect effort limits for each clique.
   params->clique_nu.assign(num_cliques, 0);

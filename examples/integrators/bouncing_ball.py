@@ -176,7 +176,7 @@ def run_simulation(integration_scheme, error_estimation_strategy, time_step, plo
 
 if __name__ == "__main__":
     # Run a single simulation, plot bounce height and energy over time
-    # run_simulation("convex", "half_stepping", 1e-4, plot=True)
+    run_simulation("convex", "implicit_trapezoid", 1e-3, plot=True)
 
     # Run a bunch of simulations at different time steps, estimate integration
     # order.
@@ -184,7 +184,7 @@ if __name__ == "__main__":
     errors = []
     for time_step in time_steps:
         print("Time step:", time_step)
-        err = run_simulation("convex", "sdirk", time_step, plot=False)
+        err = run_simulation("convex", "implicit_trapezoid", time_step, plot=False)
         errors.append(err)
 
     plt.plot(time_steps, errors, "o-")

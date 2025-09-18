@@ -425,9 +425,10 @@ class PooledSapModel {
     DRAKE_ASSERT(sparsity_pattern_ != nullptr);
     return *sparsity_pattern_;
   }
+  
+  void MultiplyByDynamicsMatrix(const VectorX<T>& v, VectorX<T>* result) const;
 
  private:
-  void MultiplyByDynamicsMatrix(const VectorX<T>& v, VectorX<T>* result) const;
   void CalcMomentumTerms(const SapData<T>& data,
                          typename SapData<T>::Cache* cache) const;
   void CalcBodySpatialVelocities(const VectorX<T>& v,
