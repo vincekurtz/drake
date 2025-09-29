@@ -84,6 +84,7 @@ void ConvexIntegrator<T>::DoInitialize() {
 
   // previous constraint impulse tau0 = 0
   previous_constraint_impulse_ = VectorX<T>::Zero(nv);
+  candidate_previous_constraint_impulse_ = VectorX<T>::Zero(nv);
 
   // Allocate intermediate states for error control
   x_next_full_ = this->get_system().AllocateTimeDerivatives();
@@ -372,27 +373,27 @@ bool ConvexIntegrator<T>::StepWithTrapezoidErrorEstimate(const T& h) {
   // Record the initial state
   x0.get_mutable_vector().SetFrom(x_next.get_vector());
 
-  // Record the constraint impulses from the previous step 
-  // N.B. if we're in error control mode, we need to account for the fact that
-  // the time step may have changed.
-  const T h_old = this->get_previous_integration_step_size();
-  const T scale = isfinite(h_old) ? h / h_old : 0.0;
-  const VectorX<T> tau0 = previous_constraint_impulse_ * scale;
-
   // Take the full step to x̂ 
-  // TODO(vincekurtz): think through/add geometry and linearization reuse
   v_guess = plant().GetVelocities(plant_context);
   ComputeNextStateSymplecticEuler(h, v_guess, &x_hat);
 
-  // Compute midpoint state x̅ = (x̂ + x₀) / 2
+  // Compute the midpoint state x̅ = (x̂ + x₀) / 2
   // TODO(vincekurtz): consider just using a pre-allocated vector for x_bar
   const VectorX<T> x_bar_vec = (x_hat.CopyToVector() + x0.CopyToVector()) / 2.0;
   x_bar.get_mutable_vector().SetFromVector(x_bar_vec);
   context.get_mutable_continuous_state().SetFromVector(x_bar_vec);
+  
+  // Pull up the constraint impulses τ₀ from the previous step. Note that we need
+  // to account for the fact that the time step may have changed since we
+  // recorded them.
+  const T h_old = this->get_previous_integration_step_size();
+  const T scale = isfinite(h_old) ? h / h_old : 0.0;
+  const VectorX<T> tau0 = previous_constraint_impulse_ * scale;
 
-  // Record the next-step constraint impulses τ̂  = J γ(q̂, v̂)
+  // Extract the next-step constraint impulses τ̂  = J γ(q̂, v̂) from the full
+  // step solution.
   const VectorX<T> v_hat = x_hat.get_generalized_velocity().CopyToVector();
-  VectorX<T> tau_hat(plant().num_velocities());
+  VectorX<T>& tau_hat = candidate_previous_constraint_impulse_;
   PooledSapModel<T>& model = get_model();
   model.MultiplyByDynamicsMatrix(v_hat, &tau_hat);
   tau_hat -= model.params().r;
@@ -442,17 +443,7 @@ void ConvexIntegrator<T>::PostSuccessfulStepCallback(const T&) {
   // error control at the next step.
   if (!this->get_fixed_step_mode() &&
       solver_parameters_.error_estimation_strategy == "trapezoid") {
-    const Context<T>& context = this->get_context();
-    const Context<T>& plant_context = plant().GetMyContextFromRoot(context);
-
-    // TODO(vincekurtz): read this directly from tau_hat rather than recomputing
-    // it here.
-    const VectorX<T> v = plant().GetVelocities(plant_context);
-    VectorX<T> tau(plant().num_velocities());
-    PooledSapModel<T>& model = get_model();
-    model.MultiplyByDynamicsMatrix(v, &tau);
-    tau -= model.params().r;
-    previous_constraint_impulse_ = tau;
+    previous_constraint_impulse_ = candidate_previous_constraint_impulse_;
   }
 }
 

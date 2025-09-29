@@ -470,6 +470,7 @@ class ConvexIntegrator final : public IntegratorBase<T> {
 
   // Track the net constraint impulse from the previous time step (used for the
   // second-order midpoint method)
+  VectorX<T> candidate_previous_constraint_impulse_;
   VectorX<T> previous_constraint_impulse_;
 
   // Flag for Hessian factorization re-use (changes between iterations)
