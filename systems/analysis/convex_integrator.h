@@ -311,6 +311,10 @@ class ConvexIntegrator final : public IntegratorBase<T> {
   // to propagate, but it does provide a cheap error estimate.
   bool StepWithTrapezoidErrorEstimate(const T& h);
 
+  // After a successful step, record the constraint impulses J(q)'γ(q, v) for
+  // use in the next time step (with the explicit trapezoid method).
+  void PostSuccessfulStepCallback(const T& h) final;
+
   // Compute the state x = [q, v, z] at the next time step using symplectic
   // Euler:
   //

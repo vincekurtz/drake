@@ -227,7 +227,7 @@ def run_simulation(
     config.max_step_size = max_step_size
     config.accuracy = accuracy
     config.target_realtime_rate = 0.0
-    config.use_error_control = False
+    config.use_error_control = True
     config.publish_every_time_step = True
 
     # Set up the system diagram and initial condition
@@ -254,7 +254,7 @@ def run_simulation(
         # We can also set some solver parameters for the integrator here
         ci_params = ci.get_solver_parameters()
         ci_params.use_dense_algebra = True
-        ci_params.error_estimation_strategy = "leapfrog"
+        ci_params.error_estimation_strategy = "trapezoid"
         ci.set_solver_parameters(ci_params)
 
     simulator.Initialize()
@@ -354,22 +354,17 @@ if __name__ == "__main__":
 
     meshcat = StartMeshcat()
 
-    energy_changes = []
-    for time_step in [1e-2, 1e-3, 1e-4, 1e-5, 1e-6]:
+    # energy_changes = []
+    # for time_step in [1e-2, 1e-3, 1e-4, 1e-5, 1e-6]:
 
-        time_steps, _, energy_change = run_simulation(
-            example,
-            args.integrator,
-            args.accuracy,
-            max_step_size=time_step,
-            meshcat=meshcat,
-            visualize=False
-        )
-        energy_changes.append(energy_change)
-
-    print("")
-    print(repr(energy_changes))
-    print("")
+    time_steps, _, energy_change = run_simulation(
+        example,
+        args.integrator,
+        args.accuracy,
+        max_step_size=0.1,
+        meshcat=meshcat,
+        visualize=True
+    )
 
     if args.plot:
         times = np.cumsum(time_steps)

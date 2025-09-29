@@ -416,9 +416,6 @@ bool ConvexIntegrator<T>::StepWithTrapezoidErrorEstimate(const T& h) {
   const VectorX<T> q0 = x0.get_generalized_position().CopyToVector();
   plant().MapVelocityToQDot(plant_context, h * (v + v0) / 2.0, &q);
   q += q0;
- 
-  // Record the constraint impulses for the next step
-  previous_constraint_impulse_ = tau_hat / scale;
 
   // Propagate the first-order solution
   x_next.get_mutable_vector().SetFrom(x_hat.get_vector());
@@ -434,6 +431,26 @@ bool ConvexIntegrator<T>::StepWithTrapezoidErrorEstimate(const T& h) {
   }
 
   return true; // Step was successful
+}
+
+template <typename T>
+void ConvexIntegrator<T>::PostSuccessfulStepCallback(const T& h) {
+  // Record the constraint impulses from this successful step, for use in
+  // error control at the next step.
+  if (!this->get_fixed_step_mode() &&
+      solver_parameters_.error_estimation_strategy == "trapezoid") {
+    const Context<T>& context = this->get_context();
+    const Context<T>& plant_context = plant().GetMyContextFromRoot(context);
+
+    // TODO(vincekurtz): read this directly from tau_hat rather than recomputing
+    // it here.
+    const VectorX<T> v = plant().GetVelocities(plant_context);
+    VectorX<T> tau(plant().num_velocities());
+    PooledSapModel<T>& model = get_model();
+    model.MultiplyByDynamicsMatrix(v, &tau);
+    tau -= model.params().r;
+    previous_constraint_impulse_ = tau / h;
+  }
 }
 
 template <typename T>
