@@ -352,6 +352,8 @@ bool ConvexIntegrator<T>::StepWithMidpointErrorEstimate(const T& h) {
 
 template <typename T>
 bool ConvexIntegrator<T>::StepWithTrapezoidErrorEstimate(const T& h) {
+  using std::isfinite;
+
   Context<T>& context = *this->get_mutable_context();
   const Context<T>& plant_context = plant().GetMyContextFromRoot(context);
   const T t0 = context.get_time();
@@ -373,7 +375,8 @@ bool ConvexIntegrator<T>::StepWithTrapezoidErrorEstimate(const T& h) {
   // Record the constraint impulses from the previous step 
   // N.B. if we're in error control mode, we need to account for the fact that
   // the time step may have changed.
-  const T scale = this->get_fixed_step_mode() ? 1.0 : h;
+  const T h_old = this->get_previous_integration_step_size();
+  const T scale = isfinite(h_old) ? h / h_old : 0.0;
   const VectorX<T> tau0 = previous_constraint_impulse_ * scale;
 
   // Take the full step to x̂ 
@@ -434,7 +437,7 @@ bool ConvexIntegrator<T>::StepWithTrapezoidErrorEstimate(const T& h) {
 }
 
 template <typename T>
-void ConvexIntegrator<T>::PostSuccessfulStepCallback(const T& h) {
+void ConvexIntegrator<T>::PostSuccessfulStepCallback(const T&) {
   // Record the constraint impulses from this successful step, for use in
   // error control at the next step.
   if (!this->get_fixed_step_mode() &&
@@ -449,7 +452,7 @@ void ConvexIntegrator<T>::PostSuccessfulStepCallback(const T& h) {
     PooledSapModel<T>& model = get_model();
     model.MultiplyByDynamicsMatrix(v, &tau);
     tau -= model.params().r;
-    previous_constraint_impulse_ = tau / h;
+    previous_constraint_impulse_ = tau;
   }
 }
 
