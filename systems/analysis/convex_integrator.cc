@@ -10,13 +10,8 @@ using Eigen::MatrixXd;
 using Eigen::VectorXd;
 using multibody::Joint;
 using multibody::JointIndex;
-using multibody::SpatialForce;
 using multibody::contact_solvers::internal::Bracket;
 using multibody::contact_solvers::internal::DoNewtonWithBisectionFallback;
-using multibody::internal::MultibodyTreeTopology;
-using multibody::internal::ArticulatedBodyForceCache;
-using multibody::internal::ArticulatedBodyInertiaCache;
-using multibody::internal::AccelerationKinematicsCache;
 
 template <typename T>
 ConvexIntegrator<T>::ConvexIntegrator(const System<T>& system,
@@ -76,6 +71,13 @@ void ConvexIntegrator<T>::DoInitialize() {
   scratch_.q.resize(nq);
   scratch_.z.resize(nz);
   scratch_.f_ext = std::make_unique<MultibodyForces<T>>(plant());
+  scratch_.abic = std::make_unique<ArticulatedBodyInertiaCache<T>>(
+      plant().internal_tree().get_topology());
+  scratch_.Zb_Bo_W.resize(plant().internal_tree().get_topology().num_mobods());
+  scratch_.aba_forces = std::make_unique<ArticulatedBodyForceCache<T>>(
+      plant().internal_tree().get_topology());
+  scratch_.ac = std::make_unique<AccelerationKinematicsCache<T>>(
+      plant().internal_tree().get_topology());
   scratch_.Ku.resize(nv);
   scratch_.bu.resize(nv);
   scratch_.Ke.resize(nv);
@@ -408,13 +410,11 @@ bool ConvexIntegrator<T>::StepWithTrapezoidErrorEstimate(const T& h) {
   // We can do this without explicitly calculating k̅ and M̅, via the ABA.
   VectorX<T> tau_bar = 0.5 * (tau0 + tau_hat);
 
-  const MultibodyTreeTopology& topology =
-      plant().internal_tree().get_topology();
   MultibodyForces<T>& forces = *scratch_.f_ext;
-  ArticulatedBodyInertiaCache<T> abic(topology);
-  std::vector<SpatialForce<T>> Zb_Bo_W(topology.num_mobods());
-  ArticulatedBodyForceCache<T> aba_forces(topology);
-  AccelerationKinematicsCache<T> ac(topology);
+  ArticulatedBodyInertiaCache<T>& abic = *scratch_.abic;
+  std::vector<SpatialForce<T>>& Zb_Bo_W = scratch_.Zb_Bo_W;
+  ArticulatedBodyForceCache<T>& aba_forces = *scratch_.aba_forces;
+  AccelerationKinematicsCache<T>& ac = *scratch_.ac;
 
   const VectorX<T> diagonal_inertia =
       plant().EvalReflectedInertiaCache(plant_context) +
