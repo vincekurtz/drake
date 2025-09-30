@@ -10,8 +10,13 @@ using Eigen::MatrixXd;
 using Eigen::VectorXd;
 using multibody::Joint;
 using multibody::JointIndex;
+using multibody::SpatialForce;
 using multibody::contact_solvers::internal::Bracket;
 using multibody::contact_solvers::internal::DoNewtonWithBisectionFallback;
+using multibody::internal::MultibodyTreeTopology;
+using multibody::internal::ArticulatedBodyForceCache;
+using multibody::internal::ArticulatedBodyInertiaCache;
+using multibody::internal::AccelerationKinematicsCache;
 
 template <typename T>
 ConvexIntegrator<T>::ConvexIntegrator(const System<T>& system,
@@ -400,19 +405,35 @@ bool ConvexIntegrator<T>::StepWithTrapezoidErrorEstimate(const T& h) {
 
   // Compute next-step velocities using the second-order terms,
   //    M̅ (v − v₀) + h k̅ = 1/2 (τ₀ + τ̂ )
-  const int nv = plant().num_velocities();
-  MatrixX<T> Mbar(nv, nv);
-  plant().CalcMassMatrix(plant_context, &Mbar);
-
-  MultibodyForces<T>& forces = *scratch_.f_ext;
-  plant().CalcForceElementsContribution(plant_context, &forces);
-  VectorX<T> kbar =
-      plant().CalcInverseDynamics(plant_context, VectorXd::Zero(nv), forces);
+  // We can do this without explicitly calculating k̅ and M̅, via the ABA.
   VectorX<T> tau_bar = 0.5 * (tau0 + tau_hat);
 
+  const MultibodyTreeTopology& topology =
+      plant().internal_tree().get_topology();
+  MultibodyForces<T>& forces = *scratch_.f_ext;
+  ArticulatedBodyInertiaCache<T> abic(topology);
+  std::vector<SpatialForce<T>> Zb_Bo_W(topology.num_mobods());
+  ArticulatedBodyForceCache<T> aba_forces(topology);
+  AccelerationKinematicsCache<T> ac(topology);
+
+  const VectorX<T> diagonal_inertia =
+      plant().EvalReflectedInertiaCache(plant_context) +
+      plant().EvalJointDampingCache(plant_context) * h;
+  plant().CalcForceElementsContribution(plant_context, &forces);
+  forces.mutable_generalized_forces() += tau_bar / h;
+  plant().internal_tree().CalcArticulatedBodyInertiaCache(
+      plant_context, diagonal_inertia, &abic);
+  plant().internal_tree().CalcArticulatedBodyForceBias(plant_context, abic,
+                                                       &Zb_Bo_W);
+  plant().internal_tree().CalcArticulatedBodyForceCache(
+      plant_context, abic, Zb_Bo_W, forces, &aba_forces);
+  plant().internal_tree().CalcArticulatedBodyAccelerations(plant_context, abic,
+                                                           aba_forces, &ac);
+
+  const VectorX<T>& vdot = ac.get_vdot();
   const VectorX<T> v0 = x0.get_generalized_velocity().CopyToVector();
   VectorX<T>& v = scratch_.v;
-  v = v0 + Mbar.ldlt().solve(tau_bar - h * kbar);
+  v = h * vdot + v0;
 
   // Compute next-step positions as second-order
   // q = q₀ + h N(q̅) (v + v₀) / 2
