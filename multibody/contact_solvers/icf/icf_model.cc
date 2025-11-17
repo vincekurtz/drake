@@ -8,17 +8,6 @@ namespace contact_solvers {
 namespace icf {
 namespace internal {
 
-using contact_solvers::internal::BlockSparsityPattern;
-
-template <typename T>
-using BlockSparseSymmetricMatrixT =
-    contact_solvers::internal::BlockSparseSymmetricMatrixT<T>;
-
-template <typename T>
-using MatrixXView = typename EigenPool<MatrixX<T>>::MatrixView;
-template <typename T>
-using ConstMatrixXView = typename EigenPool<MatrixX<T>>::ConstMatrixView;
-
 template <typename T>
 void IcfModel<T>::ResetParameters(std::unique_ptr<IcfParameters<T>> params) {
   DRAKE_ASSERT(params != nullptr);
@@ -180,11 +169,11 @@ template <typename T>
 void IcfModel<T>::ResizeData(IcfData<T>* data) const {
   const int max_clique_size = *std::max_element(params().clique_sizes.begin(),
                                                 params().clique_sizes.end());
-  data->Resize(num_bodies_, num_velocities_, max_clique_size, 0, {}, {}, {});
-              //  coupler_constraints_pool_.num_constraints(),
-              //  gain_constraints_pool_.constraint_sizes(),
-              //  limit_constraints_pool_.constraint_sizes(),
-              //  patch_constraints_pool_.patch_sizes());
+  data->Resize(num_bodies_, num_velocities_, max_clique_size,
+               coupler_constraints_pool_.num_constraints(),
+               gain_constraints_pool_.constraint_sizes(),
+               limit_constraints_pool_.constraint_sizes(),
+               patch_constraints_pool_.patch_sizes());
 }
 
 template <typename T>
@@ -199,26 +188,25 @@ void IcfModel<T>::CalcData(const VectorX<T>& v, IcfData<T>* data) const {
   // Compute spatial velocities for all bodies.
   CalcBodySpatialVelocities(v, &cache.spatial_velocities);
 
-  // // Compute constraint data.
-  // // TODO(CENIC): factor out common functionality into a ConstraintsPool class.
-  // coupler_constraints_pool_.CalcData(v, &cache.coupler_constraints_data);
-  // gain_constraints_pool_.CalcData(v, &cache.gain_constraints_data);
-  // limit_constraints_pool_.CalcData(v, &cache.limit_constraints_data);
-  // patch_constraints_pool_.CalcData(cache.spatial_velocities,
-  //                                  &cache.patch_constraints_data);
+  // Compute constraint data.
+  coupler_constraints_pool_.CalcData(v, &cache.coupler_constraints_data);
+  gain_constraints_pool_.CalcData(v, &cache.gain_constraints_data);
+  limit_constraints_pool_.CalcData(v, &cache.limit_constraints_data);
+  patch_constraints_pool_.CalcData(cache.spatial_velocities,
+                                   &cache.patch_constraints_data);
 
-  // // Accumulate gradient contributions from constraints.
-  // coupler_constraints_pool_.AccumulateGradient(*data, &cache.gradient);
-  // gain_constraints_pool_.AccumulateGradient(*data, &cache.gradient);
-  // limit_constraints_pool_.AccumulateGradient(*data, &cache.gradient);
-  // patch_constraints_pool_.AccumulateGradient(*data, &cache.gradient);
+  // Accumulate gradient contributions from constraints.
+  coupler_constraints_pool_.AccumulateGradient(*data, &cache.gradient);
+  gain_constraints_pool_.AccumulateGradient(*data, &cache.gradient);
+  limit_constraints_pool_.AccumulateGradient(*data, &cache.gradient);
+  patch_constraints_pool_.AccumulateGradient(*data, &cache.gradient);
 
   // Accumulate cost contributions from constraints.
   cache.cost = cache.momentum_cost;
-  // cache.cost += cache.coupler_constraints_data.cost();
-  // cache.cost += cache.gain_constraints_data.cost();
-  // cache.cost += cache.limit_constraints_data.cost();
-  // cache.cost += cache.patch_constraints_data.cost();
+  cache.cost += cache.coupler_constraints_data.cost();
+  cache.cost += cache.gain_constraints_data.cost();
+  cache.cost += cache.limit_constraints_data.cost();
+  cache.cost += cache.patch_constraints_data.cost();
 }
 
 template <typename T>
@@ -243,10 +231,10 @@ void IcfModel<T>::UpdateHessian(
   }
 
   // Add constraints' contributions.
-  // coupler_constraints_pool_.AccumulateHessian(data, hessian);
-  // gain_constraints_pool_.AccumulateHessian(data, hessian);
-  // limit_constraints_pool_.AccumulateHessian(data, hessian);
-  // patch_constraints_pool_.AccumulateHessian(data, hessian);
+  coupler_constraints_pool_.AccumulateHessian(data, hessian);
+  gain_constraints_pool_.AccumulateHessian(data, hessian);
+  limit_constraints_pool_.AccumulateHessian(data, hessian);
+  patch_constraints_pool_.AccumulateHessian(data, hessian);
 }
 
 template <typename T>
@@ -263,7 +251,7 @@ void IcfModel<T>::SetSparsityPattern() {
 
   // Build off-diagonal entries in the sparsity pattern. Currently contact
   // constraints are the only ones that can create off-diagonal entries.
-  // patch_constraints_pool_.CalcSparsityPattern(&sparsity);
+  patch_constraints_pool_.CalcSparsityPattern(&sparsity);
 
   sparsity_pattern_ = std::make_unique<BlockSparsityPattern>(
       std::move(block_sizes), std::move(sparsity));
@@ -312,56 +300,56 @@ T IcfModel<T>::CalcCostAlongLine(const T& alpha, const IcfData<T>& data,
   *dcost_dalpha = a * alpha + b;
   *d2cost_dalpha2 = a;
 
-  // T constraint_dcost, constraint_d2cost;
+  T constraint_dcost, constraint_d2cost;
 
-  // // Add coupler constraints contributions:
-  // {
-  //   coupler_constraints_pool_.CalcData(
-  //       v_alpha, &data.scratch().coupler_constraints_data);
-  //   coupler_constraints_pool_.ProjectAlongLine(
-  //       data.scratch().coupler_constraints_data, search_direction.w,
-  //       &constraint_dcost, &constraint_d2cost);
-  //   cost += data.scratch().coupler_constraints_data.cost();
-  //   *dcost_dalpha += constraint_dcost;
-  //   *d2cost_dalpha2 += constraint_d2cost;
-  // }
+  // Add coupler constraints contributions:
+  {
+    coupler_constraints_pool_.CalcData(
+        v_alpha, &data.scratch().coupler_constraints_data);
+    coupler_constraints_pool_.ProjectAlongLine(
+        data.scratch().coupler_constraints_data, search_direction.w,
+        &constraint_dcost, &constraint_d2cost);
+    cost += data.scratch().coupler_constraints_data.cost();
+    *dcost_dalpha += constraint_dcost;
+    *d2cost_dalpha2 += constraint_d2cost;
+  }
 
-  // // Add gain constraints contributions:
-  // {
-  //   gain_constraints_pool_.CalcData(v_alpha,
-  //                                   &data.scratch().gain_constraints_data);
-  //   gain_constraints_pool_.ProjectAlongLine(
-  //       data.scratch().gain_constraints_data, search_direction.w,
-  //       &data.scratch().Gw_gain, &constraint_dcost, &constraint_d2cost);
-  //   cost += data.scratch().gain_constraints_data.cost();
-  //   *dcost_dalpha += constraint_dcost;
-  //   *d2cost_dalpha2 += constraint_d2cost;
-  // }
+  // Add gain constraints contributions:
+  {
+    gain_constraints_pool_.CalcData(v_alpha,
+                                    &data.scratch().gain_constraints_data);
+    gain_constraints_pool_.ProjectAlongLine(
+        data.scratch().gain_constraints_data, search_direction.w,
+        &data.scratch().Gw_gain, &constraint_dcost, &constraint_d2cost);
+    cost += data.scratch().gain_constraints_data.cost();
+    *dcost_dalpha += constraint_dcost;
+    *d2cost_dalpha2 += constraint_d2cost;
+  }
 
-  // // Add limit constraints contributions:
-  // {
-  //   limit_constraints_pool_.CalcData(v_alpha,
-  //                                    &data.scratch().limit_constraints_data);
-  //   limit_constraints_pool_.ProjectAlongLine(
-  //       data.scratch().limit_constraints_data, search_direction.w,
-  //       &data.scratch().Gw_limit, &constraint_dcost, &constraint_d2cost);
-  //   cost += data.scratch().limit_constraints_data.cost();
-  //   *dcost_dalpha += constraint_dcost;
-  //   *d2cost_dalpha2 += constraint_d2cost;
-  // }
+  // Add limit constraints contributions:
+  {
+    limit_constraints_pool_.CalcData(v_alpha,
+                                     &data.scratch().limit_constraints_data);
+    limit_constraints_pool_.ProjectAlongLine(
+        data.scratch().limit_constraints_data, search_direction.w,
+        &data.scratch().Gw_limit, &constraint_dcost, &constraint_d2cost);
+    cost += data.scratch().limit_constraints_data.cost();
+    *dcost_dalpha += constraint_dcost;
+    *d2cost_dalpha2 += constraint_d2cost;
+  }
 
-  // // Add patch constraints contributions:
-  // {
-  //   CalcBodySpatialVelocities(v_alpha, &V_WB_alpha);
-  //   patch_constraints_pool_.CalcData(V_WB_alpha,
-  //                                    &data.scratch().patch_constraints_data);
-  //   patch_constraints_pool_.ProjectAlongLine(
-  //       data.scratch().patch_constraints_data, search_direction.U,
-  //       &data.scratch().U_AbB_W_pool, &constraint_dcost, &constraint_d2cost);
-  //   cost += data.scratch().patch_constraints_data.cost();
-  //   *dcost_dalpha += constraint_dcost;
-  //   *d2cost_dalpha2 += constraint_d2cost;
-  // }
+  // Add patch constraints contributions:
+  {
+    CalcBodySpatialVelocities(v_alpha, &V_WB_alpha);
+    patch_constraints_pool_.CalcData(V_WB_alpha,
+                                     &data.scratch().patch_constraints_data);
+    patch_constraints_pool_.ProjectAlongLine(
+        data.scratch().patch_constraints_data, search_direction.U,
+        &data.scratch().U_AbB_W_pool, &constraint_dcost, &constraint_d2cost);
+    cost += data.scratch().patch_constraints_data.cost();
+    *dcost_dalpha += constraint_dcost;
+    *d2cost_dalpha2 += constraint_d2cost;
+  }
 
   return cost;
 }
