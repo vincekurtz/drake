@@ -67,11 +67,11 @@ class IcfModel {
   // For now, I'll just disable it.
   DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(IcfModel);
 
-  // Defined in separate headers included at the bottom of this file.
-  class CouplerConstraintsPool;
-  class LimitConstraintsPool;
-  class PatchConstraintsPool;
-  class GainConstraintsPool;
+  // // Defined in separate headers included at the bottom of this file.
+  // class CouplerConstraintsPool;
+  // class LimitConstraintsPool;
+  // class PatchConstraintsPool;
+  // class GainConstraintsPool;
 
   using ConstJacobianView = typename EigenPool<Matrix6X<T>>::ConstMatrixView;
   using ConstVector6View = typename EigenPool<Vector6<T>>::ConstMatrixView;
@@ -80,11 +80,11 @@ class IcfModel {
 
   /* Constructor for an empty model. */
   IcfModel()
-      : params_{std::make_unique<IcfParameters<T>>()},
-        coupler_constraints_pool_(this),
-        gain_constraints_pool_(this),
-        limit_constraints_pool_(this),
-        patch_constraints_pool_(this) {}
+      : params_{std::make_unique<IcfParameters<T>>()} {};
+        // coupler_constraints_pool_(this),
+        // gain_constraints_pool_(this),
+        // limit_constraints_pool_(this),
+        // patch_constraints_pool_(this) {}
 
   /* Release ownership of parameters so that we can re-use memory.
   The typical usage is something like:
@@ -197,42 +197,42 @@ class IcfModel {
   int num_velocities() const { return num_velocities_; }
   int num_cliques() const { return num_cliques_; }
 
-  int num_constraints() const {
-    return num_patch_constraints() + num_gain_constraints() +
-           num_limit_constraints() + num_coupler_constraints();
-  }
+  // int num_constraints() const {
+  //   return num_patch_constraints() + num_gain_constraints() +
+  //          num_limit_constraints() + num_coupler_constraints();
+  // }
 
-  CouplerConstraintsPool& coupler_constraints_pool() {
-    return coupler_constraints_pool_;
-  }
+  // CouplerConstraintsPool& coupler_constraints_pool() {
+  //   return coupler_constraints_pool_;
+  // }
 
-  PatchConstraintsPool& patch_constraints_pool() {
-    return patch_constraints_pool_;
-  }
+  // PatchConstraintsPool& patch_constraints_pool() {
+  //   return patch_constraints_pool_;
+  // }
 
-  GainConstraintsPool& gain_constraints_pool() {
-    return gain_constraints_pool_;
-  }
+  // GainConstraintsPool& gain_constraints_pool() {
+  //   return gain_constraints_pool_;
+  // }
 
-  LimitConstraintsPool& limit_constraints_pool() {
-    return limit_constraints_pool_;
-  }
+  // LimitConstraintsPool& limit_constraints_pool() {
+  //   return limit_constraints_pool_;
+  // }
 
-  int num_patch_constraints() const {
-    return patch_constraints_pool_.num_patches();
-  }
+  // int num_patch_constraints() const {
+  //   return patch_constraints_pool_.num_patches();
+  // }
 
-  int num_coupler_constraints() const {
-    return coupler_constraints_pool_.num_constraints();
-  }
+  // int num_coupler_constraints() const {
+  //   return coupler_constraints_pool_.num_constraints();
+  // }
 
-  int num_gain_constraints() const {
-    return gain_constraints_pool_.num_constraints();
-  }
+  // int num_gain_constraints() const {
+  //   return gain_constraints_pool_.num_constraints();
+  // }
 
-  int num_limit_constraints() const {
-    return limit_constraints_pool_.num_constraints();
-  }
+  // int num_limit_constraints() const {
+  //   return limit_constraints_pool_.num_constraints();
+  // }
 
   /* Resizes `data` to fit this model.
   No allocations are required if `data`'s capacity is already enough. */
@@ -358,11 +358,11 @@ class IcfModel {
   std::unique_ptr<contact_solvers::internal::BlockSparsityPattern>
       sparsity_pattern_;
 
-  // Fixed set of constraints.
-  CouplerConstraintsPool coupler_constraints_pool_;
-  GainConstraintsPool gain_constraints_pool_;
-  LimitConstraintsPool limit_constraints_pool_;
-  PatchConstraintsPool patch_constraints_pool_;
+  // // Fixed set of constraints.
+  // CouplerConstraintsPool coupler_constraints_pool_;
+  // GainConstraintsPool gain_constraints_pool_;
+  // LimitConstraintsPool limit_constraints_pool_;
+  // PatchConstraintsPool patch_constraints_pool_;
 };
 
 }  // namespace internal
@@ -371,13 +371,13 @@ class IcfModel {
 }  // namespace multibody
 }  // namespace drake
 
-// The nested classes are declared in separate files.
-#define DRAKE_ICF_MODEL_NESTED_CLASS_INCLUDES
-#include "drake/multibody/contact_solvers/icf/icf_model_coupler_constraints_pool.h"
-#include "drake/multibody/contact_solvers/icf/icf_model_gain_constraints_pool.h"
-#include "drake/multibody/contact_solvers/icf/icf_model_limit_constraints_pool.h"
-#include "drake/multibody/contact_solvers/icf/icf_model_patch_constraints_pool.h"
-#undef DRAKE_ICF_MODEL_NESTED_CLASS_INCLUDES
+// // The nested classes are declared in separate files.
+// #define DRAKE_ICF_MODEL_NESTED_CLASS_INCLUDES
+// #include "drake/multibody/contact_solvers/icf/icf_model_coupler_constraints_pool.h"
+// #include "drake/multibody/contact_solvers/icf/icf_model_gain_constraints_pool.h"
+// #include "drake/multibody/contact_solvers/icf/icf_model_limit_constraints_pool.h"
+// #include "drake/multibody/contact_solvers/icf/icf_model_patch_constraints_pool.h"
+// #undef DRAKE_ICF_MODEL_NESTED_CLASS_INCLUDES
 
 DRAKE_DECLARE_CLASS_TEMPLATE_INSTANTIATIONS_ON_DEFAULT_NONSYMBOLIC_SCALARS(
     class ::drake::multibody::contact_solvers::icf::internal::IcfModel);
