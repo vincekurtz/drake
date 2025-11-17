@@ -1,9 +1,5 @@
 #pragma once
 
-#ifndef DRAKE_ICF_MODEL_NESTED_CLASS_INCLUDES
-#error Do not directly include this file; instead, use icf_model.h.
-#endif
-
 #include <utility>
 #include <vector>
 
@@ -13,6 +9,7 @@
 #include "drake/multibody/contact_solvers/icf/coupler_constraints_data_pool.h"
 #include "drake/multibody/contact_solvers/icf/eigen_pool.h"
 #include "drake/multibody/contact_solvers/icf/icf_data.h"
+#include "drake/multibody/contact_solvers/icf/icf_model.h"
 
 namespace drake {
 namespace multibody {
@@ -27,7 +24,7 @@ Coupler constraints only apply to joints within the same clique, so they do not
 change the sparsity structure of the problem.
 TODO(vincekurtz): consider relaxing this requirement. */
 template <typename T>
-class IcfModel<T>::CouplerConstraintsPool {
+class CouplerConstraintsPool {
  public:
   DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(CouplerConstraintsPool);
 
@@ -106,3 +103,6 @@ class IcfModel<T>::CouplerConstraintsPool {
 }  // namespace contact_solvers
 }  // namespace multibody
 }  // namespace drake
+
+DRAKE_DECLARE_CLASS_TEMPLATE_INSTANTIATIONS_ON_DEFAULT_SCALARS(
+    class ::drake::multibody::contact_solvers::icf::internal::CouplerConstraintsPool);

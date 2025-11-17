@@ -119,6 +119,18 @@ drake_cc_library(
 )
 
 drake_cc_library(
+    name = "coupler_constraints_pool",
+    srcs = ["icf_model_coupler_constraints_pool.cc"],
+    hdrs = ["icf_model_coupler_constraints_pool.h"],
+    deps = [
+        ":icf_data",
+        ":icf_model",
+        "//common:essential",
+        ":coupler_constraints_data_pool",
+    ]
+)
+
+drake_cc_library(
     name = "icf_model",
     srcs = [
         "icf_model.cc",
