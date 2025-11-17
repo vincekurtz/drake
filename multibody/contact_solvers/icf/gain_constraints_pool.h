@@ -1,9 +1,5 @@
 #pragma once
 
-#ifndef DRAKE_ICF_MODEL_NESTED_CLASS_INCLUDES
-#error Do not directly include this file; instead, use icf_model.h.
-#endif
-
 #include <span>
 #include <vector>
 
@@ -13,12 +9,17 @@
 #include "drake/multibody/contact_solvers/icf/eigen_pool.h"
 #include "drake/multibody/contact_solvers/icf/gain_constraints_data_pool.h"
 #include "drake/multibody/contact_solvers/icf/icf_data.h"
+#include "drake/multibody/contact_solvers/block_sparse_lower_triangular_or_symmetric_matrix.h"
 
 namespace drake {
 namespace multibody {
 namespace contact_solvers {
 namespace icf {
 namespace internal {
+
+// Forward declaration to break circular dependencies.
+template <typename T>
+class IcfModel;
 
 /* A pool of gain constraints organized by cliques.
 
@@ -31,9 +32,12 @@ where K is a positive semi-definite diagonal gain matrix, b is a bias term
 and e is an effort limit. Generalized impulses for that clique are thus γ =
 δt⋅τ. */
 template <typename T>
-class IcfModel<T>::GainConstraintsPool {
+class GainConstraintsPool {
  public:
   DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(GainConstraintsPool);
+
+  using ConstVectorXView = typename EigenPool<VectorX<T>>::ConstMatrixView;
+  using ConstMatrixXView = typename EigenPool<MatrixX<T>>::ConstMatrixView;
 
   /* Constructor for an empty pool. */
   GainConstraintsPool(const IcfModel<T>* parent_model) : model_(parent_model) {
@@ -114,3 +118,7 @@ class IcfModel<T>::GainConstraintsPool {
 }  // namespace contact_solvers
 }  // namespace multibody
 }  // namespace drake
+
+DRAKE_DECLARE_CLASS_TEMPLATE_INSTANTIATIONS_ON_DEFAULT_NONSYMBOLIC_SCALARS(
+    class ::drake::multibody::contact_solvers::icf::internal::
+        GainConstraintsPool);

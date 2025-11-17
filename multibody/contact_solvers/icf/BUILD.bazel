@@ -135,15 +135,15 @@ drake_cc_library(
     srcs = [
         "icf_model.cc",
         "coupler_constraints_pool.cc",
-#        "icf_model_gain_constraints_pool.cc",
-#        "icf_model_limit_constraints_pool.cc",
+        "gain_constraints_pool.cc",
+        "limit_constraints_pool.cc",
 #        "icf_model_patch_constraints_pool.cc",
     ],
     hdrs = [
         "icf_model.h",
         "coupler_constraints_pool.h",
-#        "icf_model_gain_constraints_pool.h",
-#        "icf_model_limit_constraints_pool.h",
+        "gain_constraints_pool.h",
+        "limit_constraints_pool.h",
 #        "icf_model_patch_constraints_pool.h",
     ],
     deps = [

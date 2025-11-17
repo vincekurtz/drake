@@ -17,7 +17,7 @@ namespace contact_solvers {
 namespace icf {
 namespace internal {
 
-// Forward declaration of the parent class to break circular dependencies.
+// Forward declaration to break circular dependencies.
 template <typename T>
 class IcfModel;
 
