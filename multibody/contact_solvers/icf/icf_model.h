@@ -14,7 +14,7 @@
 #include "drake/multibody/contact_solvers/icf/coupler_constraints_pool.h"
 #include "drake/multibody/contact_solvers/icf/gain_constraints_pool.h"
 #include "drake/multibody/contact_solvers/icf/limit_constraints_pool.h"
-// #include "drake/multibody/contact_solvers/icf/patch_constraints_pool.h.h"
+#include "drake/multibody/contact_solvers/icf/patch_constraints_pool.h"
 
 namespace drake {
 namespace multibody {
@@ -87,8 +87,8 @@ class IcfModel {
       : params_{std::make_unique<IcfParameters<T>>()},
         coupler_constraints_pool_(this),
         gain_constraints_pool_(this),
-        limit_constraints_pool_(this) {}
-        // patch_constraints_pool_(this) {}
+        limit_constraints_pool_(this),
+        patch_constraints_pool_(this) {}
 
   /* Release ownership of parameters so that we can re-use memory.
   The typical usage is something like:
@@ -366,7 +366,7 @@ class IcfModel {
   CouplerConstraintsPool<T> coupler_constraints_pool_;
   GainConstraintsPool<T> gain_constraints_pool_;
   LimitConstraintsPool<T> limit_constraints_pool_;
-  // PatchConstraintsPool patch_constraints_pool_;
+  PatchConstraintsPool<T> patch_constraints_pool_;
 };
 
 }  // namespace internal

@@ -1,3 +1,5 @@
+#include "multibody/contact_solvers/icf/patch_constraints_pool.h"
+
 #include <algorithm>
 #include <cmath>
 #include <numeric>
@@ -11,10 +13,6 @@ namespace multibody {
 namespace contact_solvers {
 namespace icf {
 namespace internal {
-
-template <typename T>
-using BlockSparseSymmetricMatrixT =
-    contact_solvers::internal::BlockSparseSymmetricMatrixT<T>;
 
 template <typename T>
 T SoftNorm(const Vector3<T>& x, const T& eps) {
@@ -154,7 +152,7 @@ T CalcDiscreteHuntCrossleyDerivative(const T& dt, const T& vn, const T& fe0,
 }
 
 template <typename T>
-void IcfModel<T>::PatchConstraintsPool::Clear() {
+void PatchConstraintsPool<T>::Clear() {
   // Data per patch.
   num_pairs_.clear();
   num_cliques_.clear();
@@ -175,7 +173,7 @@ void IcfModel<T>::PatchConstraintsPool::Clear() {
 }
 
 template <typename T>
-void IcfModel<T>::PatchConstraintsPool::Resize(
+void PatchConstraintsPool<T>::Resize(
     std::span<const int> num_pairs_per_patch) {
   num_pairs_.assign(num_pairs_per_patch.begin(), num_pairs_per_patch.end());
 
@@ -210,11 +208,10 @@ void IcfModel<T>::PatchConstraintsPool::Resize(
 }
 
 template <typename T>
-void IcfModel<T>::PatchConstraintsPool::SetPatch(int patch_index, int bodyA,
-                                                 int bodyB,
-                                                 const T& dissipation,
-                                                 const T& static_friction,
-                                                 const T& dynamic_friction,
+void PatchConstraintsPool<T>::SetPatch(int patch_index, int bodyA, int bodyB,
+                                       const T& dissipation,
+                                       const T& static_friction,
+                                       const T& dynamic_friction,
                                                  const Vector3<T>& p_AB_W) {
   DRAKE_ASSERT(patch_index >= 0 && patch_index < num_patches());
   DRAKE_DEMAND(bodyA != bodyB);               // Same body never makes sense.
@@ -247,7 +244,7 @@ void IcfModel<T>::PatchConstraintsPool::SetPatch(int patch_index, int bodyA,
 }
 
 template <typename T>
-void IcfModel<T>::PatchConstraintsPool::SetPair(
+void PatchConstraintsPool<T>::SetPair(
     const int patch_index, const int pair_index, const Vector3<T>& p_BoC_W,
     const Vector3<T>& normal_W, const T& fn0, const T& stiffness) {
   using std::max;
@@ -306,7 +303,7 @@ void IcfModel<T>::PatchConstraintsPool::SetPair(
 }
 
 template <typename T>
-T IcfModel<T>::PatchConstraintsPool::CalcLaggedHuntCrossleyModel(
+T PatchConstraintsPool<T>::CalcLaggedHuntCrossleyModel(
     int p, int k, const Vector3<T>& v_AcBc_W, Vector3<T>* gamma_Bc_W,
     Matrix3<T>* G) const {
   using std::max;
@@ -367,7 +364,7 @@ T IcfModel<T>::PatchConstraintsPool::CalcLaggedHuntCrossleyModel(
 }
 
 template <typename T>
-void IcfModel<T>::PatchConstraintsPool::CalcConstraintVelocities(
+void PatchConstraintsPool<T>::CalcConstraintVelocities(
     const EigenPool<Vector6<T>>& V_WB_pool,
     EigenPool<Vector6<T>>* V_AbB_W_pool) const {
   DRAKE_ASSERT(V_WB_pool.size() == model().num_bodies());
@@ -401,7 +398,7 @@ void IcfModel<T>::PatchConstraintsPool::CalcConstraintVelocities(
 }
 
 template <typename T>
-void IcfModel<T>::PatchConstraintsPool::CalcContactVelocities(
+void PatchConstraintsPool<T>::CalcContactVelocities(
     const EigenPool<Vector6<T>>& V_WB_pool,
     EigenPool<Vector3<T>>* v_AcBc_W_pool) const {
   for (int p = 0; p < num_patches(); ++p) {
@@ -437,7 +434,7 @@ void IcfModel<T>::PatchConstraintsPool::CalcContactVelocities(
 }
 
 template <typename T>
-void IcfModel<T>::PatchConstraintsPool::CalcPatchQuantities(
+void PatchConstraintsPool<T>::CalcPatchQuantities(
     const EigenPool<Vector3<T>>& v_AcBc_W_pool, std::vector<T>* cost_pool,
     EigenPool<Vector6<T>>* spatial_impulses_pool,
     EigenPool<Matrix6<T>>* patch_hessians_pool) const {
@@ -477,7 +474,7 @@ void IcfModel<T>::PatchConstraintsPool::CalcPatchQuantities(
 }
 
 template <typename T>
-void IcfModel<T>::PatchConstraintsPool::CalcData(
+void PatchConstraintsPool<T>::CalcData(
     const EigenPool<Vector6<T>>& V_WB,
     PatchConstraintsDataPool<T>* patch_data) const {
   CalcContactVelocities(V_WB, &patch_data->v_AcBc_W_pool());
@@ -488,7 +485,7 @@ void IcfModel<T>::PatchConstraintsPool::CalcData(
 }
 
 template <typename T>
-void IcfModel<T>::PatchConstraintsPool::ProjectAlongLine(
+void PatchConstraintsPool<T>::ProjectAlongLine(
     const PatchConstraintsDataPool<T>& patch_data,
     const EigenPool<Vector6<T>>& U_WB_pool,
     EigenPool<Vector6<T>>* U_AbB_W_pool_ptr, T* dcost, T* d2cost) const {
@@ -514,7 +511,7 @@ void IcfModel<T>::PatchConstraintsPool::ProjectAlongLine(
 }
 
 template <typename T>
-void IcfModel<T>::PatchConstraintsPool::AccumulateGradient(
+void PatchConstraintsPool<T>::AccumulateGradient(
     const IcfData<T>& data, VectorX<T>* gradient) const {
   const PatchConstraintsDataPool<T>& patch_data =
       data.cache().patch_constraints_data;
@@ -556,7 +553,7 @@ void IcfModel<T>::PatchConstraintsPool::AccumulateGradient(
 }
 
 template <typename T>
-void IcfModel<T>::PatchConstraintsPool::AccumulateHessian(
+void PatchConstraintsPool<T>::AccumulateHessian(
     const IcfData<T>& data, BlockSparseSymmetricMatrixT<T>* hessian) const {
   const PatchConstraintsDataPool<T>& patch_data =
       data.cache().patch_constraints_data;
@@ -654,7 +651,7 @@ void IcfModel<T>::PatchConstraintsPool::AccumulateHessian(
 }
 
 template <typename T>
-void IcfModel<T>::PatchConstraintsPool::CalcSparsityPattern(
+void PatchConstraintsPool<T>::CalcSparsityPattern(
     std::vector<std::vector<int>>* sparsity) const {
   for (int p = 0; p < num_patches(); ++p) {
     // We only need to add to the sparsity if body_a is not anchored.
@@ -678,7 +675,6 @@ void IcfModel<T>::PatchConstraintsPool::CalcSparsityPattern(
 }  // namespace multibody
 }  // namespace drake
 
-template class ::drake::multibody::contact_solvers::icf::internal::IcfModel<
-    double>::PatchConstraintsPool;
-template class ::drake::multibody::contact_solvers::icf::internal::IcfModel<
-    drake::AutoDiffXd>::PatchConstraintsPool;
+DRAKE_DECLARE_CLASS_TEMPLATE_INSTANTIATIONS_ON_DEFAULT_NONSYMBOLIC_SCALARS(
+    class drake::multibody::contact_solvers::icf::internal::
+        PatchConstraintsPool);
