@@ -15,12 +15,11 @@
 namespace drake {
 namespace multibody {
 namespace contact_solvers {
+
+using internal::BlockSparseSymmetricMatrixT;
+
 namespace icf {
 namespace internal {
-
-template <typename T>
-using BlockSparseSymmetricMatrixT =
-    contact_solvers::internal::BlockSparseSymmetricMatrixT<T>;
 
 // Forward declaration to break circular dependencies.
 template <typename T>
@@ -37,7 +36,8 @@ class PatchConstraintsPool {
   using ConstJacobianView = typename EigenPool<Matrix6X<T>>::ConstMatrixView;
 
   /* Constructor for an empty pool. */
-  PatchConstraintsPool(const IcfModel<T>* parent_model) : model_(parent_model) {
+  explicit PatchConstraintsPool(const IcfModel<T>* parent_model)
+      : model_(parent_model) {
     DRAKE_ASSERT(parent_model != nullptr);
   }
 

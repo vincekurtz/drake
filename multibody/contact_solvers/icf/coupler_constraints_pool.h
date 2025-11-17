@@ -14,6 +14,9 @@
 namespace drake {
 namespace multibody {
 namespace contact_solvers {
+
+using internal::BlockSparseSymmetricMatrixT;
+
 namespace icf {
 namespace internal {
 
@@ -33,7 +36,7 @@ class CouplerConstraintsPool {
   DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(CouplerConstraintsPool);
 
   /* Constructor for an empty pool. */
-  CouplerConstraintsPool(const IcfModel<T>* parent_model)
+  explicit CouplerConstraintsPool(const IcfModel<T>* parent_model)
       : model_(parent_model) {
     DRAKE_ASSERT(parent_model != nullptr);
   }
@@ -74,9 +77,8 @@ class CouplerConstraintsPool {
   void AccumulateGradient(const IcfData<T>& data, VectorX<T>* gradient) const;
 
   /* Add the Hessian contribution of this constraint to the overall Hessian. */
-  void AccumulateHessian(
-      const IcfData<T>& data,
-      contact_solvers::internal::BlockSparseSymmetricMatrixT<T>* hessian) const;
+  void AccumulateHessian(const IcfData<T>& data,
+                         BlockSparseSymmetricMatrixT<T>* hessian) const;
 
   /* Compute the first and second derivatives of ℓ(α) = ℓ(v + αw) at α = 0. Used
   for exact line search. */

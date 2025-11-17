@@ -12,10 +12,6 @@ namespace icf {
 namespace internal {
 
 template <typename T>
-using BlockSparseSymmetricMatrixT =
-    drake::multibody::contact_solvers::internal::BlockSparseSymmetricMatrixT<T>;
-
-template <typename T>
 void CouplerConstraintsPool<T>::Clear() {
   constraint_to_clique_.clear();
   dofs_.clear();

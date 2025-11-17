@@ -56,9 +56,8 @@ void LimitConstraintsPool<T>::Resize(
 }
 
 template <typename T>
-void LimitConstraintsPool<T>::Set(int index, int clique, int dof,
-                                            const T& q0, const T& ql,
-                                            const T& qu) {
+void LimitConstraintsPool<T>::Set(int index, int clique, int dof, const T& q0,
+                                  const T& ql, const T& qu) {
   lower_limit(index, dof) = ql;
   upper_limit(index, dof) = qu;
   configuration(index, dof) = q0;
@@ -80,9 +79,8 @@ void LimitConstraintsPool<T>::Set(int index, int clique, int dof,
 }
 
 template <typename T>
-T LimitConstraintsPool<T>::CalcLimitData(const T& v_hat, const T& R,
-                                                   const T& v, T* gamma,
-                                                   T* G) const {
+T LimitConstraintsPool<T>::CalcLimitData(const T& v_hat, const T& R, const T& v,
+                                         T* gamma, T* G) const {
   T cost = 0;
   *(gamma) = 0;
   *(G) = 0;
@@ -130,8 +128,8 @@ void LimitConstraintsPool<T>::CalcData(
 }
 
 template <typename T>
-void LimitConstraintsPool<T>::AccumulateGradient(
-    const IcfData<T>& data, VectorX<T>* gradient) const {
+void LimitConstraintsPool<T>::AccumulateGradient(const IcfData<T>& data,
+                                                 VectorX<T>* gradient) const {
   const LimitConstraintsDataPool<T>& limit_data =
       data.cache().limit_constraints_data;
 

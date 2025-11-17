@@ -11,10 +11,6 @@ namespace icf {
 namespace internal {
 
 template <typename T>
-using BlockSparseSymmetricMatrixT =
-    contact_solvers::internal::BlockSparseSymmetricMatrixT<T>;
-
-template <typename T>
 void GainConstraintsPool<T>::Clear() {
   clique_.clear();
   constraint_sizes_.clear();
@@ -37,8 +33,7 @@ void GainConstraintsPool<T>::Resize(std::span<const int> sizes) {
 
 template <typename T>
 void GainConstraintsPool<T>::Set(const int index, int clique,
-                                 const VectorX<T>& K,
-                                 const VectorX<T>& b,
+                                 const VectorX<T>& K, const VectorX<T>& b,
                                  const VectorX<T>& e) {
   DRAKE_ASSERT(index >= 0 && index < num_constraints());
   const int nv = model().clique_size(clique);
@@ -73,8 +68,8 @@ void GainConstraintsPool<T>::CalcData(
 }
 
 template <typename T>
-void GainConstraintsPool<T>::AccumulateGradient(
-    const IcfData<T>& data, VectorX<T>* gradient) const {
+void GainConstraintsPool<T>::AccumulateGradient(const IcfData<T>& data,
+                                                VectorX<T>* gradient) const {
   const GainConstraintsDataPool<T>& gain_data =
       data.cache().gain_constraints_data;
 
@@ -124,8 +119,7 @@ void GainConstraintsPool<T>::ProjectAlongLine(
 }
 
 template <typename T>
-T GainConstraintsPool<T>::Clamp(int k,
-                                const Eigen::Ref<const VectorX<T>>& v,
+T GainConstraintsPool<T>::Clamp(int k, const Eigen::Ref<const VectorX<T>>& v,
                                 EigenPtr<VectorX<T>> gamma,
                                 EigenPtr<MatrixX<T>> G) const {
   const int n = v.size();

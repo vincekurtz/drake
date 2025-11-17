@@ -6,22 +6,21 @@
 #include "drake/common/drake_assert.h"
 #include "drake/common/drake_copyable.h"
 #include "drake/common/eigen_types.h"
+#include "drake/multibody/contact_solvers/block_sparse_lower_triangular_or_symmetric_matrix.h"
 #include "drake/multibody/contact_solvers/icf/eigen_pool.h"
 #include "drake/multibody/contact_solvers/icf/icf_data.h"
 #include "drake/multibody/contact_solvers/icf/limit_constraints_data_pool.h"
-#include "drake/multibody/contact_solvers/block_sparse_lower_triangular_or_symmetric_matrix.h"
 
 namespace drake {
 namespace multibody {
 namespace contact_solvers {
+
+using internal::BlockSparseSymmetricMatrixT;
+
 namespace icf {
 namespace internal {
 
-template <typename T>
-using BlockSparseSymmetricMatrixT =
-    contact_solvers::internal::BlockSparseSymmetricMatrixT<T>;
-
-  // Forward declaration to break circular dependencies.
+// Forward declaration to break circular dependencies.
 template <typename T>
 class IcfModel;
 
@@ -35,7 +34,8 @@ class LimitConstraintsPool {
   using ConstMatrixXView = typename EigenPool<MatrixX<T>>::ConstMatrixView;
 
   /* Constructor for an empty pool. */
-  LimitConstraintsPool(const IcfModel<T>* parent_model) : model_(parent_model) {
+  explicit LimitConstraintsPool(const IcfModel<T>* parent_model)
+      : model_(parent_model) {
     DRAKE_ASSERT(parent_model != nullptr);
   }
 

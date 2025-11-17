@@ -9,24 +9,22 @@
 #include "drake/common/drake_copyable.h"
 #include "drake/common/eigen_types.h"
 #include "drake/multibody/contact_solvers/block_sparse_lower_triangular_or_symmetric_matrix.h"
-#include "drake/multibody/contact_solvers/icf/eigen_pool.h"
-#include "drake/multibody/contact_solvers/icf/icf_data.h"
 #include "drake/multibody/contact_solvers/icf/coupler_constraints_pool.h"
+#include "drake/multibody/contact_solvers/icf/eigen_pool.h"
 #include "drake/multibody/contact_solvers/icf/gain_constraints_pool.h"
+#include "drake/multibody/contact_solvers/icf/icf_data.h"
 #include "drake/multibody/contact_solvers/icf/limit_constraints_pool.h"
 #include "drake/multibody/contact_solvers/icf/patch_constraints_pool.h"
 
 namespace drake {
 namespace multibody {
 namespace contact_solvers {
+
+using internal::BlockSparseSymmetricMatrixT;
+using internal::BlockSparsityPattern;
+
 namespace icf {
 namespace internal {
-
-using contact_solvers::internal::BlockSparsityPattern;
-
-template <typename T>
-using BlockSparseSymmetricMatrixT =
-    contact_solvers::internal::BlockSparseSymmetricMatrixT<T>;
 
 /* A struct to hold the key parameters that define a convex ICF problem.
 
@@ -280,14 +278,13 @@ class IcfModel {
 
   See documentation in  internal::BlockSparseCholeskySolver for further details.
   */
-  std::unique_ptr<BlockSparseSymmetricMatrixT<T>>
-  MakeHessian(const IcfData<T>& data) const;
+  std::unique_ptr<BlockSparseSymmetricMatrixT<T>> MakeHessian(
+      const IcfData<T>& data) const;
 
   /* Updates the values of the Hessian for the input `data`.
   @pre The sparsity of the `hessian` matches the structure of `this` model. */
-  void UpdateHessian(
-      const IcfData<T>& data,
-      BlockSparseSymmetricMatrixT<T>* hessian) const;
+  void UpdateHessian(const IcfData<T>& data,
+                     BlockSparseSymmetricMatrixT<T>* hessian) const;
 
   /* Pre-computes some quantities used to speed up CalcCostAlongLine() below. */
   void UpdateSearchDirection(const IcfData<T>& data, const VectorX<T>& w,
@@ -359,8 +356,7 @@ class IcfModel {
   int num_cliques_{0};
 
   // Sparsity pattern of the Hessian matrix. Defined on a per-clique basis.
-  std::unique_ptr<BlockSparsityPattern>
-      sparsity_pattern_;
+  std::unique_ptr<BlockSparsityPattern> sparsity_pattern_;
 
   // Fixed set of constraints.
   CouplerConstraintsPool<T> coupler_constraints_pool_;

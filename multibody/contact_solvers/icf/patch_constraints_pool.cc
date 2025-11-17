@@ -173,8 +173,7 @@ void PatchConstraintsPool<T>::Clear() {
 }
 
 template <typename T>
-void PatchConstraintsPool<T>::Resize(
-    std::span<const int> num_pairs_per_patch) {
+void PatchConstraintsPool<T>::Resize(std::span<const int> num_pairs_per_patch) {
   num_pairs_.assign(num_pairs_per_patch.begin(), num_pairs_per_patch.end());
 
   const int num_patches = num_pairs_.size();
@@ -212,7 +211,7 @@ void PatchConstraintsPool<T>::SetPatch(int patch_index, int bodyA, int bodyB,
                                        const T& dissipation,
                                        const T& static_friction,
                                        const T& dynamic_friction,
-                                                 const Vector3<T>& p_AB_W) {
+                                       const Vector3<T>& p_AB_W) {
   DRAKE_ASSERT(patch_index >= 0 && patch_index < num_patches());
   DRAKE_DEMAND(bodyA != bodyB);               // Same body never makes sense.
   DRAKE_DEMAND(!model().is_anchored(bodyB));  // B is never anchored.
@@ -244,9 +243,11 @@ void PatchConstraintsPool<T>::SetPatch(int patch_index, int bodyA, int bodyB,
 }
 
 template <typename T>
-void PatchConstraintsPool<T>::SetPair(
-    const int patch_index, const int pair_index, const Vector3<T>& p_BoC_W,
-    const Vector3<T>& normal_W, const T& fn0, const T& stiffness) {
+void PatchConstraintsPool<T>::SetPair(const int patch_index,
+                                      const int pair_index,
+                                      const Vector3<T>& p_BoC_W,
+                                      const Vector3<T>& normal_W, const T& fn0,
+                                      const T& stiffness) {
   using std::max;
   DRAKE_ASSERT(patch_index >= 0 && patch_index < num_patches());
   DRAKE_ASSERT(pair_index >= 0 && pair_index < num_pairs_[patch_index]);
@@ -511,8 +512,8 @@ void PatchConstraintsPool<T>::ProjectAlongLine(
 }
 
 template <typename T>
-void PatchConstraintsPool<T>::AccumulateGradient(
-    const IcfData<T>& data, VectorX<T>* gradient) const {
+void PatchConstraintsPool<T>::AccumulateGradient(const IcfData<T>& data,
+                                                 VectorX<T>* gradient) const {
   const PatchConstraintsDataPool<T>& patch_data =
       data.cache().patch_constraints_data;
   const EigenPool<Vector6<T>>& Gamma_Bo_W_pool = patch_data.Gamma_Bo_W_pool();
