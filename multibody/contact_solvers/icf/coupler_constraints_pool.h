@@ -9,13 +9,17 @@
 #include "drake/multibody/contact_solvers/icf/coupler_constraints_data_pool.h"
 #include "drake/multibody/contact_solvers/icf/eigen_pool.h"
 #include "drake/multibody/contact_solvers/icf/icf_data.h"
-#include "drake/multibody/contact_solvers/icf/icf_model.h"
+#include "drake/multibody/contact_solvers/block_sparse_lower_triangular_or_symmetric_matrix.h"
 
 namespace drake {
 namespace multibody {
 namespace contact_solvers {
 namespace icf {
 namespace internal {
+  
+// Forward declaration of the parent model class.
+template <typename T>
+class IcfModel;
 
 /* A pool of coupler constraints (qᵢ - ρqⱼ = Δq) linking generalized positions
 (qᵢ, qⱼ) with gear ratio ρ and offset Δq.
@@ -27,6 +31,7 @@ template <typename T>
 class CouplerConstraintsPool {
  public:
   DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(CouplerConstraintsPool);
+
 
   /* Constructor for an empty pool. */
   CouplerConstraintsPool(const IcfModel<T>* parent_model)

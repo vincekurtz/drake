@@ -1,7 +1,8 @@
 #include <utility>
 
 #include "drake/common/unused.h"
-#include "drake/multibody/contact_solvers/icf/icf_model_coupler_constraints_pool.h"
+#include "drake/multibody/contact_solvers/icf/coupler_constraints_pool.h"
+#include "drake/multibody/contact_solvers/icf/icf_model.h"
 
 namespace drake {
 namespace multibody {
@@ -11,7 +12,7 @@ namespace internal {
 
 template <typename T>
 using BlockSparseSymmetricMatrixT =
-    contact_solvers::internal::BlockSparseSymmetricMatrixT<T>;
+    drake::multibody::contact_solvers::internal::BlockSparseSymmetricMatrixT<T>;
 
 template <typename T>
 void CouplerConstraintsPool<T>::Clear() {

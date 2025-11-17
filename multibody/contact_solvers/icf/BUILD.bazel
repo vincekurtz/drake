@@ -118,30 +118,30 @@ drake_cc_library(
     ],
 )
 
-drake_cc_library(
-    name = "coupler_constraints_pool",
-    srcs = ["icf_model_coupler_constraints_pool.cc"],
-    hdrs = ["icf_model_coupler_constraints_pool.h"],
-    deps = [
-        ":icf_data",
-        ":icf_model",
-        "//common:essential",
-        ":coupler_constraints_data_pool",
-    ]
-)
+#drake_cc_library(
+#    name = "coupler_constraints_pool",
+#    srcs = ["coupler_constraints_pool.cc"],
+#    hdrs = ["coupler_constraints_pool.h"],
+#    deps = [
+#        ":icf_data",
+#        ":icf_model",
+#        "//common:unused",
+#        ":coupler_constraints_data_pool",
+#    ]
+#)
 
 drake_cc_library(
     name = "icf_model",
     srcs = [
         "icf_model.cc",
-#        "icf_model_coupler_constraints_pool.cc",
+        "coupler_constraints_pool.cc",
 #        "icf_model_gain_constraints_pool.cc",
 #        "icf_model_limit_constraints_pool.cc",
 #        "icf_model_patch_constraints_pool.cc",
     ],
     hdrs = [
         "icf_model.h",
-#        "icf_model_coupler_constraints_pool.h",
+        "coupler_constraints_pool.h",
 #        "icf_model_gain_constraints_pool.h",
 #        "icf_model_limit_constraints_pool.h",
 #        "icf_model_patch_constraints_pool.h",

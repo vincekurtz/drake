@@ -11,6 +11,7 @@
 #include "drake/multibody/contact_solvers/block_sparse_lower_triangular_or_symmetric_matrix.h"
 #include "drake/multibody/contact_solvers/icf/eigen_pool.h"
 #include "drake/multibody/contact_solvers/icf/icf_data.h"
+#include "drake/multibody/contact_solvers/icf/coupler_constraints_pool.h"
 
 namespace drake {
 namespace multibody {
@@ -80,8 +81,8 @@ class IcfModel {
 
   /* Constructor for an empty model. */
   IcfModel()
-      : params_{std::make_unique<IcfParameters<T>>()} {};
-        // coupler_constraints_pool_(this),
+      : params_{std::make_unique<IcfParameters<T>>()},
+        coupler_constraints_pool_(this) {}
         // gain_constraints_pool_(this),
         // limit_constraints_pool_(this),
         // patch_constraints_pool_(this) {}
@@ -359,7 +360,7 @@ class IcfModel {
       sparsity_pattern_;
 
   // // Fixed set of constraints.
-  // CouplerConstraintsPool coupler_constraints_pool_;
+  CouplerConstraintsPool<T> coupler_constraints_pool_;
   // GainConstraintsPool gain_constraints_pool_;
   // LimitConstraintsPool limit_constraints_pool_;
   // PatchConstraintsPool patch_constraints_pool_;
