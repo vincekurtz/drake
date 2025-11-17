@@ -6,18 +6,18 @@
 #include "drake/common/drake_assert.h"
 #include "drake/common/drake_copyable.h"
 #include "drake/common/eigen_types.h"
+#include "drake/multibody/contact_solvers/block_sparse_lower_triangular_or_symmetric_matrix.h"
 #include "drake/multibody/contact_solvers/icf/coupler_constraints_data_pool.h"
 #include "drake/multibody/contact_solvers/icf/eigen_pool.h"
 #include "drake/multibody/contact_solvers/icf/icf_data.h"
-#include "drake/multibody/contact_solvers/block_sparse_lower_triangular_or_symmetric_matrix.h"
 
 namespace drake {
 namespace multibody {
 namespace contact_solvers {
 namespace icf {
 namespace internal {
-  
-// Forward declaration of the parent model class.
+
+// Forward declaration of the parent class to break circular dependencies.
 template <typename T>
 class IcfModel;
 
@@ -31,7 +31,6 @@ template <typename T>
 class CouplerConstraintsPool {
  public:
   DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(CouplerConstraintsPool);
-
 
   /* Constructor for an empty pool. */
   CouplerConstraintsPool(const IcfModel<T>* parent_model)
@@ -109,5 +108,6 @@ class CouplerConstraintsPool {
 }  // namespace multibody
 }  // namespace drake
 
-DRAKE_DECLARE_CLASS_TEMPLATE_INSTANTIATIONS_ON_DEFAULT_SCALARS(
-    class ::drake::multibody::contact_solvers::icf::internal::CouplerConstraintsPool);
+DRAKE_DECLARE_CLASS_TEMPLATE_INSTANTIATIONS_ON_DEFAULT_NONSYMBOLIC_SCALARS(
+    class ::drake::multibody::contact_solvers::icf::internal::
+        CouplerConstraintsPool);

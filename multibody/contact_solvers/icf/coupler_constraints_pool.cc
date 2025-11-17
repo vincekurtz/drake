@@ -1,7 +1,8 @@
+#include "drake/multibody/contact_solvers/icf/coupler_constraints_pool.h"
+
 #include <utility>
 
 #include "drake/common/unused.h"
-#include "drake/multibody/contact_solvers/icf/coupler_constraints_pool.h"
 #include "drake/multibody/contact_solvers/icf/icf_model.h"
 
 namespace drake {
@@ -33,9 +34,9 @@ void CouplerConstraintsPool<T>::Resize(const int num_constraints) {
 }
 
 template <typename T>
-void CouplerConstraintsPool<T>::Set(int index, int clique, int i,
-                                    int j, const T& qi, const T& qj,
-                                              T gear_ratio, T offset) {
+void CouplerConstraintsPool<T>::Set(int index, int clique, int i, int j,
+                                    const T& qi, const T& qj, T gear_ratio,
+                                    T offset) {
   DRAKE_ASSERT(index >= 0 && index < num_constraints());
   DRAKE_ASSERT(i >= 0 && i < model().clique_size(clique));
   DRAKE_ASSERT(j >= 0 && j < model().clique_size(clique));
@@ -93,8 +94,8 @@ void CouplerConstraintsPool<T>::CalcData(
 }
 
 template <typename T>
-void CouplerConstraintsPool<T>::AccumulateGradient(
-    const IcfData<T>& data, VectorX<T>* gradient) const {
+void CouplerConstraintsPool<T>::AccumulateGradient(const IcfData<T>& data,
+                                                   VectorX<T>* gradient) const {
   const CouplerConstraintsDataPool<T>& coupler_data =
       data.cache().coupler_constraints_data;
 
@@ -165,5 +166,6 @@ void CouplerConstraintsPool<T>::ProjectAlongLine(
 }  // namespace multibody
 }  // namespace drake
 
-DRAKE_DEFINE_CLASS_TEMPLATE_INSTANTIATIONS_ON_DEFAULT_SCALARS(
-    class ::drake::multibody::contact_solvers::icf::internal::CouplerConstraintsPool);
+DRAKE_DEFINE_CLASS_TEMPLATE_INSTANTIATIONS_ON_DEFAULT_NONSYMBOLIC_SCALARS(
+    class ::drake::multibody::contact_solvers::icf::internal::
+        CouplerConstraintsPool);
