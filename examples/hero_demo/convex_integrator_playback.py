@@ -5,13 +5,30 @@ Track joint targets with a stiff PD controller so we can avoid going through the
 (discrete-time) DiffIK.
 """
 
-from pydrake.all import *
+import numpy as np
+
 from pydrake.common import FindResourceOrThrow
+from pydrake.common.yaml import yaml_load_file, yaml_dump
+from pydrake.geometry import StartMeshcat
+from pydrake.multibody.parsing import Parser, PackageMap
+from pydrake.multibody.plant import AddMultibodyPlantSceneGraph
+from pydrake.multibody.tree import PdControllerGains
+from pydrake.systems.analysis import (
+    Simulator,
+    SimulatorConfig,
+    ApplySimulatorConfig,
+    PrintSimulatorStatistics,
+)
+from pydrake.systems.controllers import PidController
+from pydrake.systems.framework import (
+    DiagramBuilder,
+    LeafSystem,
+)
+from pydrake.trajectories import PiecewisePolynomial
+from pydrake.visualization import ApplyVisualizationConfig, VisualizationConfig
+
 import time
-import yaml
 import argparse
-#from anzu.common.runfiles import Rlocation
-#from anzu.common.cc import ProcessAnzuModelDirectives
 
 # Usage:
 #   bazel build //intuitive/visuomotor:...
@@ -22,11 +39,13 @@ arg_parser.add_argument("--visualize", type=int, default=1)
 arg_parser.add_argument("--log_times", type=int, default=0)
 args = arg_parser.parse_args()
 
+
 class JointTargetSource(LeafSystem):
     """
     This simple leaf system sends out joint targets to be tracked by a PID
     controller, as recorded in a keyframes.txt file.
     """
+
     def __init__(self):
         super().__init__()
 
@@ -90,8 +109,12 @@ class JointTargetSource(LeafSystem):
 
         self.DeclareVectorOutputPort("left_arm", 14, self.CalcLeftArmTarget)
         self.DeclareVectorOutputPort("right_arm", 14, self.CalcRightArmTarget)
-        self.DeclareVectorOutputPort("left_gripper", 4, self.CalcLeftGripperTarget)
-        self.DeclareVectorOutputPort("right_gripper", 4, self.CalcRightGripperTarget)
+        self.DeclareVectorOutputPort(
+            "left_gripper", 4, self.CalcLeftGripperTarget
+        )
+        self.DeclareVectorOutputPort(
+            "right_gripper", 4, self.CalcRightGripperTarget
+        )
 
     def CalcLeftArmTarget(self, context, output):
         q_nom = self.left_arm_spline.value(context.get_time()).flatten()
@@ -123,10 +146,12 @@ class JointTargetSource(LeafSystem):
         x_nom = np.hstack((q_nom, v_nom))
         output.SetFromVector(x_nom)
 
+
 class TimeLogger(LeafSystem):
     """
     A simple logger to record the simulation time.
     """
+
     def __init__(self):
         super().__init__()
         self.DeclareForcedPublishEvent(self.RecordTimes)
@@ -145,6 +170,7 @@ class TimeLogger(LeafSystem):
         self.sim_times.append(context.get_time())
         self.wall_times.append(time.monotonic())
 
+
 # Load model directives from the scenario file saved with the recording
 model_directives_file = FindResourceOrThrow(
     "drake/examples/hero_demo/resolved_scenario.yaml"
@@ -158,30 +184,20 @@ builder = DiagramBuilder()
 plant, scene_graph = AddMultibodyPlantSceneGraph(builder, time_step=0.0)
 parser = Parser(builder)
 
-#ProcessAnzuModelDirectives(directives, plant)
-#ProcessModelDirectives(
-#        plant=plant,
-#        directives=directives)
-
 remote_params = PackageMap.RemoteParams(
-      urls = ["https://github.com/ToyotaResearchInstitute/lbm_eval/releases/download/1.1.0/lbm_eval_models-1.1.0-py3-none-any.whl"],
-      sha256 =
-          "97d61eb617d2d409d7c5873824ff79d26f6dd1a5532e428d4d320fac15c2957d",
-      archive_type = "zip",
-      strip_prefix = "lbm_eval_models")
-#package_map = PackageMap()
-parser.package_map().AddRemote(package_name="lbm_eval_models", params=remote_params)
-
-
-pckg_names = parser.package_map().GetPackageNames()
-print("PACKAGE NAMES:")
-print(pckg_names)
-
-#test_url = package_map.ResolveUrl(
-#      "package://lbm_eval_models/fictional/markers/torus.sdf")
-#print(f"test_url: {test_url}")
-parser.AddModelsFromString(file_contents=directives_string, file_type="dmd.yaml")
-
+    urls=[
+        "https://github.com/ToyotaResearchInstitute/lbm_eval/releases/download/1.1.0/lbm_eval_models-1.1.0-py3-none-any.whl"
+    ],
+    sha256="97d61eb617d2d409d7c5873824ff79d26f6dd1a5532e428d4d320fac15c2957d",
+    archive_type="zip",
+    strip_prefix="lbm_eval_models",
+)
+parser.package_map().AddRemote(
+    package_name="lbm_eval_models", params=remote_params
+)
+parser.AddModelsFromString(
+    file_contents=directives_string, file_type="dmd.yaml"
+)
 
 # Remove implicit PD actuation
 for idx in plant.GetJointActuatorIndices():
@@ -196,18 +212,18 @@ if args.visualize:
     meshcat = StartMeshcat()
     vis_config = VisualizationConfig()
     vis_config.publish_period = np.inf  # very long to avoid extra publishes
-    vis_config.publish_contacts = True
+    vis_config.publish_contacts = False
     vis_config.publish_inertia = False
-    vis_config.publish_proximity = True
+    vis_config.publish_proximity = False
     ApplyVisualizationConfig(vis_config, builder=builder, meshcat=meshcat)
 
     # Configure meshcat parameters for nicer visualization
-    #with open("intuitive/sim/meshcat_params.yaml", "r") as f:
+    # with open("intuitive/sim/meshcat_params.yaml", "r") as f:
     #    meshcat_params = yaml.safe_load(f)
-    #for p in meshcat_params["initial_properties"]:
+    # for p in meshcat_params["initial_properties"]:
     #    meshcat.SetProperty(p["path"], p["property"], p["value"])
-    #meshcat.SetProperty("/Axes", "visible", False)
-    #meshcat.SetCameraPose([0.7, -0.3, 0.7], [0.0, 0.0, 0.2])
+    # meshcat.SetProperty("/Axes", "visible", False)
+    # meshcat.SetCameraPose([0.7, -0.3, 0.7], [0.0, 0.0, 0.2])
 
 # Connect stiff joint-level PID controllers to the robot
 Kp_arm = 1e4 * np.ones(7)
@@ -224,8 +240,12 @@ joint_target_source = builder.AddSystem(JointTargetSource())
 
 left_arm_ctrl = builder.AddSystem(PidController(Kp_arm, Ki_arm, Kd_arm))
 right_arm_ctrl = builder.AddSystem(PidController(Kp_arm, Ki_arm, Kd_arm))
-left_gripper_ctrl = builder.AddSystem(PidController(Px_gripper, Py_gripper, Kp_gripper, Ki_gripper, Kd_gripper))
-right_gripper_ctrl = builder.AddSystem(PidController(Px_gripper, Py_gripper, Kp_gripper, Ki_gripper, Kd_gripper))
+left_gripper_ctrl = builder.AddSystem(
+    PidController(Px_gripper, Py_gripper, Kp_gripper, Ki_gripper, Kd_gripper)
+)
+right_gripper_ctrl = builder.AddSystem(
+    PidController(Px_gripper, Py_gripper, Kp_gripper, Ki_gripper, Kd_gripper)
+)
 
 left_arm = plant.GetModelInstanceByName("left::panda")
 right_arm = plant.GetModelInstanceByName("right::panda")
@@ -234,43 +254,55 @@ right_gripper = plant.GetModelInstanceByName("right::panda_hand")
 
 builder.Connect(
     joint_target_source.GetOutputPort("left_arm"),
-    left_arm_ctrl.get_input_port_desired_state())
+    left_arm_ctrl.get_input_port_desired_state(),
+)
 builder.Connect(
     plant.get_state_output_port(left_arm),
-    left_arm_ctrl.get_input_port_estimated_state())
+    left_arm_ctrl.get_input_port_estimated_state(),
+)
 builder.Connect(
     left_arm_ctrl.get_output_port_control(),
-    plant.get_actuation_input_port(left_arm))
+    plant.get_actuation_input_port(left_arm),
+)
 
 builder.Connect(
     joint_target_source.GetOutputPort("right_arm"),
-    right_arm_ctrl.get_input_port_desired_state())
+    right_arm_ctrl.get_input_port_desired_state(),
+)
 builder.Connect(
     plant.get_state_output_port(right_arm),
-    right_arm_ctrl.get_input_port_estimated_state())
+    right_arm_ctrl.get_input_port_estimated_state(),
+)
 builder.Connect(
     right_arm_ctrl.get_output_port_control(),
-    plant.get_actuation_input_port(right_arm))
+    plant.get_actuation_input_port(right_arm),
+)
 
 builder.Connect(
     joint_target_source.GetOutputPort("left_gripper"),
-    left_gripper_ctrl.get_input_port_desired_state())
+    left_gripper_ctrl.get_input_port_desired_state(),
+)
 builder.Connect(
     plant.get_state_output_port(left_gripper),
-    left_gripper_ctrl.get_input_port_estimated_state())
+    left_gripper_ctrl.get_input_port_estimated_state(),
+)
 builder.Connect(
     left_gripper_ctrl.get_output_port_control(),
-    plant.get_actuation_input_port(left_gripper))
+    plant.get_actuation_input_port(left_gripper),
+)
 
 builder.Connect(
     joint_target_source.GetOutputPort("right_gripper"),
-    right_gripper_ctrl.get_input_port_desired_state())
+    right_gripper_ctrl.get_input_port_desired_state(),
+)
 builder.Connect(
     plant.get_state_output_port(right_gripper),
-    right_gripper_ctrl.get_input_port_estimated_state())
+    right_gripper_ctrl.get_input_port_estimated_state(),
+)
 builder.Connect(
     right_gripper_ctrl.get_output_port_control(),
-    plant.get_actuation_input_port(right_gripper))
+    plant.get_actuation_input_port(right_gripper),
+)
 
 # Set initial conditions from the recording
 initial_positions = data["initial_position"]
