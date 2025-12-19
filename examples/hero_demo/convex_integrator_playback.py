@@ -232,7 +232,7 @@ Kd_arm = 1e3 * np.ones(7)
 
 Px_gripper = np.eye(4)
 Py_gripper = np.array([[0.5, -0.5]])
-Kp_gripper = 1e4 * np.ones(2)
+Kp_gripper = 5e3 * np.ones(2)
 Ki_gripper = 0.0 * np.ones(2)
 Kd_gripper = 1e3 * np.ones(2)
 
