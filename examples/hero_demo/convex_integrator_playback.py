@@ -31,8 +31,7 @@ import time
 import argparse
 
 # Usage:
-#   bazel build //intuitive/visuomotor:...
-#   ./run //intuitive/visuomotor:convex_integrator_playback
+#   bazel run //examples/hero_demo:convex_integrator_playback
 
 arg_parser = argparse.ArgumentParser()
 arg_parser.add_argument("--visualize", type=int, default=1)
@@ -218,15 +217,16 @@ if args.visualize:
     ApplyVisualizationConfig(vis_config, builder=builder, meshcat=meshcat)
 
     # Configure meshcat parameters for nicer visualization
-    # with open("intuitive/sim/meshcat_params.yaml", "r") as f:
-    #    meshcat_params = yaml.safe_load(f)
-    # for p in meshcat_params["initial_properties"]:
-    #    meshcat.SetProperty(p["path"], p["property"], p["value"])
-    # meshcat.SetProperty("/Axes", "visible", False)
-    # meshcat.SetCameraPose([0.7, -0.3, 0.7], [0.0, 0.0, 0.2])
+    meshcat_params_file = FindResourceOrThrow(
+            "drake/examples/hero_demo/meshcat_params.yaml")
+    meshcat_params = yaml_load_file(meshcat_params_file)   
+    for p in meshcat_params["initial_properties"]:
+       meshcat.SetProperty(p["path"], p["property"], p["value"])
+    meshcat.SetProperty("/Axes", "visible", False)
+    meshcat.SetCameraPose([0.7, -0.3, 0.7], [0.0, 0.0, 0.2])
 
 # Connect stiff joint-level PID controllers to the robot
-Kp_arm = 1e4 * np.ones(7)
+Kp_arm = 5e3 * np.ones(7)
 Ki_arm = 0.0 * np.ones(7)
 Kd_arm = 1e3 * np.ones(7)
 

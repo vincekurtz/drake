@@ -7,7 +7,7 @@ directives:
     default_joint_positions: {}
     default_free_body_pose: {}
 - add_model:
-    file: package://lbm_eval_models/stations/franka_station/station_dark_brown_table_top_compliant.sdf
+    file: package://lbm_eval_models/stations/franka_station/station_natural_brown_table_top_compliant.sdf
     name: manipuland_table
     default_joint_positions: {}
     default_free_body_pose: {}
