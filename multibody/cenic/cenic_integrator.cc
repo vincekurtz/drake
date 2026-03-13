@@ -1,6 +1,7 @@
 #include "drake/multibody/cenic/cenic_integrator.h"
 
 #include <limits>
+#include "drake/common/text_logging.h"
 
 namespace drake {
 namespace multibody {
@@ -299,6 +300,8 @@ void CenicIntegrator<T>::ComputeNextContinuousState(
   DRAKE_ASSERT(model.num_velocities() == plant().num_velocities());
   const T& h = model.time_step();
   const Context<T>& context = this->get_context();
+
+  drake::log()->info("h = {}\n", h);
 
   // Set convergence tolerance based on integrator accuracy.
   // TODO(vincekurtz): consider exposing kappa as a user-settable parameter.

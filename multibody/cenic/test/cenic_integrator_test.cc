@@ -145,16 +145,18 @@ class FrankaArm : public SimulationTestScenario {
     Parser(builder_.get()).AddModelsFromUrl(
       "package://drake_models/franka_description/urdf/panda_arm.urdf"
     );
+    plant_.WeldFrames(plant_.world_frame(),
+                      plant_.GetFrameByName("panda_link0"));
     plant_.Finalize();
-    
+   
+    // Disconnecting the visualizer fixes the problem, allowing the test
+    // to pass.
     visualization::AddDefaultVisualization(builder_.get());
   }
   
   void SetInitialConditions() override {
-    VectorXd q0 = plant_.GetPositions(*plant_context_);
-    // Add 0.1 to the last 7 elements of q0
-    q0.tail(7).array() += 0.1;
-    fmt::print("Initial positions: {}\n", fmt_eigen(q0.transpose()));
+    VectorXd q0(7);
+    q0 << 0, -0.4, 0.5, -M_PI_2, 0, M_PI_2, 0;
     plant_.SetPositions(plant_context_, q0);
   }
 };
@@ -164,11 +166,22 @@ TEST_F(FrankaArm, MultipleSteps) {
 
   // Put in fixed-step mode
   integrator_->set_fixed_step_mode(true);
+ 
+  // Print debug stats
+  IcfSolverParameters params = integrator_->get_solver_parameters();
+  params.print_solver_stats = false;
+  integrator_->SetSolverParameters(params);
   
   for (int i = 0; i < 50; ++i) {
     const double current_time = simulator_->get_context().get_time();
     fmt::print("Step {}: time = {}\n", i, current_time);
-    simulator_->AdvanceTo(current_time + 0.1);
+    double next_time = current_time + 0.1;
+
+    // Regularizing the next time to an exact multiple of 0.1 fixes the problem
+    // and allows the test to pass.
+    // next_time = std::round(next_time * 10) / 10.0;
+
+    simulator_->AdvanceTo(next_time);
   }
 }
 

@@ -243,6 +243,9 @@ std::pair<double, int> IcfSolver::PerformExactLineSearch(
   // This will throw if a solution to p'(t) = 0 cannot be found in (0, 1). We
   // know that such a solution must exist because p(t) is a cubic with p'(0) < 0
   // and p'(1) > 0.
+
+  drake::log()->info("Cubic linesearch coefficients: a = {}, b = {}, c = {}", a,
+                     b, c);
   const double alpha_guess =
       alpha_max * SolveQuadraticInUnitInterval(3 * a, 2 * b, c);
 
