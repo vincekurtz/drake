@@ -18,6 +18,7 @@
 #include "drake/systems/controllers/pid_controller.h"
 #include "drake/systems/framework/diagram_builder.h"
 #include "drake/systems/primitives/constant_vector_source.h"
+#include "drake/visualization/visualization_config_functions.h"
 
 namespace drake {
 namespace multibody {
@@ -137,6 +138,39 @@ class BallOnTable : public SimulationTestScenario {
     plant_.SetVelocities(plant_context_, VectorXd::Zero(6));
   }
 };
+
+class FrankaArm : public SimulationTestScenario {
+  protected:
+   void AddModels() override {
+    Parser(builder_.get()).AddModelsFromUrl(
+      "package://drake_models/franka_description/urdf/panda_arm.urdf"
+    );
+    plant_.Finalize();
+    
+    visualization::AddDefaultVisualization(builder_.get());
+  }
+  
+  void SetInitialConditions() override {
+    VectorXd q0 = plant_.GetPositions(*plant_context_);
+    // Add 0.1 to the last 7 elements of q0
+    q0.tail(7).array() += 0.1;
+    fmt::print("Initial positions: {}\n", fmt_eigen(q0.transpose()));
+    plant_.SetPositions(plant_context_, q0);
+  }
+};
+
+TEST_F(FrankaArm, MultipleSteps) {
+  Build();
+
+  // Put in fixed-step mode
+  integrator_->set_fixed_step_mode(true);
+  
+  for (int i = 0; i < 50; ++i) {
+    const double current_time = simulator_->get_context().get_time();
+    fmt::print("Step {}: time = {}\n", i, current_time);
+    simulator_->AdvanceTo(current_time + 0.1);
+  }
+}
 
 /* Checks that the integrator complains when no initial step size is
 configured. */

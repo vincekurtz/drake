@@ -46,6 +46,9 @@ drake_cc_library(
 
 drake_cc_googletest(
     name = "cenic_integrator_test",
+    data = [
+        "@drake_models//:franka_description",
+    ],
     deps = [
         ":cenic_integrator",
         "//common/test_utilities:eigen_matrix_compare",
@@ -54,6 +57,7 @@ drake_cc_googletest(
         "//systems/analysis:simulator",
         "//systems/analysis:simulator_config_functions",
         "//systems/analysis/test_utilities",
+        "//visualization",
     ],
 )
 
